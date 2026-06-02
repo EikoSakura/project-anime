@@ -1,0 +1,109 @@
+{{!-- Persistent side panel (Character & NPC) — Log Horizon-style status panel --}}
+<header class="sheet-header">
+  <div class="portrait">
+    <div class="portrait-frame">
+      <img class="profile-img" src="{{actor.img}}" data-action="editImage" data-edit="img"
+           title="{{actor.name}}" alt="{{actor.name}}" />
+    </div>
+    <i class="stud stud-n"></i>
+    <i class="stud stud-e"></i>
+    <i class="stud stud-s"></i>
+    <i class="stud stud-w"></i>
+  </div>
+
+  <input class="char-name" type="text" name="name" value="{{actor.name}}" placeholder="{{localize 'Name'}}" />
+
+  {{#if isCharacter}}
+  <div class="header-actions">
+    <button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.Creator.title'}}">
+      <i class="fas fa-user-plus"></i><span>{{localize "PROJECTANIME.Creator.open"}}</span>
+    </button>
+    <button type="button" class="advance-btn" data-action="openAdvancement" title="{{localize 'PROJECTANIME.Advancement.title'}}">
+      <i class="fas fa-arrow-up-right-dots"></i><span>{{localize "PROJECTANIME.Advancement.open"}}</span>
+    </button>
+    <button type="button" class="advance-btn rest-btn" data-action="openRest" title="{{localize 'PROJECTANIME.Rest.title'}}">
+      <i class="fas fa-campground"></i><span>{{localize "PROJECTANIME.Rest.open"}}</span>
+    </button>
+  </div>
+  {{/if}}
+
+  {{#if isNPC}}
+  <div class="header-actions">
+    <button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.MonsterCreator.title'}}">
+      <i class="fas fa-dragon"></i><span>{{localize "PROJECTANIME.MonsterCreator.open"}}</span>
+    </button>
+  </div>
+  {{/if}}
+
+  <div class="header-sub">
+    {{#if isCharacter}}
+    <input class="pronouns" type="text" name="system.pronouns" value="{{system.pronouns}}"
+           placeholder="{{localize 'PROJECTANIME.Field.pronouns'}}" />
+    {{/if}}
+    {{#if isNPC}}
+    <select name="system.disposition">{{selectOptions config.dispositions selected=system.disposition localize=true}}</select>
+    {{#if tierBadge}}
+    <span class="tier-badge" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
+      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>
+    </span>
+    {{/if}}
+    {{/if}}
+  </div>
+
+  <div class="panel-rule"></div>
+
+  <div class="panel-resources">
+    <div class="resource hp">
+      <div class="resource-top">
+        <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
+        <span class="resource-vals">
+          <input type="number" name="system.hp.value" value="{{system.hp.value}}" min="0" />
+          <span class="sep">/</span>
+          <input type="number" name="system.hp.max" value="{{system.hp.max}}" min="0" />
+        </span>
+      </div>
+      <div class="bar"><div class="fill hp-fill" style="width: {{hpPct}}%"></div></div>
+    </div>
+    <div class="resource energy">
+      <div class="resource-top">
+        <label>{{localize "PROJECTANIME.Stat.energy"}}</label>
+        <span class="resource-vals">
+          <input type="number" name="system.energy.value" value="{{system.energy.value}}" min="0" />
+          <span class="sep">/</span>
+          <input type="number" name="system.energy.max" value="{{system.energy.max}}" min="0" />
+        </span>
+      </div>
+      <div class="bar"><div class="fill energy-fill" style="width: {{energyPct}}%"></div></div>
+    </div>
+  </div>
+
+  <div class="panel-rule"></div>
+
+  <div class="panel-vitals">
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="v-val">{{system.evasion.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="v-val">{{system.defense.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.movement"}}</span><span class="v-val">{{system.movement.value}}</span></div>
+  </div>
+
+  <div class="panel-rule"></div>
+  <button type="button" class="initiative-btn" data-action="rollInitiative"
+          title="{{localize 'PROJECTANIME.Roll.initiative'}}">
+    <i class="fas fa-flag-checkered"></i>
+    <span class="ib-label">{{localize "PROJECTANIME.Roll.initiative"}}</span>
+    <span class="ib-formula">{{initiativeLabel}}</span>
+  </button>
+
+  {{#if isCharacter}}
+  <div class="panel-rule"></div>
+  <div class="panel-luck">
+    <span class="panel-luck-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
+    <div class="luck-dice">
+      {{#each system.luckDice as |d|}}<span class="luck-die">{{d}}</span>{{else}}<em class="muted">—</em>{{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="panel-foot">
+    <span class="status-label">STATUS</span>
+  </div>
+</header>

@@ -1,0 +1,43 @@
+<div class="adv-body">
+  <div class="adv-sp">
+    <span class="adv-sp-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
+    <span class="adv-sp-val">{{sp}}</span>
+  </div>
+
+  <section class="adv-section">
+    <h3>{{localize "PROJECTANIME.Advancement.attributes"}}</h3>
+    <div class="adv-attrs">
+      {{#each attributes as |a|}}
+      <div class="adv-attr">
+        <span class="adv-attr-name">{{#if a.icon}}<i class="{{a.icon}}"></i>{{/if}}{{a.label}}</span>
+        <span class="adv-attr-die">{{a.die}}</span>
+        {{#if a.maxed}}
+        <span class="adv-maxed">{{localize "PROJECTANIME.Advancement.max"}}</span>
+        {{else}}
+        <button type="button" class="adv-raise" data-action="raiseAttribute" data-attribute="{{a.key}}">
+          <i class="fas fa-circle-up"></i> {{localize "PROJECTANIME.Advancement.raise"}} ({{a.cost}})
+        </button>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
+  <section class="adv-section">
+    <h3>{{localize "PROJECTANIME.Advancement.combatStats"}}</h3>
+    <div class="adv-buys">
+      <button type="button" data-action="buyStat" data-stat="hp">+2 {{localize "PROJECTANIME.Stat.hp"}} (1)</button>
+      <button type="button" data-action="buyStat" data-stat="energy">+2 {{localize "PROJECTANIME.Stat.energy"}} (1)</button>
+      <button type="button" data-action="buyStat" data-stat="carryingCapacity">+1 {{localize "PROJECTANIME.Stat.carryingCapacity"}} (1)</button>
+      <button type="button" data-action="buyStat" data-stat="movement">+1 {{localize "PROJECTANIME.Stat.movement"}} (3)</button>
+    </div>
+  </section>
+
+  <section class="adv-section">
+    <h3>{{localize "PROJECTANIME.Advancement.setup"}}</h3>
+    <div class="adv-buys">
+      <button type="button" data-action="calcVitals">{{localize "PROJECTANIME.Advancement.calcVitals"}}</button>
+      <button type="button" data-action="rollLuck">{{localize "PROJECTANIME.Advancement.rollLuck"}}</button>
+    </div>
+  </section>
+</div>

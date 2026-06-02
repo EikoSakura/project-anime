@@ -1,0 +1,12 @@
+{{!-- Item header (all types) --}}
+<header class="sheet-header item-header">
+  <img class="profile-img" src="{{item.img}}" data-action="editImage" data-edit="img"
+       title="{{item.name}}" alt="{{item.name}}" />
+  <div class="header-fields">
+    <input class="item-name" type="text" name="name" value="{{item.name}}" placeholder="{{localize 'Name'}}" />
+    <div class="header-sub">
+      <span class="type-badge">{{#if typeIcon}}<i class="{{typeIcon}}"></i> {{/if}}{{typeLabel}}</span>
+      {{#if summary}}<span class="item-summary muted">{{summary}}</span>{{/if}}
+    </div>
+  </div>
+</header>

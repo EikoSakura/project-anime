@@ -1,0 +1,32 @@
+<div class="ec-body">
+  <div class="ec-head">
+    <span>{{localize "PROJECTANIME.Settings.tokenFields.fieldLabel"}}</span>
+    <span>{{localize "PROJECTANIME.Settings.tokenFields.path"}}</span>
+    <span>{{localize "PROJECTANIME.Settings.tokenFields.gate"}}</span>
+    <span>{{localize "PROJECTANIME.Settings.tokenFields.surface"}}</span>
+    <span class="ec-h-del"></span>
+  </div>
+
+  <div class="ec-rows">
+    {{#each rows as |row i|}}
+    <div class="ec-row">
+      <input type="text" class="ec-label" name="fields.{{i}}.label" value="{{row.label}}" />
+      <input type="text" class="ec-path" name="fields.{{i}}.path" value="{{row.path}}" />
+      <select name="fields.{{i}}.gate">{{selectOptions ../gateChoices selected=row.gate}}</select>
+      <select name="fields.{{i}}.surface">{{selectOptions ../surfaceChoices selected=row.surface}}</select>
+      <a class="ec-del" data-action="deleteField" data-index="{{i}}"
+         title="{{localize 'PROJECTANIME.Settings.tokenFields.remove'}}"><i class="fa-solid fa-trash"></i></a>
+    </div>
+    {{else}}
+    <p class="ec-empty muted">{{localize "PROJECTANIME.Settings.tokenFields.empty"}}</p>
+    {{/each}}
+  </div>
+
+  <div class="ec-add">
+    <button type="button" data-action="addField"><i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Settings.tokenFields.add"}}</button>
+  </div>
+
+  <footer class="ec-footer">
+    <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.tokenFields.save"}}</button>
+  </footer>
+</div>

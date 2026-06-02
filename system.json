@@ -1,0 +1,77 @@
+{
+  "id": "project-anime",
+  "title": "Project: Anime",
+  "description": "A setting-agnostic anime TTRPG of attribute dice, player-built Skills, and cinematic scenes. Playtest implementation for Foundry Virtual Tabletop V13.",
+  "version": "0.1.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13.351",
+    "maximum": ""
+  },
+  "authors": [
+    { "name": "Vinny", "flags": {} },
+    { "name": "Hellfire", "flags": {} },
+    { "name": "CSwrites", "flags": {} }
+  ],
+  "esmodules": ["module/project-anime.mjs"],
+  "styles": ["css/project-anime.css"],
+  "languages": [
+    { "lang": "en", "name": "English", "path": "lang/en.json" }
+  ],
+  "packs": [
+    { "name": "weapons", "label": "Weapons", "type": "Item", "system": "project-anime", "path": "packs/weapons" },
+    { "name": "armor", "label": "Armor", "type": "Item", "system": "project-anime", "path": "packs/armor" },
+    { "name": "shields", "label": "Shields", "type": "Item", "system": "project-anime", "path": "packs/shields" },
+    { "name": "accessories", "label": "Accessories", "type": "Item", "system": "project-anime", "path": "packs/accessories" },
+    { "name": "consumables", "label": "Consumables", "type": "Item", "system": "project-anime", "path": "packs/consumables" },
+    { "name": "containers", "label": "Containers", "type": "Item", "system": "project-anime", "path": "packs/containers" },
+    { "name": "skills", "label": "Skills", "type": "Item", "system": "project-anime", "path": "packs/skills" },
+    { "name": "npcs", "label": "NPCs", "type": "Actor", "system": "project-anime", "path": "packs/npcs" }
+  ],
+  "packFolders": [
+    {
+      "name": "Project: Anime",
+      "sorting": "a",
+      "color": "#6c4f9c",
+      "packs": ["weapons", "armor", "shields", "accessories", "consumables", "containers", "skills", "npcs"]
+    }
+  ],
+  "documentTypes": {
+    "Actor": {
+      "character": { "htmlFields": ["biography"] },
+      "npc": { "htmlFields": ["biography"] },
+      "party": {}
+    },
+    "Item": {
+      "skill": { "htmlFields": ["description"] },
+      "weapon": { "htmlFields": ["description"] },
+      "armor": { "htmlFields": ["description"] },
+      "shield": { "htmlFields": ["description"] },
+      "accessory": { "htmlFields": ["description"] },
+      "consumable": { "htmlFields": ["description"] },
+      "container": { "htmlFields": ["description"] },
+      "gear": { "htmlFields": ["description"] },
+      "package": { "htmlFields": ["description"] }
+    }
+  },
+  "socket": true,
+  "grid": {
+    "type": 1,
+    "distance": 1,
+    "units": "tile",
+    "diagonals": 0
+  },
+  "primaryTokenAttribute": "hp",
+  "secondaryTokenAttribute": "energy",
+  "url": "https://github.com/EikoSakura/project-anime",
+  "manifest": "https://raw.githubusercontent.com/EikoSakura/project-anime/main/system.json",
+  "download": "https://github.com/EikoSakura/project-anime/releases/latest/download/project-anime.zip",
+  "readme": "README.md",
+  "changelog": "CHANGELOG.md",
+  "flags": {
+    "hotReload": {
+      "extensions": ["css", "hbs", "json"],
+      "paths": ["css", "lang", "templates"]
+    }
+  }
+}

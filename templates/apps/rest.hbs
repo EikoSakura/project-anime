@@ -1,0 +1,26 @@
+<div class="rest-body">
+  <div class="rest-types">
+    <button type="button" class="rest-type{{#if isCamp}} active{{/if}}" data-action="pickRest" data-rest="camp">
+      <span class="rt-name"><i class="fas fa-campground"></i> {{localize "PROJECTANIME.Rest.camp"}}</span>
+    </button>
+    <button type="button" class="rest-type{{#if isTown}} active{{/if}}" data-action="pickRest" data-rest="town">
+      <span class="rt-name"><i class="fas fa-house-chimney"></i> {{localize "PROJECTANIME.Rest.town"}}</span>
+    </button>
+  </div>
+
+  <section class="rest-downtime">
+    <h3>{{localize "PROJECTANIME.Rest.downtime"}}<span class="rest-tier">{{tierLabel}}</span></h3>
+    <div class="dt-list">
+      {{#each activities as |a|}}
+      <button type="button" class="dt-item{{#if a.selected}} active{{/if}}" data-action="pickActivity" data-activity="{{a.key}}">
+        <span class="dt-name">{{a.label}}</span>
+        {{#if a.spLabel}}<span class="dt-sp">{{a.spLabel}}</span>{{/if}}
+      </button>
+      {{/each}}
+    </div>
+  </section>
+
+  <button type="button" class="rest-complete" data-action="completeRest">
+    <i class="fas fa-bed"></i> {{localize "PROJECTANIME.Rest.complete"}}
+  </button>
+</div>

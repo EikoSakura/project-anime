@@ -1,0 +1,41 @@
+{{!-- Defenses drawer: slides in from the right over the content. Single root <aside>. --}}
+<aside class="section-drawer{{#if open.defenses}} open{{/if}}" data-section="defenses">
+  <div class="drawer-backdrop" data-action="closeDrawer"></div>
+  <div class="drawer-panel">
+    <div class="drawer-headbar">
+      <h3>{{localize "PROJECTANIME.Defenses.title"}}</h3>
+      <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+    </div>
+
+    <div class="status-screen">
+      <section class="status-block">
+        <div class="section-controls"><h3>{{localize "PROJECTANIME.Affinities.elementalDefense"}}</h3></div>
+        <div class="elem-grid">
+          {{#each affinityRows as |row|}}
+          <div class="elem-cell aff-{{row.value}}"
+               {{#if @root.editable}}data-action="cycleAffinity" data-affinity="{{row.key}}"{{/if}}
+               title="{{row.tip}}">
+            {{#if row.iconImg}}<img class="elem-icon" src="{{row.icon}}" alt="" />{{else}}<i class="elem-icon {{row.icon}}"></i>{{/if}}
+            <span class="elem-name">{{row.label}}</span>
+            <span class="elem-pips" aria-hidden="true">{{#each row.pips as |p|}}<i class="pip{{#if p}} on{{/if}}"></i>{{/each}}</span>
+            <span class="elem-val">{{row.effect}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </section>
+
+      <section class="status-block">
+        <div class="section-controls"><h3>{{localize "PROJECTANIME.Status.title"}}</h3></div>
+        <div class="status-grid">
+          {{#each conditions as |c|}}
+          <a class="status-cell {{#if c.active}}active{{/if}}" data-action="toggleCondition"
+             data-condition="{{c.id}}" title="{{c.label}}">
+            <img src="{{c.img}}" width="22" height="22" alt="{{c.label}}" />
+            <span class="status-name">{{c.label}}</span>
+          </a>
+          {{/each}}
+        </div>
+      </section>
+    </div>
+  </div>
+</aside>

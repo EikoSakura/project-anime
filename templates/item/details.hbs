@@ -1,0 +1,17 @@
+{{!-- View tab: read-only display — stat rows + the description, together in one box. --}}
+<section class="item-details tab-pane{{#if tabView}} active{{/if}}" data-tab-pane="view">
+  <dl class="detail-list">
+    {{#each displayStats as |row|}}
+    <div class="detail-row">
+      <dt>{{localize row.label}}</dt>
+      <dd>{{row.value}}</dd>
+    </div>
+    {{/each}}
+    {{#if enrichedDescription}}
+    <div class="detail-row detail-desc-row">
+      <dt>{{localize "PROJECTANIME.Field.description"}}</dt>
+      <div class="detail-desc">{{{enrichedDescription}}}</div>
+    </div>
+    {{/if}}
+  </dl>
+</section>

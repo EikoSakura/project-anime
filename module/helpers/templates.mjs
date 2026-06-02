@@ -1,0 +1,275 @@
+import { PROJECTANIME } from "./config.mjs";
+
+/**
+ * Project: Anime — Area-of-Effect targeting helpers.
+ *
+ * The combat engine (dice.mjs) is single-target by default. The four area
+ * modifiers — Burst, Line, Mass, Chain — drive multi-target resolution from here:
+ *   • Burst → a circular MeasuredTemplate (radius from growableModifiers.burst, in tiles).
+ *   • Line  → a ray MeasuredTemplate (length = the Skill's Range, 1 tile wide).
+ *   • Mass  → every token within Range of the caster, then a pick dialog.
+ *   • Chain → handled in dice.mjs (sequential leaps), using tokensInRange here.
+ *
+ * Templates are placed interactively (cursor preview → click) and the tokens caught
+ * under the final shape become the user's targets. The V13 preview mechanism mirrors
+ * core's TemplateLayer#_onDragLeftStart (canvas/layers/templates.mjs).
+ */
+
+const i18n = (k, data) => (data ? game.i18n.format(k, data) : game.i18n.localize(k));
+
+const FDE = () => foundry.applications?.ux?.FormDataExtended ?? globalThis.FormDataExtended;
+
+/** Scene distance-units per tile (e.g. 5 ft). Templates measure in distance-units. */
+function unitsPerTile() {
+  return canvas?.dimensions?.distance || 1;
+}
+
+/* -------------------------------------------- */
+/*  Skill → area kind                           */
+/* -------------------------------------------- */
+
+/** Which area modifier (if any) a Skill carries — drives multi-target resolution. */
+export function aoeKind(item) {
+  const mods = item?.system?.modifiers ?? [];
+  for (const k of PROJECTANIME.areaModifiers) if (mods.includes(k)) return k;
+  return null;
+}
+
+/** The acting actor's token on the current scene (an active token, else a matching
+ *  controlled token). Null if the actor isn't represented on the canvas. */
+export function casterToken(actor) {
+  if (!actor || !canvas?.ready) return null;
+  const active = actor.getActiveTokens?.() ?? [];
+  if (active.length) return active[0];
+  const controlled = canvas.tokens?.controlled?.[0];
+  return controlled?.actor === actor ? controlled : null;
+}
+
+/* -------------------------------------------- */
+/*  Token gathering                             */
+/* -------------------------------------------- */
+
+/** Sample points for a token: its center plus each occupied grid-cell centre (large tokens). */
+function tokenSamplePoints(token) {
+  const pts = [token.center];
+  const gs = canvas.grid.size;
+  const w = Math.max(1, Math.round(token.document.width));
+  const h = Math.max(1, Math.round(token.document.height));
+  if (w > 1 || h > 1) {
+    const { x, y } = token.document;
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < h; j++) pts.push({ x: x + (i + 0.5) * gs, y: y + (j + 0.5) * gs });
+    }
+  }
+  return pts;
+}
+
+/** Tokens whose footprint falls inside a template shape positioned at (ox, oy). The
+ *  shape is in the template's local space, so points are tested relative to its origin. */
+export function templateTokens(shape, ox, oy) {
+  const out = [];
+  for (const token of canvas.tokens?.placeables ?? []) {
+    if (token.isPreview || !token.actor) continue;
+    if (tokenSamplePoints(token).some((p) => shape.contains(p.x - ox, p.y - oy))) out.push(token);
+  }
+  return out;
+}
+
+/** Tokens within `tiles` of an origin token, nearest first (origin excluded by default).
+ *  Distance is Foundry's path measurement, so it follows the SCENE's grid-diagonal rule —
+ *  i.e. Mass / Chain reach counts diagonals the same way movement does (set the scene to
+ *  "Equidistant" for the rules' diagonal = 1). */
+export function tokensInRange(originToken, tiles, { excludeSelf = true } = {}) {
+  if (!originToken) return [];
+  const o = originToken.center;
+  const per = unitsPerTile();
+  const found = [];
+  for (const token of canvas.tokens?.placeables ?? []) {
+    if (token.isPreview || !token.actor) continue;
+    if (excludeSelf && token === originToken) continue;
+    const dist = canvas.grid.measurePath([o, token.center]).distance / per;
+    if (dist <= tiles) found.push({ token, dist });
+  }
+  found.sort((a, b) => a.dist - b.dist);
+  return found.map((e) => e.token);
+}
+
+/** Set the acting user's targets to exactly these tokens (highlights reticles + broadcasts). */
+export function setUserTargets(tokens) {
+  canvas.tokens.setTargets(tokens.map((t) => t.id), { mode: "replace" });
+}
+
+/** The point on a box (centre `c`, half-extents `hw`×`hh`) where a ray heading (dx,dy) exits —
+ *  i.e. the edge of the caster's square in the aim direction, so a Line starts at the edge,
+ *  not the middle. Returns the centre if the box has no size. */
+function boxEdgePoint(c, hw, hh, dx, dy) {
+  if (!(hw > 0) && !(hh > 0)) return { x: c.x, y: c.y };
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  if (adx === 0 && ady === 0) return { x: c.x + (hw || 0), y: c.y };
+  const tx = adx > 0 ? hw / adx : Infinity;
+  const ty = ady > 0 ? hh / ady : Infinity;
+  const t = Math.min(tx, ty);
+  return { x: c.x + dx * t, y: c.y + dy * t };
+}
+
+/* -------------------------------------------- */
+/*  Mass: choose targets in range               */
+/* -------------------------------------------- */
+
+/** Mass: a checkbox list of in-range tokens (all checked by default). Returns the chosen
+ *  tokens, [] if none, or null if cancelled. */
+export async function pickTargetsDialog(tokens) {
+  if (!tokens.length) return [];
+  const rows = tokens.map((t) => {
+    const name = foundry.utils.escapeHTML(t.document.name || t.actor?.name || "?");
+    const img = t.document.texture?.src || t.actor?.img || "icons/svg/mystery-man.svg";
+    return `<label class="pa-target-pick"><input type="checkbox" name="${t.id}" checked />
+      <img src="${img}" width="28" height="28" /> <span>${name}</span></label>`;
+  }).join("");
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title: i18n("PROJECTANIME.Roll.massPickTitle") },
+    content: `<div class="project-anime roll-dialog mass-pick">${rows}</div>`,
+    buttons: [
+      { action: "ok", label: i18n("PROJECTANIME.Roll.roll"), icon: "fas fa-bullseye", default: true,
+        callback: (event, button) => new (FDE())(button.form).object },
+      { action: "cancel", label: i18n("Cancel"), icon: "fas fa-times" }
+    ],
+    rejectClose: false
+  });
+  if (!result || result === "cancel") return null;
+  return tokens.filter((t) => result[t.id]);
+}
+
+/* -------------------------------------------- */
+/*  Interactive template placement              */
+/* -------------------------------------------- */
+
+/**
+ * Interactively place a MeasuredTemplate, then capture the tokens caught under it.
+ * Distances are given in TILES (converted to scene distance-units internally).
+ *
+ * @param {object} opts
+ * @param {"circle"|"ray"} opts.t          Template shape.
+ * @param {number} opts.distanceTiles      Radius (circle) or length (ray) in tiles.
+ * @param {{x,y}|null} [opts.origin]       Anchor point (caster token centre).
+ * @param {"point"|"direction"} [opts.follow]  Cursor controls the centre (circle) or the aim (ray).
+ * @param {number|null} [opts.maxRangeTiles]   Clamp a "point" template within this many tiles of origin.
+ * @param {number} [opts.widthTiles]       Ray width in tiles (default 1).
+ * @param {string} [opts.hint]             Notification shown while placing.
+ * @returns {Promise<{tokens: Token[], point: {x:number,y:number}, doc: MeasuredTemplateDocument|null}|null>}
+ *          The caught tokens + final point + persisted template (null doc if creation was denied),
+ *          or null if the user cancelled.
+ */
+export async function placeTemplate({
+  t = "circle", distanceTiles = 1, origin = null, follow = "point",
+  maxRangeTiles = null, widthTiles = 1, originHalfW = 0, originHalfH = 0, hint = ""
+} = {}) {
+  if (!canvas?.ready) return null;
+  const per = unitsPerTile();
+  const cls = foundry.utils.getDocumentClass("MeasuredTemplate");
+  const seed = origin ?? canvas.mousePosition ?? { x: canvas.dimensions.width / 2, y: canvas.dimensions.height / 2 };
+  const data = {
+    user: game.user.id,
+    t,
+    x: seed.x,
+    y: seed.y,
+    distance: distanceTiles * per,
+    direction: 0,
+    fillColor: game.user.color?.toString?.() ?? "#ff0000"
+  };
+  if (t === "ray") data.width = widthTiles * per;
+
+  const doc = new cls(data, { parent: canvas.scene });
+  const object = new CONFIG.MeasuredTemplate.objectClass(doc);
+  doc._object = object;
+
+  const initialLayer = canvas.activeLayer;
+  canvas.templates.activate();
+  canvas.templates.preview.addChild(object);
+  await object.draw();
+
+  if (hint) ui.notifications.info(hint);
+
+  return new Promise((resolve) => {
+    const stage = canvas.stage;
+    const view = canvas.app?.view;
+    const prevContext = view ? view.oncontextmenu : null;
+    let done = false;
+    let moveTime = 0;
+
+    const redraw = () => object.renderFlags.set({ refreshShape: true, refreshPosition: true, refreshGrid: true });
+
+    const update = (cursor) => {
+      if (follow === "direction" && origin) {
+        const dx = cursor.x - origin.x, dy = cursor.y - origin.y;
+        let dir = Math.toDegrees(Math.atan2(dy, dx));
+        if (Math.normalizeDegrees) dir = Math.normalizeDegrees(dir);
+        // Start the ray at the caster's square edge facing the cursor, not its centre.
+        const start = boxEdgePoint(origin, originHalfW, originHalfH, dx, dy);
+        doc.updateSource({ x: start.x, y: start.y, direction: dir });
+      } else {
+        let p = canvas.templates.getSnappedPoint(cursor);
+        if (origin && maxRangeTiles != null) {
+          const maxPx = maxRangeTiles * canvas.dimensions.size;
+          const dx = p.x - origin.x, dy = p.y - origin.y;
+          const px = Math.hypot(dx, dy);
+          if (px > maxPx && px > 0) p = { x: origin.x + (dx / px) * maxPx, y: origin.y + (dy / px) * maxPx };
+        }
+        doc.updateSource({ x: p.x, y: p.y });
+      }
+      redraw();
+    };
+
+    const onMove = (event) => {
+      event.stopPropagation?.();
+      const now = Date.now();
+      if (now - moveTime <= 20) return;
+      moveTime = now;
+      update(event.getLocalPosition(stage));
+    };
+
+    const finish = async (commit) => {
+      if (done) return;
+      done = true;
+      stage.off("pointermove", onMove);
+      stage.off("pointerdown", onDown);
+      if (view) view.oncontextmenu = prevContext;
+      window.removeEventListener("keydown", onKey, true);
+
+      let payload = null;
+      if (commit) {
+        // Recompute the shape synchronously so capture matches the final cursor, then
+        // gather tokens BEFORE any persist — so capture works even if the player lacks
+        // template-create permission.
+        object._refreshShape();
+        const tokens = templateTokens(object.shape, doc.x, doc.y);
+        let created = null;
+        try {
+          const [c] = await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [doc.toObject()]);
+          created = c ?? null;
+        } catch (_e) { /* creation denied — targets are already captured */ }
+        payload = { tokens, point: { x: doc.x, y: doc.y }, doc: created };
+      }
+
+      try { canvas.templates.preview.removeChild(object); object.destroy({ children: true }); } catch (_e) { /* already gone */ }
+      initialLayer?.activate?.();
+      resolve(payload);
+    };
+
+    const onDown = (event) => {
+      if (event.button != null && event.button !== 0) return; // left only
+      event.stopPropagation?.();
+      finish(true);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(false); }
+    };
+
+    if (view) view.oncontextmenu = (event) => { event.preventDefault(); finish(false); };
+    stage.on("pointermove", onMove);
+    stage.on("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+
+    update(canvas.mousePosition ?? seed);
+  });
+}

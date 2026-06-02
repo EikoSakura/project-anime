@@ -1,0 +1,41 @@
+{{!-- Hover Token Info panel: portrait + name + disposition badge + HP/Energy bars.
+      Single root element (frameless ApplicationV2 part). Hidden via the `empty` class
+      when there's nothing to show. --}}
+<section class="ti-body">
+  {{#if show}}
+  <header class="ti-head">
+    <img class="ti-img" src="{{img}}" alt="{{name}}" />
+    <div class="ti-heads">
+      <div class="ti-name">{{name}}</div>
+      <div class="ti-badge">{{badge}}</div>
+    </div>
+  </header>
+
+  <div class="ti-resources">
+    <div class="resource hp">
+      <div class="resource-top">
+        <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
+        <span class="resource-vals"><span class="num">{{hp.value}}</span><span class="sep">/</span><span class="num">{{hp.max}}</span></span>
+      </div>
+      <div class="bar"><div class="fill hp-fill" style="width: {{hp.pct}}%"></div></div>
+    </div>
+    <div class="resource energy">
+      <div class="resource-top">
+        <label>{{localize "PROJECTANIME.Stat.energy"}}</label>
+        <span class="resource-vals"><span class="num">{{energy.value}}</span><span class="sep">/</span><span class="num">{{energy.max}}</span></span>
+      </div>
+      <div class="bar"><div class="fill energy-fill" style="width: {{energy.pct}}%"></div></div>
+    </div>
+
+    {{#if sp.show}}
+    <div class="ti-stat">
+      <span class="k">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
+      <span class="v">{{sp.value}}</span>
+    </div>
+    {{/if}}
+    {{#each customFields}}
+    <div class="ti-stat"><span class="k">{{this.label}}</span><span class="v">{{this.value}}</span></div>
+    {{/each}}
+  </div>
+  {{/if}}
+</section>

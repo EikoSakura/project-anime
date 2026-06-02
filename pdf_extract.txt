@@ -1,0 +1,707 @@
+=== PAGE 1 ===
+
+
+=== PAGE 2 ===
+Introduction
+Welcome to Project: Anime, before we get into the game, we want to
+extend a heartfelt thank you to everyone that is playtesting this
+Credits and Information
+TTRPG. It is a joy trying to figure out a simple way to build a game
+for all to enjoy. Project: Animewas created for the love of stories
+created from anime, light novels, and manga. The goal was to create a Version: 0.01
+setting agnostic system that the players of this TTRPG can create Changelog: Here
+whatever world they wish. It is for this reason that the Core Rulebook Designer: Vinny
+Team: Hellfire, CSwrites
+is a small document. Our goal is to expand with different Modules as
+Special Thanks:
+the game gains steam. Some of these will be Free that are inspired by Play Testers:
+different stories that we love, while others will be rule enhancements.
+Art: Artwork is temporary to give the guide a little bit of life. This
+Thank you for giving us a shot! will be replaced over time as we develop the game. Artwork rights
+belong to each of the artists and no money is being made on this
+project as of yet. When and If it does, we will commission for actual
+What to Expect
+art.
+This isn’t going to be a massive introduction, or complete rules. As this
+is still only a playtest, expect to only see the rules for Character
+Creation, Combat, and Non-Combat Rules. Do not expect anything
+that would be considered extra to this setting-agnostic system. This
+includes Crafting, Mounted Combat, Homebrewing, Travel &
+Exploration, and various other rulesets. These will come with time, but
+we have a focus.
+How will Playtesting Work?
+Playtesting will happen twice a week, approximately, for an entire
+month. During that month of playtesting, we will collect feedback,
+before moving to another version. This is to make sure we have plenty
+of time to gain feedback and improve the system.
+The system will not improve until we’ve had time to catalogue them.
+Each Playtest will have a theme. With this trying to emulate and be
+capable of emulating any game, most of the playtests will have a single
+setting, and we will be trying to build around that aspect. Most of these
+rules will not actually include those settings. However, if asked, we will
+give how we created it the way we did!
+
+=== PAGE 3 ===
+Game Rules
+This chapter features the core rules required to play Project: Anime Interlude Scenes
+This chapter should be read thoroughly regardless if you are the Game
+Sometimes, there will be moments where a story beat will be at a
+Master or player. It should also be readily available to check back
+slower pace; these scenes, typically, are traveling, shopping, downtime,
+often.
+etc.
+Throughout this chapter the mechanics are presented in a way that
+During an interlude scene, each Player describes the general task or
+felt intuitive. However, you may have to jump between pages to get the
+objective their character performs. These are simple and small scenes.
+full picture of how the game works.
+However, as soon as a player sparks interest in parts of the interlude
+scene, this should switch back to a standard scene.
+Changing the Rules
+As is most common with TTRPGs, the rules presented in this chapter Storyteller Scenes
+and in this book are more suggestions than hardline rules to the game.
+Every once and a while, there might be a perfect scenario where a
+As you grow more familiar with the rules of Project: Anime, feel free storyteller scene might be more appropriate. It is a scene that exists
+to make adjustments to the ruleset, create and remove Skill creation
+without the Players. This scene can be used to show an evil
+components, and even try new systems in the ruleset completely.
+organization, or something happening elsewhere in the world. It can be
+used to foreshadow events.
+Project: Anime focus is to create a setting agnostic system, so feel free
+to change these rules to fit the world, the story, and even the genre you
+Storyteller scenes are an excellent way to add depth, character, and
+want to run. A word of caution to this design philosophy, check in with
+intrigue to the overall story.
+your group and discuss them as it is a collaborative game, make sure
+everyone is heard.
+Rest Scenes
+Scenes A Rest Scene is a pause in the story for the party to rest, and it comes
+in two kinds: a Camp on the road and a Town in a settlement. A Camp
+You must first understand the concept of scenes, before you can play
+is short and quiet, time to make a campsite, bond, or trade a few
+the game. Scenes divide up a story across units of time and space.
+words. A Town is a longer stretch of resting and relaxing in a
+Scenes in this game are like scenes in an anime.
+settlement. The setting is only flavor. If training atop a waterfall fits
+the moment better than an inn, that still counts as a Rest Scene. For
+Not everything should be a scene. Only the most important parts of a what a rest restores and the downtime it allows, see here.
+story are singled out as a scene. A heart to heart between two Party
+Members, combat with a villain, but even lesser moments that serve
+the story can also be counted as a scene, like discovering a hidden
+shop.
+Conversely, story beats that are unimportant such as daily chores,
+small talk, even some shopping scenes don’t need to be covered and
+should be omitted.
+Conflict Scenes
+When the actions of the Player Characters are threatened and have a
+reasonable chance of failure it constitutes a conflict scene. This can be
+as simple or as complex as combat, negotiations, a chase, etc. It is
+when two opposing forces come in conflict with one another. During a
+conflict, the characters’ actions are tracked in greater detail.
+
+=== PAGE 4 ===
+Other Important Rules Combat Stats
+💠 Disposition: The term creature includes both PCs and Npcs. Combat Stats are the numbers that govern how a character performs
+The term ally is anyone that the character believes is on their in combat.
+side, while the term enemy indicates opposition. If an effect
+targets allies, you cannot use it on yourself. 💠 Hit Points represent a character’s ability to take damage before
+💠 Always Round Down: Whenever something says halve or divide, being knocked out.
+round down. The minimum is 1, except for damage, where the 💠 Energy represents a character’s stamina and the ability to
+minimum is 0. continuously manipulate it into Skills.
+💠 Specific Trumps General: If a specific element of the game 💠 Evasion represents a character’s ability to avoid being hit. It
+contradicts a general rule, that specific element will take may represent dodging attacks as well as deflecting them.
+precedence. 💠 Movement represents a character’s speed and ability to
+maneuver around the battlefield.
+💠 Carrying Capacity represents the amount a character can lift
+Attributes either through sheer force or by dragging.
+A character’s Attributes are an abstract representation of their
+Luck Dice
+training and natural talents in different fields.
+💠 Might represents a character’s physical strength, endurance, Luck Dice represent good fortune you can spend to change the
+stamina, and the ability to survive. You will need Might to push, outcome of a roll. At character creation, roll your ⟪Charm⟫ die three
+move, and carry objects, fight with heavier weapons, and to keep times and record the three results as your Luck Dice.
+fighting. It is also your ability to withstand pain and is tied to
+Hit Points.
+After a Check is rolled, but before the result is read, you may replace
+💠 Agility measures a character’s precision, coordination, balance,
+one of its two dice with one of your numbers. This works on any
+reflex and speed. You will need Agility to dodge attacks and
+Check, your own, an ally's, or an enemy's.
+skills, to move faster than others, and fight using weapons that
+require more finesse.
+That number is then spent. You restore Luck Dice by resting; see here.
+💠 Mind represents mental strength and fortitude. It represents
+memory and the ability to recall details. You will need Mind to
+assess situations in combat, understand and command magical
+types of weapons, and perceive the world around you.
+💠 Spirit measures life force, energy, and willpower. Your spirit is
+your limitation on energy, resist mental effects and speak from
+the heart. It is also your ability to use Skills, in the form Energy.
+💠 Charm represents charisma, persuasion, and the art of
+seduction.You use your Charm for diplomacy and other Checks
+that influence others around you. Your Charm is also utilized to
+manipulate and influence the world around you in the form of
+Luck Dice.
+Each Attribute has a value, an even number from 4 to 12, and a die to
+match: a value of 4 is a d4, a value of 12 is a d12. In these rules,
+⟪Attribute⟫ means that value. Where a rule adds or multiplies
+⟪Attribute⟫, use the number; where a rule tells you to roll ⟪Attribute⟫,
+roll the die of that size. The value you set at character creation is your
+base value. As an Attribute increases or decreases through play, its
+current value is the size it has now; its base value never changes.
+Step Up and Step Down
+To Step Up a die, replace it with the next larger size; to Step Down,
+replace it with the next smaller. The sizes run d4, d6, d8, d10, d12. A
+die never rises above d12 or falls below d4, and a step past either limit
+has no effect.
+
+=== PAGE 5 ===
+Checks Circumstantial Modifiers
+When you perform an action, you use your Attributes to determine Depending on situations, a Storyteller may decide that a situation
+success or failure. This is called a Check. favors your character, giving you a +1 or +2 bonus to your Check.
+However, the Storyteller may also decide that your character is in an
+In general, you make a Check: awkward position that calls for a -1 or -2 penalty instead.
+💠 When required by the rules. Attacking with a weapon or using a
+Skill often requires a Check to determine success or failure. Retrying Checks
+Effects that do not explicitly call for a Check always succeed
+There is absolutely no rerolling of a Check.
+automatically.
+💠 When asked by the Storyteller. The Storyteller has the right to
+ask you to make a Check when you attempt a risky action, face
+Wren’s Tip!
+opposition, or react to danger.
+Checks always require exactly two dice. Avoid calling for Checks when the result of the dice must be a
+success. If failing or succeeding doesn’t matter then there shouldn't
+Tests even be an attempt at a roll!
+Tests are used to see if a character is able to successfully complete an
+action. A Test is a Check against a Challenge Threshold, used only
+when the action is not a simple affair and success is not guaranteed.
+Tests should not be used if it is a mundane or simple task that is trying
+to be achieved.
+Success: The total of the dice + modifiers is equal to or greater than
+the Challenge Threshold.
+Failure: The total of the dice + modifiers is less than the Challenge
+Threshold.
+Challenge Threshold Difficulty
+7 Easy
+10 Normal
+13 Hard
+16 Daunting
+19 Extreme
+Contested Checks
+A Check is contested when two or more characters or parties compete.
+Each one makes a Check, adding any modifiers that apply, and the
+highest total wins. On a tie, ignore the results and repeat until
+someone wins.
+
+=== PAGE 6 ===
+Character Creation
+Character creation in Project: Anime involves 6 simple steps. We Create Skills
+recommend you follow them in order. However, if you have more
+experience with TTRPGs or with this system, feel free to skip around. Your character begins with 6 Skill Points. This is a representation of
+1. Concept the starting power level of the setting and the game. When creating
+2. Distribute Attribute Steps your Skills follow the guidelines as demonstrated here.
+3. Calculate Combat Stats
+4. Create Skills
+Purchase Gear
+5. Purchase Gear
+6. Finishing Touches You start with a total budget of 1500G to purchase gear, items, and
+equipment. At character creation, you are only able to purchase
+armor, consumables, gear, shields, and weapons.
+Concept
+This is the first step of creating your character. Spend some time Accessories and other items are not able to be purchased when
+thinking about who your character is as a person first. While you are starting out.
+coming up with ideas, think about the kind of skills you’d want them to
+have, and what makes them unique. All of this can assist you in All items you purchase you are able to rename to better fit your
+creating a character you'll enjoy. character’s vibe. A sword is just a category, but it might become a
+katana or a greatsword.
+Distribute Attribute Steps
+Finishing Touches
+Determine the base dice size of your character’s five Attribute scores:
+Might, Agility, Mind, Spirit, Charm. Each starts at d4. Distribute five Name your character, decide gender and pronouns, and briefly describe
+Step Ups among them. their appearance and personality.
+For example, say you want a hard-hitting bruiser. Spend three Step
+Ups on Might (d4 to d6 to d8 to d10) and two on Agility (d4 to d6 to
+d8): Might is now d10 and Agility d8, with Mind, Spirit, and Charm left
+at d4. Or spread them one per Attribute, so each begins at d6.
+Calculate Combat Stats
+Your Combat Stats are calculated as follows:
+Calculate Hit Points and Energy
+💠 Hit Points = ⟪Might⟫ x 2
+💠 Energy = ⟪Spirit⟫ x 2
+Your character begins the game with full Hit Points and Energy.
+While you configure Hit Points and Energy using your attribute, this is
+only determined at character creation, even if your attributes would
+increase, Hit Points and Energy are never recalculated.
+Calculate Evasion, Carrying Capacity, and
+Movement
+Your additional combat stats are calculated as follows:
+💠 Evasion = ⟪Agility⟫
+💠 Carrying Capacity = ⟪Might⟫ + 3
+💠 Movement = ⟪Agility⟫/2 + 3
+When an attribute increases, Evasion, Carrying Capacity, and
+Movement are calculated by their current value, not their base value.
+
+=== PAGE 7 ===
+Skills
+Skills are abilities and techniques you create for your character to use. Range
+They are built through Skill Points and require several components:
+All Skills have a Range, a scope that determines how far away you can
+Action Type, Effect, Modifier, Range, and Rank. Some skills may
+affect a target. Ranges are defined for single-target Skills, but also for
+require Damage Types or a Trigger.
+the center point for AOES. You and the Storyteller set the value of the
+range. These are just recommendations.
+Creating a Skill
+💠 Self. Applies to you.
+A concept is as important as creating the initial Skill. What does this 💠 Weapon. Weapon’s range
+Skill look like? What does it do? If you know the concept, it will be 💠 Melee. Any tile within your reach
+easier to create the Skill. 💠 Near. Up to 5 tiles.
+💠 Far. Up to 10 tiles.
+💠 Very Far. Anywhere within the Scene.
+Action Type
+An Action Type is the measurement of time it takes to unleash a skill.
+Damage Types
+💠 Action. This Skill uses your action and requires Energy to use.
+💠 Passive. This Skill is always active and doesn’t require Energy Skills that deal damage have a damage type. Physical is the most
+to use. common for Skills. However, they can be any Damage Type that works
+💠 React. This Skill uses a reaction and requires Energy to use. for the world (Example: Earth, Fire, Mental, Sonic, Water, Wind, etc).
+Rank Trigger
+Rank is represented by a number of ⭐s. The more ⭐s the stronger Triggers are conditions that must be met before a Skill can activate.
+power level the Skill. Rank determines the following: These are used only for React Skills. Every React Skill must have a
+💠 SP Cost: The cost to initially create the Skill. Trigger.
+💠 Energy Cost: The amount of Energy expended whenever you use
+the Skill. 💠 Alerted. You have sensed or perceived something specific,
+💠 Maximum Modifiers: The amount of customizations allowed to described when the Skill is designed.
+enhance the Skill. 💠 Attacked. You or an ally within the Skill’s Range is targeted by
+Some Effects adjust the power level of a Skill depending on its Rank. an attack.
+💠 Critical. You enter Critical.
+Rank Name of SP Cost Energy Max
+💠 Damaged. You or an ally within the Skill’s Range takes damage
+Rank Cost Modifiers
+from an attack.
+⭐ Basic 1 2 1 💠 Enters. An ally or enemy enters or moves through your reach.
+⭐⭐ Intermediate 2 4 2 Effect
+⭐⭐⭐ Advanced 3 6 3 Every Skill has an Effect that determines what it does. An Effect can
+change based on the Rank of the Skill.
+⭐⭐⭐ Expert 4 8 4
+⭐ Affinity
+⭐: Gain Resist to a Damage Type.
+⭐⭐⭐ Master 5 10 5 ⭐⭐⭐: Gain Immunity to a Damage Type or Status Effect.
+⭐⭐
+⭐⭐⭐⭐⭐: Gain Absorb to a Damage Type.
+Special: Resistance and Immunity to Physical damage costs one Rank
+Attributes
+higher to obtain. (e.g., Intermediate Rank for Resist Physical, Expert
+Attributes are the two stats you roll when the Skill is used. If the Skill for Immune to Physical.)
+deals damage or heals, choose one of its two Attributes. You roll that
+Attribute's die for the damage or healing. Bolster
+⭐: Raise one Attribute of the target by 1.
+Note: Attributes are determined by you and the Storyteller. For ⭐⭐⭐: Raise two Attributes of the target by 1.
+balance, it is recommended to choose two different attributes. ⭐⭐⭐⭐⭐: Raise three Attributes of the target by 1.
+Special: This follows the normal hierarchy (4->6->8->10->12). Bolster
+can only raise an attribute up to its maximum.
+
+=== PAGE 8 ===
+Hinder Modifiers
+⭐: Lower one Attribute of the target by 1 or inflict one Status Effect. A modifier adjusts and shapes a Skill with added effects. These effects
+⭐⭐⭐: Lower two Attributes of the target by 1. fuel into the overall power of a Skill. Skills can have a number of
+⭐⭐⭐⭐⭐: Lower three Attributes of the target by 1 or inflict two modifiers equal to the Rank of the Skill. (See Rank above.) Modifiers
+Status Effects. marked with Heavy counts as 2 Modifiers.
+💠 Burn. The target takes 1 damage at the end of their next 3
+Special: This follows the normal hierarchy (12->10->8->6->4). Hinder can turns.
+only lower an attribute up to its minimum. 💠 Burst. The Skill affects everything with 2 tiles of a chosen point
+within the Skill’s Range.
+Mend 💠 Chain. When the Skill hits a target, it leaps to one more target
+Restore a number of Hit Points to the target equal to the Attribute within Near of the target, then to one more within Near of that
+die. target. Each successive hit deals half the damage of the
+previous one. The user must hit each target before the leap can
+Move continue.
+💠 Charge. You spend a turn focusing and roll the Accuracy Check.
+⭐: Move up to your Movement +2, or force-move the target up to 2
+On a hit, the Skill resolves on your next turn with double
+tiles.
+damage or healing. On a miss, the Charge dissipates and you
+⭐⭐⭐: Move up to your Movement +4, or force-move the target up
+may act normally on your next turn.
+to 4 tiles.
+💠 Cleanse. Remove a Status Effect from the target of this Skill.
+⭐⭐⭐⭐⭐: Move up to your Movement +6, or force-move the
+💠 Devour. Heavy. This Skill can only target a creature that has
+target up to 6 tiles.
+been reduced to 0 HP, or one you reduced to 0 HP. You copy
+and learn one Skill that creature knows.
+Special: If the target of this Skill is yourself, it lets you move. If the
+💠 Drain Energy. You restore Energy equal to half the damage
+target is another creature, a successful Accuracy Check lets you move
+dealt.
+that target instead.
+💠 Drain HP. You heal HP equal to half the damage dealt.
+💠 Inflict. Inflict the target with a Status Effect.
+Sense 💠 Line. The Skill affects everything in a straight line up to the
+⭐: Sense creatures or items within Range. Range of the Skill.
+⭐⭐⭐: Sense creatures or items within Range x2. 💠 Mass. Heavy. The Skill affects all valid targets within the Skill's
+⭐⭐⭐⭐⭐: Sense creatures or items beyond the Scene, to a Range. You choose which targets are affected.
+distance agreed upon with the Storyteller. 💠 Pierce. The Skill ignores the target’s Defense.
+💠 Pull. The target moves one tile closer to you. This is Forced
+Special: Sense must have a defined scope. Example scopes include Movement.
+Magic Sense or Ki Sense (to detect creatures and items that emit 💠 Push. The target moves one tile away from you. This is Forced
+magic or possess Ki), as well as sensory types like Echolocation or Movement.
+Scent. Sense still requires a Check. 💠 Reflect. The Skill turns an incoming attack into momentum or
+against the user. When this Modifier is chosen, choose either
+Bounce or Counter.
+Strike
+🔹 Bounce: The incoming attack/Skill is redirected at
+Deal Hit Point damage or Energy damage to the target equal to the its source and resolved with the attacker's own
+Attribute die. Resolve this damage as an attack (see Damage). Accuracy and Damage. Their attack turned around;
+you take nothing.
+Sustain 🔹 Counter (parry): you make an immediate strike back
+⭐: Regenerate 2 HP or Energy at the start of your turn. with your weapon's Accuracy and Damage against
+⭐⭐⭐: Regenerate 4 HP or Energy at the start of your turn. the attacker.
+⭐⭐⭐⭐⭐: Regenerate 6 HP or Energy at the start of your turn.
+
+=== PAGE 9 ===
+Gear
+Regardless of the Module or the world you find yourself in. Characters
+will find themselves purchasing and selling items. This section covers Shields
+the basics of economy and a list of items and prices.
+A shield equips in your main hand or off-hand and counts as a weapon,
+so you can attack with it. While you wield a shield, add its Evasion
+Gold (G)
+Bonus to your Evasion. If you wield two shields, only the higher
+While many worlds have their own currency. Project: Anime uses Gold, Evasion Bonus applies.
+a universally accepted currency. Depending on the world, prices may
+vary and gold may be easier or harder to obtain. Weapons
+There are no specific weapons. Instead, weapons are listed as a group
+Carrying Capacity to allow for maximum customization. Player Characters can equip a
+sword and it can be considered a katana, longsword, greatsword, or
+Every item has a Size, a single number for its bulk and weight, listed in
+scimitar.
+the Size column of each gear table. Add up the Size of everything you
+Accessories
+have equipped and everything you carry. While that total is greater
+than your Carrying Capacity, Step Down both dice on every Check.
+Each accessory lists its Name, Size, Cost, and the effect it grants while
+equipped.
+Shopping Rules
+You may purchase gear and items while shopping as long as you are Accessory Size Price
+able to pay the listed gold (G) cost. Shopping is done in shops found in
+Belt of the Titan 1 750G
+towns, traveling merchants, or even rare artefacts that may contain
+shops. Gear and other items may be limited based on Storyteller
+You gain +4 to your maximum Hit Points.
+discretion.
+Lucky Pendant 1 1500G
+You may sell unnecessary or extra gear or items for half of their list
+When you roll your Luck Dice, Step Up your
+⟪Charm⟫
+die for the roll.
+price.
+Running Sandals 1 750G
+Equipment
+You gain a +1 to Movement
+A type of gear that is equipped to your character is called Equipment.
+There are four types of equipment: Accessories, armor, shields, and Trader’s Pass 1 2000G
+weapons.
+You sell items for 60% instead of 50%.
+Slots Scouter 1 1000G
+A Player Character can equip a limited number of equipment on their
+You can see the total amount of Skill Points of anyone you can see.
+person at one time:
+💠 Main Hand. Your main hand can equip a one-handed weapon or
+Armor
+you can change your grip to two-handed. If you are gripping a
+weapon in two hands, you do not have access to your off-hand.
+Each armor lists its Defense Bonus and Evasion Penalty, along with
+💠 Off-hand. Your off-hand can equip a one-handed weapon or a
+its Name, Size, and Cost.
+shield.
+💠 Armor Slot. You have one equipment slot for your armor. Armor Size Price
+💠 Accessory Slot. You have two equipment slots for your
+Clothes 0 100G
+accessories.
+No Defense 💠 No Evasion Penalty.
+Accessories Light Armor 1 250G
+Accessories are magical items that are usually worn, such as a piece of +1 Defense 💠 No Evasion Penalty
+jewelry, belt, boots, etc that grant the wearer unique special abilities.
+Medium Armor 2 500G
+Armor +2 Defense 💠 -1 Evasion
+Armor offers protection to its wearer. Lighter armor does not have
+Heavy Armor 3 1000G
+penalties to Evasion, but offer no protections. Heavier armor has
+penalties to Evasion, but offers more protections. +3 Defense 💠 -2 Evasion
+
+=== PAGE 10 ===
+Shields
+Weapon Size Price
+Each shield lists its Evasion Bonus, Accuracy (the two attributes you
+roll to attack with it), Damage modifier, and Range, along with its Axe 3 500G
+Name, Size, and Cost.
+⟪Might⟫ + ⟪Might⟫ - 1 💠DMG + 1 💠 Melee/1 Tile
+Shield Size Price
+Blade 2 600G
+Light Shield 2 150G
+⟪Might⟫ + ⟪Agility⟫ 💠DMG 💠 Melee/1 Tile
++1 Evasion💠⟪Might⟫ + ⟪Agility⟫ 💠DMG -1 💠Melee/ 1 Tile
+Bow 3 1000G
+Heavy Shield 5 400G
+⟪Agility⟫ + ⟪Mind⟫ 💠DMG 💠 Ranged/8 Tiles
++2 Evasion💠⟪Might⟫ + ⟪Might⟫ 💠DMG 💠 Melee/1 Tile
+Chain 2 800G
+Weapons ⟪Agility⟫ + ⟪Charm⟫ 💠DMG - 1 💠 Melee/ 3 Tiles
+Each weapon lists its Accuracy (the two attributes you roll), Damage Firearm 3 1000G
+modifier, and Range, along with its Name, Size, and Cost.
+⟪Agility⟫ + ⟪Mind⟫ -1 💠DMG +1 💠 Ranged/6 Tiles
+Dual Wielding Grimoire 1 800G
+Player Characters that wield a weapon and/or shield in their main and
+⟪Mind⟫ + ⟪Spirit⟫ -1 💠DMG+1 💠 Ranged/5 Tiles
+off-hand slots can dual wield. While dual wielding, both Damage dice
+Step Down one step each. Dual Wielding counts as two attacks and Polearm 3 700G
+are reduced by Defense separately.
+⟪Might⟫ + ⟪Agility⟫ 💠DMG +1 💠 Melee/2 Tiles
+Grip Staff 2 700G
+Player Characters can hold any weapon, except for bows, in one or two ⟪Mind⟫ + ⟪Spirit⟫ 💠DMG 💠 Melee/1 Tile
+hands. If held in two hands, the Damage die Steps Up one size. If the
+Damage die is already a d12, wielding the weapon in two hands gives Unarmed — —
++1 damage instead.
+⟪Might⟫ + ⟪Agility⟫ 💠DMG -2 💠 Melee/1 Tile
+Consumables
+Consumables are single-use items. Using one in combat takes your
+Action. . Once it is used, it is expended and cannot be used again.
+Each consumable lists its Name, Size, Cost, and the effect it grants
+when consumed.
+Consumable Size Price
+HP Potion 1 100G
+Restores 4 HP
+Strong HP Potion 1 300G
+Restores 8 HP
+Energy Drink 1 100G
+Restores 4 Energy
+Strong Energy Drink 1 300G
+Restores 8 Energy
+
+=== PAGE 11 ===
+Containers
+Each container lists its Carrying Capacity bonus, along with its Name,
+Size, and Cost.
+Container Size Price
+Pouch — 100G
++1 Carrying Capacity
+Small Backpack — 300G
++3 Carrying Capacity
+Backpack — 500G
++5 Carrying Capacity
+Large Backpack — 1000G
++10 Carrying Capacity
+
+=== PAGE 12 ===
+Advancement Improving Attributes
+In Project: Anime there are no levels. In order to increase their power, Improvement Cost
+a Player Character must earn Skill Points or SP.
+4 to 6 1 SP
+You gain SP through different tasks and objectives, typically given by 6 to 8 2 SP
+the Storyteller at the end of adventure conclusions. Here is a list of
+common objectives that give SP. 8 to 10 3 SP
+💠 Discovery. Accidental or through extended exposure. Discovery 10 to 12 4 SP
+happens when a character might be constantly exposed to
+poison and built up a tolerance to it, they might learn a Poison
+Improving Combat Stats
+Immunity Skill.
+💠 Episode, Arc, and Season Rewards. Whenever the party
+Improvement Cost Benefit
+successfully finishes an episode, arc, or season. A number of SP
+will be earned by the entire party.
+Max HP 1 SP +2 HP
+💠 Training Downtime. Downtime is another way to earn SP and
+learn new various skills. Max Energy 1 SP +2 Energy
+Movement 3 SP +1 Movement
+When you Advance
+Carrying Capacity 1 SP +1 Carrying Capacity
+Advancement requires a rest. You spend Skill Points at a Camp or a
+Town.
+Learning a Skill
+Spending Skill Points
+Learning a new Skill works just like creating one during Character
+Skill Points can be spent on the following: Creation. Spend a number of SP equal to the Skill's Rank.
+💠 Improving Attributes: Each step has its own cost, and they are
+cumulative if you try to advance more than one step at once. No Improving Skills
+Attribute may exceed d12.
+💠 Improving Combat Stats: You can spend SP to improve your You may improve a Skill you already know by spending SP. Pick which
+Combat Stats. Each has its own cost and benefit. part of the Skill you wish to improve. As with Skill creation, all
+💠 Learning a New Skill: You can spend SP to learn a completely improvements are subject to Storyteller approval.
+new Skill following the creation rules. 💠 Add a Modifier. 1 SP. The Skill gains a new Modifier from the
+💠 Improving a Skill: You can also spend SP to improve Skills you list. Total Modifiers may not exceed the Skill’s Rank.
+already know. 💠 Lower Energy Cost. 1 SP. The Skill’s Energy cost drops by 1 to
+a minimum of half of the base cost.
+💠 Raise Range. 1 SP. The Skill’s Range increases by 1.
+💠 Raise Rank. 1 SP. Skills gain the benefits of their Rank
+changing.
+💠 Sharpen Accuracy. 1 SP. Add +1 to the Skill’s Accuracy Check.
+Maximum +3.
+💠 Sharpen Damage. 1 SP. Add +1 to the Skill’s Damage roll.
+Maximum +3.
+💠 Sharpen Healing. 1 SP. Add +1 to the HP the Skill restores.
+Maximum +3.
+💠 Sharpen Move. 1 SP. Add +1 to the tile the Skill can move.
+Maximum +3.
+💠 Turn a Modifier. 1 SP. One Modifier’s numerical value grows.
+Examples include: Burst +1 tile to the radius, Chain: +1 targets
+it leaps to, Push: +1 tile to pushing
+
+=== PAGE 13 ===
+Combat
+This chapter covers a fight from start to finish: setting up the
+battlefield, the flow of turns, making attacks, the status effects that
+result, and what happens when a character is defeated.
+The Turn
+Setting Up Combat At the start of your turn, resolve any start-of-turn effects, such as the
+HP or Energy returned by Sustain. You then take one Move and one
+Combat plays out on a grid. Before it begins, the Storyteller sets up the
+Action, in either order. You may split your Movement, spending part of
+battlefield.
+it before your Action and the rest after.
+The Grid
+Trivial efforts, such as speaking a few words or dropping a held item,
+Combat uses a grid of square tiles. A tile has no fixed size in feet or cost nothing and do not use your Action. The Storyteller decides what
+meters; it is the unit the game counts distance in. qualifies.
+Distance is counted one tile at a time, and a diagonal step counts the Movement
+same as a straight one. The eight tiles surrounding a creature are
+Your Movement, set in Combat Stats, is the greatest number of tiles
+adjacent to it, corners included.
+you may move on your turn. You may move fewer tiles, or none at all.
+Only one creature occupies a tile at a time.
+You may pass through a tile occupied by an ally. You may not pass
+through a tile occupied by an enemy.
+Line of Sight
+To attack or affect a target at range, you need a clear line to it: a Leaving a tile next to an enemy draws no attack on its own. The only
+straight line from your tile to the target's with nothing solid in the way. thing that punishes movement is a React Skill built on the Enters
+trigger.
+Walls, pillars, dense growth, and other solid obstacles block that line.
+Other creatures do not. An ally or enemy standing between you and Forced Movement caused by a Skill, such as Push or Pull, is separate
+your target does not break the line. from your Movement and follows the rules of that Skill.
+Taking the Field Actions
+The Storyteller builds the battlefield and decides where everyone On your turn you may take one Action.
+begins: the distance between the two sides, the obstacles on the ground, 💠 Basic Attack. Strike with your equipped weapon. See Making an
+and any notable features. Players place their characters within the Attack.
+space the Storyteller describes. 💠 Use a Skill. Activate one of your Skills that uses an Action and
+pay its Energy cost.
+💠 Use an Item. Use a consumable or an equipped item with a use
+Flow of Combat
+effect.
+Combat runs in rounds. In each round, every participant takes one 💠 Other Action. Attempt anything not covered above. The
+turn, in order of Initiative. Storyteller decides whether it is possible and what roll, if any, it
+requires.
+Initiative
+React Skills
+At the start of combat, each participant makes an Initiative Check: roll
+⟪Agility⟫ + ⟪Mind⟫. The highest total takes the first turn, and play A React Skill activates the instant its Trigger fires, on any creature's
+continues in descending order until everyone has acted. The order turn rather than only your own. When the Trigger is met and you
+holds for the rest of the combat. choose to use the Skill, pay its Energy cost and resolve it.
+On a tie, the larger ⟪Agility⟫ die goes first; if those match in size, tied You may activate one React Skill in response to a single Trigger event.
+players choose their order, and an enemy goes before any player it ties Separate Trigger events may each prompt a React Skill, limited only
+with. by the Energy you can spend.
+Some Triggers fire before their action resolves, such as Attacked or
+Enters, and the React Skill resolves first, before that attack or
+movement completes. Others fire after, such as Damaged or Critical,
+and the React Skill resolves once the action has happened.
+
+=== PAGE 14 ===
+Ending the Round Affinities
+When the last participant in the Initiative order has finished their A creature may have an Affinity to a damage type, granted by a Skill
+turn, the round ends and a new round begins, following the same such as Affinity or set by the Storyteller. A creature has at most one
+Initiative order. Affinity to a given type, and Affinities do not stack.
+💠 Weak. The creature takes 2 extra damage.
+Making an Attack 💠 Resist. The creature takes 2 less damage.
+💠 Immune. The creature takes none.
+An attack is a strike with your equipped weapon. A Basic Attack costs
+💠 Absorb. The creature takes none and instead regains Hit Points
+no Energy. A Skill that strikes with your weapon uses the same
+equal to the damage.
+procedure and adds its own effect and Energy cost.
+Status Effects
+Every attack follows three steps: choose a target within your weapon's A status effect is a condition placed on a character by a Skill, Modifier,
+Range, make an Accuracy Check to see whether you hit, and roll or other source. Each status lasts a number of turns set by its source,
+Damage if you do. with a default of 2. A status counts down at the end of the affected
+character's turn and ends when it reaches 0. A character can carry
+Fumble and Combo several different statuses at once, and applying the same one again
+refreshes it to the longer remaining duration rather than stacking.
+Two results on an Accuracy roll override the total. If both dice show 1,
+Some effects, such as the Cleanse modifier, end a status early.
+the attack is a Fumble: it misses regardless of the total.
+💠 Blinded. Step Down both dice of an Accuracy Check.
+💠 Bound. Cannot move.
+If both dice show the same value of 6 or higher, the attack is a Combo:
+💠 Decay. Takes 1 damage at the end of each turn.
+it hits regardless of the total, and the moment it resolves you take an
+💠 Exhausted. Cannot activate Skills.
+additional turn. A Combo can happen only on your own turn, and a
+💠 Prone. Cannot move, and Step Down both dice of an Accuracy
+turn gained from one cannot itself produce another.
+Check.
+Range 💠 Slowed. Movement is halved.
+Every weapon and Skill has a Range, and a target must be within it to 💠 Stunned. Loses its next turn entirely, taking no Move and no
+be attacked. A weapon lists its Range in its entry. A Skill's Range is set Action. Stunned then ends, rather than lingering like the others.
+when it is built.
+Critical, Defeat, and Death
+Accuracy
+Choose a target within Range and roll the two attribute dice listed for When a character's Hit Points fall below 25% of their maximum Hit
+your weapon, adding the weapon's Accuracy modifier and any other Points, rounded down, they are in Critical. Some Skills trigger on
+modifiers. If the total meets or beats the target's Evasion, the attack entering it.
+hits; otherwise it misses.
+When a character's HP reaches 0, they are Defeated. A Defeated
+Cover raises a target's Evasion. When a low wall, doorway, or other character cannot move or act and is helpless. HP never falls below 0,
+obstacle stands between it and the attacker, the Storyteller adds 1 or 2 and further damage to a Defeated character has no added effect.
+for as long as the cover holds.
+A Defeated character is down, not dead. Healing that raises their HP
+Damage above 0 brings them back at once. They return to the fight and take
+their turns normally from then on, at their usual place in the Initiative
+On a hit, roll your weapon's Damage die, whichever of its two
+order.
+attributes you choose, and add the weapon's Damage modifier and any
+other bonuses. Then resolve the total in order:
+When combat ends, any character still Defeated recovers to half their
+1. Apply any elemental interaction.
+Max HP, rounded down.
+2. Subtract the target's Defense.
+3. Deal what remains, to a minimum of 0.
+Death is never caused by damage or by reaching 0. It enters play only
+when a fight is wholly lost, an entire side Defeated at once, or as a
+Defense is damage reduction from equipped armor, applied only to Hit
+deliberate moment the table agrees on. At that point the table decides
+Point damage. A character without armor has Defense 0.
+what the loss costs: capture, a lasting wound, or death. If you would
+rather players hold that choice, let each decide their own character's
+fate on a total loss.
+
+=== PAGE 15 ===
+Resting
+Resting restores Hit Points, Energy, and Luck Dice. It is also when
+characters spend Skill Points to advance (see Advancement). There
+are two kinds: Camp, a short rest, and Town, a longer rest in a
+settlement.
+Downtime
+Downtime is what a character does during a rest, apart from
+recovering. It comes in two tiers. Minor Downtime is short and light:
+talking, planning, or light practice, with no mechanical cost. Major
+Downtime takes a longer, dedicated stretch and includes Training.
+Camp
+The Storyteller decides when the party can Camp. A Camp costs
+nothing, and every character present gains its benefits.
+Each character restores Hit Points equal to half their Max HP and
+Energy equal to half their Max Energy, up to their maximum. A
+character benefits from a Camp only once in a 24 hour period.
+A Camp allows Minor Downtime.
+At the end of a Camp, each character may roll their ⟪Charm⟫ die
+once to restore one spent Luck Die; the value rolled becomes that
+Luck Die.
+Town
+A Town represents a full day. Each character restores Hit Points and
+Energy to full.
+A Town allows Major Downtime.
+At the end of a Town, each character rolls their ⟪Charm⟫ die three
+times, replacing all their Luck Dice.
+Training
+Training is a Major Downtime activity that earns Skill Points. A
+character who trains for a full week, doing nothing else that week,
+earns 2 Skill Points. Training requires no roll.
+

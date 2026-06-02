@@ -1,0 +1,45 @@
+{{!-- Stash tab: shared treasury + shared item storage. Drag an item onto a member avatar to give it. --}}
+<section class="party-pane{{#if onStash}} active{{/if}}" data-pane="stash">
+
+  <div class="party-section party-treasury">
+    <h3 class="party-title">
+      <i class="fas fa-coins"></i> {{localize "PROJECTANIME.Party.treasury"}}
+      <span class="party-gold">
+        <input type="number" name="system.gold" value="{{gold}}" min="0" {{#unless @root.editable}}disabled{{/unless}} />
+      </span>
+    </h3>
+    {{#if isGM}}
+    <div class="treasury-actions">
+      <button type="button" class="party-btn" data-action="splitGold"><i class="fas fa-arrows-split-up-and-left"></i> {{localize "PROJECTANIME.Party.splitEvenly"}}</button>
+      <button type="button" class="party-btn" data-action="collectGold"><i class="fas fa-hand-holding-dollar"></i> {{localize "PROJECTANIME.Party.collect"}}</button>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="party-section">
+    <h3 class="party-title"><i class="fas fa-box-archive"></i> {{localize "PROJECTANIME.Party.tabStash"}}</h3>
+    {{#if members.length}}
+    <div class="give-bar">
+      {{#each members as |m|}}
+      <div class="give-target" data-ref="{{m.ref}}" title="{{m.name}}"><img src="{{m.img}}" alt="{{m.name}}" /></div>
+      {{/each}}
+    </div>
+    {{/if}}
+    <div class="party-drop party-stash" data-drop="stash">
+      {{#each stash as |it|}}
+      <div class="party-row" data-item-id="{{it.id}}">
+        <img src="{{it.img}}" alt="" data-action="openStashItem" />
+        <span class="party-row-name" data-action="openStashItem">{{it.name}}</span>
+        {{#if it.qty}}<span class="party-row-qty">×{{it.qty}}</span>{{/if}}
+        {{#if it.cost}}<span class="party-row-cost"><i class="fas fa-coins"></i> {{it.cost}}</span>{{/if}}
+        {{#if @root.editable}}
+        <button type="button" class="party-x give-btn" data-action="giveItem" title="{{localize 'PROJECTANIME.Party.give'}}"><i class="fas fa-hand-holding"></i></button>
+        <button type="button" class="party-x" data-action="removeStashItem" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
+        {{/if}}
+      </div>
+      {{else}}
+      <p class="party-empty muted">{{localize "PROJECTANIME.Party.dropItems"}}</p>
+      {{/each}}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,47 @@
+{{!-- Encounter tab (GM-only part): difficulty → budget, and the monster tally vs that budget. --}}
+<section class="party-pane{{#if onEncounter}} active{{/if}}" data-pane="encounter">
+  <div class="party-section party-budget">
+    <div class="party-budget-head">
+      <label class="party-diff">
+        <span class="party-label">{{localize "PROJECTANIME.Party.difficulty"}}</span>
+        <select name="system.difficulty">{{selectOptions difficultyChoices selected=difficulty}}</select>
+      </label>
+      <div class="party-budget-val">
+        <span class="party-label">{{localize "PROJECTANIME.Party.budget"}}</span>
+        <strong>{{budget}}</strong>
+      </div>
+    </div>
+    <div class="party-thresholds">
+      {{#each thresholds as |t|}}
+      <span class="party-th{{#if t.active}} active{{/if}}">{{t.label}} <strong>{{t.value}}</strong></span>
+      {{/each}}
+    </div>
+  </div>
+
+  <div class="party-section">
+    <h3 class="party-title">
+      <i class="fas fa-skull"></i> {{localize "PROJECTANIME.Party.encounter"}}
+      <span class="party-spent{{#if over}} over{{/if}}">{{spent}} / {{budget}}</span>
+    </h3>
+    <div class="party-meter"><div class="party-meter-fill{{#if over}} over{{/if}}" style="width: {{usePct}}%"></div></div>
+    <div class="party-drop" data-drop="encounter">
+      {{#each encounter as |m|}}
+      <div class="party-row{{#if m.missing}} missing{{/if}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.tierColor}}">
+        <img src="{{m.img}}" alt="" data-action="openActor" />
+        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{m.tierLabel}}</span>{{/if}}</span>
+        <span class="party-row-cost"><i class="fas fa-star"></i> {{m.costLabel}}</span>
+        {{#if @root.editable}}
+        <span class="party-qty">
+          <button type="button" class="party-q" data-action="decMonster"><i class="fas fa-minus"></i></button>
+          <span class="party-q-n">{{m.qty}}</span>
+          <button type="button" class="party-q" data-action="incMonster"><i class="fas fa-plus"></i></button>
+        </span>
+        <button type="button" class="party-x" data-action="removeMonster" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
+        {{/if}}
+      </div>
+      {{else}}
+      <p class="party-empty muted">{{localize "PROJECTANIME.Party.dropMonsters"}}</p>
+      {{/each}}
+    </div>
+  </div>
+</section>

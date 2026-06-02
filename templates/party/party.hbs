@@ -1,0 +1,44 @@
+{{!-- Party tab: dashboard cards (HP/Energy + Evasion/Defense/Movement) + the party's total SP. --}}
+<section class="party-pane{{#if onParty}} active{{/if}}" data-pane="party">
+  <div class="party-section">
+    <h3 class="party-title">
+      <i class="fas fa-user-group"></i> {{localize "PROJECTANIME.Party.roster"}}
+      <span class="party-sp-pill"><i class="fas fa-star"></i> {{partyPower}} {{localize "PROJECTANIME.Party.power"}}</span>
+    </h3>
+    <div class="party-drop party-cards" data-drop="members">
+      {{#each members as |m|}}
+      <div class="party-card{{#if m.missing}} missing{{/if}}" data-ref="{{m.ref}}">
+        <img class="party-card-img" src="{{m.img}}" alt="" data-action="openActor" />
+        <div class="party-card-body">
+          <div class="party-card-top">
+            <span class="party-card-name" data-action="openActor">{{m.name}}</span>
+            <span class="party-card-sp" title="{{localize 'PROJECTANIME.Party.power'}}"><i class="fas fa-star"></i> {{m.power}}</span>
+            {{#if @root.editable}}
+            <button type="button" class="party-x" data-action="removeMember" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
+            {{/if}}
+          </div>
+          {{#unless m.missing}}
+          <div class="pm-res hp">
+            <i class="fas fa-heart"></i>
+            <div class="pm-bar"><div class="pm-fill" style="width: {{m.hpPct}}%"></div></div>
+            <span class="pm-res-val">{{m.hp}}/{{m.hpMax}}</span>
+          </div>
+          <div class="pm-res energy">
+            <i class="fas fa-bolt"></i>
+            <div class="pm-bar"><div class="pm-fill" style="width: {{m.energyPct}}%"></div></div>
+            <span class="pm-res-val">{{m.energy}}/{{m.energyMax}}</span>
+          </div>
+          <div class="party-card-vitals">
+            <span title="{{localize 'PROJECTANIME.Stat.evasion'}}"><i class="fas fa-wind"></i> {{m.evasion}}</span>
+            <span title="{{localize 'PROJECTANIME.Stat.defense'}}"><i class="fas fa-shield-halved"></i> {{m.defense}}</span>
+            <span title="{{localize 'PROJECTANIME.Stat.movement'}}"><i class="fas fa-shoe-prints"></i> {{m.movement}}</span>
+          </div>
+          {{/unless}}
+        </div>
+      </div>
+      {{else}}
+      <p class="party-empty muted">{{localize "PROJECTANIME.Party.dropPCs"}}</p>
+      {{/each}}
+    </div>
+  </div>
+</section>

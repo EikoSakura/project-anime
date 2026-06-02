@@ -1,0 +1,4191 @@
+/* ============================================================
+   Project: Anime — sheet styling
+   "Cinematic Dossier" theme.
+
+   Design goals:
+   - Log Horizon flavour as restrained accents (gold diamonds,
+     chamfered portrait, glowing resource bars) — NOT a game HUD.
+   - Editorial polish so it reads as a character dossier that
+     suits ANY setting: serif display titles, small-caps labels
+     over bold tabular values, generous spacing.
+   - Theme-adaptive: warm parchment in light mode, deep slate in
+     dark mode, anchored by the brand purple + gold trim.
+
+   Everything is driven by the design tokens below — change a
+   token and the whole sheet follows.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. Design tokens (light is the default; dark overrides below)
+   ------------------------------------------------------------ */
+.project-anime {
+  /* Brand */
+  --pa-accent: #6c4f9c;          /* system purple            */
+  --pa-accent-2: #8a6fc0;        /* lighter purple           */
+  --pa-accent-ink: #4a356f;      /* purple text on light bg  */
+  --pa-gold: #b7912f;            /* trim / diamonds          */
+  --pa-gold-soft: #d8b257;
+
+  /* Surfaces & ink */
+  --pa-surface: #f6f2ea;         /* window background        */
+  --pa-surface-2: #ece5d7;       /* recessed (tracks, wells) */
+  --pa-panel: #fffdf8;           /* raised cards             */
+  --pa-field: #ffffff;           /* input background         */
+  --pa-ink: #2b2733;             /* primary text             */
+  --pa-ink-soft: #6f6878;        /* labels / muted           */
+  --pa-line: rgba(43, 39, 51, 0.18);
+  --pa-track: #e2dbcb;
+
+  /* Vital bars */
+  --pa-hp-a: #b5384a;  --pa-hp-b: #e07a5f;  --pa-hp-c: #f4b15e;        /* crimson → coral → warm shimmer */
+  --pa-energy-a: #3b59b0; --pa-energy-b: #7c8fe8; --pa-energy-c: #b079e6; /* indigo → periwinkle → violet shimmer */
+
+  /* Semantic */
+  --pa-danger: #b03a2e;
+  --pa-on-accent: #ffffff;
+
+  /* Type */
+  --pa-font: var(--font-primary, "Signika"), "Segoe UI", sans-serif;
+  --pa-font-display: "Constantia", "Georgia", "Palatino Linotype", serif;
+  --pa-font-mono: "Spline Sans Mono", "Cascadia Mono", "Consolas", ui-monospace, monospace;
+
+  --pa-radius: 5px;
+
+  /* Render native form controls (select popups, scrollbars) light-themed. */
+  color-scheme: light;
+}
+
+/* Dark mode — applies when the sheet (or an ancestor app, e.g. the
+   chat log/dialog) carries Foundry's theme-dark class. */
+.project-anime.theme-dark,
+.theme-dark .project-anime {
+  --pa-accent: #9a78e0;
+  --pa-accent-2: #b79bf0;
+  --pa-accent-ink: #cdb8f5;
+  --pa-gold: #d8b257;
+  --pa-gold-soft: #ecca77;
+
+  --pa-surface: #1f1e28;
+  --pa-surface-2: #181722;
+  --pa-panel: #282636;
+  --pa-field: rgba(255, 255, 255, 0.06);
+  --pa-ink: #ece9f5;
+  --pa-ink-soft: #a39db8;
+  --pa-line: rgba(220, 215, 240, 0.16);
+  --pa-track: rgba(0, 0, 0, 0.38);
+
+  --pa-hp-a: #c34155;  --pa-hp-b: #ef8a6e;  --pa-hp-c: #ffc36b;
+  --pa-energy-a: #4f6ad0; --pa-energy-b: #97a6f2; --pa-energy-c: #c58cff;
+
+  --pa-danger: #ff7a6b;
+
+  /* Native popups/scrollbars follow dark mode too. */
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------
+   2. Window shell & shared primitives
+   ------------------------------------------------------------ */
+.project-anime.sheet .window-content {
+  font-family: var(--pa-font);
+  color: var(--pa-ink);
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.7rem;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 6%, transparent), transparent 240px),
+    var(--pa-surface);
+}
+
+/* Item sheet scrolls as ONE page (header + tabs + all fields + description),
+   rather than trapping the form in its own scroll box. */
+.project-anime.sheet.item .window-content { overflow-y: auto; }
+
+/* Actor sheet: two-column layout — persistent side panel (header) on the left,
+   tab nav + active tab content on the right. Sheet PARTs are direct children of
+   .window-content, so we place them explicitly on the grid. Item sheets keep the
+   flex-column layout from the rule above (they are .item, not .actor). */
+.project-anime.sheet.actor .window-content {
+  position: relative;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.6rem 0.75rem;
+}
+.project-anime.actor .sheet-header { grid-column: 1; grid-row: 1 / span 2; }
+.project-anime.actor .stats-main,
+.project-anime.actor .bio-inline { grid-column: 2; grid-row: 1 / span 2; }
+
+/* Item sheet uses one wrapper part; actor sheet stacks several parts. */
+.project-anime .sheet-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Stats is the always-visible main view; other sections live in slide-in drawers. */
+.project-anime .stats-main,
+.project-anime .bio-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+/* Headings — serif display face for an editorial feel. */
+.project-anime h3 {
+  margin: 0;
+  font-family: var(--pa-font-display);
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--pa-ink);
+}
+
+.project-anime .muted { color: var(--pa-ink-soft); }
+.project-anime .warn { color: var(--pa-danger); font-weight: 700; }
+
+/* Status-terminal numerals — monospace for combat/vital readouts (LH feel). */
+.project-anime .resource-vals,
+.project-anime .vital .v-val,
+.project-anime .meta-stat input,
+.project-anime .luck-die,
+.project-anime .elem-val,
+.project-anime .initiative-btn .ib-formula {
+  font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Inputs / selects / textareas — quiet recessed fields. */
+.project-anime input[type="text"],
+.project-anime input[type="number"],
+.project-anime select,
+.project-anime textarea {
+  background: var(--pa-field);
+  color: var(--pa-ink);
+  border: 1px solid var(--pa-line);
+  border-radius: 3px;
+}
+.project-anime input[type="text"]:focus,
+.project-anime input[type="number"]:focus,
+.project-anime select:focus,
+.project-anime textarea:focus {
+  outline: none;
+  border-color: var(--pa-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pa-accent) 28%, transparent);
+}
+
+/* Native <select> popup: force a LIGHT popup with fixed, readable colors.
+   Why not theme it dark to match? Chromium's `color-scheme: dark` popup has a
+   long-standing bug where the *selected* row renders with a white background,
+   and CSS custom properties don't reliably cascade into the native popup. A
+   clean light popup (dark text) sidesteps both — readable in light AND dark
+   theme. Modern engines override all of this with the themed base-select block
+   below, so most users still get the full purple dropdown. */
+.project-anime select { color-scheme: light; }
+.project-anime select option,
+.project-anime select optgroup {
+  background-color: #ffffff;
+  color: #1c1a24;
+}
+.project-anime select option:checked {
+  /* gradient trick: Chromium ignores plain background-color on :checked rows */
+  background: linear-gradient(#e9e1f7, #e9e1f7);
+  color: #1c1a24;
+}
+/* The empty "no target" option reads as an intentional muted choice, not broken. */
+.project-anime select option[value=""] { color: #6f6878; }
+
+/* Fully themed dropdown where the browser supports customizable <select>
+   (modern Chromium / the Foundry desktop app). Recolours the popup, the active
+   row, and the checkmark in purple+gold — no more native blue highlight. Safely
+   ignored by older engines, which keep the readable native popup above. */
+@supports (appearance: base-select) {
+  .project-anime select,
+  .project-anime ::picker(select) { appearance: base-select; }
+
+  .project-anime ::picker(select) {
+    background: var(--pa-surface);
+    border: 1px solid var(--pa-accent);
+    border-radius: var(--pa-radius);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+    padding: 4px;
+  }
+  .project-anime select option {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    background: transparent;
+  }
+  .project-anime select option[value=""] { color: var(--pa-ink-soft); }
+  .project-anime select option:hover,
+  .project-anime select option:focus {
+    background: color-mix(in srgb, var(--pa-accent) 20%, transparent);
+    color: var(--pa-ink);
+  }
+  .project-anime select option:checked {
+    background: color-mix(in srgb, var(--pa-accent) 32%, transparent);
+    color: var(--pa-ink);
+  }
+  .project-anime select::checkmark {
+    content: "\25C6";  /* ◆ gold diamond instead of the default tick */
+    color: var(--pa-gold);
+  }
+  .project-anime select::picker-icon { color: var(--pa-ink-soft); transition: transform 0.15s; }
+  .project-anime select:open::picker-icon { transform: rotate(180deg); }
+}
+
+/* Generic buttons (advancement, dialogs) — scoped to sheet/dialog CONTENT so it
+   never touches window-header control buttons. Those carry their Font Awesome
+   icon directly on the <button>, and a font-family override turns them into
+   missing-glyph "tofu" boxes. The :not([class*="fa-"]) guard skips any icon
+   button that might live inside the content too. */
+.project-anime .window-content button:not([class*="fa-"]) {
+  font-family: var(--pa-font);
+  color: var(--pa-ink);
+  background: linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  transition: border-color 0.12s, box-shadow 0.12s, color 0.12s;
+}
+.project-anime .window-content button:not([class*="fa-"]):hover {
+  border-color: var(--pa-accent);
+  color: var(--pa-accent-ink);
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--pa-accent) 30%, transparent);
+}
+
+/* Links default to the accent. */
+.project-anime a { color: inherit; }
+.project-anime a:hover { text-shadow: 0 0 6px color-mix(in srgb, var(--pa-accent) 55%, transparent); }
+
+/* Slim themed scrollbars (scoped, so global UI is untouched). */
+.project-anime .stats-main,
+.project-anime .drawer-panel,
+.project-anime .sheet-content,
+.project-anime.sheet.item .window-content {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--pa-accent) 55%, transparent) transparent;
+}
+.project-anime .stats-main::-webkit-scrollbar,
+.project-anime .drawer-panel::-webkit-scrollbar,
+.project-anime .sheet-content::-webkit-scrollbar,
+.project-anime.sheet.item .window-content::-webkit-scrollbar { width: 10px; }
+.project-anime .stats-main::-webkit-scrollbar-thumb,
+.project-anime .drawer-panel::-webkit-scrollbar-thumb,
+.project-anime .sheet-content::-webkit-scrollbar-thumb,
+.project-anime.sheet.item .window-content::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--pa-accent) 45%, transparent);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Reusable "section title" rule: gold hairline + a diamond bullet. */
+.project-anime .section-controls,
+.project-anime .group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime .section-controls h3::before,
+.project-anime .group-header h3::before {
+  content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  background: var(--pa-gold);
+  transform: rotate(45deg);
+  vertical-align: middle;
+}
+
+
+/* ------------------------------------------------------------
+   4. Header — Log Horizon-style side panel (left column)
+   ------------------------------------------------------------ */
+.project-anime.actor .sheet-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.75rem 0.7rem 0.7rem;
+  border: 1px solid var(--pa-line);
+  border-left: 3px solid color-mix(in srgb, var(--pa-gold) 70%, transparent);
+  border-radius: var(--pa-radius);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 12%, transparent), transparent 150px),
+    var(--pa-surface-2);
+}
+
+/* Diamond portrait — beveled gold "gem" frame with glow + corner studs. */
+.project-anime.actor .portrait {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  width: 140px;
+  height: 140px;
+  margin: 0.55rem 0 0.4rem;
+  filter:
+    drop-shadow(0 0 11px color-mix(in srgb, var(--pa-gold) 65%, transparent))
+    drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+.project-anime.actor .portrait:hover {
+  transform: scale(1.03);
+  filter:
+    drop-shadow(0 0 20px color-mix(in srgb, var(--pa-gold) 90%, transparent))
+    drop-shadow(0 4px 7px rgba(0, 0, 0, 0.5));
+}
+/* The gold ring; a conic gradient gives the four facets a beveled metallic sheen. */
+.project-anime.actor .portrait-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: conic-gradient(from 0deg at 50% 50%,
+    var(--pa-gold) 0deg,
+    color-mix(in srgb, var(--pa-gold) 50%, #000) 135deg,
+    var(--pa-gold) 215deg,
+    var(--pa-gold-soft) 312deg,
+    var(--pa-gold) 360deg);
+}
+/* Soft top-left gloss over the image for a polished gem look. */
+.project-anime.actor .portrait-frame::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 44%);
+  pointer-events: none;
+}
+.project-anime.actor .sheet-header .profile-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  border: none;
+  background: var(--pa-surface);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+/* Gold studs at the four diamond points. */
+.project-anime.actor .stud {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 80%, transparent);
+  pointer-events: none;
+}
+.project-anime.actor .stud-n { top: -1px; left: 50%; margin-left: -4.5px; }
+.project-anime.actor .stud-s { bottom: -1px; left: 50%; margin-left: -4.5px; }
+.project-anime.actor .stud-e { right: -1px; top: 50%; margin-top: -4.5px; }
+.project-anime.actor .stud-w { left: -1px; top: 50%; margin-top: -4.5px; }
+
+/* Name + identity, centered under the portrait. */
+.project-anime.actor .char-name {
+  width: 100%;
+  text-align: center;
+  font-family: var(--pa-font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.15;
+  height: auto;
+  color: var(--pa-ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 0.1rem 0;
+}
+.project-anime.actor .char-name:hover { border-bottom-color: var(--pa-line); }
+.project-anime.actor .char-name:focus { border-bottom-color: var(--pa-accent); box-shadow: none; }
+
+.project-anime.actor .header-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
+}
+.project-anime .type-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.12rem 0.5rem;
+  color: var(--pa-accent-ink);
+  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  border-radius: 3px;
+}
+.project-anime.actor .pronouns {
+  width: 100%;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--pa-ink-soft);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--pa-line);
+  border-radius: 0;
+}
+.project-anime.actor .header-sub select { font-size: 0.8rem; max-width: 100%; }
+
+/* Divider rules with a gold diamond terminal — the LH signature. */
+.project-anime.actor .panel-rule {
+  position: relative;
+  height: 0;
+  margin: 0.1rem 0.15rem;
+  border-top: 1px solid color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line));
+}
+.project-anime.actor .panel-rule::before,
+.project-anime.actor .panel-rule::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%) rotate(45deg);
+  background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 75%, transparent);
+}
+.project-anime.actor .panel-rule::before { left: -2px; }
+.project-anime.actor .panel-rule::after { right: -2px; }
+
+/* Stacked resource bars. */
+.project-anime.actor .panel-resources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* Vitals (Evasion / Defense / Movement). */
+.project-anime.actor .panel-vitals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+.project-anime .vital {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.25rem 0.3rem;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+}
+.project-anime .vital .v-label {
+  font-size: 0.56rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .vital .v-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--pa-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Luck Dice block in the side panel. */
+.project-anime.actor .panel-luck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.project-anime.actor .panel-luck-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pa-ink-soft);
+}
+.project-anime.actor .panel-luck .luck-dice {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* STATUS footer flourish, pinned to the bottom. */
+.project-anime.actor .panel-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--pa-line);
+}
+.project-anime.actor .status-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+.project-anime.actor .panel-foot::after {
+  content: "\00bb\00bb";
+  margin-left: auto;
+  color: var(--pa-gold);
+  font-weight: 700;
+  letter-spacing: -2px;
+}
+
+/* Resource bars (HP / Energy) — the signature element. */
+.project-anime .resource .resource-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.2rem;
+}
+.project-anime .resource label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .resource-vals { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.project-anime .resource-vals input {
+  width: 3rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--pa-ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+}
+.project-anime .resource-vals input:hover { border-bottom-color: var(--pa-line); }
+.project-anime .resource-vals input:focus { border-bottom-color: var(--pa-accent); box-shadow: none; }
+.project-anime .resource-vals .sep { margin: 0 0.1rem; color: var(--pa-ink-soft); }
+
+.project-anime .resource .bar {
+  position: relative;
+  height: 16px;
+  border-radius: 7px;
+  background: var(--pa-track);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line));
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+/* Per-resource outer bloom — an element's own box-shadow isn't clipped by its overflow. */
+.project-anime .resource.hp .bar {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3),
+              0 0 8px color-mix(in srgb, var(--pa-hp-b) 50%, transparent);
+}
+.project-anime .resource.energy .bar {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3),
+              0 0 8px color-mix(in srgb, var(--pa-energy-b) 50%, transparent);
+}
+.project-anime .resource .fill {
+  position: relative;
+  height: 100%;
+  border-radius: 7px;
+  background-size: 220% 100%, 200% 100%;   /* shimmer sweep, hue ramp */
+  background-position: 0% 0%, 0% 50%;
+  background-repeat: no-repeat;
+  animation: pa-bar-flow 7s linear infinite;
+  transition: width 0.25s ease;
+}
+.project-anime .resource .fill::after {  /* wet vertical sheen */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.2));
+}
+.project-anime .resource .fill::before {  /* bright leading edge */
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.7);
+}
+/* Iridescent flowing fills: a soft diagonal glint sweeping over a drifting multi-hue ramp.
+   Both ends of the hue ramp are the same colour so the drift loops seamlessly. */
+.project-anime .hp-fill {
+  background-image:
+    linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.22) 50%, transparent 62%),
+    linear-gradient(90deg, var(--pa-hp-a), var(--pa-hp-b), var(--pa-hp-c), var(--pa-hp-b), var(--pa-hp-a));
+}
+.project-anime .energy-fill {
+  background-image:
+    linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.22) 50%, transparent 62%),
+    linear-gradient(90deg, var(--pa-energy-a), var(--pa-energy-b), var(--pa-energy-c), var(--pa-energy-b), var(--pa-energy-a));
+}
+@keyframes pa-bar-flow {
+  0%   { background-position: 0% 0%, 0% 50%; }
+  100% { background-position: 200% 0%, 100% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .project-anime .resource .fill { animation: none; }
+}
+
+/* ------------------------------------------------------------
+   5. Stats tab
+   ------------------------------------------------------------ */
+
+/* Attribute "dice" cards — the die is the hero; icon + sleek base support it. */
+.project-anime .attributes {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+.project-anime .attribute-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.6rem 0.3rem 1.2rem;  /* extra bottom reserves the hover base-editor strip */
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+  background:
+    radial-gradient(120% 75% at 50% 0%, color-mix(in srgb, var(--pa-accent) 15%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  overflow: hidden;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.project-anime .attribute-card::before {  /* top accent bar, faded at the edges */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--pa-accent) 22%, var(--pa-accent-2) 78%, transparent);
+}
+.project-anime .attribute-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--pa-accent) 25%, transparent);
+}
+
+/* Header — icon + name. */
+.project-anime .attr-head {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.project-anime .attr-icon {
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--pa-accent) 80%, var(--pa-ink-soft));
+}
+.project-anime .attribute-card .attr-name {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pa-ink-soft);
+}
+
+/* Die — a polished "coin" medallion; the whole coin is the roll button. */
+.project-anime .attribute-card .attr-die {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0.25rem 0 0.1rem;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--pa-accent-ink);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  background:
+    radial-gradient(125% 125% at 50% 18%,
+      color-mix(in srgb, var(--pa-panel) 88%, #fff) 0%,
+      var(--pa-panel) 42%,
+      var(--pa-surface-2) 100%);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 38%, var(--pa-line));
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.10),
+    0 2px 5px rgba(0, 0, 0, 0.20);
+}
+.project-anime .attribute-card .attr-die::before {  /* inner ring */
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 20%, transparent);
+  pointer-events: none;
+}
+.project-anime .attr-die.rollable { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s, color 0.12s; }
+.project-anime .attr-die.rollable:hover {
+  transform: translateY(-2px);
+  color: var(--pa-accent);
+  border-color: color-mix(in srgb, var(--pa-accent) 60%, var(--pa-line));
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.55),
+    0 5px 14px color-mix(in srgb, var(--pa-accent) 45%, transparent);
+}
+.project-anime .attr-die.rollable:active { transform: translateY(0); }
+
+/* Base value — removed from the default view, revealed on hover/focus to edit.
+   Absolutely positioned in the reserved bottom strip so revealing it never
+   shifts the card layout. The field stays wired to system.attributes.<k>.base. */
+.project-anime .attr-base-edit {
+  position: absolute;
+  left: 0.3rem;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  cursor: text;
+  background: color-mix(in srgb, var(--pa-accent) 10%, var(--pa-panel));
+  border: 1px solid var(--pa-line);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.project-anime .attribute-card:hover .attr-base-edit,
+.project-anime .attribute-card:focus-within .attr-base-edit {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.project-anime .abe-label {
+  font-size: 0.54rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .attr-base-edit .attr-base {
+  width: 2.2rem;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--pa-ink);
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+}
+.project-anime .attr-base-edit .attr-base:focus { border-color: var(--pa-accent); box-shadow: none; }
+
+/* Advancement button — sits just under the character name in the side header. */
+.project-anime .sheet-header button.advance-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  align-self: center;
+  margin: 0.15rem 0 0;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  color: var(--pa-accent-ink);
+  background: color-mix(in srgb, var(--pa-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line));
+  border-radius: 10px;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.project-anime .sheet-header button.advance-btn:hover {
+  background: color-mix(in srgb, var(--pa-accent) 30%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--pa-accent) 50%, transparent);
+}
+.project-anime .sheet-header button.advance-btn i { color: var(--pa-gold); }
+
+/* Advancement dialog (standalone app opened from the header button). */
+.project-anime.advancement-app .adv-body { display: flex; flex-direction: column; gap: 0.85rem; padding: 0.3rem 0.1rem; }
+.project-anime.advancement-app .adv-sp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.7rem;
+  background: color-mix(in srgb, var(--pa-gold) 12%, var(--pa-panel));
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 40%, var(--pa-line));
+  border-radius: 6px;
+}
+.project-anime.advancement-app .adv-sp-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pa-ink-soft); }
+.project-anime.advancement-app .adv-sp-val { font-family: var(--pa-font-mono); font-size: 1.2rem; font-weight: 700; color: var(--pa-gold); }
+.project-anime.advancement-app .adv-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime.advancement-app .adv-section h3::before { content: ""; width: 0.4rem; height: 0.4rem; background: var(--pa-gold); transform: rotate(45deg); }
+.project-anime.advancement-app .adv-attrs { display: flex; flex-direction: column; gap: 0.3rem; }
+.project-anime.advancement-app .adv-attr { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.6rem; }
+.project-anime.advancement-app .adv-attr-name { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+.project-anime.advancement-app .adv-attr-name i { width: 1rem; text-align: center; color: var(--pa-accent); }
+.project-anime.advancement-app .adv-attr-die { font-family: var(--pa-font-mono); color: var(--pa-ink-soft); }
+.project-anime.advancement-app .adv-maxed { font-family: var(--pa-font-mono); color: var(--pa-gold); font-size: 0.8rem; }
+.project-anime.advancement-app .adv-buys { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+.project-anime.advancement-app button.adv-raise { white-space: nowrap; }
+
+/* Header action button row (Advancement + Rest, side by side under the name). */
+.project-anime .sheet-header .header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+.project-anime .sheet-header .header-actions button.advance-btn { margin: 0; }
+
+/* Rest dialog (standalone app opened from the header Rest button). */
+.project-anime.rest-app .rest-body { display: flex; flex-direction: column; gap: 0.8rem; padding: 0.3rem 0.1rem; }
+.project-anime.rest-app .rest-types { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.project-anime.rest-app button.rest-type {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--pa-ink);
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: 6px;
+}
+.project-anime.rest-app button.rest-type.active {
+  border-color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 12%, var(--pa-panel));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pa-gold) 28%, transparent);
+}
+.project-anime.rest-app .rt-name { display: flex; align-items: center; gap: 0.4rem; font-weight: 700; }
+.project-anime.rest-app .rt-name i { color: var(--pa-gold); }
+.project-anime.rest-app .rest-downtime h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime.rest-app .rest-tier { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pa-ink-soft); }
+.project-anime.rest-app .dt-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.project-anime.rest-app button.dt-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--pa-ink);
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+}
+.project-anime.rest-app button.dt-item.active { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 16%, transparent); }
+.project-anime.rest-app .dt-sp { font-family: var(--pa-font-mono); font-size: 0.72rem; color: var(--pa-gold); }
+.project-anime.rest-app button.rest-complete {
+  padding: 0.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--pa-ink);
+  background: color-mix(in srgb, var(--pa-accent) 30%, var(--pa-panel));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  border-radius: 6px;
+}
+.project-anime.rest-app button.rest-complete:hover { background: color-mix(in srgb, var(--pa-accent) 45%, var(--pa-panel)); box-shadow: 0 0 12px color-mix(in srgb, var(--pa-accent) 40%, transparent); }
+.project-anime.rest-app button.rest-complete i { color: var(--pa-gold); }
+
+/* (Rest summary now uses the shared .chat-card design — see §10 Chat cards.) */
+
+/* ============================================================
+   Skill Builder app (hub / build wizard / advance)
+   ============================================================ */
+.project-anime.skill-builder-app .sb-body { display: flex; flex-direction: column; gap: 0.85rem; padding: 0.4rem 0.6rem; }
+/* Core foundry2.css forces a fixed `height: var(--button-size)` on every <button>;
+   our multi-line builder buttons (rank cards, improvement tiles) must grow to fit
+   their content instead — keep core's min-height for single-line ones. */
+.project-anime.skill-builder-app .sb-body button { height: auto; }
+
+/* SP balance pill (top of every mode). */
+.project-anime.skill-builder-app .sb-sp {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: color-mix(in srgb, var(--pa-gold) 12%, var(--pa-panel));
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line));
+  border-radius: 6px;
+}
+.project-anime.skill-builder-app .sb-sp > i { color: var(--pa-gold); }
+.project-anime.skill-builder-app .sb-sp-label { flex: 1 1 auto; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-sp-val { font-family: var(--pa-font-mono); font-size: 1.2rem; font-weight: 700; color: var(--pa-gold); }
+
+.project-anime.skill-builder-app .sb-section-title {
+  display: flex; align-items: center; gap: 0.45rem; margin: 0.2rem 0 0;
+  font-family: var(--pa-font-display, "Georgia", serif);
+  font-size: 0.95rem; font-weight: 700;
+  padding-bottom: 0.2rem; border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 30%, var(--pa-line));
+}
+.project-anime.skill-builder-app .sb-section-title::before { content: ""; width: 0.4rem; height: 0.4rem; background: var(--pa-gold); transform: rotate(45deg); flex: 0 0 auto; }
+.project-anime.skill-builder-app .sb-addmod-title .sb-imp-cost,
+.project-anime.skill-builder-app .sb-grow-title .sb-imp-cost { margin-left: auto; }
+
+/* ---- Hub ---- */
+.project-anime.skill-builder-app .sb-hub { display: flex; flex-direction: column; gap: 0.7rem; }
+.project-anime.skill-builder-app button.sb-build-new {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.6rem; font-weight: 700; cursor: pointer; color: var(--pa-ink);
+  background: color-mix(in srgb, var(--pa-accent) 30%, var(--pa-panel));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  border-radius: 6px;
+}
+.project-anime.skill-builder-app button.sb-build-new:hover { background: color-mix(in srgb, var(--pa-accent) 45%, var(--pa-panel)); box-shadow: 0 0 12px color-mix(in srgb, var(--pa-accent) 40%, transparent); }
+.project-anime.skill-builder-app button.sb-build-new i { color: var(--pa-gold); }
+.project-anime.skill-builder-app .sb-skill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.project-anime.skill-builder-app .sb-skill-row {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.5rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 6px;
+}
+.project-anime.skill-builder-app .sb-skill-row img { width: 32px; height: 32px; object-fit: contain; border: 1px solid var(--pa-line); border-radius: 4px; background: var(--pa-surface-2); }
+.project-anime.skill-builder-app .sb-skill-info { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.project-anime.skill-builder-app .sb-skill-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime.skill-builder-app .sb-skill-sub { font-size: 0.72rem; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-skill-sub i { color: var(--pa-energy-b); }
+.project-anime.skill-builder-app button.sb-improve {
+  display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; cursor: pointer;
+  padding: 0.3rem 0.55rem; font-size: 0.8rem; color: var(--pa-ink);
+  background: color-mix(in srgb, var(--pa-accent) 18%, var(--pa-panel));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line)); border-radius: 5px;
+}
+.project-anime.skill-builder-app button.sb-improve:hover { background: color-mix(in srgb, var(--pa-accent) 32%, var(--pa-panel)); }
+.project-anime.skill-builder-app button.sb-improve i { color: var(--pa-gold); }
+
+/* ---- Wizard ---- */
+.project-anime.skill-builder-app .sb-wizard { display: flex; flex-direction: column; gap: 0.75rem; }
+.project-anime.skill-builder-app .sb-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.25rem; }
+.project-anime.skill-builder-app .sb-step-dot {
+  flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  cursor: pointer; padding: 0.3rem 0.1rem; border-radius: 5px; border: 1px solid transparent;
+}
+.project-anime.skill-builder-app .sb-step-dot .sb-dot-num {
+  width: 1.45rem; height: 1.45rem; display: grid; place-items: center;
+  font-family: var(--pa-font-mono); font-size: 0.78rem; font-weight: 700;
+  border-radius: 50%; background: var(--pa-track); color: var(--pa-ink-soft);
+  border: 1px solid var(--pa-line);
+}
+.project-anime.skill-builder-app .sb-step-dot .sb-dot-label { font-size: 0.6rem; text-align: center; color: var(--pa-ink-soft); line-height: 1.1; }
+.project-anime.skill-builder-app .sb-step-dot.done .sb-dot-num { background: color-mix(in srgb, var(--pa-gold) 30%, var(--pa-track)); color: var(--pa-gold); border-color: color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line)); }
+.project-anime.skill-builder-app .sb-step-dot.active .sb-dot-num { background: var(--pa-accent); color: var(--pa-on-accent, #fff); border-color: var(--pa-accent); box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 50%, transparent); }
+.project-anime.skill-builder-app .sb-step-dot.active .sb-dot-label { color: var(--pa-ink); font-weight: 600; }
+
+.project-anime.skill-builder-app .sb-step-head { display: flex; align-items: baseline; gap: 0.5rem; }
+.project-anime.skill-builder-app .sb-step-counter { font-family: var(--pa-font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-step-title { font-family: var(--pa-font-display, "Georgia", serif); font-size: 1.05rem; font-weight: 700; }
+
+.project-anime.skill-builder-app .sb-step-body { display: flex; flex-direction: column; gap: 0.6rem; min-height: 9rem; }
+.project-anime.skill-builder-app .sb-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.project-anime.skill-builder-app .sb-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-cap { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.8; }
+.project-anime.skill-builder-app .sb-field input[type="number"] { width: 100%; }
+.project-anime.skill-builder-app .sb-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+.project-anime.skill-builder-app .sb-field-grid .span-2, .project-anime.skill-builder-app .sb-adv-stats .span-2 { grid-column: 1 / -1; }
+.project-anime.skill-builder-app .sb-field.sb-needs select { border-color: var(--pa-danger); }
+.project-anime.skill-builder-app .sb-id-row { display: flex; gap: 0.6rem; align-items: stretch; }
+.project-anime.skill-builder-app .sb-img {
+  flex: 0 0 auto; width: 3.4rem; height: 3.4rem; cursor: pointer;
+  border: 1px solid var(--pa-line); border-radius: 6px; overflow: hidden; background: var(--pa-surface-2);
+}
+.project-anime.skill-builder-app .sb-img:hover { border-color: var(--pa-accent); }
+.project-anime.skill-builder-app .sb-img img { width: 100%; height: 100%; object-fit: contain; }
+.project-anime.skill-builder-app .sb-id-fields { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.5rem; }
+.project-anime.skill-builder-app textarea[name="description"] { resize: vertical; min-height: 3.4rem; }
+
+/* Rank cards. */
+.project-anime.skill-builder-app .sb-rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.project-anime.skill-builder-app button.sb-rank-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; text-align: left;
+  cursor: pointer; padding: 0.5rem 0.6rem; color: var(--pa-ink);
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 6px;
+}
+.project-anime.skill-builder-app button.sb-rank-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line)); }
+.project-anime.skill-builder-app button.sb-rank-card.selected { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 16%, var(--pa-field)); box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 30%, transparent); }
+.project-anime.skill-builder-app button.sb-rank-card.unaffordable, .project-anime.skill-builder-app button.sb-rank-card:disabled { opacity: 0.4; cursor: not-allowed; }
+.project-anime.skill-builder-app .sb-rank-stars { color: var(--pa-gold); letter-spacing: 0.05em; }
+.project-anime.skill-builder-app .sb-rank-name { font-weight: 700; font-size: 0.85rem; }
+.project-anime.skill-builder-app .sb-rank-cost { font-family: var(--pa-font-mono); font-size: 0.78rem; color: var(--pa-gold); }
+.project-anime.skill-builder-app .sb-rank-cost i, .project-anime.skill-builder-app .sb-rank-meta i { margin-right: 0.1rem; }
+.project-anime.skill-builder-app .sb-rank-meta { font-family: var(--pa-font-mono); font-size: 0.7rem; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-rank-meta i:first-child { color: var(--pa-energy-b); }
+
+.project-anime.skill-builder-app .sb-effect-desc {
+  margin: 0; padding: 0.45rem 0.6rem; font-size: 0.82rem; color: var(--pa-ink-soft);
+  background: var(--pa-surface-2); border-left: 2px solid var(--pa-gold); border-radius: 0 4px 4px 0;
+}
+
+/* Modifier checklist (build + reused look in advance). */
+.project-anime.skill-builder-app .sb-mod-budget { font-size: 0.85rem; }
+.project-anime.skill-builder-app .sb-mod-budget strong { font-family: var(--pa-font-mono); color: var(--pa-gold); }
+.project-anime.skill-builder-app .sb-mod-budget.over strong { color: var(--pa-danger); }
+.project-anime.skill-builder-app .sb-mod-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.project-anime.skill-builder-app .sb-mod-row {
+  display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 0.5rem;
+  padding: 0.3rem 0.5rem; cursor: pointer;
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px;
+}
+.project-anime.skill-builder-app .sb-mod-row > i { color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-mod-row.selected { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-field)); }
+.project-anime.skill-builder-app .sb-mod-row.selected > i { color: var(--pa-accent); }
+.project-anime.skill-builder-app .sb-mod-row.blocked { opacity: 0.45; cursor: not-allowed; }
+.project-anime.skill-builder-app .sb-mod-name { font-weight: 600; white-space: nowrap; }
+.project-anime.skill-builder-app .sb-mod-desc { font-size: 0.72rem; color: var(--pa-ink-soft); line-height: 1.2; }
+.project-anime.skill-builder-app .heavy-badge {
+  font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--pa-gold);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line)); border-radius: 3px; padding: 0 0.2rem;
+}
+
+/* Review. */
+.project-anime.skill-builder-app .sb-review-head { display: flex; align-items: center; gap: 0.6rem; }
+.project-anime.skill-builder-app .sb-review-head img { width: 44px; height: 44px; object-fit: contain; border: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line)); border-radius: 6px; background: var(--pa-surface-2); }
+.project-anime.skill-builder-app .sb-review-name { font-family: var(--pa-font-display, "Georgia", serif); font-size: 1.05rem; font-weight: 700; }
+.project-anime.skill-builder-app .sb-review-sub { font-size: 0.78rem; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-review-sub, .project-anime.skill-builder-app .sb-review-head .sb-review-id { display: flex; flex-direction: column; }
+.project-anime.skill-builder-app .sb-review-list, .project-anime.skill-builder-app .sb-adv-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.7rem; margin: 0; }
+.project-anime.skill-builder-app .sb-review-list > div, .project-anime.skill-builder-app .sb-adv-stats > div { display: flex; flex-direction: column; }
+.project-anime.skill-builder-app .sb-review-list dt, .project-anime.skill-builder-app .sb-adv-stats dt { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-review-list dd, .project-anime.skill-builder-app .sb-adv-stats dd { margin: 0; font-weight: 600; }
+.project-anime.skill-builder-app .sb-review-list dd i, .project-anime.skill-builder-app .sb-adv-stats dd i { color: var(--pa-energy-b); }
+.project-anime.skill-builder-app .sb-cost-line { text-align: right; font-size: 0.9rem; }
+.project-anime.skill-builder-app .sb-cost-line strong { font-family: var(--pa-font-mono); color: var(--pa-gold); }
+.project-anime.skill-builder-app .sb-cost-line.unaffordable strong { color: var(--pa-danger); }
+
+/* Wizard nav bar. */
+.project-anime.skill-builder-app .sb-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.4rem; border-top: 1px solid var(--pa-line); }
+.project-anime.skill-builder-app .sb-nav-right { display: flex; gap: 0.4rem; }
+.project-anime.skill-builder-app .sb-nav button { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; padding: 0.4rem 0.7rem; border-radius: 5px; border: 1px solid var(--pa-line); background: var(--pa-field); color: var(--pa-ink); }
+.project-anime.skill-builder-app .sb-nav button:hover:not(:disabled) { border-color: var(--pa-accent); }
+.project-anime.skill-builder-app .sb-nav button.sb-cancel { color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-nav button.sb-next { background: color-mix(in srgb, var(--pa-accent) 22%, var(--pa-field)); border-color: color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line)); }
+.project-anime.skill-builder-app .sb-nav button.sb-finish { background: color-mix(in srgb, var(--pa-accent) 32%, var(--pa-panel)); border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line)); font-weight: 700; }
+.project-anime.skill-builder-app .sb-nav button.sb-finish i { color: var(--pa-gold); }
+.project-anime.skill-builder-app .sb-nav button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- Advance (improve) ---- */
+.project-anime.skill-builder-app .sb-advance { display: flex; flex-direction: column; gap: 0.7rem; }
+.project-anime.skill-builder-app .sb-adv-head { display: flex; align-items: center; gap: 0.6rem; }
+.project-anime.skill-builder-app .sb-adv-head img { width: 44px; height: 44px; object-fit: contain; border: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line)); border-radius: 6px; background: var(--pa-surface-2); }
+.project-anime.skill-builder-app .sb-adv-id { display: flex; flex-direction: column; }
+.project-anime.skill-builder-app .sb-adv-name { font-family: var(--pa-font-display, "Georgia", serif); font-size: 1.05rem; font-weight: 700; }
+.project-anime.skill-builder-app .sb-adv-sub { font-size: 0.78rem; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-adv-stats { padding: 0.5rem 0.6rem; background: var(--pa-surface-2); border: 1px solid var(--pa-line); border-radius: 6px; }
+.project-anime.skill-builder-app .sb-imp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.project-anime.skill-builder-app button.sb-imp {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name cost" "detail cost"; align-items: center; gap: 0 0.4rem;
+  text-align: left; cursor: pointer; padding: 0.5rem 0.6rem; color: var(--pa-ink);
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 6px;
+}
+.project-anime.skill-builder-app button.sb-imp:hover:not(:disabled) { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 12%, var(--pa-field)); }
+.project-anime.skill-builder-app button.sb-imp:disabled { opacity: 0.4; cursor: not-allowed; }
+.project-anime.skill-builder-app .sb-imp-name { grid-area: name; font-weight: 700; font-size: 0.85rem; }
+.project-anime.skill-builder-app .sb-imp-detail { grid-area: detail; font-family: var(--pa-font-mono); font-size: 0.72rem; color: var(--pa-ink-soft); }
+.project-anime.skill-builder-app .sb-imp-detail i { color: var(--pa-energy-b); }
+.project-anime.skill-builder-app .sb-imp-cost { grid-area: cost; font-family: var(--pa-font-mono); font-size: 0.8rem; color: var(--pa-gold); white-space: nowrap; }
+.project-anime.skill-builder-app .sb-add-mod-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.project-anime.skill-builder-app .sb-add-mod-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; }
+.project-anime.skill-builder-app .sb-add-mod-row.blocked { opacity: 0.5; }
+.project-anime.skill-builder-app .sb-add-mod-text { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.project-anime.skill-builder-app button.sb-add-mod {
+  flex: 0 0 auto; width: 1.9rem; height: 1.9rem; display: grid; place-items: center; cursor: pointer;
+  background: color-mix(in srgb, var(--pa-accent) 20%, var(--pa-panel));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line)); border-radius: 5px; color: var(--pa-ink);
+}
+.project-anime.skill-builder-app button.sb-add-mod:hover:not(:disabled) { background: color-mix(in srgb, var(--pa-accent) 35%, var(--pa-panel)); }
+.project-anime.skill-builder-app button.sb-add-mod:disabled { opacity: 0.35; cursor: not-allowed; }
+.project-anime.skill-builder-app .sb-note { margin: 0; padding: 0.4rem 0.6rem; font-size: 0.82rem; color: var(--pa-ink-soft); font-style: italic; }
+
+/* Initiative button — lives in the side-header status panel. */
+.project-anime.sheet .sheet-header button.initiative-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.42rem 0.7rem;
+  color: var(--pa-ink);
+  background: var(--pa-panel);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.project-anime.sheet .sheet-header button.initiative-btn:hover {
+  border-color: var(--pa-gold);
+  color: var(--pa-ink);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pa-gold) 35%, transparent);
+}
+.project-anime .initiative-btn i { color: var(--pa-gold); }
+.project-anime .initiative-btn .ib-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+}
+.project-anime .initiative-btn .ib-formula {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--pa-ink-soft);
+  font-size: 0.85rem;
+}
+
+
+.project-anime .luck-dice { display: flex; gap: 0.25rem; }
+.project-anime .luck-die {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  font-weight: 700;
+  color: var(--pa-ink);
+  background: color-mix(in srgb, var(--pa-gold) 14%, var(--pa-field));
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line));
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------
+   Status / Defense matrix (FF8-inspired): Elemental Defense
+   (affinities) + Status (conditions), shown on the Stats tab.
+   ------------------------------------------------------------ */
+.project-anime .status-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.project-anime .status-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem 0.6rem;
+  background: linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  border: 1px solid var(--pa-line);
+  border-left: 3px solid color-mix(in srgb, var(--pa-gold) 70%, transparent);
+  border-radius: var(--pa-radius);
+}
+.project-anime .status-block .section-controls { margin-bottom: 0; }
+
+/* Elemental Defense — two-column affinity grid. */
+.project-anime .elem-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 0.7rem;
+}
+.project-anime .elem-cell {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.project-anime .elem-cell[data-action] { cursor: pointer; }
+.project-anime .elem-cell[data-action]:hover {
+  background: color-mix(in srgb, var(--pa-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--pa-accent) 40%, var(--pa-line));
+}
+.project-anime .elem-icon { font-size: 0.9rem; text-align: center; color: var(--pa-ink-soft); }
+.project-anime img.elem-icon { width: 1rem; height: 1rem; object-fit: contain; justify-self: center; }
+.project-anime .elem-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pa-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-anime .elem-pips { display: inline-flex; gap: 0.16rem; }
+.project-anime .elem-pips .pip {
+  width: 0.4rem;
+  height: 0.4rem;
+  transform: rotate(45deg);
+  background: var(--pa-track);
+  border-radius: 1px;
+}
+.project-anime .elem-val {
+  min-width: 1.7rem;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--pa-ink-soft);
+}
+
+/* Affinity valence — pips, value & icon coloured by level. */
+.project-anime .elem-cell.aff-weak .pip.on,
+.project-anime .elem-cell.aff-weak .elem-val,
+.project-anime .elem-cell.aff-weak .elem-icon { color: var(--pa-danger); }
+.project-anime .elem-cell.aff-weak .pip.on { background: var(--pa-danger); }
+.project-anime .elem-cell.aff-resist .elem-val,
+.project-anime .elem-cell.aff-resist .elem-icon,
+.project-anime .elem-cell.aff-immune .elem-val,
+.project-anime .elem-cell.aff-immune .elem-icon { color: var(--pa-gold); }
+.project-anime .elem-cell.aff-resist .pip.on,
+.project-anime .elem-cell.aff-immune .pip.on { background: var(--pa-gold); }
+.project-anime .elem-cell.aff-absorb .elem-val,
+.project-anime .elem-cell.aff-absorb .elem-icon { color: var(--pa-energy-b); }
+.project-anime .elem-cell.aff-absorb .pip.on { background: var(--pa-energy-b); }
+
+/* Status — condition cells (click to toggle). */
+.project-anime .status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr));
+  gap: 0.4rem;
+}
+.project-anime .status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.45rem 0.3rem;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.6;
+  color: var(--pa-ink-soft);
+  background: var(--pa-surface-2);
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.project-anime .status-cell img { border: none; filter: grayscale(1); }
+.project-anime .status-cell .status-name {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.project-anime .status-cell:hover { opacity: 0.9; }
+.project-anime .status-cell.active {
+  opacity: 1;
+  color: var(--pa-ink);
+  border-color: var(--pa-accent);
+  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--pa-accent) 30%, transparent);
+}
+.project-anime .status-cell.active img { filter: none; }
+
+/* Section nav — a neat button row that opens the slide-in drawers. */
+.project-anime .section-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.project-anime.sheet .section-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.5rem;
+  min-width: 0;
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--pa-ink);
+  background: linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  border: 1px solid var(--pa-line);
+  border-bottom: 2px solid color-mix(in srgb, var(--pa-gold) 60%, transparent);
+  border-radius: var(--pa-radius);
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s, color 0.12s;
+}
+.project-anime.sheet .section-nav button:hover {
+  color: var(--pa-accent-ink);
+  border-color: var(--pa-gold);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pa-gold) 28%, transparent);
+}
+.project-anime .section-nav button i { color: var(--pa-gold); }
+
+/* Section slide-in drawers (Skills / Gear / Bio / Defenses) — overlay from the right. */
+.project-anime .section-drawer {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+}
+.project-anime .section-drawer .drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+.project-anime .section-drawer .drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(440px, 88%);
+  max-height: 100%;        /* fit content, but never taller than the sheet... */
+  padding: 0.7rem 0.8rem 0.8rem;
+  background: linear-gradient(180deg, var(--pa-surface-2), var(--pa-surface));
+  border-left: 3px solid color-mix(in srgb, var(--pa-gold) 70%, transparent);
+  box-shadow: -14px 0 34px rgba(0, 0, 0, 0.5);
+  transform: translateX(115%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;        /* ...then scroll the overflow. */
+}
+.project-anime .section-drawer.open { pointer-events: auto; z-index: 40; }
+.project-anime .section-drawer.open .drawer-backdrop { opacity: 1; }
+.project-anime .section-drawer.open .drawer-panel { transform: translateX(0); }
+
+.project-anime .drawer-headbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime .drawer-headbar h3 {
+  margin: 0;
+  font-family: var(--pa-font-display);
+  font-size: 1.1rem;
+  color: var(--pa-ink);
+}
+.project-anime .drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  color: var(--pa-ink-soft);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+}
+.project-anime .drawer-close:hover { color: var(--pa-ink); background: color-mix(in srgb, var(--pa-accent) 18%, transparent); }
+
+
+/* ------------------------------------------------------------
+   6. Skills tab & 7. Gear tab — shared item rows
+   ------------------------------------------------------------ */
+.project-anime .item-create {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pa-accent-ink);
+}
+.project-anime .item-create:hover { color: var(--pa-accent); }
+
+/* Per-tab resource pills: Gold on the Gear tab, Skill Points on the Skills tab. */
+.project-anime .tab-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.project-anime .tab-meta .carry-indicator { flex: 1 1 12rem; }
+
+
+.project-anime .meta-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+  cursor: text;
+}
+.project-anime .meta-stat i { font-size: 0.85rem; color: var(--pa-gold); }
+.project-anime .meta-stat .meta-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .meta-stat input {
+  width: 3.2rem;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--pa-ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+.project-anime .meta-stat input:hover { border-bottom-color: var(--pa-line); }
+.project-anime .meta-stat input:focus { border-bottom-color: var(--pa-accent); box-shadow: none; }
+
+/* Paperdoll — equip slots positioned over the portrait at the top of the Gear drawer. */
+.project-anime .paperdoll {
+  padding: 0.3rem 0 0.7rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line));
+}
+.project-anime .pd-stage {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  aspect-ratio: 3 / 4;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line));
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 75% at 50% 16%, color-mix(in srgb, var(--pa-accent) 20%, transparent), transparent 62%),
+    linear-gradient(180deg, var(--pa-surface-2), color-mix(in srgb, var(--pa-surface-2) 55%, #000));
+  box-shadow: inset 0 0 32px rgba(0, 0, 0, 0.5);
+}
+.project-anime .pd-portrait {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  border-radius: 8px;
+}
+.project-anime .pd-slot {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 64px;
+  cursor: pointer;
+}
+/* Anatomical placement: main left, off right, armor centered, accessories bottom. */
+.project-anime .pd-slot[data-slot="mainHand"]    { left: 2px; top: 31%; }
+.project-anime .pd-slot[data-slot="offHand"]     { right: 2px; top: 31%; }
+.project-anime .pd-slot[data-slot="armor"]       { left: 50%; top: 44%; transform: translateX(-50%); }
+.project-anime .pd-slot[data-slot="accessory:0"] { left: 27%; bottom: 5%; transform: translateX(-50%); }
+.project-anime .pd-slot[data-slot="accessory:1"] { left: 73%; bottom: 5%; transform: translateX(-50%); }
+
+.project-anime .pd-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  background: color-mix(in srgb, var(--pa-surface-2) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 42%, var(--pa-line));
+  border-radius: 7px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.project-anime .pd-slot:hover .pd-cell {
+  border-color: var(--pa-accent);
+  box-shadow: 0 0 11px color-mix(in srgb, var(--pa-accent) 50%, transparent);
+}
+.project-anime .pd-slot.filled .pd-cell { border-color: color-mix(in srgb, var(--pa-gold) 65%, transparent); }
+.project-anime .pd-slot.drag-over .pd-cell {
+  border-color: var(--pa-gold);
+  box-shadow: 0 0 13px color-mix(in srgb, var(--pa-gold) 60%, transparent);
+}
+.project-anime .pd-icon { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; }
+.project-anime .pd-placeholder { font-size: 1.15rem; color: color-mix(in srgb, var(--pa-ink-soft) 70%, transparent); }
+.project-anime .pd-name {
+  max-width: 76px;
+  padding: 0 4px;
+  font-size: 0.54rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: center;
+  line-height: 1.25;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(0, 0, 0, 0.58);
+  border-radius: 3px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.project-anime .pd-slot.filled .pd-name { color: var(--pa-gold-soft); }
+.project-anime .pd-unequip {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pa-danger);
+  color: #fff;
+  font-size: 0.55rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.project-anime .pd-slot:hover .pd-unequip { opacity: 1; }
+.project-anime .pd-unequip:hover { color: #fff; filter: brightness(1.15); }
+
+/* Slot equip picker (a top-layer popover, so it escapes the drawer's clipping). */
+.project-anime .pd-picker {
+  margin: 0;
+  padding: 0.25rem;
+  min-width: 170px;
+  max-height: 320px;
+  overflow-y: auto;
+  color: var(--pa-ink);
+  font-family: var(--pa-font);
+  background: var(--pa-surface-2);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
+  border-radius: var(--pa-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.project-anime .pd-picker .pd-option,
+.project-anime .pd-picker .pd-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.32rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.project-anime .pd-picker .pd-option:hover,
+.project-anime .pd-picker .pd-empty:hover { background: color-mix(in srgb, var(--pa-accent) 22%, transparent); }
+.project-anime .pd-picker .pd-option.is-selected { background: color-mix(in srgb, var(--pa-accent) 30%, transparent); }
+.project-anime .pd-picker .pd-option img { width: 22px; height: 22px; object-fit: cover; border-radius: 3px; }
+.project-anime .pd-picker .pd-option i { flex: 0 0 auto; width: 22px; text-align: center; color: var(--pa-gold); font-size: 0.9rem; }
+.project-anime .pd-picker .pd-empty { color: var(--pa-ink-soft); font-style: italic; }
+
+/* Container bar — WoW-style bags: Backpack + a tab per container; click to view. */
+.project-anime .bag-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: stretch;
+  padding: 0.1rem 0 0.45rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--pa-line);
+}
+.project-anime .bag-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.project-anime .bag-tab:hover { border-color: color-mix(in srgb, var(--pa-accent) 55%, transparent); }
+.project-anime .bag-tab.active {
+  border-color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 14%, var(--pa-panel));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 32%, transparent);
+}
+.project-anime .bag-tab.drag-over {
+  border-color: var(--pa-gold);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pa-gold) 55%, transparent);
+}
+.project-anime .bag-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  color: var(--pa-gold);
+  font-size: 1.5rem;
+}
+.project-anime img.bag-icon { object-fit: cover; background: var(--pa-surface-2); border: 1px solid var(--pa-line); }
+.project-anime .bag-count {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 15px;
+  padding: 0 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--pa-gold-soft);
+  background: rgba(0, 0, 0, 0.82);
+  border-radius: 8px;
+}
+.project-anime .bag-actions {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.project-anime .bag-tab:hover .bag-actions { opacity: 1; pointer-events: auto; }
+.project-anime .bag-actions a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 0.55rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+}
+.project-anime .bag-actions a:hover { background: var(--pa-accent); }
+.project-anime .bag-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px dashed color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line));
+  border-radius: var(--pa-radius);
+  color: var(--pa-gold-soft);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.project-anime .bag-add:hover {
+  color: var(--pa-gold);
+  border-color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 8%, transparent);
+}
+
+/* Item grid — FFXIV-style icon tiles, shared by the Gear bag and the Skills drawer. */
+.project-anime .item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.4rem;
+  padding: 0.15rem 0 0.35rem;
+}
+.project-anime .item-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.35rem 0.2rem 0.3rem;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+.project-anime .item-tile:hover {
+  border-color: color-mix(in srgb, var(--pa-accent) 55%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 25%, transparent);
+  transform: translateY(-1px);
+}
+.project-anime .item-tile.equipped { border-color: color-mix(in srgb, var(--pa-gold) 60%, transparent); }
+.project-anime .item-tile.equipped::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pa-gold);
+  box-shadow: 0 0 5px var(--pa-gold);
+}
+.project-anime .tile-icon { position: relative; width: 48px; height: 48px; cursor: pointer; }
+.project-anime .tile-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+  background: var(--pa-surface-2);
+}
+.project-anime .tile-qty {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 14px;
+  padding: 0 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--pa-gold-soft);
+  background: rgba(0, 0, 0, 0.82);
+  border-radius: 4px;
+}
+.project-anime .tile-qty.energy { color: var(--pa-energy-b); }
+.project-anime .tile-qty.energy i { font-size: 0.5rem; margin-right: 1px; }
+.project-anime .tile-name {
+  width: 100%;
+  font-size: 0.6rem;
+  line-height: 1.15;
+  text-align: center;
+  color: var(--pa-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.project-anime .tile-rank { font-size: 0.62rem; color: var(--pa-gold); letter-spacing: -1px; line-height: 1; }
+.project-anime .tile-actions {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.project-anime .item-tile:hover .tile-actions { opacity: 1; }
+.project-anime .tile-actions a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  font-size: 0.58rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.project-anime .tile-actions a:hover { background: var(--pa-accent); color: #fff; }
+.project-anime .tile-actions a.active { background: color-mix(in srgb, var(--pa-accent) 70%, transparent); color: #fff; }
+.project-anime .tile-empty {
+  grid-column: 1 / -1;
+  padding: 0.3rem 0.2rem;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+/* The trailing "add item" tile in the flat inventory grid (opens a type picker). */
+.project-anime .item-tile.add-tile {
+  justify-content: center;
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+  color: var(--pa-gold-soft);
+  cursor: pointer;
+}
+.project-anime .item-tile.add-tile:hover {
+  border-color: var(--pa-gold);
+  color: var(--pa-gold);
+  box-shadow: none;
+  background: color-mix(in srgb, var(--pa-gold) 8%, transparent);
+}
+.project-anime .add-tile .add-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  font-size: 1.3rem;
+}
+
+/* Quick-action panel (Stats main view): equipped Weapons + pinned Skills, each a
+   tidy icon grid. Reuses the .item-grid / .item-tile components. */
+.project-anime .quickbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+.project-anime .qs-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime .qs-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 0.92rem;
+}
+/* Gold diamond terminals on the header underline, at both ends (matches .panel-rule). */
+.project-anime .qs-head::before,
+.project-anime .qs-head::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  transform: translateY(50%) rotate(45deg);
+  background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 75%, transparent);
+}
+.project-anime .qs-head::before { left: 4px; }
+.project-anime .qs-head::after { right: 4px; }
+.project-anime .qs-add { color: var(--pa-gold-soft); cursor: pointer; padding: 0 0.25rem; }
+.project-anime .qs-add:hover { color: var(--pa-gold); }
+.project-anime .qs-group { margin-bottom: 0.6rem; }
+.project-anime .qs-sub {
+  margin: 0 0 0.3rem;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .quick-tile { position: relative; }
+.project-anime .quick-tile .tile-icon { cursor: pointer; }
+.project-anime .tile-unready {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pa-danger) 85%, transparent);
+  color: #fff;
+  font-size: 0.58rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.project-anime .quick-tile:hover .tile-unready { opacity: 1; }
+.project-anime .pd-picker.context-menu .pd-option.danger,
+.project-anime .pd-picker.context-menu .pd-option.danger i { color: var(--pa-danger); }
+
+/* Skills drawer — grouped, filterable grid built on the shared .item-tile component.
+   Adds: action-type chips + search, per-effect glyph (role-coloured), pinned flag,
+   and rules badges (over Modifier budget / unaffordable Energy). */
+.project-anime .skill-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+.project-anime .skill-chips { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+.project-anime .skill-chip {
+  padding: 0.12rem 0.55rem;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pa-ink-soft);
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.project-anime .skill-chip:hover { color: var(--pa-ink); border-color: color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line)); }
+.project-anime .skill-chip.active {
+  color: #fff;
+  background: var(--pa-accent);
+  border-color: var(--pa-accent);
+}
+.project-anime .skill-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 120px;
+  min-width: 110px;
+  padding: 0.12rem 0.55rem;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 999px;
+}
+.project-anime .skill-search-box i { font-size: 0.7rem; color: var(--pa-ink-soft); }
+.project-anime .skill-search-box .skill-search {
+  flex: 1;
+  min-width: 0;
+  height: 1.3rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--pa-ink);
+  font-size: 0.72rem;
+}
+.project-anime .skill-search-box .skill-search:focus { outline: none; box-shadow: none; }
+.project-anime .skill-search::-webkit-search-cancel-button { filter: invert(0.6); cursor: pointer; }
+
+.project-anime .skill-group { margin-bottom: 0.55rem; }
+.project-anime .skill-group.filtered-out,
+.project-anime .skill-tile.filtered-out { display: none; }
+
+/* Compact meta line under the name (pin · effect glyph · rank · energy) — keeps the
+   icon art clean instead of stacking badges in every corner. The effect's role only
+   tints its small glyph; pinned / over-budget read off the tile border. */
+.project-anime .skill-tile .tile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 0.3rem;
+  width: 100%;
+  line-height: 1;
+}
+.project-anime .skill-tile .meta-energy { font-size: 0.58rem; font-weight: 700; color: var(--pa-energy-b); font-variant-numeric: tabular-nums; }
+.project-anime .skill-tile .meta-energy i { font-size: 0.5rem; margin-right: 1px; }
+.project-anime .skill-tile .meta-energy.unaffordable { color: var(--pa-danger); }
+
+/* State lives on the tile border (no floating corner badges). */
+.project-anime .skill-tile.pinned { border-color: color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line)); }
+.project-anime .skill-tile.over-budget {
+  border-color: var(--pa-danger);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-danger) 38%, transparent);
+}
+.project-anime .skill-tile.over-budget .tile-rank { color: var(--pa-danger); }
+
+/* Granted (free) abilities: accent-tinted tile + a small gift badge; their trash is hidden. */
+.project-anime .skill-tile.granted { border-color: color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line)); }
+.project-anime .skill-tile .tile-granted { font-size: 0.55rem; color: var(--pa-accent); }
+
+/* Skill-Point summary strip + a button to the Log dialog (the refundable ledger lives there). */
+.project-anime .sp-ledger { display: flex; flex-direction: column; gap: 0.45rem; margin-top: -0.1rem; }
+
+/* Summary strip — Available · Spent · (Granted) · Total readouts. */
+.project-anime .sp-summary {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+}
+.project-anime .sp-stat {
+  flex: 1 1 0; min-width: 3.2rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.05rem;
+  padding: 0.3rem 0.2rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 6px;
+}
+.project-anime .sp-stat .sp-val { font-family: var(--pa-font-mono); font-size: 1.05rem; font-weight: 700; line-height: 1; color: var(--pa-ink); }
+.project-anime .sp-stat .sp-key { font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pa-ink-soft); }
+.project-anime .sp-stat.total { border-color: color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line)); }
+.project-anime .sp-stat.total .sp-val { color: var(--pa-gold); }
+.project-anime .sp-stat.granted .sp-val { color: var(--pa-accent); }
+
+/* Skill Point Log opener (drawer) — an <a> styled as a button; opens the SkillLogApp dialog. */
+.project-anime .sp-log-open {
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.34rem 0.5rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--pa-line); background: var(--pa-field);
+  font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pa-ink-soft);
+}
+.project-anime .sp-log-open:hover { border-color: color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line)); color: var(--pa-gold); }
+.project-anime .sp-log-open i { font-size: 0.78rem; color: var(--pa-gold); }
+.project-anime .sp-log-count {
+  font-family: var(--pa-font-mono); font-size: 0.62rem; font-weight: 700;
+  min-width: 1.1rem; padding: 0 0.25rem; border-radius: 999px; text-align: center;
+  background: color-mix(in srgb, var(--pa-accent) 30%, var(--pa-field)); color: var(--pa-ink);
+}
+
+/* Skill Point Log dialog. */
+.skill-log-app .skill-log-body { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.6rem; }
+
+/* The transaction list (renders inside the Log dialog). */
+.project-anime .sp-log-list {
+  list-style: none; margin: 0; padding: 0;
+  max-height: min(26rem, 56vh); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--pa-accent) 55%, transparent) transparent;
+}
+.project-anime .sp-log-list::-webkit-scrollbar { width: 9px; }
+.project-anime .sp-log-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--pa-accent) 45%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: padding-box;
+}
+.project-anime .sp-log-entry {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.34rem 0.4rem; border-radius: 5px;
+  background: var(--pa-surface-2, var(--pa-field));
+  border: 1px solid transparent;
+}
+.project-anime .sp-log-entry:hover { border-color: var(--pa-line); }
+.project-anime .sp-log-icon { width: 1rem; text-align: center; font-size: 0.8rem; color: var(--pa-ink-soft); flex: 0 0 auto; }
+.project-anime .sp-log-entry.kind-skill .sp-log-icon { color: var(--pa-accent); }
+.project-anime .sp-log-entry.kind-improve .sp-log-icon { color: var(--pa-gold); }
+.project-anime .sp-log-entry.kind-stat .sp-log-icon { color: var(--pa-energy-b, var(--pa-accent)); }
+.project-anime .sp-log-label {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 0.78rem; color: var(--pa-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.project-anime .sp-log-amount {
+  flex: 0 0 auto; font-family: var(--pa-font-mono); font-size: 0.78rem; font-weight: 600;
+  color: color-mix(in srgb, var(--pa-danger) 70%, var(--pa-ink));
+}
+/* "Refund" text label (an <a>, so it sidesteps the bare-button font/height gotchas). */
+.project-anime .sp-log-refund {
+  flex: 0 0 auto; cursor: pointer; line-height: 1.4;
+  font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0.12rem 0.45rem; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 38%, var(--pa-line));
+  color: var(--pa-gold-soft, var(--pa-ink-soft));
+}
+.project-anime .sp-log-refund:hover {
+  color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 16%, transparent);
+  border-color: var(--pa-gold);
+}
+.project-anime .sp-log-entry.locked { opacity: 0.62; }
+.project-anime .sp-log-empty { padding: 0.6rem; text-align: center; font-size: 0.74rem; }
+
+/* Packages (ability bundles, e.g. a chosen Race) shown as chips atop the Skills drawer. */
+.project-anime .pkg-strip {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  padding-bottom: 0.5rem; margin-bottom: 0.1rem; border-bottom: 1px solid var(--pa-line);
+}
+.project-anime .pkg-chip {
+  display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.45rem;
+  background: var(--pa-panel); border: 1px solid color-mix(in srgb, var(--pa-accent) 35%, var(--pa-line)); border-radius: 8px;
+}
+.project-anime .pkg-chip img { width: 1.9rem; height: 1.9rem; border-radius: 5px; object-fit: cover; cursor: pointer; flex: 0 0 auto; }
+.project-anime .pkg-chip .pkg-info { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.project-anime .pkg-chip .pkg-cat { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--pa-gold); }
+.project-anime .pkg-chip .pkg-name { font-family: var(--pa-font-display); color: var(--pa-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime .pkg-chip .pkg-del { color: var(--pa-ink-soft); cursor: pointer; flex: 0 0 auto; }
+.project-anime .pkg-chip .pkg-del:hover { color: var(--pa-danger); }
+
+/* Rich item/skill tooltip — Foundry's #tooltip gets the .pa-tooltip class (set via
+   data-tooltip-class). Self-contained dark palette so it reads the same in any theme.
+   Container props need #tooltip.pa-tooltip to beat the #tooltip ID selector. */
+#tooltip.pa-tooltip {
+  --tt-ink: #ece9f5; --tt-soft: #a9a3bf; --tt-gold: #d8b257; --tt-accent: #9a78e0;
+  --tt-line: rgba(220, 215, 240, 0.16);
+  max-width: 300px;
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+  color: var(--tt-ink);
+  background: linear-gradient(180deg, #232130, #1a1925);
+  border: 1px solid color-mix(in srgb, var(--tt-gold) 45%, transparent);
+  border-radius: 7px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  font-family: var(--font-primary, "Signika"), "Segoe UI", sans-serif;
+}
+.pa-tooltip .pa-tt-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tt-accent) 26%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--tt-gold) 40%, var(--tt-line));
+}
+.pa-tooltip .pa-tt-img {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--tt-gold) 55%, transparent);
+}
+.pa-tooltip .pa-tt-title {
+  font-family: "Constantia", "Georgia", serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--tt-ink);
+}
+.pa-tooltip .pa-tt-type {
+  margin-top: 1px;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tt-gold);
+}
+.pa-tooltip .pa-tt-body { padding: 0.5rem 0.6rem; }
+.pa-tooltip .pa-tt-rows { display: flex; flex-direction: column; gap: 0.18rem; }
+.pa-tooltip .pa-tt-row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; }
+.pa-tooltip .pa-tt-row .k {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tt-soft);
+}
+.pa-tooltip .pa-tt-row .v {
+  font-family: var(--pa-font-mono, "Consolas", monospace);
+  font-size: 0.72rem;
+  text-align: right;
+  color: var(--tt-ink);
+}
+.pa-tooltip .pa-tt-stars { color: var(--tt-gold); }
+.pa-tooltip .pa-tt-desc {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--tt-line);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--tt-soft);
+}
+.pa-tooltip .pa-tt-desc p { margin: 0 0 0.3rem; }
+.pa-tooltip .pa-tt-desc :last-child { margin-bottom: 0; }
+/* Effects-panel tooltip: the effect's rule summary as chips (uses the tooltip palette). */
+.pa-tooltip .ep-tip-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.pa-tooltip .ep-tip-chip {
+  font-family: var(--pa-font-mono, "Consolas", monospace);
+  font-size: 0.7rem;
+  padding: 0.04rem 0.4rem;
+  color: var(--tt-ink);
+  background: color-mix(in srgb, var(--tt-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tt-gold) 35%, var(--tt-line));
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Manage-Skills dialog (DialogV2 content): grouped checklist. */
+.project-anime .pa-skill-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.2rem;
+}
+.project-anime .psd-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pa-gold);
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 40%, var(--pa-line));
+}
+.project-anime .psd-head::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--pa-gold);
+  transform: rotate(45deg);
+}
+.project-anime .psd-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.project-anime .psd-row:hover { background: color-mix(in srgb, var(--pa-accent) 14%, transparent); }
+.project-anime .psd-row img {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--pa-line);
+}
+.project-anime .psd-name { flex: 1; }
+.project-anime .psd-meta { color: var(--pa-gold); font-size: 0.8rem; letter-spacing: -1px; }
+
+
+/* Build-summary rank stars. */
+.project-anime .build-summary .stars {
+  color: var(--pa-gold);
+  letter-spacing: -1px;
+  white-space: nowrap;
+}
+
+/* Carrying-capacity indicator. */
+.project-anime .carry-indicator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+}
+.project-anime .carry-indicator.overloaded {
+  border-color: var(--pa-danger);
+  background: color-mix(in srgb, var(--pa-danger) 8%, var(--pa-panel));
+}
+
+/* ------------------------------------------------------------
+   8. Biography
+   ------------------------------------------------------------ */
+.project-anime prose-mirror {
+  /* Core renders the active editor as a flex column: a menu bar plus a
+     `.editor-container` (flex: 1) whose `.editor-content` is absolutely
+     positioned to fill it. Keep flex/column — `display: block` collapses the
+     container to 0 height, and its `overflow: hidden` then clips the editable
+     content to nothing, so the editor can't be clicked into or typed in. */
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 20rem;
+}
+.project-anime prose-mirror .editor-content,
+.project-anime prose-mirror .ProseMirror {
+  min-height: 16rem;
+  line-height: 1.5;
+}
+
+/* Bio "dossier": stacked panels of identity fields above the rich-text biography. */
+.project-anime .bio-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.project-anime .bio-details .bio-prose-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+/* The biography editor shares the drawer with the dossier panels — give it room to
+   write without dominating (the drawer scrolls past it). */
+.project-anime .bio-details prose-mirror { min-height: 14rem; }
+.project-anime .bio-details prose-mirror .editor-content,
+.project-anime .bio-details prose-mirror .ProseMirror { min-height: 11rem; }
+
+/* "Long" dossier fields render as resizable textareas; the optional per-field icon
+   sits before its label in gold. */
+.project-anime .bio-details textarea {
+  resize: vertical;
+  min-height: 3.4rem;
+  padding: 0.3rem 0.4rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.project-anime .bio-details .form-group label .bio-field-icon { margin-right: 0.3rem; color: var(--pa-gold); font-size: 0.72rem; }
+.project-anime .bio-details .form-group label img.bio-field-icon { width: 0.8rem; height: 0.8rem; object-fit: contain; vertical-align: -1px; }
+
+/* ------------------------------------------------------------
+   9. Item sheet (header, body, description, form grid)
+   ------------------------------------------------------------ */
+.project-anime .item-header {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--pa-gold) 70%, transparent);
+}
+.project-anime .item-header .profile-img {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  background: var(--pa-surface-2);
+}
+.project-anime .item-header .header-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  justify-content: center;
+  min-width: 0;
+}
+.project-anime .item-name {
+  font-family: var(--pa-font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  height: auto;
+  color: var(--pa-ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+}
+.project-anime .item-name:hover { border-bottom-color: var(--pa-line); }
+.project-anime .item-name:focus { border-bottom-color: var(--pa-accent); box-shadow: none; }
+.project-anime .item-summary { font-size: 0.8rem; color: var(--pa-ink-soft); }
+
+.project-anime .item-body {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.project-anime .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 0.6rem;
+}
+.project-anime .form-group { display: flex; flex-direction: column; gap: 0.15rem; }
+.project-anime .form-group.span-2 { grid-column: 1 / -1; }
+.project-anime .form-group label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .form-group.checkbox { flex-direction: row; align-items: center; gap: 0.4rem; }
+.project-anime .form-group.checkbox label { text-transform: none; letter-spacing: 0; }
+
+/* Grouped field panels within an item body or the Bio dossier — visual hierarchy. */
+.project-anime .item-body .form-section,
+.project-anime .bio-details .form-section {
+  padding: 0.55rem 0.7rem 0.7rem;
+  background: var(--pa-surface-2);
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+}
+.project-anime .item-body .form-section-title,
+.project-anime .bio-details .form-section-title {
+  margin: 0 0 0.55rem;
+  padding-bottom: 0.25rem;
+  font-family: var(--pa-font-display);
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--pa-ink);
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime .item-body .form-section-title::before,
+.project-anime .bio-details .form-section-title::before {
+  content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  background: var(--pa-gold);
+  transform: rotate(45deg);
+  vertical-align: middle;
+}
+
+/* Type icon beside the header type badge. */
+.project-anime .item-header .type-badge i { color: var(--pa-gold); margin-right: 0.1rem; }
+
+/* ---- Item sheet tabs: View (display) / Edit (form) ---- */
+.project-anime .item-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.3rem;
+  background: var(--pa-surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime .item-tabs button.item-tab {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  font-family: var(--pa-font-display);
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--pa-ink-soft);
+  cursor: pointer;
+}
+.project-anime .item-tabs button.item-tab:hover {
+  color: var(--pa-ink);
+  background: color-mix(in srgb, var(--pa-accent) 8%, transparent);
+  box-shadow: none;
+}
+.project-anime .item-tabs button.item-tab.active {
+  color: var(--pa-ink);
+  background: var(--pa-surface-2);
+  border-color: color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+  border-bottom-color: var(--pa-surface-2);
+  margin-bottom: -1px;
+}
+.project-anime .item-tabs button.item-tab i { color: var(--pa-gold); }
+
+/* Only the active tab pane(s) show. !important beats the .item-body{display:flex} rule. */
+.project-anime .tab-pane:not(.active) { display: none !important; }
+
+/* View tab — read-only spec sheet (label/value rows + rendered description). */
+.project-anime .item-details {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.project-anime .detail-list {
+  margin: 0;
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+  overflow: hidden;
+}
+.project-anime .detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.4rem 0.7rem;
+}
+.project-anime .detail-row:nth-child(even) { background: color-mix(in srgb, var(--pa-surface-2) 55%, transparent); }
+.project-anime .detail-row dt {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .detail-row dd {
+  margin: 0;
+  font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--pa-ink);
+  text-align: right;
+}
+.project-anime .detail-desc { line-height: 1.5; color: var(--pa-ink); white-space: pre-wrap; }
+.project-anime .detail-desc > :first-child { margin-top: 0; }
+/* Description sits inside the detail box as a full-width row after the stats. */
+.project-anime .detail-desc-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+  border-top: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line));
+}
+
+.project-anime .item-description {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+}
+.project-anime .item-description label {
+  font-weight: 700;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pa-ink-soft);
+}
+.project-anime .description-input {
+  width: 100%;
+  min-height: 14rem;
+  flex: 1 1 auto;
+  resize: vertical;
+  font-family: var(--pa-font);
+  line-height: 1.5;
+}
+
+/* Derived formula / rules callouts. */
+.project-anime .formula-preview,
+.project-anime .effect-desc {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  background: color-mix(in srgb, var(--pa-accent) 8%, transparent);
+  border-left: 3px solid var(--pa-accent);
+  border-radius: 3px;
+}
+
+/* Skill builder summary. */
+.project-anime .build-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+  background: linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+}
+.project-anime .build-summary.over .mod-budget { color: var(--pa-danger); font-weight: 700; }
+
+.project-anime .effect-block { display: flex; flex-direction: column; gap: 0.3rem; }
+.project-anime .needs-trigger select { border-color: var(--pa-danger); }
+.project-anime .hint { font-size: 0.85rem; }
+.project-anime .hint.warn { color: var(--pa-danger); font-size: 0.75rem; }
+
+.project-anime .modifiers-block .group-header h3 { margin: 0; }
+.project-anime .modifier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.project-anime .modifier-row {
+  display: grid;
+  grid-template-columns: 1.2rem 8.5rem 1fr;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.project-anime .modifier-row:hover { background: color-mix(in srgb, var(--pa-accent) 7%, transparent); }
+.project-anime .modifier-row.selected {
+  background: color-mix(in srgb, var(--pa-accent) 13%, transparent);
+  border-color: var(--pa-accent);
+}
+.project-anime .modifier-row i { color: var(--pa-accent); }
+.project-anime .modifier-row .mod-name { font-weight: 600; }
+.project-anime .modifier-row .mod-desc { font-size: 0.75rem; line-height: 1.25; color: var(--pa-ink-soft); }
+.project-anime .heavy-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: var(--pa-gold);
+  color: #241c00;
+}
+
+/* ------------------------------------------------------------
+   10. Chat cards
+   ------------------------------------------------------------ */
+.project-anime.chat-card {
+  color: var(--pa-ink);
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-left: 3px solid var(--pa-accent);
+  border-radius: 6px;
+  padding: 0.6rem;
+  font-family: var(--pa-font);
+}
+.project-anime.chat-card .muted { color: var(--pa-ink-soft); }
+
+/* Header: identity icon + serif title + gold uppercase kicker, on a faint accent wash bar. */
+.project-anime.chat-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: -0.6rem -0.6rem 0;
+  padding: 0.5rem 0.6rem 0.45rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 16%, var(--pa-panel)), var(--pa-panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 38%, var(--pa-line));
+  border-radius: 5px 5px 0 0;
+}
+.project-anime.chat-card .card-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line));
+  background: var(--pa-field);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pa-accent) 22%, transparent),
+              0 1px 4px rgba(0, 0, 0, 0.3);
+}
+/* FA-glyph variant of the icon box (e.g. the Rest card's campground / house). */
+.project-anime.chat-card .card-icon.is-glyph {
+  display: grid;
+  place-items: center;
+  color: var(--pa-gold);
+  font-size: 1.15rem;
+}
+.project-anime.chat-card .card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.project-anime.chat-card .card-title {
+  margin: 0;
+  border: none;
+  font-family: var(--pa-font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--pa-ink);
+}
+.project-anime.chat-card .card-type {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pa-gold);
+}
+
+/* Compact stat chips (rank · effect · Energy). */
+.project-anime.chat-card .card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+.project-anime.chat-card .meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.08rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--pa-ink-soft);
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 999px;
+}
+.project-anime.chat-card .meta-chip .meta-stars { color: var(--pa-gold); letter-spacing: 0.04em; }
+.project-anime.chat-card .meta-chip i { color: var(--pa-accent-2); }
+
+/* Outcome badges. */
+.project-anime.chat-card .card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0.1rem;
+}
+.project-anime.chat-card .badge {
+  padding: 0.14rem 0.55rem;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  border: 1px solid transparent;
+}
+.project-anime.chat-card .badge.success { background: linear-gradient(180deg, #3a9a40, #2e7d32); }
+.project-anime.chat-card .badge.failure {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-danger) 85%, white), var(--pa-danger));
+}
+.project-anime.chat-card .badge.combo {
+  background: linear-gradient(180deg, var(--pa-gold), color-mix(in srgb, var(--pa-gold) 68%, #8a6d00));
+  color: #241c00;
+  border-color: color-mix(in srgb, var(--pa-gold) 55%, white);
+}
+
+/* Standard Foundry dice-roll, retheme-d to the card palette. */
+.project-anime.chat-card .dice-roll { margin: 0.5rem 0 0.1rem; }
+.project-anime.chat-card .dice-roll .dice-formula {
+  margin: 0 0 0.25rem;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  font-family: var(--pa-font-mono);
+  font-size: 0.78rem;
+  color: var(--pa-ink-soft);
+}
+.project-anime.chat-card .dice-roll .dice-total {
+  font-family: var(--pa-font-mono);
+  font-weight: 700;
+  color: var(--pa-ink);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 24%, var(--pa-field)), var(--pa-field));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
+  border-radius: 4px;
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--pa-accent) 18%, transparent);
+}
+.project-anime.chat-card .dice-tooltip .dice-rolls .roll {
+  background-color: color-mix(in srgb, var(--pa-accent) 8%, var(--pa-field));
+  border-color: var(--pa-line);
+}
+
+/* The item's own description prose (replaces the old generic effect blurb). */
+.project-anime.chat-card .card-desc {
+  margin: 0.5rem 0 0.1rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.86rem;
+  line-height: 1.42;
+  color: var(--pa-ink-soft);
+  background: color-mix(in srgb, var(--pa-accent) 6%, var(--pa-surface));
+  border-left: 2px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+.project-anime.chat-card .card-desc :is(p, ul, ol):first-child { margin-top: 0; }
+.project-anime.chat-card .card-desc :is(p, ul, ol):last-child { margin-bottom: 0; }
+
+/* Mechanical breakdown lines. */
+.project-anime.chat-card .card-lines {
+  margin-top: 0.5rem;
+  font-size: 0.86rem;
+}
+.project-anime.chat-card .card-line { margin: 0.15rem 0; }
+
+/* Action buttons. */
+.project-anime.chat-card .card-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+.project-anime.chat-card .card-btn {
+  flex: 1 1 auto;
+  cursor: pointer;
+  padding: 0.32rem 0.5rem;
+  font-family: var(--pa-font);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--pa-accent-ink);
+  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line));
+  border-radius: 4px;
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.project-anime.chat-card .card-btn:hover {
+  background: color-mix(in srgb, var(--pa-accent) 26%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 35%, transparent);
+}
+/* Multi-target (area / chain) per-target rows + the gold "Apply to All" button. */
+.project-anime.chat-card .card-target-row {
+  display: block;
+  margin: 0.1rem 0;
+  padding: 0.06rem 0 0.06rem 0.5rem;
+  border-left: 2px solid color-mix(in srgb, var(--pa-accent) 30%, transparent);
+}
+.project-anime.chat-card .card-btn[data-action="applyAll"] {
+  flex-basis: 100%;
+  color: #241c00;
+  background: color-mix(in srgb, var(--pa-gold) 30%, transparent);
+  border-color: color-mix(in srgb, var(--pa-gold) 60%, var(--pa-line));
+}
+.project-anime.chat-card .card-btn[data-action="applyAll"]:hover {
+  background: color-mix(in srgb, var(--pa-gold) 45%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 40%, transparent);
+}
+/* Mass "Choose Targets" dialog. */
+.project-anime.roll-dialog.mass-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.project-anime .pa-target-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.project-anime .pa-target-pick:hover { background: color-mix(in srgb, var(--pa-accent) 12%, transparent); }
+.project-anime .pa-target-pick img { flex: 0 0 auto; border: none; border-radius: 3px; }
+
+/* ------------------------------------------------------------
+   11. Roll dialog
+   ------------------------------------------------------------ */
+.project-anime.roll-dialog .form-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.project-anime.roll-dialog .form-group label { font-weight: 600; }
+.project-anime.roll-dialog .form-group input,
+.project-anime.roll-dialog .form-group select { flex: 0 0 60%; }
+.project-anime.roll-dialog .hint { font-size: 0.85rem; margin: 0 0 0.4rem; color: var(--pa-ink-soft); }
+
+/* ------------------------------------------------------------
+   12. Custom dropdown widget (themed dark-purple <select> replacement)
+   The native <select> is kept (hidden) as the form's source of truth;
+   JS (helpers/select.mjs) builds this button + popover menu. Placed last so
+   .pa-select-button reliably wins over the generic .window-content button rule.
+   ------------------------------------------------------------ */
+.project-anime .pa-select { position: relative; display: block; width: 100%; }
+
+/* Hidden native select — still the form source of truth (submits & is scriptable). */
+.project-anime select.pa-select-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Trigger button — styled like a quiet field. */
+.project-anime .pa-select > button.pa-select-button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.32rem 0.55rem;
+  font-family: var(--pa-font);
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--pa-ink);
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.project-anime .pa-select > button.pa-select-button:hover {
+  color: var(--pa-ink);
+  border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  box-shadow: none;
+}
+.project-anime .pa-select > button.pa-select-button:focus-visible {
+  outline: none;
+  border-color: var(--pa-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pa-accent) 28%, transparent);
+}
+.project-anime .pa-select-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-anime .pa-select-label.is-empty { color: var(--pa-ink-soft); }
+.project-anime .pa-select-arrow {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  color: var(--pa-ink-soft);
+  transition: transform 0.15s ease;
+}
+.project-anime .pa-select-button[aria-expanded="true"] .pa-select-arrow { transform: rotate(180deg); }
+
+/* Popover menu — dark purple panel, rendered in the top layer. */
+.project-anime .pa-select-menu {
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--pa-ink);
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-accent);
+  border-radius: var(--pa-radius);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--pa-accent) 55%, transparent) transparent;
+}
+.project-anime .pa-select-menu::-webkit-scrollbar { width: 9px; }
+.project-anime .pa-select-menu::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--pa-accent) 45%, transparent);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.project-anime .pa-select-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.34rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.project-anime .pa-select-option::before {  /* gold diamond marks the selected row */
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: transparent;
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.project-anime .pa-select-option:hover { background: color-mix(in srgb, var(--pa-accent) 22%, transparent); }
+.project-anime .pa-select-option.is-selected { background: color-mix(in srgb, var(--pa-accent) 30%, transparent); }
+.project-anime .pa-select-option.is-selected::before {
+  background: var(--pa-gold);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--pa-gold) 70%, transparent);
+}
+.project-anime .pa-select-option.is-empty { color: var(--pa-ink-soft); }
+.project-anime .pa-select-option.is-disabled { opacity: 0.5; pointer-events: none; }
+
+/* Context sizing for the wrapper (it replaces the native select in layout). */
+.project-anime.actor .header-sub .pa-select { width: 100%; }
+.project-anime .header-sub .pa-select > button.pa-select-button { font-size: 0.8rem; }
+
+/* ------------------------------------------------------------
+   13. Elements (damage types) config app — GM settings menu
+   ------------------------------------------------------------ */
+.project-anime.element-config .ec-body { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.4rem 0.2rem; }
+.project-anime.element-config .ec-head,
+.project-anime.element-config .ec-row {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(8rem, 1.4fr) minmax(6rem, 1fr) 6rem 1.7rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+.project-anime.element-config .ec-head {
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime.element-config .ec-head > span {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pa-ink-soft);
+}
+.project-anime.element-config .ec-rows { display: flex; flex-direction: column; gap: 0.4rem; }
+.project-anime.element-config .ec-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1rem;
+  color: var(--pa-gold);
+  cursor: pointer;
+  overflow: hidden;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  transition: border-color 0.12s;
+}
+.project-anime.element-config .ec-pick:hover { border-color: var(--pa-accent); }
+.project-anime.element-config .ec-pick img { width: 100%; height: 100%; object-fit: cover; }
+.project-anime.element-config .ec-key { font-family: var(--pa-font-mono); font-size: 0.78rem; }
+.project-anime.element-config .ec-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pa-ink-soft);
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.project-anime.element-config .ec-del:hover { color: var(--pa-danger); }
+.project-anime.element-config .ec-empty { padding: 0.6rem 0; text-align: center; }
+.project-anime.element-config .ec-add { display: flex; gap: 0.5rem; }
+.project-anime.element-config .ec-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--pa-line);
+}
+.project-anime.element-config button.ec-save {
+  padding: 0.4rem 1rem;
+  font-weight: 700;
+  color: var(--pa-on-accent);
+  background: linear-gradient(180deg, var(--pa-accent-2), var(--pa-accent));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 65%, #000);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.project-anime.element-config button.ec-save:hover { filter: brightness(1.08); color: var(--pa-on-accent); }
+
+/* Bio dossier fields config — Elements chrome + a "Long" (multi-line) toggle column. */
+.project-anime.bio-field-config .ec-head,
+.project-anime.bio-field-config .ec-row {
+  grid-template-columns: 2.1rem minmax(6rem, 1fr) minmax(7rem, 1.4fr) 5.5rem 2.8rem 1.7rem;
+}
+.project-anime.bio-field-config .ec-long {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+.project-anime.bio-field-config .ec-head .ec-h-long { text-align: center; }
+
+/* Token Info custom-fields config — Elements chrome + a label/path/gate/where grid. */
+.project-anime.token-field-config .ec-head,
+.project-anime.token-field-config .ec-row {
+  grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1.4fr) minmax(7rem, 1fr) minmax(6rem, 0.9fr) 1.7rem;
+}
+.project-anime.token-field-config .ec-path { font-family: var(--pa-font-mono); font-size: 0.78rem; }
+
+/* -------------------------------------------------------------------------- */
+/*  Active Effects — list (item tab + actor drawer) and the no-code builder   */
+/* -------------------------------------------------------------------------- */
+
+/* Effects list, shared by the item-sheet Effects tab and the actor Effects drawer. */
+.project-anime .effects-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.project-anime button.effect-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--pa-on-accent);
+  background: linear-gradient(180deg, var(--pa-accent-2), var(--pa-accent));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 65%, #000);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.project-anime button.effect-add:hover { filter: brightness(1.08); color: var(--pa-on-accent); }
+
+.project-anime .effects-list { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
+.project-anime .effects-empty { text-align: center; opacity: 0.6; margin: 0.5rem 0; }
+
+.project-anime .effect-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.55rem;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-left: 3px solid var(--pa-accent);
+  border-radius: 5px;
+}
+.project-anime .effect-row.is-disabled { opacity: 0.45; border-left-color: var(--pa-line); }
+.project-anime .effect-row[draggable="true"] { cursor: grab; }
+.project-anime .effect-icon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.project-anime .effect-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.project-anime .effect-name { font-weight: 600; color: var(--pa-ink); }
+.project-anime .effect-source {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+.project-anime .effect-rules { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.1rem; }
+.project-anime .effect-chip {
+  font-family: var(--pa-font-mono);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.4rem;
+  color: var(--pa-ink);
+  background: var(--pa-surface-2);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 35%, var(--pa-line));
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.project-anime .effect-actions { flex: 0 0 auto; display: flex; gap: 0.45rem; }
+.project-anime .effect-actions a,
+.project-anime .effect-toggle { cursor: pointer; color: var(--pa-ink-soft); }
+.project-anime .effect-actions a:hover,
+.project-anime .effect-toggle:hover { color: var(--pa-accent); }
+
+/* ===== Floating Effects Panel (PF2e-style live readout) =====
+   Frameless ApplicationV2 inserted as a flex item just LEFT of #sidebar inside #ui-right (a
+   flexrow). The flex layout keeps the icon column tucked against the sidebar and reflows it
+   with the sidebar's collapse/expand animation — pure CSS, no JS, no flicker. The 16px gap
+   to the sidebar comes from #ui-right's own flex `gap`; nudge it with --pa-ep-gap. The app
+   adds `.empty` to its own root when there's nothing to show, collapsing the panel. */
+.project-anime.effects-panel {
+  flex: none;
+  align-self: flex-start;
+  margin-top: var(--pa-ep-top, 16px);
+  margin-right: var(--pa-ep-gap, 0px);
+  z-index: var(--pa-ep-z, 60);
+  width: max-content;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  pointer-events: auto;
+}
+.project-anime.effects-panel.empty { display: none; }
+.project-anime.effects-panel .ep-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.project-anime.effects-panel .ep-effect {
+  display: block;
+  width: var(--pa-ep-size, 34px);
+  height: var(--pa-ep-size, 34px);
+  padding: 2px;
+  background: color-mix(in srgb, var(--pa-surface) 88%, transparent);
+  border: 1px solid var(--pa-line);
+  border-left: 3px solid var(--pa-accent);
+  border-radius: var(--pa-ep-radius, 2px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+.project-anime.effects-panel .ep-effect:hover {
+  border-color: var(--pa-accent);
+  filter: brightness(1.05);
+}
+.project-anime.effects-panel .ep-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--pa-ep-radius, 2px);
+  pointer-events: none;
+}
+
+/* The builder dialog: each rule is a "sentence" row of dropdowns. */
+.project-anime.effect-builder .eb-body { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.4rem; }
+.project-anime.effect-builder .eb-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--pa-line);
+}
+.project-anime.effect-builder .eb-pick {
+  flex: 0 0 auto;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pa-surface-2);
+  border: 1px solid var(--pa-line);
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.project-anime.effect-builder .eb-pick img { width: 100%; height: 100%; object-fit: contain; }
+.project-anime.effect-builder .eb-pick i { font-size: 1.3rem; color: var(--pa-gold); }
+.project-anime.effect-builder .eb-name { flex: 1 1 auto; }
+.project-anime.effect-builder .eb-enabled { display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; padding-bottom: 0.25rem; }
+
+.project-anime.effect-builder .eb-rules { display: flex; flex-direction: column; gap: 0.4rem; }
+.project-anime.effect-builder .eb-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+}
+.project-anime.effect-builder .eb-rule select { flex: 0 1 auto; min-width: 6rem; }
+.project-anime.effect-builder .eb-rule .rule-type { font-weight: 600; }
+.project-anime.effect-builder .eb-num { width: 3.4rem; text-align: center; }
+.project-anime.effect-builder .eb-unit { font-size: 0.78rem; color: var(--pa-ink-soft); }
+.project-anime.effect-builder .eb-arrow { color: var(--pa-gold); font-weight: 700; }
+.project-anime.effect-builder .eb-sep { color: var(--pa-ink-soft); opacity: 0.55; padding: 0 0.1rem; }
+.project-anime.effect-builder .rule-pred { color: var(--pa-ink-soft); }
+.project-anime.effect-builder .eb-duration { display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--pa-line); }
+.project-anime.effect-builder .eb-duration > label { font-size: 0.8rem; color: var(--pa-ink-soft); }
+.project-anime.effect-builder .eb-del { margin-left: auto; color: var(--pa-ink-soft); cursor: pointer; }
+.project-anime.effect-builder .eb-del:hover { color: var(--pa-danger); }
+
+/* Grant Item rule — a drag-drop zone of granted-item chips. */
+.project-anime.effect-builder .eb-grant-drop {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px dashed var(--pa-line);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--pa-field) 70%, transparent);
+}
+.project-anime.effect-builder .eb-grant-drop.dragover {
+  border-color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 14%, var(--pa-field));
+}
+.project-anime.effect-builder .eb-grant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.2rem 0.15rem 0.45rem;
+  background: var(--pa-surface-2);
+  border: 1px solid var(--pa-line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+.project-anime.effect-builder .eb-grant-chip img { width: 1.1rem; height: 1.1rem; border-radius: 3px; object-fit: cover; }
+.project-anime.effect-builder .eb-grant-x { color: var(--pa-ink-soft); cursor: pointer; display: inline-flex; padding: 0 0.15rem; }
+.project-anime.effect-builder .eb-grant-x:hover { color: var(--pa-danger); }
+.project-anime.effect-builder .eb-grant-hint { color: var(--pa-ink-soft); opacity: 0.7; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; }
+
+.project-anime.effect-builder .eb-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--pa-line);
+}
+.project-anime.effect-builder button.eb-add,
+.project-anime.effect-builder button.eb-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  font-weight: 700;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.project-anime.effect-builder button.eb-add {
+  color: var(--pa-ink);
+  background: var(--pa-surface-2);
+  border: 1px solid var(--pa-line);
+}
+.project-anime.effect-builder button.eb-add:hover { border-color: color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line)); }
+.project-anime.effect-builder button.eb-save {
+  color: var(--pa-on-accent);
+  background: linear-gradient(180deg, var(--pa-accent-2), var(--pa-accent));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 65%, #000);
+}
+.project-anime.effect-builder button.eb-save:hover { filter: brightness(1.08); color: var(--pa-on-accent); }
+
+/* On-sheet effect toggles — player-flippable switches on the Stats view. */
+.project-anime .toggles-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; }
+.project-anime button.pa-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--pa-ink-soft);
+  opacity: 0.7;
+}
+.project-anime button.pa-toggle.on {
+  color: var(--pa-ink);
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--pa-accent) 60%, var(--pa-line));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 40%, transparent);
+}
+.project-anime .pa-toggle-icon { width: 18px; height: 18px; object-fit: contain; border-radius: 3px; }
+.project-anime .pa-toggle-label { font-size: 0.8rem; font-weight: 600; }
+.project-anime .pa-toggle-switch { color: var(--pa-ink-soft); }
+.project-anime button.pa-toggle.on .pa-toggle-switch { color: var(--pa-accent); }
+
+/* -------------------------------------------- */
+/*  Token Info panel (hover readout)            */
+/* -------------------------------------------- */
+/* A frameless overlay anchored beside a hovered token. Self-contained dark palette so it
+   reads the same in any world theme; reuses the sheet's .resource bar styling for HP/Energy. */
+.project-anime.token-info-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 70;
+  width: max-content;
+  min-width: 134px;
+  max-width: 220px;
+  pointer-events: none;        /* purely informational on hover (interactivity arrives in a later phase) */
+  /* Pin the track + hairline dark so the panel reads the same in a light OR dark world theme. */
+  --pa-track: rgba(0, 0, 0, 0.45);
+  --pa-line: rgba(220, 215, 240, 0.16);
+  color: #ece9f5;
+  background: linear-gradient(180deg, #232130, #1a1925);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 45%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  font-family: var(--pa-font, "Signika"), "Segoe UI", sans-serif;
+}
+.project-anime.token-info-panel.empty { display: none; }
+
+/* Disposition-tinted frame, echoing the reference image's red "monster" panel. */
+.project-anime.token-info-panel.ti-disp-hostile  { border-color: color-mix(in srgb, var(--pa-danger) 70%, transparent); }
+.project-anime.token-info-panel.ti-disp-friendly { border-color: color-mix(in srgb, #4caf72 60%, transparent); }
+.project-anime.token-info-panel.ti-disp-neutral,
+.project-anime.token-info-panel.ti-disp-secret   { border-color: color-mix(in srgb, var(--pa-gold) 45%, transparent); }
+
+.project-anime.token-info-panel .ti-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 26%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 40%, rgba(220, 215, 240, 0.16));
+}
+.project-anime.token-info-panel .ti-img {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
+}
+.project-anime.token-info-panel .ti-heads { display: flex; flex-direction: column; min-width: 0; }
+.project-anime.token-info-panel .ti-name {
+  font-family: "Constantia", "Georgia", serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #ece9f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.project-anime.token-info-panel .ti-badge {
+  margin-top: 1px;
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--pa-gold);
+}
+.project-anime.token-info-panel.ti-disp-hostile .ti-badge { color: color-mix(in srgb, var(--pa-danger) 80%, #fff); }
+
+.project-anime.token-info-panel .ti-resources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.35rem 0.4rem 0.4rem;
+}
+.project-anime.token-info-panel .resource .resource-top { margin-bottom: 0.1rem; }
+.project-anime.token-info-panel .resource label { color: #a9a3bf; font-size: 0.55rem; letter-spacing: 0.04em; }
+.project-anime.token-info-panel .resource-vals { font-variant-numeric: tabular-nums; color: #ece9f5; font-weight: 700; font-size: 0.72rem; }
+.project-anime.token-info-panel .resource-vals .sep { color: #a9a3bf; margin: 0 0.1rem; }
+.project-anime.token-info-panel .resource .bar { height: 8px; border-radius: 4px; }
+.project-anime.token-info-panel .resource .fill { border-radius: 4px; }
+/* Extra single-value stat rows (Skill Points, and Phase-3 reveal layers) under the bars. */
+.project-anime.token-info-panel .ti-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-top: 0.05rem;
+  padding-top: 0.28rem;
+  border-top: 1px solid var(--pa-line);
+}
+.project-anime.token-info-panel .ti-stat .k {
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #a9a3bf;
+}
+.project-anime.token-info-panel .ti-stat .v {
+  font-family: var(--pa-font-mono, "Consolas", monospace);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ece9f5;
+}
+
+/* -------------------------------------------- */
+/*  Token Dossier (right-click inspect dialog)  */
+/* -------------------------------------------- */
+/* A normal themed ApplicationV2 window; reuses the sheet's .resource bars. Sections appear
+   only when the viewer's Reveal effects (or ownership / GM) unlock them. */
+.project-anime.token-dossier .td-body { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.2rem; }
+.project-anime.token-dossier .td-head { display: flex; align-items: center; gap: 0.6rem; }
+.project-anime.token-dossier .td-img {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
+}
+.project-anime.token-dossier .td-id { display: flex; flex-direction: column; min-width: 0; }
+.project-anime.token-dossier .td-name {
+  font-family: var(--pa-font-display, "Constantia", "Georgia", serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--pa-ink);
+}
+.project-anime.token-dossier .td-badge {
+  margin-top: 1px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pa-gold);
+}
+.project-anime.token-dossier.ti-disp-hostile .td-badge { color: var(--pa-danger); }
+
+.project-anime.token-dossier .td-resources { display: flex; flex-direction: column; gap: 0.4rem; }
+.project-anime.token-dossier .resource-vals { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--pa-ink); }
+.project-anime.token-dossier .resource-vals .sep { color: var(--pa-ink-soft); margin: 0 0.1rem; }
+.project-anime.token-dossier .ti-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--pa-line);
+}
+.project-anime.token-dossier .ti-stat .k {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pa-ink-soft);
+}
+.project-anime.token-dossier .ti-stat .v { font-family: var(--pa-font-mono, "Consolas", monospace); font-weight: 700; color: var(--pa-ink); }
+
+.project-anime.token-dossier .td-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--pa-line);
+}
+.project-anime.token-dossier .td-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--pa-font-display, "Constantia", "Georgia", serif);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--pa-ink);
+}
+.project-anime.token-dossier .td-title::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: var(--pa-gold);
+  flex: 0 0 auto;
+}
+
+.project-anime.token-dossier .td-attrs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; }
+.project-anime.token-dossier .td-combat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem; }
+.project-anime.token-dossier .td-attr,
+.project-anime.token-dossier .td-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.3rem 0.25rem;
+  background: var(--pa-panel);
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+}
+.project-anime.token-dossier .td-attr .k,
+.project-anime.token-dossier .td-stat .k {
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--pa-ink-soft);
+}
+.project-anime.token-dossier .td-attr .v,
+.project-anime.token-dossier .td-stat .v {
+  font-family: var(--pa-font-mono, "Consolas", monospace);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--pa-ink);
+}
+
+.project-anime.token-dossier .td-affs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.project-anime.token-dossier .td-aff {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--pa-line);
+  background: var(--pa-field);
+  color: var(--pa-ink);
+}
+.project-anime.token-dossier .td-aff.aff-weak { color: var(--pa-danger); border-color: color-mix(in srgb, var(--pa-danger) 50%, var(--pa-line)); }
+.project-anime.token-dossier .td-aff.aff-resist,
+.project-anime.token-dossier .td-aff.aff-immune { color: var(--pa-gold); border-color: color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line)); }
+.project-anime.token-dossier .td-aff.aff-absorb { color: var(--pa-energy-b); border-color: color-mix(in srgb, var(--pa-energy-b) 50%, var(--pa-line)); }
+
+.project-anime.token-dossier .td-skills { display: flex; flex-direction: column; gap: 0.25rem; }
+/* Each skill is a click-to-expand <details> accordion (read-only). */
+.project-anime.token-dossier .td-skill {
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  background: var(--pa-panel);
+  overflow: hidden;
+}
+.project-anime.token-dossier .td-skill > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  list-style: none;
+}
+.project-anime.token-dossier .td-skill > summary::-webkit-details-marker { display: none; }
+.project-anime.token-dossier .td-skill > summary::before {
+  content: "▸";
+  color: var(--pa-gold);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+.project-anime.token-dossier .td-skill[open] > summary::before { transform: rotate(90deg); }
+.project-anime.token-dossier .td-skill .s-name { flex: 1; color: var(--pa-ink); font-size: 0.8rem; }
+.project-anime.token-dossier .td-skill .s-rank { color: var(--pa-gold); font-size: 0.72rem; letter-spacing: 0.05em; }
+.project-anime.token-dossier .td-skill-body { padding: 0 0.5rem 0.45rem 1.1rem; }
+.project-anime.token-dossier .td-skill-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.4rem 0; }
+.project-anime.token-dossier .td-skill-meta span {
+  font-size: 0.62rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--pa-field);
+  border: 1px solid var(--pa-line);
+  color: var(--pa-ink-soft);
+}
+.project-anime.token-dossier .td-skill-desc { font-size: 0.74rem; line-height: 1.35; color: var(--pa-ink-soft); }
+.project-anime.token-dossier .td-skill-desc p { margin: 0 0 0.3rem; }
+.project-anime.token-dossier .td-skill-desc :last-child { margin-bottom: 0; }
+
+/* -------------------------------------------------------------------------- */
+/*  14. Character Creator                                                     */
+/* -------------------------------------------------------------------------- */
+.project-anime.character-creator .cc-body { display: flex; flex-direction: column; gap: 0.85rem; padding: 0.4rem 0.1rem; }
+
+/* Step rail */
+.project-anime.character-creator .cc-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.25rem; }
+.project-anime.character-creator .cc-step-dot {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  cursor: pointer; padding: 0.1rem;
+}
+.project-anime.character-creator .cc-dot-num {
+  display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  background: var(--pa-track); color: var(--pa-ink-soft); border: 1px solid var(--pa-line);
+  font-family: var(--pa-font-mono); font-size: 0.8rem; transition: all 0.15s ease;
+}
+.project-anime.character-creator .cc-dot-label { font-size: 0.6rem; text-align: center; color: var(--pa-ink-soft); line-height: 1.1; }
+.project-anime.character-creator .cc-step-dot:hover .cc-dot-num { border-color: var(--pa-accent); }
+.project-anime.character-creator .cc-step-dot.done .cc-dot-num {
+  background: color-mix(in srgb, var(--pa-gold) 30%, var(--pa-track)); color: var(--pa-gold);
+  border-color: color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+}
+.project-anime.character-creator .cc-step-dot.active .cc-dot-num {
+  background: var(--pa-accent); color: var(--pa-on-accent, #fff); border-color: var(--pa-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 50%, transparent);
+}
+.project-anime.character-creator .cc-step-dot.active .cc-dot-label { color: var(--pa-ink); font-weight: 600; }
+
+/* Step head */
+.project-anime.character-creator .cc-step-head {
+  display: flex; align-items: baseline; gap: 0.6rem; border-bottom: 1px solid var(--pa-line); padding-bottom: 0.4rem;
+}
+.project-anime.character-creator .cc-step-counter { font-family: var(--pa-font-mono); font-size: 0.7rem; color: var(--pa-ink-soft); letter-spacing: 0.05em; }
+.project-anime.character-creator .cc-step-title { font-family: var(--pa-font-display); font-size: 1.2rem; color: var(--pa-ink); }
+
+/* Step body + fields */
+.project-anime.character-creator .cc-step-body { display: flex; flex-direction: column; gap: 0.7rem; min-height: 11rem; }
+.project-anime.character-creator .cc-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.project-anime.character-creator .cc-label {
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pa-ink-soft);
+  display: inline-flex; align-items: center; gap: 0.3rem;
+}
+.project-anime.character-creator .cc-label i { color: var(--pa-gold); }
+.project-anime.character-creator .cc-field-icon { width: 0.9rem; height: 0.9rem; object-fit: contain; }
+.project-anime.character-creator .cc-field input,
+.project-anime.character-creator .cc-field textarea {
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink);
+  padding: 0.35rem 0.5rem; font-family: var(--pa-font); width: 100%;
+}
+.project-anime.character-creator .cc-field textarea { resize: vertical; line-height: 1.4; }
+.project-anime.character-creator .cc-field input:focus,
+.project-anime.character-creator .cc-field textarea:focus { border-color: var(--pa-accent); outline: none; }
+
+/* Concept */
+.project-anime.character-creator .cc-id-row { display: flex; gap: 0.7rem; align-items: flex-end; }
+.project-anime.character-creator .cc-id-row .cc-field { flex: 1; }
+.project-anime.character-creator .cc-img {
+  position: relative; width: 92px; height: 92px; flex: 0 0 auto; border-radius: 7px; overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line)); cursor: pointer;
+}
+.project-anime.character-creator .cc-img img { width: 100%; height: 100%; object-fit: cover; }
+.project-anime.character-creator .cc-img-edit {
+  position: absolute; inset: 0; display: grid; place-items: center; color: #fff;
+  background: rgba(0,0,0,0.45); opacity: 0; transition: opacity 0.15s ease;
+}
+.project-anime.character-creator .cc-img:hover .cc-img-edit { opacity: 1; }
+
+/* Budget pills (Step-Ups / Gold) */
+.project-anime.character-creator .cc-budget-pill,
+.project-anime.character-creator .cc-budget-bar {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.7rem; border-radius: 7px;
+  background: var(--pa-panel); border: 1px solid var(--pa-line);
+}
+.project-anime.character-creator .cc-budget-num { font-family: var(--pa-font-mono); font-size: 1.3rem; color: var(--pa-ink); font-weight: 700; }
+.project-anime.character-creator .cc-budget-num i { color: var(--pa-gold); font-size: 0.9rem; }
+.project-anime.character-creator .cc-budget-sub { font-family: var(--pa-font-mono); font-size: 0.8rem; }
+.project-anime.character-creator .cc-budget-pill.over .cc-budget-num { color: var(--pa-danger); }
+.project-anime.character-creator .cc-budget-bar .cc-refresh { margin-left: auto; }
+
+/* Attribute cards */
+.project-anime.character-creator .cc-attr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.5rem; }
+.project-anime.character-creator .cc-attr-card {
+  display: flex; flex-direction: column; align-items: center; gap: 0.35rem; padding: 0.6rem 0.4rem;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 8px;
+  border-top: 2px solid color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+}
+.project-anime.character-creator .cc-attr-head { display: flex; align-items: center; gap: 0.3rem; }
+.project-anime.character-creator .cc-attr-head i { color: var(--pa-accent); }
+.project-anime.character-creator .cc-attr-name { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--pa-ink-soft); }
+.project-anime.character-creator .cc-attr-die {
+  font-family: var(--pa-font-mono); font-size: 1.7rem; font-weight: 700; color: var(--pa-ink);
+  line-height: 1; padding: 0.15rem 0;
+}
+.project-anime.character-creator .cc-attr-ctrl { display: flex; gap: 0.35rem; }
+.project-anime.character-creator button.cc-step-btn {
+  width: 1.9rem; height: 1.9rem; display: grid; place-items: center; cursor: pointer;
+  border-radius: 50%; border: 1px solid var(--pa-line); background: var(--pa-field); color: var(--pa-ink);
+}
+.project-anime.character-creator .cc-step-btn:hover:not(:disabled) { border-color: var(--pa-accent); color: var(--pa-accent); }
+.project-anime.character-creator .cc-step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Combat stats */
+.project-anime.character-creator .cc-vitals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 0.5rem; }
+.project-anime.character-creator .cc-vital {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.55rem 0.3rem;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 8px;
+}
+.project-anime.character-creator .cc-v-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pa-ink-soft); }
+.project-anime.character-creator .cc-v-val { font-family: var(--pa-font-mono); font-size: 1.45rem; font-weight: 700; color: var(--pa-ink); line-height: 1; }
+.project-anime.character-creator .cc-v-sub { font-size: 0.58rem; }
+.project-anime.character-creator .cc-vital.hp .cc-v-val { color: var(--pa-hp-b); }
+.project-anime.character-creator .cc-vital.energy .cc-v-val { color: var(--pa-energy-b); }
+
+.project-anime.character-creator .cc-luck { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.55rem 0.7rem; background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 8px; }
+.project-anime.character-creator .cc-luck-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.project-anime.character-creator .cc-luck-dice { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.project-anime.character-creator .cc-luck-die {
+  display: grid; place-items: center; min-width: 2rem; height: 2rem; padding: 0 0.3rem; border-radius: 6px;
+  background: var(--pa-field); border: 1px solid color-mix(in srgb, var(--pa-gold) 40%, var(--pa-line));
+  font-family: var(--pa-font-mono); font-size: 1.05rem; font-weight: 700; color: var(--pa-gold);
+}
+
+/* Skills */
+.project-anime.character-creator .cc-sp { display: flex; align-items: center; gap: 0.45rem; }
+.project-anime.character-creator .cc-sp > i { color: var(--pa-gold); }
+.project-anime.character-creator .cc-sp-val { font-family: var(--pa-font-mono); font-size: 1.25rem; color: var(--pa-ink); }
+.project-anime.character-creator .cc-skill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; max-height: 16rem; overflow-y: auto; }
+.project-anime.character-creator .cc-skill-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.45rem; background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 6px; }
+.project-anime.character-creator .cc-skill-row img { width: 2rem; height: 2rem; border-radius: 5px; object-fit: cover; flex: 0 0 auto; }
+.project-anime.character-creator .cc-skill-info { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+.project-anime.character-creator .cc-skill-name { color: var(--pa-ink); font-weight: 600; }
+.project-anime.character-creator .cc-skill-sub { font-size: 0.68rem; }
+.project-anime.character-creator .cc-skill-sub i { color: var(--pa-energy-b); }
+
+/* Gear shop */
+.project-anime.character-creator .cc-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.project-anime.character-creator button.cc-chip {
+  cursor: pointer; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); color: var(--pa-ink-soft);
+}
+.project-anime.character-creator button.cc-chip:hover { border-color: var(--pa-accent); }
+.project-anime.character-creator .cc-chip.active { background: color-mix(in srgb, var(--pa-accent) 25%, var(--pa-field)); border-color: var(--pa-accent); color: var(--pa-ink); }
+.project-anime.character-creator .cc-shop-grid { display: flex; flex-direction: column; gap: 0.3rem; max-height: 17rem; overflow-y: auto; padding-right: 0.2rem; }
+.project-anime.character-creator .cc-shop-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.45rem; background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 6px; }
+.project-anime.character-creator .cc-shop-item img { width: 1.9rem; height: 1.9rem; border-radius: 5px; object-fit: cover; flex: 0 0 auto; }
+.project-anime.character-creator .cc-shop-info { display: flex; flex-direction: column; gap: 0.05rem; flex: 1; min-width: 0; }
+.project-anime.character-creator .cc-shop-name { color: var(--pa-ink); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime.character-creator .cc-shop-sub { font-size: 0.64rem; text-transform: capitalize; }
+.project-anime.character-creator .cc-shop-item.unaffordable { opacity: 0.5; }
+.project-anime.character-creator button.cc-buy {
+  flex: 0 0 auto; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.3rem 0.6rem; border-radius: 5px; font-family: var(--pa-font-mono); font-weight: 700;
+  background: color-mix(in srgb, var(--pa-gold) 22%, var(--pa-field)); border: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line)); color: var(--pa-ink);
+}
+.project-anime.character-creator button.cc-buy:hover:not(:disabled) { border-color: var(--pa-gold); }
+.project-anime.character-creator .cc-buy i { color: var(--pa-gold); }
+.project-anime.character-creator .cc-buy:hover:not(:disabled) { border-color: var(--pa-gold); }
+.project-anime.character-creator .cc-buy:disabled { opacity: 0.4; cursor: not-allowed; }
+.project-anime.character-creator .cc-subhead {
+  margin: 0.3rem 0 0; font-family: var(--pa-font-display); font-size: 0.95rem; color: var(--pa-ink);
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.project-anime.character-creator .cc-subhead::before { content: ""; width: 0.5rem; height: 0.5rem; background: var(--pa-gold); transform: rotate(45deg); }
+.project-anime.character-creator .cc-owned-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; max-height: 9rem; overflow-y: auto; }
+.project-anime.character-creator .cc-owned-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.4rem; border-radius: 5px; background: var(--pa-field); }
+.project-anime.character-creator .cc-owned-row img { width: 1.5rem; height: 1.5rem; border-radius: 4px; object-fit: cover; }
+.project-anime.character-creator .cc-owned-name { flex: 1; color: var(--pa-ink); font-size: 0.82rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime.character-creator .cc-owned-cost { font-family: var(--pa-font-mono); font-size: 0.74rem; }
+.project-anime.character-creator .cc-owned-cost i { color: var(--pa-gold); }
+
+/* Finishing touches */
+.project-anime.character-creator .cc-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+.project-anime.character-creator .cc-detail-grid .span-2 { grid-column: 1 / -1; }
+
+/* Shared small buttons */
+.project-anime.character-creator button.cc-mini-btn,
+.project-anime.character-creator button.cc-icon-btn,
+.project-anime.character-creator button.cc-primary {
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  border: 1px solid var(--pa-line); background: var(--pa-field); color: var(--pa-ink); border-radius: 6px;
+}
+.project-anime.character-creator .cc-mini-btn { align-self: flex-start; padding: 0.3rem 0.6rem; font-size: 0.78rem; }
+.project-anime.character-creator .cc-icon-btn { width: 1.8rem; height: 1.8rem; flex: 0 0 auto; }
+.project-anime.character-creator .cc-mini-btn:hover, .project-anime.character-creator .cc-icon-btn:hover { border-color: var(--pa-accent); }
+.project-anime.character-creator .cc-icon-btn.danger:hover { border-color: var(--pa-danger); color: var(--pa-danger); }
+.project-anime.character-creator button.cc-primary {
+  padding: 0.5rem 0.8rem; font-weight: 700;
+  background: color-mix(in srgb, var(--pa-accent) 28%, var(--pa-panel));
+  border-color: color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line));
+}
+.project-anime.character-creator .cc-primary i { color: var(--pa-gold); }
+.project-anime.character-creator .cc-primary:hover { border-color: var(--pa-accent); }
+.project-anime.character-creator .cc-empty { text-align: center; padding: 1rem 0; }
+
+/* Nav */
+.project-anime.character-creator .cc-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--pa-line); }
+.project-anime.character-creator .cc-nav button {
+  display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; padding: 0.45rem 0.8rem;
+  border-radius: 6px; border: 1px solid var(--pa-line); background: var(--pa-field); color: var(--pa-ink);
+}
+.project-anime.character-creator .cc-nav button:hover { border-color: var(--pa-accent); }
+.project-anime.character-creator .cc-nav .cc-next { background: color-mix(in srgb, var(--pa-accent) 22%, var(--pa-field)); border-color: color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line)); }
+.project-anime.character-creator .cc-nav .cc-finish-btn { background: color-mix(in srgb, var(--pa-accent) 32%, var(--pa-panel)); border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line)); font-weight: 700; }
+.project-anime.character-creator .cc-nav .cc-finish-btn i { color: var(--pa-gold); }
+
+/* Core foundry2.css forces `button { height/min-height: var(--button-size) }` (2em) on
+   EVERY button — which clips multi-line/padded buttons and ovals the fixed-size round
+   steppers. Release the floor for all creator buttons, and let content-sized buttons grow
+   (excluding the two intentionally fixed-size round/icon buttons, which keep their own height). */
+.project-anime.character-creator .cc-body button { min-height: 0; }
+.project-anime.character-creator .cc-body button:not(.cc-step-btn):not(.cc-icon-btn) { height: auto; }
+
+/* -------------------------------------------------------------------------- */
+/*  14b. Monster Creator — Tier picker + Review. Reuses every .cc-* rule above */
+/*       via the shared `character-creator` class; these are the Tier deltas.  */
+/*       Each Tier card / badge carries its own --tier-color (set inline).     */
+/* -------------------------------------------------------------------------- */
+.project-anime.monster-creator .cc-tier-power {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.35rem 0.7rem; border-radius: 7px;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); border-left: 2px solid var(--pa-gold);
+}
+.project-anime.monster-creator .cc-tier-power-val { font-family: var(--pa-font-mono); font-size: 1.2rem; font-weight: 700; color: var(--pa-gold); }
+.project-anime.monster-creator .cc-tier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.project-anime.monster-creator button.cc-tier-card {
+  display: flex; flex-direction: column; gap: 0.45rem; cursor: pointer; text-align: left;
+  padding: 0.6rem 0.7rem; border-radius: 9px;
+  background: var(--pa-panel); border: 1px solid var(--pa-line);
+  border-top: 2px solid color-mix(in srgb, var(--tier-color) 70%, var(--pa-line));
+}
+.project-anime.monster-creator .cc-tier-card:hover { border-color: color-mix(in srgb, var(--tier-color) 60%, var(--pa-line)); }
+.project-anime.monster-creator .cc-tier-card.selected {
+  border-color: var(--tier-color);
+  box-shadow: 0 0 0 1px var(--tier-color), 0 0 10px color-mix(in srgb, var(--tier-color) 35%, transparent);
+  background: color-mix(in srgb, var(--tier-color) 12%, var(--pa-panel));
+}
+.project-anime.monster-creator .cc-tier-head { display: flex; align-items: center; gap: 0.45rem; }
+.project-anime.monster-creator .cc-tier-head > i { color: var(--tier-color); font-size: 1.05rem; }
+.project-anime.monster-creator .cc-tier-name { font-family: var(--pa-font-display); font-size: 1.05rem; color: var(--pa-ink); }
+.project-anime.monster-creator .cc-tier-check { margin-left: auto; color: var(--tier-color); }
+.project-anime.monster-creator .cc-tier-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.project-anime.monster-creator .cc-tier-stats li { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.project-anime.monster-creator .cc-tier-k { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--pa-ink-soft); }
+.project-anime.monster-creator .cc-tier-v { font-family: var(--pa-font-mono); font-size: 0.92rem; font-weight: 700; color: var(--pa-ink); }
+
+.project-anime.monster-creator .cc-review-id { display: flex; align-items: center; gap: 0.7rem; }
+.project-anime.monster-creator .cc-review-img { width: 3.4rem; height: 3.4rem; border-radius: 8px; object-fit: cover; border: 1px solid var(--pa-line); flex: 0 0 auto; }
+.project-anime.monster-creator .cc-review-head { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.project-anime.monster-creator .cc-review-name { font-family: var(--pa-font-display); font-size: 1.2rem; color: var(--pa-ink); }
+.project-anime.monster-creator .cc-tier-badge {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  color: var(--tier-color);
+  background: color-mix(in srgb, var(--tier-color) 16%, var(--pa-field));
+  border: 1px solid color-mix(in srgb, var(--tier-color) 45%, var(--pa-line));
+}
+
+/* Tier badge on the NPC sheet header (beside the disposition select). */
+.project-anime.sheet.actor .tier-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem; max-width: 100%;
+  padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700;
+  color: var(--tier-color);
+  background: color-mix(in srgb, var(--tier-color) 16%, var(--pa-field));
+  border: 1px solid color-mix(in srgb, var(--tier-color) 45%, var(--pa-line));
+}
+.project-anime.sheet.actor .tier-badge i { color: var(--tier-color); }
+.project-anime.sheet.actor .tier-badge span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* -------------------------------------------------------------------------- */
+/*  14d. Party sheet (encounter-budget planner)                               */
+/* -------------------------------------------------------------------------- */
+.project-anime.party-sheet .window-content { display: flex; flex-direction: column; gap: 0.6rem; }
+.project-anime.party-sheet .party-topbar { display: flex; align-items: center; gap: 0.7rem; }
+.project-anime.party-sheet .party-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.project-anime.party-sheet .party-tabs { display: flex; gap: 0.25rem; }
+.project-anime.party-sheet button.party-tab {
+  display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; min-height: 0;
+  padding: 0.25rem 0.6rem; border-radius: 6px 6px 0 0; font-size: 0.8rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-bottom-color: transparent; color: var(--pa-ink-soft);
+}
+.project-anime.party-sheet button.party-tab:hover { color: var(--pa-ink); border-color: var(--pa-accent); }
+.project-anime.party-sheet button.party-tab.active { background: var(--pa-panel); color: var(--pa-ink); border-color: var(--pa-accent); }
+.project-anime.party-sheet .party-tab i { color: var(--pa-gold); }
+.project-anime.party-sheet .party-pane { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 0.7rem; }
+.project-anime.party-sheet .party-pane.active { display: flex; }
+.project-anime.party-sheet .party-portrait {
+  position: relative; width: 3rem; height: 3rem; border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--pa-line); flex: 0 0 auto;
+}
+.project-anime.party-sheet .party-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.project-anime.party-sheet .party-portrait i {
+  position: absolute; inset: 0; display: grid; place-items: center; color: #fff;
+  background: rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity 0.15s;
+}
+.project-anime.party-sheet .party-portrait:hover i { opacity: 1; }
+.project-anime.party-sheet .party-name {
+  width: 100%; font-family: var(--pa-font-display); font-size: 1.2rem; color: var(--pa-ink);
+  background: transparent; border: none; border-bottom: 1px solid var(--pa-line);
+}
+.project-anime.party-sheet .party-name:focus { outline: none; border-color: var(--pa-accent); }
+
+.project-anime.party-sheet .party-section { display: flex; flex-direction: column; gap: 0.45rem; }
+.project-anime.party-sheet .party-title {
+  margin: 0; display: flex; align-items: center; gap: 0.45rem;
+  font-family: var(--pa-font-display); font-size: 1.05rem; color: var(--pa-ink);
+  border-bottom: 1px solid var(--pa-line); padding-bottom: 0.3rem;
+}
+.project-anime.party-sheet .party-title > i { color: var(--pa-accent); }
+.project-anime.party-sheet .party-sp-pill,
+.project-anime.party-sheet .party-spent {
+  margin-left: auto; font-family: var(--pa-font-mono); font-size: 0.85rem; font-weight: 700; color: var(--pa-ink);
+}
+.project-anime.party-sheet .party-sp-pill i { color: var(--pa-gold); }
+.project-anime.party-sheet .party-spent.over { color: var(--pa-danger); }
+
+.project-anime.party-sheet .party-drop {
+  display: flex; flex-direction: column; gap: 0.3rem; min-height: 2.4rem; padding: 0.3rem;
+  border: 1px dashed var(--pa-line); border-radius: 7px;
+}
+.project-anime.party-sheet .party-drop.drag-over { border-color: var(--pa-accent); background: color-mix(in srgb, var(--pa-accent) 8%, transparent); }
+.project-anime.party-sheet .party-row {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.45rem;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 6px;
+  border-left: 2px solid var(--tier-color, var(--pa-line));
+}
+.project-anime.party-sheet .party-row.missing { opacity: 0.5; }
+.project-anime.party-sheet .party-row img { width: 1.9rem; height: 1.9rem; border-radius: 5px; object-fit: cover; cursor: pointer; flex: 0 0 auto; }
+.project-anime.party-sheet .party-row-name { flex: 1; min-width: 0; color: var(--pa-ink); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime.party-sheet .party-row-tier { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tier-color, var(--pa-ink-soft)); }
+.project-anime.party-sheet .party-row-sp,
+.project-anime.party-sheet .party-row-cost { font-family: var(--pa-font-mono); font-size: 0.82rem; color: var(--pa-ink); white-space: nowrap; }
+.project-anime.party-sheet .party-row-qty { font-family: var(--pa-font-mono); font-size: 0.78rem; color: var(--pa-ink-soft); white-space: nowrap; }
+.project-anime.party-sheet .party-row-sp i,
+.project-anime.party-sheet .party-row-cost i { color: var(--pa-gold); }
+.project-anime.party-sheet .party-empty { text-align: center; padding: 0.5rem 0; margin: 0; }
+
+.project-anime.party-sheet .party-qty { display: inline-flex; align-items: center; gap: 0.2rem; }
+.project-anime.party-sheet button.party-q {
+  width: 1.4rem; height: 1.4rem; display: grid; place-items: center; cursor: pointer; padding: 0; min-height: 0;
+  border-radius: 4px; border: 1px solid var(--pa-line); background: var(--pa-field); color: var(--pa-ink); font-size: 0.7rem;
+}
+.project-anime.party-sheet button.party-q:hover { border-color: var(--pa-accent); }
+.project-anime.party-sheet .party-q-n { font-family: var(--pa-font-mono); min-width: 1.1rem; text-align: center; }
+.project-anime.party-sheet button.party-x {
+  width: 1.5rem; height: 1.5rem; display: grid; place-items: center; cursor: pointer; padding: 0; min-height: 0; flex: 0 0 auto;
+  border-radius: 4px; border: 1px solid transparent; background: transparent; color: var(--pa-ink-soft);
+}
+.project-anime.party-sheet button.party-x:hover { color: var(--pa-danger); border-color: var(--pa-danger); }
+
+.project-anime.party-sheet .party-budget-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.7rem; }
+.project-anime.party-sheet .party-label { display: block; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pa-ink-soft); }
+.project-anime.party-sheet .party-diff select { font-size: 0.85rem; }
+.project-anime.party-sheet .party-budget-val { text-align: right; }
+.project-anime.party-sheet .party-budget-val strong { font-family: var(--pa-font-mono); font-size: 1.5rem; color: var(--pa-gold); }
+.project-anime.party-sheet .party-thresholds { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.project-anime.party-sheet .party-th {
+  font-family: var(--pa-font-mono); font-size: 0.68rem; padding: 0.1rem 0.45rem; border-radius: 999px;
+  background: var(--pa-field); border: 1px solid var(--pa-line); color: var(--pa-ink-soft);
+}
+.project-anime.party-sheet .party-th strong { color: var(--pa-ink); }
+.project-anime.party-sheet .party-th.active { border-color: var(--pa-gold); color: var(--pa-ink); }
+.project-anime.party-sheet .party-th.active strong { color: var(--pa-gold); }
+
+.project-anime.party-sheet .party-meter { height: 6px; border-radius: 3px; background: var(--pa-track); overflow: hidden; }
+.project-anime.party-sheet .party-meter-fill { height: 100%; background: linear-gradient(90deg, var(--pa-accent), var(--pa-accent-2, var(--pa-accent))); transition: width 0.2s; }
+.project-anime.party-sheet .party-meter-fill.over { background: var(--pa-danger); }
+
+/* Member dashboard cards (Party tab) */
+.project-anime.party-sheet .party-cards { gap: 0.4rem; }
+.project-anime.party-sheet .party-card {
+  display: flex; gap: 0.55rem; padding: 0.45rem;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 8px;
+}
+.project-anime.party-sheet .party-card.missing { opacity: 0.5; }
+.project-anime.party-sheet .party-card-img { width: 3rem; height: 3rem; border-radius: 6px; object-fit: cover; cursor: pointer; flex: 0 0 auto; }
+.project-anime.party-sheet .party-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.project-anime.party-sheet .party-card-top { display: flex; align-items: center; gap: 0.4rem; }
+.project-anime.party-sheet .party-card-name { flex: 1; min-width: 0; color: var(--pa-ink); font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime.party-sheet .party-card-sp { font-family: var(--pa-font-mono); font-size: 0.78rem; color: var(--pa-ink-soft); white-space: nowrap; }
+.project-anime.party-sheet .party-card-sp i { color: var(--pa-gold); }
+.project-anime.party-sheet .pm-res { display: flex; align-items: center; gap: 0.35rem; }
+.project-anime.party-sheet .pm-res > i { width: 0.85rem; text-align: center; font-size: 0.68rem; }
+.project-anime.party-sheet .pm-res.hp > i { color: var(--pa-hp-b); }
+.project-anime.party-sheet .pm-res.energy > i { color: var(--pa-energy-b); }
+.project-anime.party-sheet .pm-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--pa-track); overflow: hidden; }
+.project-anime.party-sheet .pm-res.hp .pm-fill { height: 100%; background: linear-gradient(90deg, var(--pa-hp-a), var(--pa-hp-b)); }
+.project-anime.party-sheet .pm-res.energy .pm-fill { height: 100%; background: linear-gradient(90deg, var(--pa-energy-a), var(--pa-energy-b)); }
+.project-anime.party-sheet .pm-res-val { font-family: var(--pa-font-mono); font-size: 0.68rem; color: var(--pa-ink-soft); min-width: 3rem; text-align: right; }
+.project-anime.party-sheet .party-card-vitals { display: flex; gap: 0.8rem; margin-top: 0.1rem; }
+.project-anime.party-sheet .party-card-vitals span { font-family: var(--pa-font-mono); font-size: 0.72rem; color: var(--pa-ink); }
+.project-anime.party-sheet .party-card-vitals i { color: var(--pa-ink-soft); margin-right: 0.1rem; }
+
+/* Shared Gold treasury (Stash tab) */
+.project-anime.party-sheet .party-gold { margin-left: auto; }
+.project-anime.party-sheet .party-gold input {
+  width: 6rem; text-align: right; font-family: var(--pa-font-mono); font-size: 1rem; color: var(--pa-gold);
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px;
+}
+.project-anime.party-sheet .treasury-actions { display: flex; gap: 0.4rem; }
+.project-anime.party-sheet button.party-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; min-height: 0;
+  padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.78rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); color: var(--pa-ink);
+}
+.project-anime.party-sheet button.party-btn:hover { border-color: var(--pa-accent); }
+.project-anime.party-sheet .party-btn i { color: var(--pa-gold); }
+
+/* "Give to member" avatars + button (Stash tab) */
+.project-anime.party-sheet .give-bar { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.1rem 0 0.2rem; }
+.project-anime.party-sheet .give-target { width: 2.1rem; height: 2.1rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--pa-line); cursor: copy; }
+.project-anime.party-sheet .give-target img { width: 100%; height: 100%; object-fit: cover; }
+.project-anime.party-sheet .give-target.drag-over { border-color: var(--pa-gold); box-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 50%, transparent); }
+.project-anime.party-sheet button.give-btn:hover { color: var(--pa-gold); border-color: var(--pa-gold); }
+
+/* -------------------------------------------------------------------------- */
+/*  15. Character Creation config (GM settings menu)                          */
+/* -------------------------------------------------------------------------- */
+.project-anime.creation-config .cc-config { display: flex; flex-direction: column; gap: 0.9rem; padding: 0.5rem 0.2rem; }
+/* These dialogs carry app classes (creation-config, element-config, effect-builder, …), NOT
+   "sheet", so the system's .sheet .window-content scroll rules don't reach them. With
+   height:"auto" a long form grows past the screen and its footer/Save fall off-bottom. Cap each
+   dialog's part root to the viewport so it scrolls internally; the parts are `scrollable:[""]`,
+   so scroll position survives the add-row / drop re-renders. (.ec-body covers Elements, Bio
+   Fields, and Token Fields — they share the element-config class.) */
+.project-anime.creation-config .cc-config,
+.project-anime.character-creator .cc-body,
+.project-anime.element-config .ec-body,
+.project-anime.effect-builder .eb-body,
+.project-anime.skill-builder-app .sb-body,
+.project-anime.advancement-app .adv-body,
+.project-anime.rest-app .rest-body,
+.project-anime.token-dossier .td-body { max-height: calc(100vh - 8rem); overflow-y: auto; }
+.project-anime.creation-config .ccf-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.project-anime.creation-config .ccf-title {
+  margin: 0; font-family: var(--pa-font-display); font-size: 1rem; color: var(--pa-ink);
+  display: flex; align-items: center; gap: 0.4rem; border-bottom: 1px solid var(--pa-line); padding-bottom: 0.3rem;
+}
+.project-anime.creation-config .ccf-title::before { content: ""; width: 0.5rem; height: 0.5rem; background: var(--pa-gold); transform: rotate(45deg); }
+.project-anime.creation-config .ccf-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.project-anime.creation-config .ccf-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.project-anime.creation-config .ccf-field span { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pa-ink-soft); }
+.project-anime.creation-config .ccf-field input {
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink);
+  padding: 0.35rem 0.5rem; font-family: var(--pa-font-mono);
+}
+.project-anime.creation-config .ccf-field input:focus { border-color: var(--pa-accent); outline: none; }
+.project-anime.creation-config .ccf-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.35rem; }
+.project-anime.creation-config .ccf-packs { display: flex; flex-direction: column; gap: 0.3rem; max-height: 15rem; overflow-y: auto; padding-right: 0.2rem; }
+.project-anime.creation-config .ccf-check {
+  display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.45rem; border-radius: 6px; cursor: pointer;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); color: var(--pa-ink); font-size: 0.85rem;
+}
+.project-anime.creation-config .ccf-check input { accent-color: var(--pa-accent); flex: 0 0 auto; }
+.project-anime.creation-config .ccf-pack .ccf-pack-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-anime.creation-config .ccf-pack-src {
+  font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--pa-ink-soft);
+  padding: 0.05rem 0.4rem; border: 1px solid var(--pa-line); border-radius: 999px; flex: 0 0 auto;
+}
+.project-anime.creation-config .ccf-foot { display: flex; justify-content: space-between; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--pa-line); }
+.project-anime.creation-config .ccf-foot button {
+  display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; padding: 0.45rem 0.8rem;
+  border-radius: 6px; border: 1px solid var(--pa-line); height: auto; min-height: 0;
+}
+.project-anime.creation-config button.ccf-restore { background: var(--pa-field); color: var(--pa-ink-soft); }
+.project-anime.creation-config button.ccf-save {
+  background: color-mix(in srgb, var(--pa-accent) 32%, var(--pa-panel));
+  border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line)); color: var(--pa-ink); font-weight: 700;
+}
+.project-anime.creation-config button.ccf-save i { color: var(--pa-gold); }
+.project-anime.creation-config .ccf-foot button:hover { border-color: var(--pa-accent); }
+
+/* Creation Choices editor (GM config): a list of choices, each with drag-dropped Package options. */
+.project-anime.creation-config .cc-choices { display: flex; flex-direction: column; gap: 0.5rem; }
+.project-anime.creation-config .cc-choice { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.5rem; background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 6px; }
+.project-anime.creation-config .cc-choice-head { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.project-anime.creation-config .cc-choice-label { flex: 1 1 8rem; min-width: 6rem; background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink); padding: 0.3rem 0.5rem; font-family: var(--pa-font-display); }
+.project-anime.creation-config .cc-choice-mode { flex: 0 0 auto; }
+.project-anime.creation-config .cc-choice-n { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--pa-ink-soft); }
+.project-anime.creation-config .cc-choice-n input { width: 3.2rem; background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink); padding: 0.25rem 0.4rem; text-align: center; font-family: var(--pa-font-mono); }
+.project-anime.creation-config .cc-choice-del { margin-left: auto; color: var(--pa-ink-soft); cursor: pointer; flex: 0 0 auto; }
+.project-anime.creation-config .cc-choice-del:hover { color: var(--pa-danger); }
+.project-anime.creation-config .cc-options { display: flex; flex-direction: column; gap: 0.3rem; padding-left: 0.45rem; border-left: 2px solid color-mix(in srgb, var(--pa-gold) 40%, transparent); }
+.project-anime.creation-config .cc-option { display: flex; align-items: center; gap: 0.4rem; }
+.project-anime.creation-config .cc-option img { width: 1.5rem; height: 1.5rem; border-radius: 4px; object-fit: cover; flex: 0 0 auto; }
+.project-anime.creation-config .cc-option-label { flex: 1; min-width: 0; background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink); padding: 0.25rem 0.45rem; }
+.project-anime.creation-config .cc-option-del { color: var(--pa-ink-soft); cursor: pointer; flex: 0 0 auto; }
+.project-anime.creation-config .cc-option-del:hover { color: var(--pa-danger); }
+.project-anime.creation-config .cc-option-drop {
+  display: flex; align-items: center; justify-content: center; gap: 0.35rem;
+  padding: 0.4rem; border: 1px dashed var(--pa-line); border-radius: 5px;
+  color: var(--pa-ink-soft); font-size: 0.78rem; opacity: 0.85;
+  background: color-mix(in srgb, var(--pa-field) 60%, transparent);
+}
+.project-anime.creation-config .cc-option-drop.dragover { border-color: var(--pa-gold); color: var(--pa-ink); opacity: 1; background: color-mix(in srgb, var(--pa-gold) 14%, var(--pa-field)); }
+.project-anime.creation-config button.cc-add-choice {
+  display: inline-flex; align-items: center; gap: 0.35rem; align-self: flex-start; cursor: pointer;
+  padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px dashed var(--pa-line); background: var(--pa-field); color: var(--pa-ink-soft); height: auto; min-height: 0;
+}
+.project-anime.creation-config button.cc-add-choice:hover { border-color: var(--pa-accent); color: var(--pa-ink); }
+
+/* Creation Choices step (player-facing): option cards per choice. */
+.project-anime.character-creator .cc-choose { display: flex; flex-direction: column; gap: 0.9rem; }
+.project-anime.character-creator .cc-choice-block { display: flex; flex-direction: column; gap: 0.45rem; }
+.project-anime.character-creator .cc-choose-head { display: flex; align-items: baseline; gap: 0.5rem; border-bottom: 1px solid var(--pa-line); padding-bottom: 0.25rem; }
+.project-anime.character-creator .cc-choose-label { font-family: var(--pa-font-display); font-size: 1.05rem; color: var(--pa-ink); }
+.project-anime.character-creator .cc-choose-sub { font-size: 0.75rem; font-family: var(--pa-font-mono); }
+.project-anime.character-creator .cc-choose-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 0.5rem; }
+.project-anime.character-creator button.cc-choose-opt {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; cursor: pointer;
+  padding: 0.7rem 0.5rem; background: var(--pa-panel); border: 1px solid var(--pa-line); border-radius: 8px; color: var(--pa-ink); height: auto; min-height: 0;
+}
+.project-anime.character-creator button.cc-choose-opt img { width: 3rem; height: 3rem; border-radius: 6px; object-fit: cover; }
+.project-anime.character-creator .cc-choose-opt-name { font-weight: 600; font-size: 0.85rem; text-align: center; line-height: 1.2; }
+.project-anime.character-creator button.cc-choose-opt:hover { border-color: var(--pa-accent); }
+.project-anime.character-creator button.cc-choose-opt.selected {
+  border-color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 14%, var(--pa-panel));
+  box-shadow: inset 0 0 0 1px var(--pa-gold);
+}
+.project-anime.character-creator .cc-choose-check { position: absolute; top: 0.35rem; right: 0.4rem; color: var(--pa-gold); }
+
+/* ------------------------------------------------------------
+   N. Combo Splash — a transient celebratory overlay on a scored
+   Combo. Self-contained (carries .theme-dark) so it reads the
+   same dramatic gold over any scene. Non-interactive; removes
+   itself when its master fade ends (see combo-splash.mjs).
+   ------------------------------------------------------------ */
+.project-anime.combo-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;            /* above sheets; pointer-events:none keeps clicks flowing through */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  /* A soft vignette so the word reads over a busy map without hiding the board. */
+  background: radial-gradient(ellipse at center, rgba(10, 8, 18, 0.42), rgba(10, 8, 18, 0) 60%);
+  animation: pa-combo-in 2.4s ease forwards;
+}
+
+/* Radial gold "speed lines" behind the stage. */
+.project-anime.combo-splash .cs-burst {
+  position: absolute;
+  width: 150vmax;
+  height: 150vmax;
+  opacity: 0.35;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--pa-gold) 32%, transparent) 0%, transparent 38%),
+    repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.12) 0deg 4deg, transparent 4deg 10deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, #000 30%, transparent 62%);
+          mask-image: radial-gradient(circle, #000 0%, #000 30%, transparent 62%);
+  animation: pa-combo-burst 2s ease-out forwards;
+}
+
+.project-anime.combo-splash .cs-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.8rem, 3vw, 2.4rem);
+  padding: 1rem 1.5rem;
+}
+
+.project-anime.combo-splash .cs-portrait img {
+  width: clamp(72px, 12vw, 150px);
+  height: clamp(72px, 12vw, 150px);
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid color-mix(in srgb, var(--pa-gold) 70%, white);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 26px color-mix(in srgb, var(--pa-gold) 45%, transparent);
+  animation: pa-combo-portrait 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.05s both;
+}
+
+.project-anime.combo-splash .cs-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.project-anime.combo-splash .cs-word {
+  font-family: var(--pa-font-display);
+  font-weight: 800;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 0.9;
+  font-size: clamp(3.5rem, 14vw, 11rem);
+  background: linear-gradient(180deg, #fff3c8 0%, var(--pa-gold-soft) 38%, var(--pa-gold) 62%, #8a6d00 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 22px color-mix(in srgb, var(--pa-gold) 70%, transparent));
+  animation: pa-combo-word 0.7s cubic-bezier(0.18, 0.9, 0.28, 1.3) both;
+}
+
+.project-anime.combo-splash .cs-name {
+  margin-top: 0.5rem;
+  font-family: var(--pa-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: clamp(0.8rem, 1.6vw, 1.15rem);
+  color: #f3eede;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+  animation: pa-combo-name 0.5s ease-out 0.35s both;
+}
+
+@keyframes pa-combo-in {
+  0%   { opacity: 0; }
+  6%   { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes pa-combo-burst {
+  0%   { transform: scale(0.5) rotate(0deg); opacity: 0; }
+  20%  { opacity: 0.5; }
+  100% { transform: scale(1.7) rotate(25deg); opacity: 0; }
+}
+@keyframes pa-combo-word {
+  0%   { transform: scale(0.2) rotate(-8deg); opacity: 0; }
+  55%  { transform: scale(1.12) rotate(3deg); opacity: 1; }
+  70%  { transform: scale(0.98) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes pa-combo-portrait {
+  0%   { transform: translateX(-60px) rotate(-8deg); opacity: 0; }
+  100% { transform: translateX(0) rotate(0deg); opacity: 1; }
+}
+@keyframes pa-combo-name {
+  0%   { transform: translateY(14px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Reduced motion: keep the brief fade (so it still self-dismisses) but drop the movement —
+   the elements rest at their visible state, so they simply appear and fade. */
+@media (prefers-reduced-motion: reduce) {
+  .project-anime.combo-splash .cs-burst,
+  .project-anime.combo-splash .cs-word,
+  .project-anime.combo-splash .cs-portrait img,
+  .project-anime.combo-splash .cs-name { animation: none; }
+}

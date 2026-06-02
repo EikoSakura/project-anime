@@ -1,0 +1,26 @@
+{{!-- Armor details --}}
+<section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+  <p class="formula-preview">+{{system.defenseBonus}} {{localize "PROJECTANIME.Stat.defense"}} · −{{system.evasionPenalty}} {{localize "PROJECTANIME.Stat.evasion"}}</p>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.defense"}}</h4>
+    <div class="form-grid">
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.defenseBonus"}}</label>
+        <input type="number" name="system.defenseBonus" value="{{system.defenseBonus}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.evasionPenalty"}}</label>
+        <input type="number" name="system.evasionPenalty" value="{{system.evasionPenalty}}" min="0" /></div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.equipment"}}</h4>
+    <div class="form-grid">
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.size"}}</label>
+        <input type="number" name="system.size" value="{{system.size}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
+        <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
+      <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>
+        <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} /></div>
+    </div>
+  </div>
+</section>

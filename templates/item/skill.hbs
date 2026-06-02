@@ -1,0 +1,94 @@
+{{!-- Skill builder --}}
+<section class="item-body skill-builder tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+
+  <div class="build-summary {{#if system.modifiersOver}}over{{/if}}">
+    <span class="stars">{{rankInfo.stars}}</span>
+    <span>{{localize "PROJECTANIME.Skill.field.spCost"}}: <strong>{{system.spCost}}</strong></span>
+    {{#if system.energyCost}}<span>{{localize "PROJECTANIME.Skill.field.energyCost"}}: <strong>{{system.energyCost}}</strong></span>{{/if}}
+    <span class="mod-budget">{{localize "PROJECTANIME.Skill.field.modifiers"}}: <strong>{{system.modifiersUsed}} / {{system.maxModifiers}}</strong></span>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.rank"}}</label>
+        <select name="system.rank">{{selectOptions rankChoices selected=system.rank}}</select>
+      </div>
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.actionType"}}</label>
+        <select name="system.actionType">{{selectOptions config.actionTypes selected=system.actionType localize=true}}</select>
+      </div>
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.range"}}</label>
+        <select name="system.range.scope">{{selectOptions config.ranges selected=system.range.scope localize=true}}</select>
+      </div>
+      {{#if rangeHasTiles}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.tiles"}}</label>
+        <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" step="1" />
+      </div>
+      {{/if}}
+      {{#if showDamageType}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.damageType"}}</label>
+        <select name="system.damageType">{{selectOptions damageTypeChoices selected=system.damageType blank=""}}</select>
+      </div>
+      {{/if}}
+      {{#if showDamagePool}}
+      <div class="form-group">
+        <label>{{localize poolLabel}}</label>
+        <select name="system.damagePool">{{selectOptions damagePoolChoices selected=system.damagePool localize=true}}</select>
+      </div>
+      {{/if}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.attrA"}}</label>
+        <select name="system.attributes.attrA">{{selectOptions config.attributes selected=system.attributes.attrA localize=true}}</select>
+      </div>
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.attrB"}}</label>
+        <select name="system.attributes.attrB">{{selectOptions config.attributes selected=system.attributes.attrB localize=true}}</select>
+      </div>
+      {{#if showDamageDie}}
+      <div class="form-group">
+        <label>{{localize damageDieLabel}}</label>
+        <select name="system.damageAttr">{{selectOptions damageDieChoices selected=system.damageAttr}}</select>
+      </div>
+      {{/if}}
+      {{#if isReact}}
+      <div class="form-group span-2 {{#unless system.trigger}}needs-trigger{{/unless}}">
+        <label>{{localize "PROJECTANIME.Skill.field.trigger"}}</label>
+        <select name="system.trigger">{{selectOptions config.triggers selected=system.trigger localize=true blank=""}}</select>
+        {{#unless system.trigger}}<span class="hint warn">{{localize "PROJECTANIME.Skill.reactNeedsTrigger"}}</span>{{/unless}}
+      </div>
+      {{/if}}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.effect"}}</h4>
+    <div class="effect-block">
+      <div class="form-group">
+        <select name="system.effect">{{selectOptions config.skillEffects selected=system.effect localize=true}}</select>
+      </div>
+      <p class="effect-desc">{{effectDesc}}</p>
+    </div>
+  </div>
+
+  <div class="modifiers-block">
+    <header class="group-header">
+      <h3>{{localize "PROJECTANIME.Skill.field.modifiers"}}
+        <span class="muted">({{system.modifiersUsed}} / {{system.maxModifiers}})</span></h3>
+    </header>
+    <ul class="modifier-list">
+      {{#each modifierList as |mod|}}
+      <li class="modifier-row {{#if mod.selected}}selected{{/if}}"
+          {{#if @root.editable}}data-action="toggleModifier" data-modifier="{{mod.key}}"{{/if}}>
+        <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
+        <span class="mod-name">{{mod.label}}{{#if mod.heavy}} <span class="heavy-badge">{{localize "PROJECTANIME.Skill.heavy"}}</span>{{/if}}</span>
+        <span class="mod-desc muted">{{mod.desc}}</span>
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+</section>

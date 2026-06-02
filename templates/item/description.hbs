@@ -1,0 +1,10 @@
+{{!-- Description (Edit tab): toggled ProseMirror editor (the PF2e click-to-edit pattern,
+      same as the actor biography). It shows the enriched description with a pencil button;
+      clicking activates the editor, and saving collapses it back to the rendered display
+      (instead of staying live). The element's inner HTML is the enriched content shown
+      while inactive; `value` is the raw HTML loaded for editing; `data-document-uuid`
+      lets content links enrich; `disabled` keeps it read-only when the doc isn't editable. --}}
+<section class="item-description tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+  <label>{{localize "PROJECTANIME.Field.description"}}</label>
+  <prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{itemUuid}}" toggled="true" {{#unless editable}}disabled{{/unless}}>{{{enrichedDescription}}}</prose-mirror>
+</section>

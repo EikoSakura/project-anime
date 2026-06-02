@@ -1,0 +1,82 @@
+{{!-- Stats: the always-visible main view (attributes + equipment). Other sections open as drawers. --}}
+<section class="stats-main">
+
+  <nav class="section-nav">
+    <button type="button" data-action="openDrawer" data-section="skills"><i class="fas fa-bolt"></i><span>{{localize "PROJECTANIME.Tab.skills"}}</span></button>
+    <button type="button" data-action="openDrawer" data-section="gear"><i class="fas fa-box-open"></i><span>{{localize "PROJECTANIME.Tab.gear"}}</span></button>
+    <button type="button" data-action="openDrawer" data-section="defenses"><i class="fas fa-shield-halved"></i><span>{{localize "PROJECTANIME.Defenses.title"}}</span></button>
+    <button type="button" data-action="openDrawer" data-section="effects"><i class="fas fa-wand-magic-sparkles"></i><span>{{localize "PROJECTANIME.Effect.title"}}</span></button>
+    <button type="button" data-action="openDrawer" data-section="biography"><i class="fas fa-feather"></i><span>{{localize "PROJECTANIME.Tab.biography"}}</span></button>
+  </nav>
+
+  <div class="attributes">
+    {{#each attributeList as |attr|}}
+    <div class="attribute-card" data-attribute="{{attr.key}}">
+      <div class="attr-head">
+        {{#if attr.icon}}<i class="attr-icon {{attr.icon}}"></i>{{/if}}
+        <span class="attr-name">{{attr.label}}</span>
+      </div>
+      <div class="attr-die rollable" data-action="rollCheck" data-attribute="{{attr.key}}"
+           title="{{localize 'PROJECTANIME.Roll.checkHint'}}">{{attr.die}}</div>
+      {{!-- Base value: kept wired (same data path) but tucked away — reveals on hover/focus to edit. --}}
+      <label class="attr-base-edit" title="{{localize 'PROJECTANIME.Field.base'}}">
+        <span class="abe-label">{{localize "PROJECTANIME.Field.base"}}</span>
+        <input class="attr-base" type="number" name="system.attributes.{{attr.key}}.base"
+               value="{{attr.base}}" min="4" max="12" step="2" />
+      </label>
+    </div>
+    {{/each}}
+  </div>
+
+  {{#if toggles.length}}
+  <div class="toggles-bar">
+    {{#each toggles as |t|}}
+    <button type="button" class="pa-toggle{{#if t.on}} on{{/if}}" data-action="flipToggle" data-effect-id="{{t.id}}" title="{{t.label}}">
+      <img class="pa-toggle-icon" src="{{t.img}}" alt="" />
+      <span class="pa-toggle-label">{{t.label}}</span>
+      <i class="pa-toggle-switch fa-solid {{#if t.on}}fa-toggle-on{{else}}fa-toggle-off{{/if}}"></i>
+    </button>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <div class="quickbar">
+    <section class="quick-block weapons">
+      <div class="qs-head"><h3>{{localize "PROJECTANIME.Quick.weapons"}}</h3></div>
+      <div class="item-grid quick-grid">
+        {{#each quickWeapons as |w|}}
+        <div class="item-tile quick-tile" data-item-id="{{w.id}}" data-readied-type="weapon">
+          <div class="tile-icon" data-action="rollItem"><img src="{{w.img}}" alt="{{w.name}}" /></div>
+          <span class="tile-name">{{w.name}}</span>
+        </div>
+        {{else}}
+        <div class="tile-empty muted">—</div>
+        {{/each}}
+      </div>
+    </section>
+
+    <section class="quick-block skills">
+      <div class="qs-head">
+        <h3>{{localize "PROJECTANIME.Quick.skills"}}</h3>
+        {{#if @root.editable}}
+        <a class="qs-add" data-action="addReadied" title="{{localize 'PROJECTANIME.Quick.addSkill'}}"><i class="fas fa-plus"></i></a>
+        {{/if}}
+      </div>
+      {{#each quickSkillGroups as |g|}}
+      <div class="qs-group">
+        <h4 class="qs-sub">{{g.label}}</h4>
+        <div class="item-grid quick-grid">
+          {{#each g.skills as |s|}}
+          <div class="item-tile quick-tile" data-item-id="{{s.id}}" data-readied-type="skill">
+            <div class="tile-icon" data-action="rollItem"><img src="{{s.img}}" alt="{{s.name}}" />{{#if s.energyCost}}<span class="tile-qty energy"><i class="fas fa-bolt"></i>{{s.energyCost}}</span>{{/if}}</div>
+            <span class="tile-name">{{s.name}}</span>
+            {{#if @root.editable}}<a class="tile-unready" data-action="unreadySkill"><i class="fas fa-xmark"></i></a>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/each}}
+    </section>
+  </div>
+
+</section>

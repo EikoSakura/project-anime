@@ -1,0 +1,36 @@
+{{!-- Effects tab: the item's no-code Active Effects. Single root .tab-pane (shown via CSS). --}}
+<section class="item-effects tab-pane{{#if tabEffects}} active{{/if}}" data-tab-pane="effects">
+  <div class="form-section">
+    <div class="effects-head">
+      <h4 class="form-section-title">{{localize "PROJECTANIME.Effect.title"}}</h4>
+      {{#if editable}}
+      <button type="button" class="effect-add" data-action="addEffect">
+        <i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Effect.addEffect"}}
+      </button>
+      {{/if}}
+    </div>
+
+    <div class="effects-list">
+      {{#each effects as |e|}}
+      <div class="effect-row{{#if e.disabled}} is-disabled{{/if}}" data-effect-id="{{e.id}}">
+        <img class="effect-icon" src="{{e.img}}" alt="" />
+        <div class="effect-info">
+          <span class="effect-name">{{e.name}}</span>
+          {{#if e.summary.length}}
+          <div class="effect-rules">{{#each e.summary as |s|}}<span class="effect-chip">{{s}}</span>{{/each}}</div>
+          {{/if}}
+        </div>
+        {{#if @root.editable}}
+        <div class="effect-actions">
+          <a data-action="toggleEffectEnabled" title="{{localize 'PROJECTANIME.Effect.toggle'}}"><i class="fa-solid {{#if e.disabled}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i></a>
+          <a data-action="editEffect" title="{{localize 'PROJECTANIME.Effect.edit'}}"><i class="fa-solid fa-pen-to-square"></i></a>
+          <a data-action="deleteEffect" title="{{localize 'PROJECTANIME.Effect.delete'}}"><i class="fa-solid fa-trash"></i></a>
+        </div>
+        {{/if}}
+      </div>
+      {{else}}
+      <p class="effects-empty muted">—</p>
+      {{/each}}
+    </div>
+  </div>
+</section>

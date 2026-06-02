@@ -1,0 +1,38 @@
+<div class="ec-body">
+  <div class="ec-head">
+    <span class="ec-h-preview"></span>
+    <span>{{localize "PROJECTANIME.Settings.bioFields.icon"}}</span>
+    <span>{{localize "PROJECTANIME.Settings.bioFields.fieldName"}}</span>
+    <span>{{localize "PROJECTANIME.Settings.bioFields.key"}}</span>
+    <span class="ec-h-long">{{localize "PROJECTANIME.Settings.bioFields.long"}}</span>
+    <span class="ec-h-del"></span>
+  </div>
+
+  <div class="ec-rows">
+    {{#each rows as |row i|}}
+    <div class="ec-row">
+      <a class="ec-pick" data-action="pickIcon" data-index="{{i}}"
+         title="{{localize 'PROJECTANIME.Settings.bioFields.pick'}}">
+        {{#if row.iconImg}}<img src="{{row.icon}}" alt="" />{{else}}<i class="{{row.icon}}"></i>{{/if}}
+      </a>
+      <input type="text" class="ec-icon" name="fields.{{i}}.icon" value="{{row.icon}}" />
+      <input type="text" class="ec-label" name="fields.{{i}}.label" value="{{row.label}}" />
+      <input type="text" class="ec-key" name="fields.{{i}}.key" value="{{row.key}}" />
+      <label class="ec-long"><input type="checkbox" name="fields.{{i}}.long" {{#if row.isLong}}checked{{/if}} /></label>
+      <a class="ec-del" data-action="deleteField" data-index="{{i}}"
+         title="{{localize 'PROJECTANIME.Settings.bioFields.remove'}}"><i class="fa-solid fa-trash"></i></a>
+    </div>
+    {{else}}
+    <p class="ec-empty muted">{{localize "PROJECTANIME.Settings.bioFields.empty"}}</p>
+    {{/each}}
+  </div>
+
+  <div class="ec-add">
+    <button type="button" data-action="addField"><i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Settings.bioFields.add"}}</button>
+    <button type="button" data-action="restoreDefaults"><i class="fa-solid fa-rotate-left"></i> {{localize "PROJECTANIME.Settings.bioFields.restore"}}</button>
+  </div>
+
+  <footer class="ec-footer">
+    <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.bioFields.save"}}</button>
+  </footer>
+</div>

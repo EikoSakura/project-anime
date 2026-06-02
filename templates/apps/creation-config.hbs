@@ -1,0 +1,98 @@
+{{!-- GM Character-Creation settings: starting numbers, purchasable types, open compendiums. --}}
+<div class="cc-config">
+
+  <section class="ccf-section">
+    <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.numbers"}}</h3>
+    <div class="ccf-nums">
+      <label class="ccf-field">
+        <span>{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
+        <input type="number" name="skillPoints" value="{{cfg.skillPoints}}" min="0" step="1" />
+      </label>
+      <label class="ccf-field">
+        <span>{{localize "PROJECTANIME.Settings.creation.stepUps"}}</span>
+        <input type="number" name="stepUps" value="{{cfg.stepUps}}" min="0" step="1" />
+      </label>
+      <label class="ccf-field">
+        <span>{{localize "PROJECTANIME.Settings.creation.gold"}}</span>
+        <input type="number" name="gold" value="{{cfg.gold}}" min="0" step="1" />
+      </label>
+    </div>
+  </section>
+
+  <section class="ccf-section">
+    <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.types"}}</h3>
+    <div class="ccf-checks">
+      {{#each types as |t|}}
+      <label class="ccf-check">
+        <input class="pa-cc-type" type="checkbox" value="{{t.type}}" {{#if t.checked}}checked{{/if}} />
+        <span>{{t.label}}</span>
+      </label>
+      {{/each}}
+    </div>
+  </section>
+
+  <section class="ccf-section">
+    <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.packs"}}</h3>
+    {{#if packs.length}}
+    <div class="ccf-packs">
+      {{#each packs as |p|}}
+      <label class="ccf-check ccf-pack">
+        <input class="pa-cc-pack" type="checkbox" value="{{p.id}}" {{#if p.checked}}checked{{/if}} />
+        <span class="ccf-pack-label">{{p.label}}</span>
+        <span class="ccf-pack-src">{{p.source}}</span>
+      </label>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="muted">{{localize "PROJECTANIME.Settings.creation.noPacks"}}</p>
+    {{/if}}
+  </section>
+
+  <section class="ccf-section">
+    <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.choices"}}</h3>
+    <div class="cc-choices">
+      {{#each choices as |ch|}}
+      <div class="cc-choice" data-choice-index="{{ch.index}}">
+        <div class="cc-choice-head">
+          <input type="hidden" name="choices.{{ch.index}}.id" value="{{ch.id}}" />
+          <input type="text" class="cc-choice-label" name="choices.{{ch.index}}.label" value="{{ch.label}}" placeholder="{{localize 'PROJECTANIME.Settings.creation.choiceLabel'}}" />
+          <select class="cc-choice-mode" name="choices.{{ch.index}}.mode">{{selectOptions ../modeChoices selected=ch.mode}}</select>
+          {{#if ch.pickN}}
+          <label class="cc-choice-n">{{localize "PROJECTANIME.Settings.creation.pick"}}
+            <input type="number" name="choices.{{ch.index}}.n" value="{{ch.n}}" min="1" step="1" />
+          </label>
+          {{/if}}
+          <a class="cc-choice-del" data-action="deleteChoice" data-index="{{ch.index}}" title="{{localize 'PROJECTANIME.Settings.creation.deleteChoice'}}"><i class="fas fa-trash"></i></a>
+        </div>
+        <div class="cc-options">
+          {{#each ch.options as |o|}}
+          <div class="cc-option" data-option-index="{{o.index}}">
+            <img src="{{o.img}}" alt="" />
+            <input type="hidden" name="choices.{{ch.index}}.options.{{o.index}}.uuid" value="{{o.uuid}}" />
+            <input type="hidden" name="choices.{{ch.index}}.options.{{o.index}}.img" value="{{o.img}}" />
+            <input type="text" class="cc-option-label" name="choices.{{ch.index}}.options.{{o.index}}.label" value="{{o.label}}" />
+            <a class="cc-option-del" data-action="deleteOption" data-choice-index="{{ch.index}}" data-option-index="{{o.index}}" title="{{localize 'PROJECTANIME.Settings.creation.deleteOption'}}"><i class="fas fa-xmark"></i></a>
+          </div>
+          {{/each}}
+          <div class="cc-option-drop" data-choice-index="{{ch.index}}">
+            <i class="fas fa-hand-pointer"></i> {{localize "PROJECTANIME.Settings.creation.dropPackage"}}
+          </div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    <button type="button" class="cc-add-choice" data-action="addChoice">
+      <i class="fas fa-plus"></i> {{localize "PROJECTANIME.Settings.creation.addChoice"}}
+    </button>
+  </section>
+
+  <footer class="ccf-foot">
+    <button type="button" class="ccf-restore" data-action="restoreDefaults">
+      <i class="fas fa-rotate-left"></i> {{localize "PROJECTANIME.Settings.creation.restore"}}
+    </button>
+    <button type="submit" class="ccf-save">
+      <i class="fas fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.creation.save"}}
+    </button>
+  </footer>
+
+</div>

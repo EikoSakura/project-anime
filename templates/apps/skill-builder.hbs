@@ -1,0 +1,313 @@
+{{!-- In-game Skill Builder: hub / build wizard / advance (improve). --}}
+<div class="sb-body">
+
+  <div class="sb-sp" title="{{localize 'PROJECTANIME.Stat.skillPoints'}}">
+    <i class="fas fa-star"></i>
+    <span class="sb-sp-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
+    <span class="sb-sp-val">{{sp}}</span>
+  </div>
+
+  {{!-- ============================ HUB ============================ --}}
+  {{#if isHub}}
+  <div class="sb-hub">
+    <button type="button" class="sb-build-new" data-action="buildNew">
+      <i class="fas fa-plus"></i> {{localize "PROJECTANIME.SkillBuilder.buildNew"}}
+    </button>
+
+    {{#if skills.length}}
+    <h3 class="sb-section-title">{{localize "PROJECTANIME.SkillBuilder.improveTitle"}}</h3>
+    <ul class="sb-skill-list">
+      {{#each skills as |s|}}
+      <li class="sb-skill-row" data-skill-id="{{s.id}}">
+        <img src="{{s.img}}" alt="{{s.name}}" />
+        <div class="sb-skill-info">
+          <span class="sb-skill-name">{{s.name}}</span>
+          <span class="sb-skill-sub">{{s.stars}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}}</span>
+        </div>
+        <button type="button" class="sb-improve sb-effects" data-action="editEffects">
+          <i class="fas fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.SkillBuilder.editEffects"}}
+        </button>
+        <button type="button" class="sb-improve" data-action="improveSkill">
+          <i class="fas fa-arrow-up-right-dots"></i> {{localize "PROJECTANIME.SkillBuilder.improve"}}
+        </button>
+      </li>
+      {{/each}}
+    </ul>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{!-- ========================== BUILD ============================ --}}
+  {{#if isBuild}}
+  <div class="sb-wizard">
+    <ol class="sb-steps">
+      {{#each steps as |st|}}
+      <li class="sb-step-dot{{#if st.active}} active{{/if}}{{#if st.done}} done{{/if}}" data-action="gotoStep" data-step="{{st.index}}" title="{{st.label}}">
+        <span class="sb-dot-num">{{st.num}}</span>
+        <span class="sb-dot-label">{{st.label}}</span>
+      </li>
+      {{/each}}
+    </ol>
+
+    <div class="sb-step-head">
+      <span class="sb-step-counter">{{stepLabel}}</span>
+      <span class="sb-step-title">{{stepTitle}}</span>
+    </div>
+
+    {{#if onConcept}}
+    <section class="sb-step-body sb-concept">
+      <div class="sb-id-row">
+        <div class="sb-img" data-action="pickImage" title="{{localize 'PROJECTANIME.SkillBuilder.pickImage'}}">
+          <img src="{{draft.img}}" alt="" />
+        </div>
+        <div class="sb-id-fields">
+          <label class="sb-field">
+            <span class="sb-label">{{localize "PROJECTANIME.SkillBuilder.skillName"}}</span>
+            <input type="text" name="name" value="{{draft.name}}" />
+          </label>
+          <label class="sb-field">
+            <span class="sb-label">{{localize "PROJECTANIME.Skill.field.actionType"}}</span>
+            <select name="actionType">{{selectOptions actionTypeChoices selected=draft.actionType localize=true}}</select>
+          </label>
+        </div>
+      </div>
+      {{#if isReact}}
+      <label class="sb-field{{#unless draft.trigger}} sb-needs{{/unless}}">
+        <span class="sb-label">{{localize "PROJECTANIME.Skill.field.trigger"}}</span>
+        <select name="trigger">{{selectOptions triggerChoices selected=draft.trigger localize=true blank=""}}</select>
+      </label>
+      {{/if}}
+      <label class="sb-field">
+        <span class="sb-label">{{localize "PROJECTANIME.Section.details"}}</span>
+        <textarea name="description" rows="3">{{draft.description}}</textarea>
+      </label>
+    </section>
+    {{/if}}
+
+    {{#if onRank}}
+    <section class="sb-step-body sb-rank">
+      <div class="sb-rank-grid">
+        {{#each rankCards as |rc|}}
+        <button type="button" class="sb-rank-card{{#if rc.selected}} selected{{/if}}{{#unless rc.affordable}} unaffordable{{/unless}}"
+                data-action="pickRank" data-rank="{{rc.rank}}" {{#unless rc.affordable}}disabled{{/unless}}>
+          <span class="sb-rank-stars">{{rc.stars}}</span>
+          <span class="sb-rank-name">{{rc.label}}</span>
+          <span class="sb-rank-cost"><i class="fas fa-star"></i> {{rc.sp}} {{localize "PROJECTANIME.Stat.skillPointsAbbr"}}</span>
+          <span class="sb-rank-meta"><i class="fas fa-bolt"></i> {{rc.energy}} · <i class="fas fa-sliders"></i> {{rc.maxModifiers}}</span>
+        </button>
+        {{/each}}
+      </div>
+    </section>
+    {{/if}}
+
+    {{#if onRoll}}
+    <section class="sb-step-body sb-roll">
+      <div class="sb-field-grid">
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.attrA"}}</span>
+          <select name="attrA">{{selectOptions attributeChoices selected=draft.attrA localize=true}}</select>
+        </label>
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.attrB"}}</span>
+          <select name="attrB">{{selectOptions attributeChoices selected=draft.attrB localize=true}}</select>
+        </label>
+        <label class="sb-field{{#unless rangeHasTiles}} span-2{{/unless}}">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.range"}}</span>
+          <select name="rangeScope">{{selectOptions rangeChoices selected=draft.range.scope localize=true}}</select>
+        </label>
+        {{#if rangeHasTiles}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.tiles"}} <span class="sb-cap">({{localize "PROJECTANIME.SkillBuilder.upTo"}} {{rangeRec}})</span></span>
+          <input type="number" name="rangeTiles" value="{{draft.range.tiles}}" min="0" step="1" />
+        </label>
+        {{/if}}
+      </div>
+    </section>
+    {{/if}}
+
+    {{#if onEffect}}
+    <section class="sb-step-body sb-effect">
+      <label class="sb-field">
+        <span class="sb-label">{{localize "PROJECTANIME.Skill.field.effect"}}</span>
+        <select name="effect">{{selectOptions effectChoices selected=draft.effect localize=true}}</select>
+      </label>
+      <p class="sb-effect-desc">{{effectDesc}}</p>
+      {{#if showEffectExtras}}
+      <div class="sb-field-grid">
+        {{#if showDamageDie}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize damageDieLabel}}</span>
+          <select name="damageAttr">{{selectOptions damageDieChoices selected=draft.damageAttr}}</select>
+        </label>
+        {{/if}}
+        {{#if showDamageType}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.damageType"}}</span>
+          <select name="damageType">{{selectOptions damageTypeChoices selected=draft.damageType blank=""}}</select>
+        </label>
+        {{/if}}
+        {{#if showDamagePool}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize poolLabel}}</span>
+          <select name="damagePool">{{selectOptions damagePoolChoices selected=draft.damagePool localize=true}}</select>
+        </label>
+        {{/if}}
+      </div>
+      {{/if}}
+    </section>
+    {{/if}}
+
+    {{#if onModifiers}}
+    <section class="sb-step-body sb-modifiers">
+      <div class="sb-mod-budget{{#if modOver}} over{{/if}}">
+        {{localize "PROJECTANIME.Skill.field.modifiers"}}: <strong>{{modUsed}} / {{modMax}}</strong>
+      </div>
+      <ul class="sb-mod-list">
+        {{#each modifierList as |mod|}}
+        <li class="sb-mod-row{{#if mod.selected}} selected{{/if}}{{#if mod.blocked}} blocked{{/if}}"
+            data-action="toggleModifier" data-modifier="{{mod.key}}">
+          <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
+          <span class="sb-mod-name">{{mod.label}}{{#if mod.heavy}} <span class="heavy-badge">{{localize "PROJECTANIME.Skill.heavy"}}</span>{{/if}}</span>
+          <span class="sb-mod-desc">{{mod.desc}}</span>
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/if}}
+
+    {{#if onReview}}
+    <section class="sb-step-body sb-review">
+      <div class="sb-review-head">
+        <img src="{{review.img}}" alt="" />
+        <div class="sb-review-id">
+          <div class="sb-review-name">{{review.name}}</div>
+          <div class="sb-review-sub">{{review.stars}} {{review.rankLabel}} · {{review.actionType}}</div>
+        </div>
+      </div>
+      <dl class="sb-review-list">
+        <div><dt>{{localize "PROJECTANIME.Skill.field.effect"}}</dt><dd>{{review.effect}}</dd></div>
+        <div><dt>{{localize "PROJECTANIME.SkillBuilder.attributes"}}</dt><dd>{{review.attrA}} + {{review.attrB}}</dd></div>
+        {{#if review.damageDie}}<div><dt>{{localize damageDieLabel}}</dt><dd>{{review.damageDie}}</dd></div>{{/if}}
+        <div><dt>{{localize "PROJECTANIME.Skill.field.range"}}</dt><dd>{{review.range}}</dd></div>
+        {{#if review.damageType}}<div><dt>{{localize "PROJECTANIME.Skill.field.damageType"}}</dt><dd>{{review.damageType}}</dd></div>{{/if}}
+        {{#if review.damagePool}}<div><dt>{{localize poolLabel}}</dt><dd>{{review.damagePool}}</dd></div>{{/if}}
+        {{#if review.trigger}}<div><dt>{{localize "PROJECTANIME.Skill.field.trigger"}}</dt><dd>{{review.trigger}}</dd></div>{{/if}}
+        {{#if review.modifiers.length}}<div><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{#each review.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}</dd></div>{{/if}}
+        {{#if review.energyCost}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyCost"}}</dt><dd><i class="fas fa-bolt"></i> {{review.energyCost}}</dd></div>{{/if}}
+      </dl>
+      <div class="sb-cost-line{{#unless affordable}} unaffordable{{/unless}}">
+        {{localize "PROJECTANIME.SkillBuilder.cost"}}: <strong><i class="fas fa-star"></i> {{review.spCost}} {{localize "PROJECTANIME.Stat.skillPointsAbbr"}}</strong>
+      </div>
+    </section>
+    {{/if}}
+
+    <div class="sb-nav">
+      <button type="button" class="sb-cancel" data-action="backToHub"><i class="fas fa-xmark"></i> {{localize "Cancel"}}</button>
+      <div class="sb-nav-right">
+        {{#unless isFirst}}<button type="button" class="sb-back" data-action="stepBack"><i class="fas fa-chevron-left"></i> {{localize "PROJECTANIME.SkillBuilder.back"}}</button>{{/unless}}
+        {{#if isLast}}
+        <button type="button" class="sb-finish" data-action="finishBuild" {{#unless affordable}}disabled{{/unless}}>
+          <i class="fas fa-check"></i> {{localize "PROJECTANIME.SkillBuilder.learn"}} ({{review.spCost}})
+        </button>
+        {{else}}
+        <button type="button" class="sb-next" data-action="stepNext">{{localize "PROJECTANIME.SkillBuilder.next"}} <i class="fas fa-chevron-right"></i></button>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
+  {{!-- ========================= ADVANCE ========================== --}}
+  {{#if isAdvance}}
+  <div class="sb-advance">
+    <div class="sb-adv-head">
+      <img src="{{skill.img}}" alt="{{skill.name}}" />
+      <div class="sb-adv-id">
+        <div class="sb-adv-name">{{skill.name}}</div>
+        <div class="sb-adv-sub">{{skill.stars}} {{skill.rankLabel}} · {{skill.actionLabel}} · {{skill.effectLabel}}</div>
+      </div>
+    </div>
+
+    <dl class="sb-adv-stats">
+      <div><dt>{{localize "PROJECTANIME.SkillBuilder.attributes"}}</dt><dd>{{skill.attrA}} + {{skill.attrB}}</dd></div>
+      <div><dt>{{localize "PROJECTANIME.Skill.field.range"}}</dt><dd>{{skill.rangeLabel}}</dd></div>
+      {{#if skill.energyCost}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyCost"}}</dt><dd><i class="fas fa-bolt"></i> {{skill.energyCost}}</dd></div>{{/if}}
+      <div><dt>{{localize "PROJECTANIME.Skill.field.accuracyMod"}}</dt><dd>+{{skill.accuracyMod}}</dd></div>
+      <div class="span-2"><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{skill.modUsed}} / {{skill.modMax}}{{#if skill.modifiers.length}} — {{#each skill.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}</dd></div>
+    </dl>
+
+    <h3 class="sb-section-title">{{localize "PROJECTANIME.SkillBuilder.improvements"}}</h3>
+    <div class="sb-imp-grid">
+      <button type="button" class="sb-imp" data-action="raiseRank" {{#if improvements.raiseRank.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.raiseRank"}}</span>
+        <span class="sb-imp-detail">{{#if improvements.raiseRank.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}{{skill.stars}} → {{improvements.raiseRank.next}}{{/if}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.raiseRank.cost}}</span>
+      </button>
+      <button type="button" class="sb-imp" data-action="sharpenAccuracy" {{#if improvements.sharpenAccuracy.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.sharpen"}}</span>
+        <span class="sb-imp-detail">{{#if improvements.sharpenAccuracy.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}+{{improvements.sharpenAccuracy.cur}} → +{{improvements.sharpenAccuracy.next}}{{/if}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.sharpenAccuracy.cost}}</span>
+      </button>
+      {{#unless skill.passive}}
+      <button type="button" class="sb-imp" data-action="lowerEnergy" {{#if improvements.lowerEnergy.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.lowerEnergy"}}</span>
+        <span class="sb-imp-detail">{{#if improvements.lowerEnergy.atMin}}{{localize "PROJECTANIME.SkillBuilder.atMin"}}{{else}}<i class="fas fa-bolt"></i> {{improvements.lowerEnergy.cur}} → {{improvements.lowerEnergy.next}}{{/if}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.lowerEnergy.cost}}</span>
+      </button>
+      {{/unless}}
+      <button type="button" class="sb-imp" data-action="raiseRange" {{#if improvements.raiseRange.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.raiseRange"}}</span>
+        <span class="sb-imp-detail">{{#if improvements.raiseRange.hasTiles}}{{improvements.raiseRange.cur}} → {{improvements.raiseRange.next}} {{localize "PROJECTANIME.Skill.tiles"}}{{else}}—{{/if}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.raiseRange.cost}}</span>
+      </button>
+    </div>
+
+    <h3 class="sb-section-title sb-addmod-title">
+      {{localize "PROJECTANIME.SkillBuilder.addModifier"}}
+      <span class="sb-imp-cost"><i class="fas fa-star"></i> 1</span>
+    </h3>
+    {{#if improvements.addModifier.full}}
+    <p class="sb-note">{{localize "PROJECTANIME.SkillBuilder.modBudgetFull"}}</p>
+    {{else}}
+    <ul class="sb-add-mod-list">
+      {{#each addableModifiers as |mod|}}
+      <li class="sb-add-mod-row{{#if mod.blocked}} blocked{{/if}}" data-modifier="{{mod.key}}">
+        <div class="sb-add-mod-text">
+          <span class="sb-mod-name">{{mod.label}}{{#if mod.heavy}} <span class="heavy-badge">{{localize "PROJECTANIME.Skill.heavy"}}</span>{{/if}}</span>
+          <span class="sb-mod-desc">{{mod.desc}}</span>
+        </div>
+        <button type="button" class="sb-add-mod" data-action="addModifier" title="{{localize 'PROJECTANIME.SkillBuilder.addModifier'}}" {{#if mod.disabled}}disabled{{/if}}>
+          <i class="fas fa-plus"></i>
+        </button>
+      </li>
+      {{/each}}
+    </ul>
+    {{/if}}
+
+    {{#if growableMods.length}}
+    <h3 class="sb-section-title sb-grow-title">
+      {{localize "PROJECTANIME.SkillBuilder.turnModifier"}}
+      <span class="sb-imp-cost"><i class="fas fa-star"></i> 1</span>
+    </h3>
+    <ul class="sb-add-mod-list">
+      {{#each growableMods as |g|}}
+      <li class="sb-add-mod-row" data-modifier="{{g.key}}">
+        <div class="sb-add-mod-text">
+          <span class="sb-mod-name">{{g.label}}</span>
+          <span class="sb-mod-desc">{{g.current}} → {{g.next}} {{g.unit}}{{#if g.growth}} ({{localize "PROJECTANIME.SkillBuilder.base"}} {{g.base}} +{{g.growth}}){{/if}}</span>
+        </div>
+        <button type="button" class="sb-add-mod" data-action="turnModifier" title="{{localize 'PROJECTANIME.SkillBuilder.turnModifier'}}" {{#if g.disabled}}disabled{{/if}}>
+          <i class="fas fa-plus"></i>
+        </button>
+      </li>
+      {{/each}}
+    </ul>
+    {{/if}}
+
+    <div class="sb-nav">
+      <button type="button" class="sb-cancel" data-action="backToHub"><i class="fas fa-chevron-left"></i> {{localize "PROJECTANIME.SkillBuilder.backToSkills"}}</button>
+    </div>
+  </div>
+  {{/if}}
+
+</div>

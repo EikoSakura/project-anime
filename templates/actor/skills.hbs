@@ -1,0 +1,107 @@
+{{!-- Skills drawer: grouped, filterable icon grid --}}
+<aside class="section-drawer{{#if open.skills}} open{{/if}}" data-section="skills">
+  <div class="drawer-backdrop" data-action="closeDrawer"></div>
+  <div class="drawer-panel">
+    <div class="drawer-headbar">
+      <h3>{{localize "PROJECTANIME.Tab.skills"}}</h3>
+      <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+    </div>
+    <div class="drawer-content">
+      {{#if packages.length}}
+      <div class="pkg-strip">
+        {{#each packages as |p|}}
+        <div class="pkg-chip" data-item-id="{{p.id}}">
+          <img src="{{p.img}}" alt="" data-action="editItem" title="{{p.name}}" />
+          <span class="pkg-info">
+            {{#if p.category}}<span class="pkg-cat">{{p.category}}</span>{{/if}}
+            <span class="pkg-name">{{p.name}}</span>
+          </span>
+          {{#if @root.editable}}<a class="pkg-del" data-action="deleteItem" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-xmark"></i></a>{{/if}}
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+      <div class="section-controls">
+        <label class="meta-stat sp" title="{{localize 'PROJECTANIME.Stat.skillPoints'}}">
+          <i class="fas fa-star"></i>
+          <span class="meta-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
+          <input type="number" name="system.skillPoints.value" value="{{system.skillPoints.value}}" min="0" />
+        </label>
+        {{#if @root.editable}}
+        {{#if @root.isCharacter}}
+        <a class="item-create" data-action="buildSkill" title="{{localize 'PROJECTANIME.SkillBuilder.title'}}">
+          <i class="fas fa-plus"></i> {{localize "PROJECTANIME.SkillBuilder.title"}}
+        </a>
+        {{else}}
+        <a class="item-create" data-action="createItem" data-type="skill" title="{{localize 'PROJECTANIME.Action.addItem'}}">
+          <i class="fas fa-plus"></i> {{localize "PROJECTANIME.Action.addItem"}}
+        </a>
+        {{/if}}
+        {{/if}}
+      </div>
+
+      {{#if spInfo}}
+      <div class="sp-ledger">
+        <div class="sp-summary">
+          <span class="sp-stat"><span class="sp-val">{{spInfo.available}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.available"}}</span></span>
+          <span class="sp-stat"><span class="sp-val">{{spInfo.spent}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.spent"}}</span></span>
+          {{#if spInfo.granted}}<span class="sp-stat granted"><span class="sp-val">{{spInfo.granted}}</span><span class="sp-key">{{localize "PROJECTANIME.Skill.spGranted"}}</span></span>{{/if}}
+          <span class="sp-stat total"><span class="sp-val">{{spInfo.total}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.total"}}</span></span>
+        </div>
+
+        {{#if @root.isCharacter}}
+        {{!-- Opens the Skill Point Log dialog (the scrollable, refundable transaction ledger). --}}
+        <a class="sp-log-open" data-action="openSkillLog">
+          <i class="fas fa-scroll"></i> {{localize "PROJECTANIME.SkillLog.title"}}
+          {{#if spLogCount}}<span class="sp-log-count">{{spLogCount}}</span>{{/if}}
+        </a>
+        {{/if}}
+      </div>
+      {{/if}}
+
+      {{!-- Action-type chips + name search (client-side, instant). --}}
+      <div class="skill-filter">
+        <div class="skill-chips">
+          <a class="skill-chip active" data-filter="all">{{localize "PROJECTANIME.Skill.filter.all"}}</a>
+          <a class="skill-chip" data-filter="action">{{localize "PROJECTANIME.Quick.active"}}</a>
+          <a class="skill-chip" data-filter="react">{{localize "PROJECTANIME.Quick.react"}}</a>
+          <a class="skill-chip" data-filter="passive">{{localize "PROJECTANIME.Quick.passive"}}</a>
+        </div>
+        <label class="skill-search-box">
+          <i class="fas fa-magnifying-glass"></i>
+          <input type="search" class="skill-search" placeholder="{{localize 'PROJECTANIME.Skill.filter.search'}}" autocomplete="off" />
+        </label>
+      </div>
+
+      {{#each skillGroups as |group|}}
+      <section class="skill-group" data-group="{{group.key}}">
+        <h4 class="qs-sub">{{group.label}}</h4>
+        <div class="item-grid skill-grid">
+          {{#each group.skills as |skill|}}
+          <div class="item-tile skill-tile{{#if skill.over}} over-budget{{/if}}{{#if skill.pinned}} pinned{{/if}}{{#if skill.granted}} granted{{/if}}" data-item-id="{{skill.id}}" data-name="{{skill.name}}">
+            <div class="tile-icon" data-action="editItem">
+              <img src="{{skill.img}}" alt="{{skill.name}}" />
+            </div>
+            <span class="tile-name">{{skill.name}}</span>
+            <div class="tile-meta">
+              {{#if skill.granted}}<span class="tile-granted" title="{{skill.grantedTip}}"><i class="fas fa-gift"></i></span>{{/if}}
+              {{#if skill.stars}}<span class="tile-rank" title="{{localize 'PROJECTANIME.Skill.field.rank'}}">{{skill.stars}}</span>{{/if}}
+              {{#if skill.energyCost}}<span class="meta-energy{{#unless skill.affordable}} unaffordable{{/unless}}" title="{{localize 'PROJECTANIME.Skill.field.energyCost'}}"><i class="fas fa-bolt"></i>{{skill.energyCost}}</span>{{/if}}
+            </div>
+            <div class="tile-actions">
+              <a data-action="rollItem" title="{{localize 'PROJECTANIME.Action.use'}}"><i class="fas fa-dice-d20"></i></a>
+              {{#if @root.editable}}
+              <a data-action="togglePin" class="{{#if skill.pinned}}active{{/if}}" title="{{#if skill.pinned}}{{localize 'PROJECTANIME.Quick.remove'}}{{else}}{{localize 'PROJECTANIME.Quick.pin'}}{{/if}}"><i class="fas fa-thumbtack"></i></a>
+              {{#unless skill.granted}}<a data-action="deleteItem" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>{{/unless}}
+              {{/if}}
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </section>
+      {{else}}
+      <div class="tile-empty muted">{{localize "PROJECTANIME.Empty"}}</div>
+      {{/each}}
+    </div>
+  </div>
+</aside>

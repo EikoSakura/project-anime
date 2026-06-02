@@ -1,0 +1,50 @@
+{{!-- Biography: a "dossier" of GM-configurable identity fields + a rich-text
+      biography. A drawer in the normal view; rendered inline for the limited
+      (observer) view. The dossier is shared between both via an inline partial.
+      The Profile field list comes from the Bio Fields world setting (context.bioFields). --}}
+{{#*inline "bioProfile"}}
+<div class="bio-details">
+  <section class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.profile"}}</h4>
+    <div class="form-grid">
+      {{#each bioFields as |field|}}
+      <div class="form-group{{#if field.long}} span-2{{/if}}">
+        <label>
+          {{#if field.icon}}{{#if field.iconImg}}<img class="bio-field-icon" src="{{field.icon}}" alt="" />{{else}}<i class="bio-field-icon {{field.icon}}"></i>{{/if}}{{/if}}
+          {{field.label}}
+        </label>
+        {{#if field.long}}
+        <textarea name="system.details.{{field.key}}" rows="3">{{field.value}}</textarea>
+        {{else}}
+        <input type="text" name="system.details.{{field.key}}" value="{{field.value}}" />
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
+  <section class="form-section bio-prose-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.biography"}}</h4>
+    <prose-mirror name="system.biography" value="{{system.biography}}" data-document-uuid="{{actorUuid}}" toggled="true" {{#unless @root.editable}}disabled{{/unless}}>{{{enrichedBiography}}}</prose-mirror>
+  </section>
+</div>
+{{/inline}}
+
+{{#if limited}}
+<section class="bio-inline">
+  {{> bioProfile}}
+</section>
+{{else}}
+<aside class="section-drawer{{#if open.biography}} open{{/if}}" data-section="biography">
+  <div class="drawer-backdrop" data-action="closeDrawer"></div>
+  <div class="drawer-panel">
+    <div class="drawer-headbar">
+      <h3>{{localize "PROJECTANIME.Tab.biography"}}</h3>
+      <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+    </div>
+    <div class="drawer-content">
+      {{> bioProfile}}
+    </div>
+  </div>
+</aside>
+{{/if}}

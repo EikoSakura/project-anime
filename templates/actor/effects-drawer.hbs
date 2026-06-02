@@ -1,0 +1,42 @@
+{{!-- Effects drawer: everything currently affecting this actor (own + equipped gear/skills).
+      Slides in from the right over the content. Single root <aside>. --}}
+<aside class="section-drawer{{#if open.effects}} open{{/if}}" data-section="effects">
+  <div class="drawer-backdrop" data-action="closeDrawer"></div>
+  <div class="drawer-panel">
+    <div class="drawer-headbar">
+      <h3>{{localize "PROJECTANIME.Effect.title"}}</h3>
+      <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+    </div>
+
+    <div class="effects-list">
+      {{#if @root.editable}}
+      <button type="button" class="effect-add" data-action="addActorEffect">
+        <i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Effect.addEffect"}}
+      </button>
+      {{/if}}
+      {{#each activeEffects as |e|}}
+      <div class="effect-row{{#if e.disabled}} is-disabled{{/if}}" data-effect-uuid="{{e.uuid}}">
+        <img class="effect-icon" src="{{e.img}}" alt="" />
+        <div class="effect-info">
+          <span class="effect-name">{{e.name}}</span>
+          <span class="effect-source">{{e.source}}{{#if e.durationLabel}} · {{e.durationLabel}}{{/if}}</span>
+          {{#if e.summary.length}}
+          <div class="effect-rules">{{#each e.summary as |s|}}<span class="effect-chip">{{s}}</span>{{/each}}</div>
+          {{/if}}
+        </div>
+        {{#if @root.editable}}
+        <div class="effect-actions">
+          <a class="effect-toggle" data-action="toggleEffectEnabled" title="{{localize 'PROJECTANIME.Effect.toggle'}}"><i class="fa-solid {{#if e.disabled}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i></a>
+          {{#if e.removable}}
+          <a data-action="editActorEffect" title="{{localize 'PROJECTANIME.Effect.edit'}}"><i class="fa-solid fa-pen-to-square"></i></a>
+          <a data-action="deleteActorEffect" title="{{localize 'PROJECTANIME.Effect.remove'}}"><i class="fa-solid fa-trash"></i></a>
+          {{/if}}
+        </div>
+        {{/if}}
+      </div>
+      {{else}}
+      <p class="effects-empty muted">—</p>
+      {{/each}}
+    </div>
+  </div>
+</aside>

@@ -1,0 +1,12 @@
+{{!-- Item sheet tab navigation: View (display) / Edit (form) --}}
+<nav class="item-tabs">
+  <button type="button" class="item-tab{{#if tabView}} active{{/if}}" data-action="selectTab" data-tab="view">
+    <i class="fa-solid fa-eye"></i><span>{{localize "PROJECTANIME.Tab.view"}}</span>
+  </button>
+  <button type="button" class="item-tab{{#if tabEdit}} active{{/if}}" data-action="selectTab" data-tab="edit">
+    <i class="fa-solid fa-pen-to-square"></i><span>{{localize "PROJECTANIME.Tab.edit"}}</span>
+  </button>
+  <button type="button" class="item-tab{{#if tabEffects}} active{{/if}}" data-action="selectTab" data-tab="effects">
+    <i class="fa-solid fa-wand-magic-sparkles"></i><span>{{localize "PROJECTANIME.Tab.effects"}}</span>
+  </button>
+</nav>

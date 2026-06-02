@@ -1,0 +1,17 @@
+{{!-- Party sheet header + tab nav. Encounter tab is present only for GMs (context.tabs). --}}
+<div class="party-topbar">
+  <div class="party-portrait" data-action="editImage" title="{{localize 'PROJECTANIME.Party.portrait'}}">
+    <img src="{{actor.img}}" alt="" />
+    <i class="fas fa-camera"></i>
+  </div>
+  <div class="party-id">
+    <input class="party-name" type="text" name="name" value="{{actor.name}}" placeholder="{{localize 'PROJECTANIME.Party.name'}}" />
+    <nav class="party-tabs">
+      {{#each tabs as |t|}}
+      <button type="button" class="party-tab{{#if t.active}} active{{/if}}" data-action="selectTab" data-tab="{{t.key}}">
+        <i class="fas {{t.icon}}"></i> <span>{{t.label}}</span>
+      </button>
+      {{/each}}
+    </nav>
+  </div>
+</div>

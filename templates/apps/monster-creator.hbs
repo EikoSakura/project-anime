@@ -1,0 +1,219 @@
+{{!-- Step-by-step Monster Creator: Concept → Tier → Attributes → Combat Stats → Abilities → Review. --}}
+<div class="cc-body">
+
+  <ol class="cc-steps">
+    {{#each steps as |st|}}
+    <li class="cc-step-dot{{#if st.active}} active{{/if}}{{#if st.done}} done{{/if}}"
+        data-action="gotoStep" data-step="{{st.index}}" title="{{st.label}}">
+      <span class="cc-dot-num">{{st.num}}</span>
+      <span class="cc-dot-label">{{st.label}}</span>
+    </li>
+    {{/each}}
+  </ol>
+
+  <div class="cc-step-head">
+    <span class="cc-step-counter">{{stepLabel}}</span>
+    <span class="cc-step-title">{{stepTitle}}</span>
+  </div>
+
+  {{!-- ===================== 1 · CONCEPT ===================== --}}
+  {{#if onConcept}}
+  <section class="cc-step-body cc-concept">
+    <div class="cc-id-row">
+      <div class="cc-img" data-action="pickImage" title="{{localize 'PROJECTANIME.MonsterCreator.pickImage'}}">
+        <img src="{{img}}" alt="" />
+        <i class="cc-img-edit fas fa-camera"></i>
+      </div>
+      <label class="cc-field">
+        <span class="cc-label">{{localize "Name"}}</span>
+        <input type="text" name="name" value="{{name}}" />
+      </label>
+    </div>
+    <label class="cc-field">
+      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.disposition"}}</span>
+      <select name="system.disposition">{{selectOptions config.dispositions selected=disposition localize=true}}</select>
+    </label>
+    <label class="cc-field">
+      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.conceptField"}}</span>
+      <textarea name="system.biography" rows="5">{{biography}}</textarea>
+    </label>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 2 · TIER ===================== --}}
+  {{#if onTier}}
+  <section class="cc-step-body cc-tier">
+    <div class="cc-tier-power">
+      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.encounterPower"}}</span>
+      <span class="cc-tier-power-val">{{encounterPower}}</span>
+    </div>
+    <div class="cc-tier-grid">
+      {{#each tiers as |t|}}
+      <button type="button" class="cc-tier-card{{#if t.selected}} selected{{/if}}" style="--tier-color: {{t.color}}"
+              data-action="pickTier" data-tier="{{t.key}}">
+        <div class="cc-tier-head">
+          <i class="{{t.icon}}"></i>
+          <span class="cc-tier-name">{{t.label}}</span>
+          {{#if t.selected}}<i class="cc-tier-check fas fa-circle-check"></i>{{/if}}
+        </div>
+        <ul class="cc-tier-stats">
+          <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierStepUps"}}</span><span class="cc-tier-v">{{t.stepUps}}</span></li>
+          <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierVital"}}</span><span class="cc-tier-v">×{{t.vitalMult}}</span></li>
+          <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierEvaDef"}}</span><span class="cc-tier-v">+{{t.evasion}} / +{{t.defense}}</span></li>
+          <li><span class="cc-tier-k">{{localize "PROJECTANIME.Stat.skillPoints"}}</span><span class="cc-tier-v">{{t.skillPoints}}</span></li>
+        </ul>
+      </button>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 3 · ATTRIBUTES ===================== --}}
+  {{#if onAttributes}}
+  <section class="cc-step-body cc-attributes">
+    <div class="cc-budget-pill{{#if overSpent}} over{{/if}}">
+      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.stepsLeft"}}</span>
+      <span class="cc-budget-num">{{stepsLeft}}</span>
+      <span class="cc-budget-sub muted">/ {{stepsTotal}}</span>
+    </div>
+    <div class="cc-attr-grid">
+      {{#each attributes as |a|}}
+      <div class="cc-attr-card" data-attribute="{{a.key}}">
+        <div class="cc-attr-head">
+          {{#if a.icon}}<i class="{{a.icon}}"></i>{{/if}}
+          <span class="cc-attr-name">{{a.label}}</span>
+        </div>
+        <div class="cc-attr-die">{{a.die}}</div>
+        <div class="cc-attr-ctrl">
+          <button type="button" class="cc-step-btn" data-action="lowerAttr" {{#unless a.canLower}}disabled{{/unless}}>
+            <i class="fas fa-minus"></i>
+          </button>
+          <button type="button" class="cc-step-btn" data-action="raiseAttr" {{#unless a.canRaise}}disabled{{/unless}}>
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 4 · COMBAT STATS ===================== --}}
+  {{#if onStats}}
+  <section class="cc-step-body cc-stats">
+    <div class="cc-vitals-grid">
+      <div class="cc-vital hp">
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span>
+        <span class="cc-v-val">{{vitals.hp}}</span>
+        <span class="cc-v-sub muted">{{vitalNote}}</span>
+      </div>
+      <div class="cc-vital energy">
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.energy"}}</span>
+        <span class="cc-v-val">{{vitals.energy}}</span>
+        <span class="cc-v-sub muted">{{vitalNote}}</span>
+      </div>
+      <div class="cc-vital">
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span>
+        <span class="cc-v-val">{{vitals.evasion}}</span>
+      </div>
+      <div class="cc-vital">
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.defense"}}</span>
+        <span class="cc-v-val">{{vitals.defense}}</span>
+      </div>
+      <div class="cc-vital">
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.movement"}}</span>
+        <span class="cc-v-val">{{vitals.movement}}</span>
+      </div>
+      <div class="cc-vital">
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.carryingCapacity"}}</span>
+        <span class="cc-v-val">{{vitals.carry}}</span>
+      </div>
+    </div>
+    {{#if vitalsStale}}
+    <button type="button" class="cc-mini-btn" data-action="recalcVitals">
+      <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.MonsterCreator.recalc"}}
+    </button>
+    {{/if}}
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 5 · ABILITIES ===================== --}}
+  {{#if onAbilities}}
+  <section class="cc-step-body cc-skills">
+    <div class="cc-sp">
+      <i class="fas fa-star"></i>
+      <span class="cc-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
+      <strong class="cc-sp-val">{{sp}}</strong>
+    </div>
+    <button type="button" class="cc-primary" data-action="openSkillBuilder">
+      <i class="fas fa-wand-sparkles"></i> {{localize "PROJECTANIME.MonsterCreator.openSkillBuilder"}}
+    </button>
+    {{#if skills.length}}
+    <ul class="cc-skill-list">
+      {{#each skills as |s|}}
+      <li class="cc-skill-row" data-skill-id="{{s.id}}">
+        <img src="{{s.img}}" alt="" />
+        <div class="cc-skill-info">
+          <span class="cc-skill-name">{{s.name}}</span>
+          <span class="cc-skill-sub muted">{{s.stars}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}}</span>
+        </div>
+        <button type="button" class="cc-icon-btn danger" data-action="removeSkill" title="{{localize 'PROJECTANIME.MonsterCreator.removeSkill'}}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="cc-empty muted">{{localize "PROJECTANIME.MonsterCreator.noSkills"}}</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 6 · REVIEW ===================== --}}
+  {{#if onFinish}}
+  <section class="cc-step-body cc-review">
+    <div class="cc-review-id">
+      <img class="cc-review-img" src="{{img}}" alt="" />
+      <div class="cc-review-head">
+        <span class="cc-review-name">{{name}}</span>
+        {{#if tierBadge}}
+        <span class="cc-tier-badge" style="--tier-color: {{tierBadge.color}}">
+          <i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}
+        </span>
+        {{/if}}
+      </div>
+    </div>
+    <div class="cc-vitals-grid">
+      <div class="cc-vital hp"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span><span class="cc-v-val">{{vitals.hp}}</span></div>
+      <div class="cc-vital energy"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.energy"}}</span><span class="cc-v-val">{{vitals.energy}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="cc-v-val">{{vitals.evasion}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="cc-v-val">{{vitals.defense}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.movement"}}</span><span class="cc-v-val">{{vitals.movement}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.MonsterCreator.reviewAbilities"}}</span><span class="cc-v-val">{{skillCount}}</span></div>
+    </div>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== NAV ===================== --}}
+  <div class="cc-nav">
+    <div class="cc-nav-left">
+      {{#unless isFirst}}
+      <button type="button" class="cc-back" data-action="stepBack">
+        <i class="fas fa-chevron-left"></i> {{localize "PROJECTANIME.SkillBuilder.back"}}
+      </button>
+      {{/unless}}
+    </div>
+    <div class="cc-nav-right">
+      {{#if isLast}}
+      <button type="button" class="cc-finish-btn" data-action="finish">
+        <i class="fas fa-check"></i> {{localize "PROJECTANIME.MonsterCreator.finish"}}
+      </button>
+      {{else}}
+      <button type="button" class="cc-next" data-action="stepNext">
+        {{localize "PROJECTANIME.SkillBuilder.next"}} <i class="fas fa-chevron-right"></i>
+      </button>
+      {{/if}}
+    </div>
+  </div>
+
+</div>

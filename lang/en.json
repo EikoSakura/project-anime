@@ -1,0 +1,790 @@
+{
+  "TYPES.Actor.character": "Character",
+  "TYPES.Actor.npc": "NPC",
+  "TYPES.Actor.party": "Party",
+  "TYPES.Item.skill": "Skill",
+  "TYPES.Item.weapon": "Weapon",
+  "TYPES.Item.armor": "Armor",
+  "TYPES.Item.shield": "Shield",
+  "TYPES.Item.accessory": "Accessory",
+  "TYPES.Item.consumable": "Consumable",
+  "TYPES.Item.container": "Container",
+  "TYPES.Item.gear": "Gear",
+  "TYPES.Item.package": "Package",
+
+  "PROJECTANIME": {
+    "SheetLabels": {
+      "Actor": "Project: Anime Actor Sheet",
+      "Item": "Project: Anime Item Sheet"
+    },
+    "Empty": "Nothing here yet.",
+    "Overloaded": "Overloaded — Step Down both dice on every Check.",
+    "Tab": {
+      "skills": "Skills",
+      "gear": "Gear",
+      "biography": "Bio",
+      "view": "View",
+      "edit": "Edit",
+      "effects": "Effects"
+    },
+    "Equipment": {
+      "mainHand": "Main Hand",
+      "offHand": "Off-Hand",
+      "armor": "Armor",
+      "accessory": "Accessory",
+      "empty": "— Empty —"
+    },
+    "Container": {
+      "backpack": "Backpack",
+      "add": "New Container"
+    },
+    "Package": {
+      "category": "Category",
+      "grants": "Grants"
+    },
+    "Consumable": {
+      "restoreType": "Restores",
+      "restoreAmount": "Amount",
+      "restore": {
+        "none": "Nothing",
+        "hp": "Hit Points",
+        "energy": "Energy"
+      }
+    },
+    "Roll": {
+      "check": "Check",
+      "test": "Test",
+      "attack": "Attack",
+      "damage": "Damage",
+      "healing": "Healing",
+      "skill": "Skill",
+      "initiative": "Initiative",
+      "checkTitle": "Roll a Check",
+      "checkHint": "Click to roll a Check with this attribute",
+      "attrA": "First Attribute",
+      "attrB": "Second Attribute",
+      "modifier": "Situational Modifier",
+      "ct": "Challenge Threshold",
+      "roll": "Roll",
+      "vsEvasion": "vs Evasion",
+      "noTarget": "No target selected — total only.",
+      "hit": "Hit",
+      "miss": "Miss",
+      "fumble": "Fumble!",
+      "combo": "Combo!",
+      "success": "Success",
+      "failure": "Failure",
+      "extraTurn": "Combo — take an extra turn!",
+      "sharpened": "Sharpened Accuracy +{n}",
+      "dieUsed": "{attr} die",
+      "inflicts": "Inflicts {condition} on {name}",
+      "effectApplied": "Applies {effect} to {name}",
+      "rollDamage": "Roll Damage",
+      "rollHealing": "Roll Healing",
+      "apply": "Apply",
+      "applied": "Applied {n} {what} to {name}.",
+      "healsFor": "Heals {n} HP",
+      "used": "Used",
+      "remaining": "{n} remaining",
+      "noneLeft": "None left to use.",
+      "noEnergy": "Not enough Energy (needs {n}).",
+      "spendLuck": "Spend Luck",
+      "luckReplace": "Replace a die",
+      "luckWith": "With Luck Die",
+      "luckSpent": "Replaced die {die} with Luck {v}.",
+      "luckNone": "No Luck Dice to spend.",
+      "luckNoActor": "No assigned character to spend Luck from.",
+      "die": "Die",
+      "total": "Total",
+      "twoHanded": "Two-handed grip — Damage die Stepped Up",
+      "dualWield": "Dual wielding — Damage die Stepped Down",
+      "pierce": "Pierce — ignores Defense",
+      "energyDamage": "Energy damage",
+      "itemGone": "That item no longer exists.",
+      "targetGone": "That target no longer exists.",
+      "noGM": "No active GM is online to apply this.",
+      "exhausted": "Exhausted — cannot activate Skills.",
+      "steppedDown": "Blinded / Prone — Accuracy dice Stepped Down.",
+      "steppedOverload": "Overloaded — both dice Stepped Down.",
+      "placeBurst": "Click to place the Burst · right-click to cancel",
+      "placeLine": "Aim the Line and click · right-click to cancel",
+      "needToken": "Place this character's token on the scene to aim this Skill.",
+      "massPickTitle": "Choose Targets",
+      "massNone": "No targets within Range.",
+      "aoeAffects": "Affects {n} target(s)",
+      "aoeNoTargets": "No targets caught in the area.",
+      "applyAll": "Apply to All",
+      "appliedAll": "Applied to {n} target(s).",
+      "chainLeap": "Leap {n}",
+      "chainStopped": "Chain stopped — missed {name}."
+    },
+    "Attribute": {
+      "might":   { "long": "Might" },
+      "agility": { "long": "Agility" },
+      "mind":    { "long": "Mind" },
+      "spirit":  { "long": "Spirit" },
+      "charm":   { "long": "Charm" }
+    },
+    "Stat": {
+      "hp": "Hit Points",
+      "energy": "Energy",
+      "evasion": "Evasion",
+      "movement": "Movement",
+      "defense": "Defense",
+      "carryingCapacity": "Carrying Capacity",
+      "gold": "Gold (G)",
+      "sellRate": "Sell Rate",
+      "buyRate": "Buy Rate",
+      "skillPoints": "Skill Points",
+      "skillPointsAbbr": "SP",
+      "luckDice": "Luck Dice"
+    },
+    "Action": {
+      "addItem": "Add",
+      "toChat": "Post to Chat",
+      "equip": "Toggle Equipped",
+      "unequip": "Unequip",
+      "edit": "Edit",
+      "delete": "Delete",
+      "use": "Use"
+    },
+    "Quick": {
+      "weapons": "Weapons",
+      "skills": "Skills",
+      "addSkill": "Pin a Skill",
+      "pin": "Pin to Skills",
+      "remove": "Remove from Skills",
+      "active": "Active",
+      "react": "React",
+      "passive": "Passive",
+      "manageTitle": "Manage Skills",
+      "save": "Save"
+    },
+    "Section": {
+      "attack": "Attack",
+      "defense": "Defense",
+      "equipment": "Equipment",
+      "details": "Details",
+      "effect": "Effect"
+    },
+    "Field": {
+      "base": "base",
+      "pronouns": "Pronouns",
+      "biographyPlaceholder": "Appearance, personality, history…",
+      "description": "Description",
+      "descriptionPlaceholder": "Describe this item…",
+      "size": "Bulk",
+      "cost": "Cost (G)",
+      "quantity": "Quantity",
+      "equipped": "Equipped",
+      "defenseBonus": "Defense Bonus",
+      "evasionPenalty": "Evasion Penalty",
+      "evasionBonus": "Evasion Bonus",
+      "capacityBonus": "Carrying Capacity Bonus",
+      "accuracy": "Accuracy",
+      "accuracyA": "Accuracy — Attribute A",
+      "accuracyB": "Accuracy — Attribute B",
+      "accuracyMod": "Accuracy Modifier",
+      "damageMod": "Damage Modifier",
+      "damageType": "Damage Type",
+      "damage": "Damage",
+      "rangeType": "Range Type",
+      "rangeTiles": "Range (tiles)",
+      "range": "Range",
+      "hand": "Hand",
+      "grip": "Grip"
+    },
+    "Skill": {
+      "field": {
+        "rank": "Rank",
+        "actionType": "Action Type",
+        "range": "Range",
+        "effect": "Effect",
+        "attrA": "Attribute A",
+        "attrB": "Attribute B",
+        "damageType": "Damage Type",
+        "damagePool": "Damage Pool",
+        "regenPool": "Regen Pool",
+        "trigger": "Trigger",
+        "modifiers": "Modifiers",
+        "spCost": "SP Cost",
+        "energyCost": "Energy Cost",
+        "accuracyMod": "Accuracy Bonus",
+        "damageDie": "Damage Die",
+        "healDie": "Healing Die"
+      },
+      "tiles": "tiles",
+      "growUnit": {
+        "tiles": "tiles",
+        "targets": "targets"
+      },
+      "damagePool": {
+        "hp": "Hit Points",
+        "energy": "Energy"
+      },
+      "filter": {
+        "all": "All",
+        "search": "Search skills…"
+      },
+      "spTotal": "total",
+      "spSpent": "spent",
+      "spGranted": "granted",
+      "granted": "Granted ability (free)",
+      "grantedBy": "Granted by {source} (free)",
+      "actionType": {
+        "action": "Action",
+        "passive": "Passive",
+        "react": "React"
+      },
+      "rank": {
+        "basic": "Basic",
+        "intermediate": "Intermediate",
+        "advanced": "Advanced",
+        "expert": "Expert",
+        "master": "Master"
+      },
+      "effect": {
+        "affinity": "Affinity",
+        "bolster": "Bolster",
+        "hinder": "Hinder",
+        "mend": "Mend",
+        "move": "Move",
+        "sense": "Sense",
+        "strike": "Strike",
+        "sustain": "Sustain"
+      },
+      "modifier": {
+        "burst": "Burst",
+        "chain": "Chain",
+        "charge": "Charge",
+        "cleanse": "Cleanse",
+        "decay": "Decay",
+        "devour": "Devour (Heavy)",
+        "drainEnergy": "Drain Energy",
+        "drainHP": "Drain HP",
+        "inflict": "Inflict",
+        "line": "Line",
+        "mass": "Mass (Heavy)",
+        "pierce": "Pierce",
+        "pull": "Pull",
+        "push": "Push",
+        "reflect": "Reflect"
+      },
+      "trigger": {
+        "alerted": "Alerted",
+        "attacked": "Attacked",
+        "critical": "Critical",
+        "damaged": "Damaged",
+        "enters": "Enters"
+      },
+      "heavy": "Heavy",
+      "reactNeedsTrigger": "React Skills require a Trigger.",
+      "effectDesc": {
+        "affinity": "⭐ Gain Resist to a Damage Type. ⭐⭐⭐ Gain Immunity to a Damage Type or Status. ⭐⭐⭐⭐⭐ Gain Absorb. (Physical costs one Rank higher.)",
+        "bolster": "Raise the target's Attributes by 1 — ⭐ one, ⭐⭐⭐ two, ⭐⭐⭐⭐⭐ three (up to maximum).",
+        "hinder": "⭐ Lower one Attribute by 1 or inflict one Status. ⭐⭐⭐ lower two. ⭐⭐⭐⭐⭐ lower three or inflict two Statuses (down to minimum).",
+        "mend": "Restore Hit Points to the target equal to the Attribute die.",
+        "move": "Move, or force-move the target — ⭐ Movement +2 (or 2 tiles), ⭐⭐⭐ +4, ⭐⭐⭐⭐⭐ +6.",
+        "sense": "Sense creatures or items — ⭐ within Range, ⭐⭐⭐ Range ×2, ⭐⭐⭐⭐⭐ beyond the Scene. Needs a defined scope and a Check.",
+        "strike": "Deal Hit Point or Energy damage equal to the Attribute die, resolved as an attack.",
+        "sustain": "Regenerate HP or Energy at the start of your turn — ⭐ 2, ⭐⭐⭐ 4, ⭐⭐⭐⭐⭐ 6."
+      },
+      "modifierDesc": {
+        "burst": "Affects everything within 2 tiles of a chosen point in the Skill's Range.",
+        "chain": "On a hit, leaps to another target within Near, then again; each hit deals half the previous damage.",
+        "charge": "Spend a turn focusing; on your next turn the Skill resolves with double damage or healing. A miss dissipates it.",
+        "cleanse": "Remove a Status Effect from the target.",
+        "decay": "The target takes 1 damage at the end of each of their next 3 turns.",
+        "devour": "Heavy. Target a creature reduced to 0 HP; copy and learn one Skill it knows.",
+        "drainEnergy": "Restore Energy equal to half the damage dealt.",
+        "drainHP": "Heal Hit Points equal to half the damage dealt.",
+        "inflict": "Inflict the target with a Status Effect.",
+        "line": "Affects everything in a straight line up to the Skill's Range.",
+        "mass": "Heavy. Affects all valid targets within Range; you choose which are affected.",
+        "pierce": "The Skill ignores the target's Defense.",
+        "pull": "The target moves one tile closer to you (Forced Movement).",
+        "push": "The target moves one tile away from you (Forced Movement).",
+        "reflect": "Turn an incoming attack into momentum — choose Bounce (redirect at its source) or Counter (immediate strike back)."
+      }
+    },
+    "Range": {
+      "self": "Self",
+      "weapon": "Weapon",
+      "melee": "Melee",
+      "near": "Near",
+      "far": "Far",
+      "veryFar": "Very Far"
+    },
+    "RangeType": {
+      "melee": "Melee",
+      "ranged": "Ranged"
+    },
+    "DamageType": {
+      "physical": "Physical",
+      "earth": "Earth",
+      "fire": "Fire",
+      "mental": "Mental",
+      "sonic": "Sonic",
+      "water": "Water",
+      "wind": "Wind"
+    },
+    "Affinity": {
+      "none": "None",
+      "weak": "Weak",
+      "resist": "Resist",
+      "immune": "Immune",
+      "absorb": "Absorb"
+    },
+    "Affinities": {
+      "elementalDefense": "Elemental Defense"
+    },
+    "Defenses": {
+      "title": "Defenses",
+      "close": "Close"
+    },
+    "Effect": {
+      "title": "Effects",
+      "builderTitle": "Effect Builder",
+      "newEffect": "New Effect",
+      "addEffect": "Add Effect",
+      "addRule": "Add Rule",
+      "deleteRule": "Remove Rule",
+      "grant": "Grant",
+      "grantDrop": "Drop a Skill or Package",
+      "removeGrant": "Remove",
+      "name": "Name",
+      "icon": "Icon",
+      "enabled": "Enabled",
+      "toggleable": "Toggle",
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "toggle": "Enable / Disable",
+      "by": "by",
+      "steps": "step(s)",
+      "luckStepUp": "Step up Luck die",
+      "maxHp": "Max HP",
+      "maxEnergy": "Max Energy",
+      "deleteTitle": "Delete Effect",
+      "deletePrompt": "Delete \"{name}\"?",
+      "type": {
+        "attribute": "Attribute",
+        "stat": "Stat",
+        "resource": "Resource",
+        "affinity": "Affinity",
+        "roll": "Roll",
+        "condition": "Condition",
+        "luck": "Luck",
+        "trade": "Trade",
+        "reveal": "Reveal",
+        "grant": "Grant Item"
+      },
+      "reveal": {
+        "skillPoints": "Skill Points",
+        "attributes": "Attributes",
+        "combatStats": "Combat Stats",
+        "skills": "Skills",
+        "affinities": "Affinities"
+      },
+      "trade": {
+        "sell": "Sell rate",
+        "buy": "Buy rate"
+      },
+      "mode": {
+        "bolster": "Bolster",
+        "hinder": "Hinder"
+      },
+      "selector": {
+        "check": "All Checks",
+        "attack": "Attack rolls",
+        "damage": "Damage rolls"
+      },
+      "scope": {
+        "self": "Wearer",
+        "target": "Target"
+      },
+      "inflict": "Inflict",
+      "pred": {
+        "always": "Always",
+        "selfCondition": "If self",
+        "hpBelow": "If HP ≤",
+        "energyBelow": "If Energy ≤",
+        "targetCondition": "If target",
+        "targetAffinity": "If target affinity"
+      },
+      "duration": "Duration",
+      "dur": {
+        "none": "None",
+        "rounds": "Rounds",
+        "turns": "Turns",
+        "minutes": "Minutes"
+      },
+      "expired": "{name} expired on {actor}.",
+      "remove": "Remove",
+      "decayTick": "{name} takes 1 Decay damage.",
+      "sustainRegen": "{name} regenerates {gain}.",
+      "stunnedSkip": "{name} is Stunned and skips their turn.",
+      "defeated": "{name} is Defeated!",
+      "recovered": "{name} recovers to {hp} HP as combat ends."
+    },
+    "Dossier": {
+      "title": "Dossier",
+      "details": "Details"
+    },
+    "RangeLine": {
+      "tiles": "tiles"
+    },
+    "ComboSplash": {
+      "word": "COMBO!",
+      "scored": "{name} scored a Combo!"
+    },
+    "TokenFields": {
+      "gate": {
+        "always": "Always",
+        "owner": "Owner / GM only"
+      },
+      "surface": {
+        "panel": "Hover panel",
+        "dossier": "Dossier"
+      }
+    },
+    "Settings": {
+      "elements": {
+        "name": "Elements / Damage Types",
+        "label": "Configure Elements",
+        "title": "Elements & Damage Types",
+        "icon": "Icon",
+        "pick": "Choose an image (or type a Font Awesome class at right)",
+        "elementName": "Name",
+        "key": "Key",
+        "add": "Add Element",
+        "restore": "Restore Defaults",
+        "save": "Save Elements",
+        "remove": "Remove",
+        "empty": "No elements defined — add one, or restore the defaults.",
+        "saved": "Elements updated."
+      },
+      "creation": {
+        "name": "Character Creation",
+        "label": "Configure Character Creation",
+        "hint": "Starting Skill Points, Attribute Step-Ups, Gold budget, purchasable item types, and which compendiums the gear shop draws from.",
+        "title": "Character Creation",
+        "numbers": "Starting Values",
+        "stepUps": "Attribute Step-Ups",
+        "gold": "Gold Budget",
+        "types": "Purchasable Types",
+        "packs": "Open Compendiums",
+        "noPacks": "No Item compendiums found.",
+        "restore": "Restore Defaults",
+        "save": "Save",
+        "saved": "Character creation settings updated.",
+        "choices": "Character Choices",
+        "choiceLabel": "Choice name",
+        "addChoice": "Add Choice",
+        "deleteChoice": "Remove Choice",
+        "deleteOption": "Remove option",
+        "dropPackage": "Drop a Package",
+        "notPackage": "Only Packages can be choice options.",
+        "pick": "Pick",
+        "mode": {
+          "single": "Pick one",
+          "pickN": "Pick several"
+        }
+      },
+      "bioFields": {
+        "name": "Bio Fields",
+        "label": "Configure Bio Fields",
+        "title": "Bio Dossier Fields",
+        "icon": "Icon",
+        "pick": "Choose an image, or type a Font Awesome class",
+        "fieldName": "Name",
+        "key": "Key",
+        "long": "Long",
+        "add": "Add Field",
+        "restore": "Restore Defaults",
+        "save": "Save Fields",
+        "remove": "Remove",
+        "empty": "No fields defined — add one, or restore the defaults.",
+        "saved": "Bio fields updated."
+      },
+      "tokenInfo": {
+        "name": "Token Info Panel",
+        "toggle": "Token Info Panel"
+      },
+      "rangeLine": {
+        "name": "Range Line",
+        "toggle": "Range Line"
+      },
+      "comboSplash": {
+        "name": "Combo Splash",
+        "clientName": "Combo Splash — show for me"
+      },
+      "encounterPower": {
+        "name": "Monster Encounter Power"
+      },
+      "tokenFields": {
+        "name": "Token Info: Custom Fields",
+        "label": "Configure Custom Fields",
+        "title": "Token Info — Custom Fields",
+        "fieldLabel": "Label",
+        "path": "Data Path",
+        "gate": "Show",
+        "surface": "Where",
+        "add": "Add Field",
+        "save": "Save Fields",
+        "saved": "Custom fields updated.",
+        "remove": "Remove",
+        "empty": "No custom fields yet."
+      }
+    },
+    "Advancement": {
+      "title": "Advancement",
+      "open": "Advancement",
+      "attributes": "Attributes",
+      "max": "Max",
+      "combatStats": "Combat Stats",
+      "setup": "Setup",
+      "calcVitals": "Calculate HP/Energy",
+      "rollLuck": "Roll Luck Dice",
+      "raise": "Raise",
+      "maxed": "That attribute is already at d12.",
+      "notEnough": "Not enough Skill Points.",
+      "vitalsSet": "Set HP to {hp} and Energy to {energy} from attributes."
+    },
+    "Rest": {
+      "title": "Rest",
+      "open": "Rest",
+      "camp": "Camp",
+      "town": "Town",
+      "minor": "Minor Downtime",
+      "major": "Major Downtime",
+      "downtime": "Downtime",
+      "complete": "Complete Rest",
+      "luckRestored": "Restored a Luck Die ({value}).",
+      "luckRerolled": "Luck Dice rerolled.",
+      "activitySp": "+{sp} SP",
+      "activity": {
+        "none": "Just Rest",
+        "training": "Training"
+      }
+    },
+    "SkillBuilder": {
+      "title": "Skill Builder",
+      "newSkillName": "New Skill",
+      "buildNew": "Build New Skill",
+      "improveTitle": "Improve a Skill",
+      "improve": "Improve",
+      "editEffects": "Effects",
+      "improvements": "Improvements",
+      "attributes": "Attributes",
+      "cost": "Cost",
+      "learn": "Learn Skill",
+      "back": "Back",
+      "next": "Next",
+      "backToSkills": "Back to Skills",
+      "skillName": "Name",
+      "pickImage": "Choose image",
+      "upTo": "up to",
+      "stepOf": "Step {n} of {total}",
+      "notEnoughSp": "Not enough Skill Points (need {cost}, have {sp}).",
+      "learned": "Learned {name} for {cost} SP.",
+      "modBudgetFull": "No Modifier slots left for this Rank.",
+      "atMax": "Max",
+      "atMin": "Min",
+      "raiseRank": "Raise Rank",
+      "sharpen": "Sharpen Accuracy",
+      "lowerEnergy": "Lower Energy",
+      "raiseRange": "Raise Range",
+      "addModifier": "Add a Modifier",
+      "turnModifier": "Turn a Modifier",
+      "base": "base",
+      "step": {
+        "concept": "Concept",
+        "rank": "Rank",
+        "roll": "Roll & Range",
+        "effect": "Effect",
+        "modifiers": "Modifiers",
+        "review": "Review"
+      }
+    },
+    "SkillLog": {
+      "title": "Skill Point Log",
+      "available": "Available",
+      "spent": "Spent",
+      "total": "Total",
+      "refund": "Refund",
+      "empty": "Nothing spent yet",
+      "legacy": "Prior advancement",
+      "confirmTitle": "Refund Skill Points",
+      "confirm": "Undo “{label}” and refund {amount} SP?",
+      "confirmSkill": "Delete “{label}” and refund {amount} SP?",
+      "entry": {
+        "attribute": "Raise {attr} ({from} → {to})",
+        "hp": "+2 Max HP",
+        "energy": "+2 Max Energy",
+        "carryingCapacity": "+1 Carrying Capacity",
+        "movement": "+1 Movement",
+        "improveRank": "Raise Rank — {skill}",
+        "improveRange": "Raise Range — {skill}",
+        "improveEnergy": "Lower Energy — {skill}",
+        "improveAccuracy": "Sharpen Accuracy — {skill}",
+        "improveModifier": "Add Modifier ({mod}) — {skill}",
+        "improveGrowth": "Turn Modifier ({mod}) — {skill}"
+      }
+    },
+    "Creator": {
+      "title": "Character Creator",
+      "open": "Create",
+      "all": "All",
+      "stepOf": "Step {n} of {total}",
+      "step": {
+        "concept": "Concept",
+        "choose": "Choose",
+        "attributes": "Attributes",
+        "stats": "Combat Stats",
+        "skills": "Skills",
+        "gear": "Gear",
+        "finish": "Finishing Touches"
+      },
+      "pickImage": "Choose portrait",
+      "conceptField": "Concept — appearance & personality",
+      "stepsLeft": "Step-Ups left",
+      "stepsRemaining": "Distribute all your Step-Ups first ({n} left).",
+      "noStepsLeft": "No Step-Ups left.",
+      "recalc": "Recalculate from attributes",
+      "rollLuck": "Roll Luck",
+      "openSkillBuilder": "Open Skill Builder",
+      "removeSkill": "Remove (refund SP)",
+      "noSkills": "No Skills yet.",
+      "choosePick": "Picked",
+      "choosePickMax": "{label}: pick at most {n}.",
+      "chooseRequired": "Choose your {label}.",
+      "choiceMissing": "That option's package could not be found.",
+      "budget": "Budget",
+      "refresh": "Refresh",
+      "shopEmpty": "No items available.",
+      "owned": "Purchased",
+      "sell": "Sell back (refund)",
+      "cantAfford": "{name} costs {cost}G — you have {gold}G.",
+      "bought": "Bought {name} for {cost}G.",
+      "finish": "Finish",
+      "done": "{name} is ready to play!"
+    },
+    "MonsterCreator": {
+      "title": "Monster Creator",
+      "open": "Create",
+      "stepOf": "Step {n} of {total}",
+      "step": {
+        "concept": "Concept",
+        "tier": "Tier",
+        "attributes": "Attributes",
+        "stats": "Combat Stats",
+        "abilities": "Abilities",
+        "finish": "Review"
+      },
+      "pickImage": "Choose portrait",
+      "conceptField": "Concept — appearance & behavior",
+      "disposition": "Disposition",
+      "tierStepUps": "Step-Ups",
+      "tierVital": "HP / Energy",
+      "tierEvaDef": "Eva / Def",
+      "encounterPower": "Encounter Power",
+      "pickTierFirst": "Pick a Tier first.",
+      "stepsLeft": "Step-Ups left",
+      "stepsRemaining": "Distribute all Step-Ups first ({n} left).",
+      "noStepsLeft": "No Step-Ups left.",
+      "recalc": "Recalculate from attributes & tier",
+      "vitalNote": "×{mult} ({tier})",
+      "openSkillBuilder": "Open Skill Builder",
+      "removeSkill": "Remove",
+      "noSkills": "No abilities yet.",
+      "noTier": "Untiered",
+      "reviewVitals": "Combat Stats",
+      "reviewAbilities": "Abilities",
+      "finish": "Finish",
+      "done": "{name} is ready!"
+    },
+    "Tier": {
+      "minion": "Minion",
+      "elite": "Elite",
+      "boss": "Boss",
+      "raid": "Raid Boss"
+    },
+    "Party": {
+      "name": "Party",
+      "portrait": "Choose portrait",
+      "roster": "Party",
+      "power": "Power",
+      "difficulty": "Difficulty",
+      "budget": "Budget",
+      "encounter": "Encounter",
+      "remove": "Remove",
+      "tabParty": "Party",
+      "tabStash": "Stash",
+      "tabEncounter": "Encounter",
+      "dropPCs": "Drag Player Characters here.",
+      "dropMonsters": "Drag monsters here.",
+      "dropItems": "Drag items here.",
+      "membersArePCs": "Only Player Characters go in the party roster.",
+      "encounterAreMonsters": "Only NPCs (monsters) go in the encounter.",
+      "itemsAreGear": "Only items (not Skills) can be stashed.",
+      "treasury": "Treasury",
+      "splitEvenly": "Split Evenly",
+      "collect": "Collect",
+      "give": "Give to member",
+      "giveTitle": "Give {item}",
+      "gave": "{item} → {member}",
+      "noMembers": "No party members.",
+      "notEnoughGold": "Not enough gold to split.",
+      "splitDone": "Split {each} gold to each of {n}.",
+      "collectDone": "Collected {gold} gold into the treasury."
+    },
+    "Encounter": {
+      "difficulty": {
+        "easy": "Easy",
+        "standard": "Standard",
+        "hard": "Hard",
+        "deadly": "Deadly"
+      }
+    },
+    "Status": {
+      "title": "Status",
+      "blinded": "Blinded",
+      "bound": "Bound",
+      "decay": "Decay",
+      "exhausted": "Exhausted",
+      "prone": "Prone",
+      "slowed": "Slowed",
+      "stunned": "Stunned"
+    },
+    "Hand": {
+      "main": "Main Hand",
+      "off": "Off-Hand",
+      "two": "Two-Handed"
+    },
+    "Grip": {
+      "one": "One-Handed",
+      "two": "Two-Handed"
+    },
+    "Disposition": {
+      "friendly": "Friendly",
+      "neutral": "Neutral",
+      "hostile": "Hostile"
+    },
+    "Bio": {
+      "profile": "Profile",
+      "biography": "Biography",
+      "age": "Age",
+      "gender": "Gender",
+      "height": "Height",
+      "weight": "Weight",
+      "homeland": "Homeland",
+      "affiliation": "Affiliation",
+      "occupation": "Occupation",
+      "alias": "Alias",
+      "likes": "Likes",
+      "dislikes": "Dislikes",
+      "goal": "Goal"
+    }
+  }
+}

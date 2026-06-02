@@ -1,0 +1,24 @@
+{{!-- Consumable details (flavour goes in the description) --}}
+<section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
+    <div class="form-grid">
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.quantity"}}</label>
+        <input type="number" name="system.quantity" value="{{system.quantity}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.size"}}</label>
+        <input type="number" name="system.size" value="{{system.size}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
+        <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.effect"}}</h4>
+    <div class="form-grid">
+      <div class="form-group"><label>{{localize "PROJECTANIME.Consumable.restoreType"}}</label>
+        <select name="system.restoreType">{{selectOptions restoreChoices selected=system.restoreType localize=true}}</select></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Consumable.restoreAmount"}}</label>
+        <input type="number" name="system.restoreAmount" value="{{system.restoreAmount}}" min="0" /></div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,18 @@
+{{!-- Container details --}}
+<section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+  <p class="formula-preview">+{{system.capacityBonus}} {{localize "PROJECTANIME.Stat.carryingCapacity"}}</p>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
+    <div class="form-grid">
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.capacityBonus"}}</label>
+        <input type="number" name="system.capacityBonus" value="{{system.capacityBonus}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.size"}}</label>
+        <input type="number" name="system.size" value="{{system.size}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
+        <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
+      <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>
+        <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} /></div>
+    </div>
+  </div>
+</section>
