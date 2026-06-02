@@ -140,6 +140,37 @@
   {{!-- ===================== 5 · ABILITIES ===================== --}}
   {{#if onAbilities}}
   <section class="cc-step-body cc-skills">
+
+    {{!-- Basic Attacks — natural weapons. Strike with an equipped weapon: costs NO Energy
+          and NO Skill Points (rules: "A Basic Attack costs no Energy"). --}}
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.MonsterCreator.basicAttacks"}}</h4>
+    <button type="button" class="cc-primary" data-action="addAttack">
+      <i class="fas fa-plus"></i> {{localize "PROJECTANIME.MonsterCreator.addBasicAttack"}}
+    </button>
+    {{#if attacks.length}}
+    <ul class="cc-skill-list cc-attack-list">
+      {{#each attacks as |atk|}}
+      <li class="cc-skill-row cc-attack-row" data-attack-id="{{atk.id}}">
+        <img src="{{atk.img}}" alt="" />
+        <div class="cc-skill-info">
+          <input type="text" class="cc-attack-name" value="{{atk.name}}" autocomplete="off" />
+          <span class="cc-skill-sub muted">{{atk.summary}}</span>
+        </div>
+        <button type="button" class="cc-icon-btn" data-action="editAttack" title="{{localize 'PROJECTANIME.MonsterCreator.editAttack'}}">
+          <i class="fas fa-pen"></i>
+        </button>
+        <button type="button" class="cc-icon-btn danger" data-action="removeAttack" title="{{localize 'PROJECTANIME.MonsterCreator.removeAttack'}}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="cc-empty muted">{{localize "PROJECTANIME.MonsterCreator.noAttacks"}}</p>
+    {{/if}}
+
+    {{!-- Skills — SP-costing, Energy-using abilities built in the Skill Builder. --}}
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.MonsterCreator.skillsHeading"}}</h4>
     <div class="cc-sp">
       <i class="fas fa-star"></i>
       <span class="cc-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
@@ -189,6 +220,7 @@
       <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="cc-v-val">{{vitals.evasion}}</span></div>
       <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="cc-v-val">{{vitals.defense}}</span></div>
       <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.movement"}}</span><span class="cc-v-val">{{vitals.movement}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.MonsterCreator.reviewAttacks"}}</span><span class="cc-v-val">{{attackCount}}</span></div>
       <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.MonsterCreator.reviewAbilities"}}</span><span class="cc-v-val">{{skillCount}}</span></div>
     </div>
   </section>

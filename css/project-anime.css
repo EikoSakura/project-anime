@@ -3682,6 +3682,14 @@
 .project-anime.character-creator .cc-skill-sub { font-size: 0.68rem; }
 .project-anime.character-creator .cc-skill-sub i { color: var(--pa-energy-b); }
 
+/* Basic attacks (natural weapons) — inline-editable name, reused skill-row layout */
+.project-anime.character-creator .cc-attack-name {
+  width: 100%; background: transparent; border: 1px solid transparent; border-radius: 4px;
+  color: var(--pa-ink); font-weight: 600; font-family: inherit; font-size: 0.85rem; padding: 0.1rem 0.3rem;
+}
+.project-anime.character-creator .cc-attack-name:hover { border-color: var(--pa-line); }
+.project-anime.character-creator .cc-attack-name:focus { border-color: var(--pa-accent); background: var(--pa-field); outline: none; }
+
 /* Gear shop */
 .project-anime.character-creator .cc-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .project-anime.character-creator button.cc-chip {

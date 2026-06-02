@@ -19,11 +19,15 @@
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
 import { tierScaling, getEncounterPower } from "../helpers/config.mjs";
+import { elementLabel } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 /** Creation steps, in order. */
 const STEPS = ["concept", "tier", "attributes", "stats", "abilities", "finish"];
+
+/** Default icon for a freshly-created Basic Attack (natural weapon). */
+const NATURAL_WEAPON_IMG = "icons/svg/sword.svg";
 
 /** Stable ordering: by sort, then name. */
 const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
@@ -51,6 +55,9 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       raiseAttr: MonsterCreatorApp.#onRaiseAttr,
       lowerAttr: MonsterCreatorApp.#onLowerAttr,
       recalcVitals: MonsterCreatorApp.#onRecalcVitals,
+      addAttack: MonsterCreatorApp.#onAddAttack,
+      editAttack: MonsterCreatorApp.#onEditAttack,
+      removeAttack: MonsterCreatorApp.#onRemoveAttack,
       openSkillBuilder: MonsterCreatorApp.#onOpenSkillBuilder,
       removeSkill: MonsterCreatorApp.#onRemoveSkill,
       finish: MonsterCreatorApp.#onFinish
@@ -193,6 +200,15 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.vitalNote = game.i18n.format("PROJECTANIME.MonsterCreator.vitalNote", { mult: ctx.mult, tier: ctx.tierName });
     ctx.vitalsStale = sys.hp.max !== Math.round(might * 2 * rawMult) || sys.energy.max !== Math.round(spirit * 2 * rawMult);
 
+    // Basic Attacks — natural weapons. The rules' "Basic Attack" strikes with an equipped
+    // weapon and costs NO Energy (and no Skill Points); these roll through rollAttack from
+    // the NPC's quick-attack panel. Built/renamed inline here, fully tunable on the item sheet.
+    ctx.attacks = this.actor.items
+      .filter((i) => i.type === "weapon")
+      .sort(bySort)
+      .map((i) => ({ id: i.id, name: i.name, img: i.img, summary: this.#attackSummary(i) }));
+    ctx.attackCount = ctx.attacks.length;
+
     // Abilities — the Tier's Skill Points and what's been built.
     ctx.sp = sys.skillPoints?.value ?? 0;
     ctx.skills = this.actor.items
@@ -217,6 +233,22 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     return ctx;
   }
 
+  /** A compact "⟪A⟫ + ⟪B⟫ · Type · Melee N" line describing a Basic Attack (natural weapon). */
+  #attackSummary(item) {
+    const cfg = CONFIG.PROJECTANIME;
+    const s = item.system ?? {};
+    const acc = s.accuracy ?? {};
+    const a = game.i18n.localize(cfg.attributes[acc.attrA] ?? acc.attrA ?? "");
+    const b = game.i18n.localize(cfg.attributes[acc.attrB] ?? acc.attrB ?? "");
+    const accMod = Number(acc.mod) || 0;
+    const accStr = `⟪${a}⟫ + ⟪${b}⟫${accMod ? ` ${accMod > 0 ? "+" : "−"}${Math.abs(accMod)}` : ""}`;
+    const dmgMod = Number(s.damage?.mod) || 0;
+    const dmgStr = `${dmgMod ? `${dmgMod > 0 ? "+" : "−"}${Math.abs(dmgMod)} ` : ""}${elementLabel(s.damage?.type)}`;
+    const rangeType = game.i18n.localize(cfg.rangeTypes[s.range?.type] ?? s.range?.type ?? "");
+    const rangeStr = `${rangeType} ${Number(s.range?.tiles) || 0}`;
+    return `${accStr} · ${dmgStr} · ${rangeStr}`;
+  }
+
   /* -------------------------------------------- */
   /*  Render lifecycle                            */
   /* -------------------------------------------- */
@@ -225,6 +257,11 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   async _onRender(context, options) {
     await super._onRender(context, options);
     this.actor.apps[this.id] = this;
+    // Inline rename for Basic Attack rows. The input is intentionally unnamed so the actor
+    // form #sync never reads it; commit straight to the weapon item on change (blur).
+    for (const input of this.element.querySelectorAll(".cc-attack-name")) {
+      input.addEventListener("change", (ev) => this.#commitAttackName(ev.currentTarget));
+    }
   }
 
   _onClose(options) {
@@ -427,6 +464,56 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     if (item.getFlag("project-anime", "granted")) return;
     await item.delete();
     this.render();
+  }
+
+  /* -------------------------------------------- */
+  /*  Basic Attacks (no-Energy natural weapons)   */
+  /* -------------------------------------------- */
+
+  /** Add a Basic Attack: a natural weapon, equipped so it surfaces in the NPC's quick-attack
+   *  panel and rolls through rollAttack — which never spends Energy (the rules' "A Basic Attack
+   *  costs no Energy"). Weighs nothing (size 0) and costs no Skill Points. A sensible Might +
+   *  Agility melee strike by default; rename it inline and fine-tune it on its item sheet. */
+  static async #onAddAttack() {
+    await this.actor.createEmbeddedDocuments("Item", [{
+      name: game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName"),
+      type: "weapon",
+      img: NATURAL_WEAPON_IMG,
+      system: {
+        accuracy: { attrA: "might", attrB: "agility", mod: 0 },
+        damage: { mod: 0, type: "physical" },
+        range: { type: "melee", tiles: 1 },
+        size: 0,
+        equipped: true,
+        hand: "main",
+        grip: "one"
+      }
+    }]);
+    this.render();
+  }
+
+  /** Open a Basic Attack's item sheet for full tuning (grip / two-handed, size, cost…). */
+  static #onEditAttack(event, target) {
+    const id = target.closest("[data-attack-id]")?.dataset.attackId;
+    this.actor.items.get(id)?.sheet?.render(true);
+  }
+
+  /** Delete a Basic Attack (creation is a sandbox — undo is free). */
+  static async #onRemoveAttack(event, target) {
+    const id = target.closest("[data-attack-id]")?.dataset.attackId;
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "weapon") return;
+    await item.delete();
+    this.render();
+  }
+
+  /** Commit an inline Basic Attack rename to its weapon item (empty falls back to the default). */
+  async #commitAttackName(input) {
+    const id = input.closest("[data-attack-id]")?.dataset.attackId;
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "weapon") return;
+    const name = (input.value || "").trim() || game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName");
+    if (name !== item.name) await item.update({ name });
   }
 
   /* -------------------------------------------- */

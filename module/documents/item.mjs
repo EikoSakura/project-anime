@@ -1,40 +1,52 @@
+import { rollAttack, rollSkill, useConsumable } from "../helpers/dice.mjs";
+
 /**
- * Custom Item document class for Shards of Mana.
+ * Extends the base Item with Project: Anime behaviour: roll data and a
+ * type-aware `roll()` (weapons/shields attack, skills resolve, others post a card).
  */
-export class ShardsItem extends Item {
-
+export class ProjectAnimeItem extends Item {
   /** @override */
-  prepareData() {
-    super.prepareData();
-  }
-
-  /** @override */
-  prepareDerivedData() {
-    super.prepareDerivedData();
+  getRollData() {
+    const data = { ...this.system };
+    if (this.actor) data.actor = this.actor.getRollData();
+    return data;
   }
 
   /**
-   * Roll this item (if it has a damage formula or relevant roll).
-   * @returns {Promise<Roll|null>}
+   * Roll or use this item.
+   * @param {object} [options]
+   * @param {Event}  [options.event]  Originating event (Shift skips roll dialogs).
    */
-  async roll() {
-    const formula = this.system.damageFormula || this.system.damage?.formula;
-    if (!formula) {
-      // No rollable formula — just post the item to chat
-      await ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-        flavor: this.name,
-        content: this.system.description || this.system.effect || ""
-      });
-      return null;
+  async roll(options = {}) {
+    if (this.actor) {
+      if (this.type === "weapon" || this.type === "shield") return rollAttack(this.actor, this, options);
+      if (this.type === "skill") return rollSkill(this.actor, this, options);
+      if (this.type === "consumable") return useConsumable(this.actor, this);
     }
+    return this.#postDescriptionCard();
+  }
 
-    const roll = new Roll(formula);
-    await roll.evaluate();
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-      flavor: this.name
-    });
-    return roll;
+  /** Post a simple identity + description card to chat. */
+  async #postDescriptionCard() {
+    const speaker = ChatMessage.getSpeaker({ actor: this.actor });
+    const typeLabel = game.i18n.localize(`TYPES.Item.${this.type}`);
+    const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
+    const raw = this.system.description ?? "";
+    const enriched = raw && String(raw).trim()
+      ? await TE.enrichHTML(String(raw), { secrets: false, rollData: this.getRollData() })
+      : "";
+    const iconHTML = this.img ? `<img class="card-icon" src="${this.img}" alt="" />` : "";
+    const descHTML = enriched ? `<div class="card-desc">${enriched}</div>` : "";
+    const content = `<div class="project-anime chat-card">
+      <header class="card-header">
+        ${iconHTML}
+        <div class="card-titles">
+          <h3 class="card-title">${this.name}</h3>
+          <span class="card-type">${typeLabel}</span>
+        </div>
+      </header>
+      ${descHTML}
+    </div>`;
+    return ChatMessage.create({ speaker, content });
   }
 }
