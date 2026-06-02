@@ -1,0 +1,634 @@
+/* ============================================ */
+/*  Shards of Mana — Job Item Sheet             */
+/* ============================================ */
+
+/* -------------------------------------------- */
+/*  Job Header Layout                           */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+}
+
+.shards-of-mana .job-header__portrait {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border: 2px solid var(--shards-crystal-border);
+  box-shadow:
+    0 0 8px var(--shards-crystal-glow),
+    0 0 16px rgba(0, 212, 160, 0.15);
+  overflow: hidden;
+}
+
+.shards-of-mana .job-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.shards-of-mana .job-header__fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shards-of-mana .job-header__name input {
+  font-family: var(--shards-font-heading);
+  font-size: 1.3em;
+  font-weight: 700;
+  color: var(--shards-accent);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  width: 100%;
+  padding: 0;
+  text-shadow: 0 0 6px var(--shards-gold-glow);
+}
+
+.shards-of-mana .job-header__name input:focus {
+  border-bottom-color: var(--shards-accent);
+  outline: none;
+}
+
+.shards-of-mana .job-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shards-of-mana .item-type-label {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--shards-text-muted);
+}
+
+.shards-of-mana .job-rank-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* HP / MP side-by-side row */
+.shards-of-mana .job-header__formulas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Compact form-group variant for header */
+.shards-of-mana .form-group--compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 1px 0;
+}
+
+.shards-of-mana .form-group--compact label {
+  min-width: 56px;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--shards-text-muted);
+}
+
+.shards-of-mana .job-header__formulas .form-group--compact label {
+  min-width: unset;
+}
+
+.shards-of-mana .formula-label--hp {
+  color: var(--shards-danger) !important;
+}
+
+.shards-of-mana .formula-label--mp {
+  color: var(--shards-primary-light) !important;
+}
+
+.shards-of-mana .form-group--compact input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85em;
+  padding: 2px 6px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .form-group--compact input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Scrollable Tab Content                      */
+/* -------------------------------------------- */
+
+/* Make the sheet body flex-column so tabs fill remaining height */
+.shards-of-mana.job-sheet .window-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.shards-of-mana.job-sheet .window-content > form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Each tab section fills remaining height and scrolls independently */
+.shards-of-mana.job-sheet section.tab {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 8px;
+}
+
+/* Thin crystal scrollbar on tab sections */
+.shards-of-mana.job-sheet section.tab::-webkit-scrollbar {
+  width: 5px;
+}
+
+.shards-of-mana.job-sheet section.tab::-webkit-scrollbar-track {
+  background: rgba(6, 8, 16, 0.4);
+  border-radius: 3px;
+}
+
+.shards-of-mana.job-sheet section.tab::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 160, 0.35);
+  border-radius: 3px;
+}
+
+.shards-of-mana.job-sheet section.tab::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 160, 0.6);
+}
+
+/* -------------------------------------------- */
+/*  Growth / Mastery Stat Grid                  */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-growth-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.shards-of-mana .job-growth-row {
+  display: grid;
+  grid-template-columns: 30px 70px 1fr 44px 14px;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: rgba(14, 20, 32, 0.4);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+  height: 24px;
+}
+
+.shards-of-mana .job-growth-row__abbrev {
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--shards-primary-light);
+  letter-spacing: 0.04em;
+}
+
+.shards-of-mana .job-growth-row__label {
+  font-size: 0.75em;
+  color: var(--shards-text-muted);
+}
+
+.shards-of-mana .job-growth-bar-wrap {
+  min-width: 0;
+}
+
+.shards-of-mana .job-growth-bar {
+  position: relative;
+  height: 6px;
+  background: rgba(6, 8, 16, 0.8);
+  border: 1px solid rgba(0, 212, 160, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.shards-of-mana .job-growth-bar__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  transition: width 0.25s ease;
+}
+
+.shards-of-mana .job-growth-bar.positive .job-growth-bar__fill {
+  background: linear-gradient(90deg,
+    var(--shards-primary) 0%,
+    var(--shards-primary-light) 100%
+  );
+}
+
+.shards-of-mana .job-growth-bar.negative .job-growth-bar__fill {
+  background: linear-gradient(90deg,
+    rgba(212, 64, 64, 0.7) 0%,
+    rgba(255, 100, 100, 0.9) 100%
+  );
+}
+
+.shards-of-mana .job-growth-bar.neutral .job-growth-bar__fill {
+  width: 0 !important;
+}
+
+.shards-of-mana .job-growth-input {
+  width: 44px;
+  height: 18px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8em;
+  padding: 1px 2px;
+  background: rgba(14, 20, 32, 0.4);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.shards-of-mana .job-growth-input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+.shards-of-mana .job-growth-input.positive {
+  color: var(--shards-primary-light);
+}
+
+.shards-of-mana .job-growth-input.negative {
+  color: var(--shards-danger);
+}
+
+.shards-of-mana .job-growth-row__sign-label {
+  font-size: 0.7em;
+  color: var(--shards-text-muted);
+  line-height: 1;
+}
+
+/* -------------------------------------------- */
+/*  Progression Tab — Rank Rows                 */
+/* -------------------------------------------- */
+
+.shards-of-mana .tab.progression.active {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shards-of-mana .job-rank-row {
+  border: 1px solid var(--shards-border);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.shards-of-mana .job-rank-row.current-rank {
+  border-color: var(--shards-crystal-border);
+  box-shadow: 0 0 6px var(--shards-crystal-glow);
+}
+
+.shards-of-mana .job-rank-row__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(8, 12, 20, 0.9);
+  border-bottom: 1px solid var(--shards-border);
+}
+
+.shards-of-mana .job-rank-label {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--shards-text-muted);
+}
+
+.shards-of-mana .job-rank-label.mastery-label {
+  color: var(--shards-gem-s);
+  text-shadow: 0 0 6px rgba(224, 224, 96, 0.4);
+}
+
+.shards-of-mana .job-rank-row__body {
+  padding: 8px;
+  background: var(--shards-crystal-panel);
+}
+
+/* Skills section in rank rows */
+.shards-of-mana .job-rank-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shards-of-mana .crystal-heading--small {
+  font-size: 0.75em;
+  margin: 0 0 4px;
+}
+
+.shards-of-mana .job-skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.shards-of-mana .job-skill-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shards-of-mana .job-skill-entry input,
+.shards-of-mana .job-skill-input {
+  flex: 1;
+  font-size: 0.8em;
+  padding: 2px 6px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .job-skill-entry input:focus,
+.shards-of-mana .job-skill-input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+.shards-of-mana .crystal-btn--icon {
+  padding: 2px 6px;
+  font-size: 0.75em;
+}
+
+.shards-of-mana .crystal-btn--small {
+  padding: 2px 8px;
+  font-size: 0.75em;
+}
+
+/* -------------------------------------------- */
+/*  Limit Break Panel (inline in Progression)   */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-limitbreak-panel {
+  margin-top: 4px;
+  border: 1px solid rgba(255, 120, 50, 0.4);
+  border-radius: 3px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+  background:
+    linear-gradient(135deg,
+      rgba(255, 80, 20, 0.06) 0%,
+      rgba(255, 140, 50, 0.03) 50%,
+      rgba(14, 20, 32, 0.4) 100%
+    );
+}
+
+.shards-of-mana .job-limitbreak-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--shards-danger);
+  text-shadow: 0 0 6px rgba(255, 80, 20, 0.4);
+  margin: 0 0 8px;
+}
+
+.shards-of-mana .job-limitbreak-heading i {
+  color: rgba(255, 120, 50, 0.9);
+}
+
+.shards-of-mana .job-limitbreak-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shards-of-mana .job-limitbreak-fields .form-group--compact label {
+  min-width: 48px;
+}
+
+/* -------------------------------------------- */
+/*  Mastery Panels                              */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-panel-hint {
+  font-size: 0.8em;
+  font-style: italic;
+  color: var(--shards-text-muted);
+  margin: 0 0 6px;
+}
+
+.shards-of-mana .job-editor-section {
+  margin-top: 10px;
+}
+
+.shards-of-mana .editor-container--medium {
+  min-height: 160px;
+}
+
+.shards-of-mana .editor-container--tall {
+  min-height: 280px;
+}
+
+/* -------------------------------------------- */
+/*  Proficiencies Panel                         */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-proficiencies {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.shards-of-mana .job-proficiencies__section {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.shards-of-mana .job-proficiencies__label {
+  min-width: 56px;
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--shards-text-muted);
+  padding-top: 3px;
+  flex-shrink: 0;
+}
+
+.shards-of-mana .job-proficiencies__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.shards-of-mana .prof-chip {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.7em;
+  border: 1px solid var(--shards-border);
+  border-radius: 10px;
+  background: rgba(6, 8, 16, 0.5);
+  color: var(--shards-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.shards-of-mana .prof-chip input[type="checkbox"] {
+  display: none;
+}
+
+.shards-of-mana .prof-chip:hover {
+  border-color: var(--shards-crystal-border);
+  color: var(--shards-text);
+}
+
+.shards-of-mana .prof-chip--active {
+  background: rgba(0, 212, 160, 0.25);
+  border-color: var(--shards-crystal-border);
+  color: var(--shards-primary-light);
+  box-shadow: 0 0 4px var(--shards-crystal-glow);
+}
+
+.shards-of-mana .prof-chip--active:hover {
+  background: rgba(0, 212, 160, 0.35);
+}
+
+/* -------------------------------------------- */
+/*  Category Select in Job Header               */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-category-select {
+  font-size: 0.75em;
+  padding: 1px 4px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .job-category-select:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+.shards-of-mana .job-school-select {
+  font-size: 0.75em;
+  padding: 1px 4px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .job-school-select:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Prerequisite Builder                        */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-prereq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.shards-of-mana .job-prereq-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shards-of-mana .job-prereq-skill-input {
+  flex: 1;
+  font-size: 0.8em;
+  padding: 2px 6px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .job-prereq-skill-input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+.shards-of-mana .job-prereq-sl-label {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+}
+
+.shards-of-mana .job-prereq-level-input {
+  width: 44px;
+  font-size: 0.8em;
+  text-align: center;
+  padding: 2px 4px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .job-prereq-level-input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Prerequisite Drop Zone                      */
+/* -------------------------------------------- */
+
+.shards-of-mana .job-prereq-drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px;
+  border: 2px dashed rgba(0, 212, 160, 0.25);
+  border-radius: 4px;
+  color: var(--shards-text-muted);
+  font-size: 0.75em;
+  font-style: italic;
+  transition: all 0.2s ease;
+}
+
+.shards-of-mana .job-prereq-drop-zone i {
+  color: rgba(0, 212, 160, 0.4);
+}
+
+.shards-of-mana .job-prereq-drop-zone.drag-hover {
+  border-color: var(--shards-crystal-border);
+  background: rgba(0, 212, 160, 0.1);
+  color: var(--shards-primary-light);
+  box-shadow: 0 0 8px var(--shards-crystal-glow);
+}
+
+.shards-of-mana .job-prereq-drop-zone.drag-hover i {
+  color: var(--shards-primary-light);
+}

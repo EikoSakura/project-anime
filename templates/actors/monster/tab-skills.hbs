@@ -1,0 +1,95 @@
+<section class="tab skills" data-group="primary" data-tab="skills">
+
+  <div style="margin-bottom: 8px; display: flex; gap: 8px; align-items: center;">
+    <button type="button" class="crystal-btn" data-action="addSkill">
+      <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Monster.AddSkill"}}
+    </button>
+    <span style="font-size: 0.8em; color: var(--shards-text-muted);">
+      {{monsterSkills.length}} {{localize "SHARDS.Skill.SkillsLabel"}}
+    </span>
+  </div>
+
+  {{#if monsterSkills.length}}
+  <div class="monster-skill-list">
+    {{#each monsterSkills as |sk|}}
+    <div class="monster-skill-row" data-item-id="{{sk._id}}">
+
+      {{!-- Icon: posts to chat --}}
+      <button type="button" class="monster-skill-row__icon-btn"
+              data-action="postSkillToChat" title="{{localize 'SHARDS.Skill.PostToChat'}}">
+        <img src="{{sk.img}}" width="28" height="28" />
+      </button>
+
+      {{!-- Name + Type --}}
+      <div class="monster-skill-row__info">
+        <span class="monster-skill-row__name">{{sk.name}}</span>
+        <span class="monster-skill-row__meta">
+          {{#if sk.damageTypeLabel}}
+          <span class="monster-skill-row__element">{{sk.damageTypeLabel}}</span>
+          {{/if}}
+          <span class="monster-skill-row__type">{{sk.skillTypeLabel}}</span>
+          <span class="monster-skill-row__sl">SL {{sk.skillLevel}}</span>
+        </span>
+      </div>
+
+      {{!-- Compact Stats --}}
+      <div class="monster-skill-row__stats">
+        {{#if sk.totalHit}}
+        <span class="monster-skill-row__stat" title="Hit">{{sk.totalHit}} <small>Hit</small></span>
+        {{/if}}
+        {{#if sk.totalDamage}}
+        <span class="monster-skill-row__stat" title="Dmg">{{sk.totalDamage}} <small>Dmg</small></span>
+        {{/if}}
+        {{#if sk.computedMpCost}}
+        <span class="monster-skill-row__stat monster-skill-row__stat--mp" title="MP">{{sk.computedMpCost}} <small>MP</small></span>
+        {{/if}}
+        {{#if sk.computedPipCost}}
+        <span class="monster-skill-row__stat monster-skill-row__stat--pips" title="Pips">{{sk.computedPipCost}} <small>Pips</small></span>
+        {{/if}}
+      </div>
+
+      {{!-- Condition --}}
+      {{#if sk.conditionLabel}}
+      <span class="monster-skill-row__condition" title="{{sk.conditionChance}}% {{sk.conditionLabel}}">
+        <i class="fa-solid fa-bolt"></i> {{sk.conditionChance}}%
+      </span>
+      {{/if}}
+
+      {{!-- Pierce --}}
+      {{#if sk.pierce}}
+      <span class="monster-skill-row__pierce" title="{{localize 'SHARDS.Skill.Pierce'}}">
+        <i class="fa-solid fa-burst"></i>
+      </span>
+      {{/if}}
+
+      {{!-- Controls --}}
+      <div class="monster-skill-row__controls">
+        {{#unless sk.isPassive}}
+        <button type="button" data-action="useSkill" data-item-id="{{sk._id}}" title="{{localize 'SHARDS.Roll.UseSkill'}}">
+          <i class="fa-solid fa-dice-d20"></i>
+        </button>
+        {{/unless}}
+        <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        <button type="button" data-action="deleteItem" title="{{localize 'SHARDS.Delete'}}">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+
+    </div>
+    {{/each}}
+  </div>
+  {{else}}
+  <p class="crystal-empty">{{localize "SHARDS.Monster.NoSkills"}}</p>
+  {{/if}}
+
+  {{!-- Passive indicator for passive skills --}}
+  {{#if monsterSkills.length}}
+  <div style="margin-top: 6px; font-size: 0.75em; color: var(--shards-text-muted);">
+    <i class="fa-solid fa-circle-info"></i>
+    {{localize "SHARDS.Monster.SkillsDragHint"}}
+  </div>
+  {{/if}}
+
+</section>

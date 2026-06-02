@@ -1,0 +1,22 @@
+<section class="tab description" data-group="primary" data-tab="description">
+
+  <div class="lineage-card-preview">
+    <div class="lineage-card-preview__section">
+      <div class="lineage-card-preview__section-header">
+        <i class="fa-solid fa-scroll"></i>
+        <span>{{localize "SHARDS.Lineage.Tabs.Description"}}</span>
+      </div>
+      <div class="editor-container lineage-description-editor">
+        {{#if editable}}
+        <prose-mirror name="system.description" toggled value="{{source.system.description}}">
+          {{{enrichedDescription}}}
+        </prose-mirror>
+        {{else}}
+        <div class="editor-content">{{{enrichedDescription}}}</div>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+
+
+</section>

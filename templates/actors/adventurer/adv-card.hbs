@@ -1,0 +1,147 @@
+<div class="adv-card">
+
+  {{!-- Left: Portrait in Ornate Frame --}}
+  <div class="adv-card__portrait">
+    <div class="portrait-frame">
+      <img class="crystal-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}" />
+    </div>
+    <div class="rank-badge" data-rank="{{system.adventurerRank}}">{{system.adventurerRank}}</div>
+  </div>
+
+  {{!-- Right: Main Info Panel --}}
+  <div class="adv-card__main">
+
+    {{!-- Row 1: Identity --}}
+    <div class="adv-card__identity">
+      <div class="adv-name">
+        <input name="name" type="text" value="{{actor.name}}" placeholder="{{localize 'SHARDS.Name'}}" />
+      </div>
+      <div class="adv-lineage-row">
+        <span class="lineage-value">{{lineageDisplay}}</span>
+      </div>
+      <div class="adv-job-display">
+        {{#if activeJob}}
+          <span class="rank-badge" data-rank="{{activeJob.system.rank}}">{{activeJob.system.rank}}</span>
+          <span class="job-name">{{activeJob.name}}</span>
+        {{else}}
+          <span class="job-name muted">{{localize "SHARDS.Adventurer.NoJob"}}</span>
+        {{/if}}
+        <span class="level-display">Lv.<span>{{system.level}}</span></span>
+      </div>
+    </div>
+
+    {{!-- Row 2: HP / MP Bars --}}
+    <div class="adv-bars">
+      <div class="crystal-bar health" style="--bar-empty: {{healthClip}}%">
+        <span class="crystal-bar__diamond"><i class="fa-solid fa-diamond"></i></span>
+        <span class="crystal-bar__label">{{localize "SHARDS.Health"}}</span>
+        <div class="crystal-bar__inputs">
+          <input type="number" name="system.health.value" value="{{system.health.value}}" data-dtype="Number" />
+          <span class="separator">/</span>
+          <span class="crystal-bar__max">{{system.health.max}}</span>
+        </div>
+      </div>
+      <div class="crystal-bar mana" style="--bar-empty: {{manaClip}}%">
+        <span class="crystal-bar__diamond"><i class="fa-solid fa-diamond"></i></span>
+        <span class="crystal-bar__label">{{localize "SHARDS.Mana"}}</span>
+        <div class="crystal-bar__inputs">
+          <input type="number" name="system.mana.value" value="{{system.mana.value}}" data-dtype="Number" />
+          <span class="separator">/</span>
+          <span class="crystal-bar__max">{{system.mana.max}}</span>
+        </div>
+      </div>
+    </div>
+
+    {{!-- Row 2b: XP Progress Bar (click to award XP) --}}
+    <div class="adv-xp-row" data-action="awardXp" title="{{localize 'SHARDS.XP.AwardXP'}}">
+      <div class="xp-bar-mini">
+        <div class="xp-bar-mini__fill" style="width: {{xpProgress}}%"></div>
+      </div>
+      <span class="xp-bar-label">
+        {{xpInBracket}} / {{xpPerLevel}} XP
+        {{#if canLevelUp}}<span class="xp-level-up-badge">{{localize "SHARDS.XP.LevelUp"}}</span>{{/if}}
+      </span>
+    </div>
+
+    {{!-- Row 3: Stats + Derived side by side --}}
+    <div class="adv-card__stats-row">
+      <div class="adv-stats-grid">
+        {{#each statCardDisplay}}
+        <div class="stat-cell" data-action="rollStat" data-stat="{{this.key}}" title="{{localize 'SHARDS.RollStat'}}">
+          <span class="stat-abbrev">{{this.abbrev}}</span>
+          <span class="stat-value">{{this.value}}</span>
+          <span class="stat-growth">{{this.growthDisplay}}</span>
+        </div>
+        {{/each}}
+      </div>
+      <div class="derived-grid">
+        {{#each derivedDisplay}}
+        <div class="derived-cell">
+          <span class="derived-label">{{this.label}}</span>
+          <span class="derived-value">{{this.value}}</span>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+  </div>
+
+  {{!-- Bottom Status Bar (spans both columns) --}}
+  <div class="adv-card__status-bar">
+    <div class="death-row">
+      <div class="death-dots">
+        {{#each deathArray}}
+        <span class="death-dot {{#if this.spent}}spent{{/if}}"><i class="fa-solid fa-skull"></i></span>
+        {{/each}}
+      </div>
+    </div>
+    <div class="adv-pips-row">
+      <span class="pips-label">{{localize "SHARDS.Pips"}}</span>
+      <div class="pip-dots">
+        {{#each pipArray}}
+        <span class="pip-dot {{#if this.filled}}filled{{/if}}"
+              data-action="setPip" data-pip-index="{{this.index}}"></span>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="status-bar-sep"></div>
+
+    <div class="vital-row">
+      <span class="vital-label">{{localize "SHARDS.Adventurer.Gold"}}</span>
+      <input class="gold-input" type="number" name="system.gold" value="{{system.gold}}" data-dtype="Number" />
+    </div>
+
+    <div class="status-bar-sep"></div>
+
+    {{!-- Limit Break --}}
+    <div class="limit-break-indicator {{#if limitBreakReady}}ready{{/if}}" data-action="adjustLimitBreak" title="{{localize 'SHARDS.Adventurer.AdjustLimitBreak'}}">
+      <span class="limit-break-indicator__text">{{localize "SHARDS.Adventurer.LimitBreak"}}</span>
+      <div class="limit-gauge">
+        <div class="limit-gauge__fill" style="width: {{limitBreakPct}}%"></div>
+      </div>
+      <span class="limit-break-indicator__values">{{system.limitBreak.value}}/{{system.limitBreak.max}}</span>
+    </div>
+
+    <div class="status-bar-sep"></div>
+
+    <div class="vital-row">
+      <span class="vital-label">{{localize "SHARDS.Size"}}</span>
+      <span class="vital-value">{{system.size}}</span>
+    </div>
+
+    <div class="vital-row">
+      <span class="vital-label">{{localize "SHARDS.Movement.Label"}}</span>
+      <span class="vital-value">{{system.mov}}</span>
+    </div>
+
+    <div class="movement-grid">
+      {{#each movementDisplay}}
+      <div class="movement-cell {{#if this.active}}active{{/if}}" title="{{this.label}}{{#if this.active}} ({{this.value}}){{/if}}">
+        <span class="movement-cell__label">{{this.label}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+</div>

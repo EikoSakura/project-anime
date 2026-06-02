@@ -1,0 +1,225 @@
+/* ============================================================ */
+/*  Quest Creator                                               */
+/* ============================================================ */
+
+.shards-of-mana.quest-creator .window-content {
+  padding: 0;
+}
+
+.quest-creator-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+}
+
+/* ---- Sections ---- */
+
+.quest-section {
+  background: rgba(6, 8, 16, 0.5);
+  border: 1px solid var(--shards-border, rgba(0, 212, 160, 0.25));
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.quest-section__label {
+  font-size: 0.75rem;
+  color: var(--shards-text-muted, #8e8eb0);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+/* ---- Rows & Fields ---- */
+
+.quest-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.quest-row:last-child {
+  margin-bottom: 0;
+}
+
+.quest-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.quest-field--title {
+  flex: 3;
+}
+
+.quest-field--rank {
+  flex: 1;
+}
+
+.quest-field label {
+  font-size: 0.75rem;
+  color: var(--shards-text-muted, #8e8eb0);
+  text-transform: uppercase;
+}
+
+.quest-field input,
+.quest-field select,
+.quest-section textarea,
+.quest-section select {
+  background: var(--shards-bg-input, rgba(6, 8, 16, 0.6));
+  border: 1px solid var(--shards-border, rgba(0, 212, 160, 0.25));
+  color: var(--shards-text, #d4d4e8);
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.quest-field input:focus,
+.quest-field select:focus,
+.quest-section textarea:focus,
+.quest-section select:focus {
+  outline: none;
+  border-color: var(--shards-accent, #b08de6);
+  box-shadow: 0 0 4px rgba(0, 212, 160, 0.3);
+}
+
+/* ---- Objectives ---- */
+
+.quest-objectives-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.quest-objectives-header .quest-section__label {
+  margin-bottom: 0;
+}
+
+.quest-add-btn {
+  background: none;
+  border: 1px solid var(--shards-border, rgba(0, 212, 160, 0.25));
+  color: var(--shards-accent, #b08de6);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: border-color 0.15s;
+}
+
+.quest-add-btn:hover {
+  border-color: var(--shards-accent, #b08de6);
+}
+
+.quest-objectives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.quest-objective-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.quest-objective-text {
+  flex: 1;
+  background: var(--shards-bg-input, rgba(6, 8, 16, 0.6));
+  border: 1px solid var(--shards-border, rgba(0, 212, 160, 0.25));
+  color: var(--shards-text, #d4d4e8);
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.quest-objective-text:focus {
+  outline: none;
+  border-color: var(--shards-accent, #b08de6);
+  box-shadow: 0 0 4px rgba(0, 212, 160, 0.3);
+}
+
+.quest-remove-btn {
+  background: none;
+  border: none;
+  color: var(--shards-text-muted, #8e8eb0);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.15s;
+}
+
+.quest-remove-btn:hover {
+  color: #e05555;
+}
+
+/* ---- Output Mode ---- */
+
+.quest-output-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.quest-output-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--shards-text, #d4d4e8);
+}
+
+.quest-party-select {
+  margin-left: 1.5rem;
+  max-width: 250px;
+}
+
+.quest-no-party {
+  font-size: 0.8rem;
+  color: var(--shards-text-muted, #8e8eb0);
+  font-style: italic;
+  margin-left: 1.5rem;
+}
+
+/* ---- Create Button ---- */
+
+.quest-create {
+  text-align: center;
+  padding-top: 0.25rem;
+}
+
+.quest-create-btn {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.9rem;
+  background: linear-gradient(135deg, rgba(0, 212, 160, 0.3), rgba(0, 180, 130, 0.3));
+  border: 1px solid var(--shards-crystal-border, rgba(0, 212, 160, 0.6));
+  color: var(--shards-accent, #b08de6);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.quest-create-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 212, 160, 0.5), rgba(0, 180, 130, 0.5));
+  box-shadow: 0 0 8px rgba(0, 212, 160, 0.3);
+}
+
+/* ---- Crystal Scrollbar ---- */
+
+.quest-creator-content::-webkit-scrollbar {
+  width: 5px;
+}
+
+.quest-creator-content::-webkit-scrollbar-track {
+  background: rgba(6, 8, 16, 0.4);
+}
+
+.quest-creator-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 160, 0.4);
+  border-radius: 3px;
+}

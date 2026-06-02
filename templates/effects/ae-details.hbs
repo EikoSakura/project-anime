@@ -1,0 +1,16 @@
+<section class="tab details" data-group="primary" data-tab="details">
+  <div class="ae-detail-fields">
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.Origin"}}</label>
+      <span class="ae-readonly">{{effect.sourceName}}</span>
+    </div>
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.Transfer"}}</label>
+      <input type="checkbox" name="transfer" {{checked source.transfer}} />
+    </div>
+    <div class="ae-field ae-field--full">
+      <label>{{localize "SHARDS.AE.Description"}}</label>
+      <textarea name="description" rows="4">{{source.description}}</textarea>
+    </div>
+  </div>
+</section>

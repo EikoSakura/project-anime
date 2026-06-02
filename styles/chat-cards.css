@@ -1,0 +1,1976 @@
+/* ============================================ */
+/*  Shards of Mana — Chat Card Styles           */
+/*  Crystal Status Window aesthetic              */
+/*  PF2e-inspired structure + Log Horizon feel   */
+/* ============================================ */
+
+/* -------------------------------------------- */
+/*  Theme Custom Properties (Default: Silver)    */
+/* -------------------------------------------- */
+
+.shards-chat-card {
+  --card-accent: #00d4a0;
+  --card-accent-light: #33eebb;
+  --card-glow: rgba(0, 212, 160, 0.3);
+  --card-stripe: linear-gradient(90deg, #00a080, #00d4a0, #33eebb, #00d4a0, #00a080);
+  --card-border: #0d3030;
+}
+
+/* Crimson — Volcanic Forge */
+.shards-chat-card[data-theme="crimson"] {
+  --card-accent: #ff3040;
+  --card-accent-light: #ff6070;
+  --card-glow: rgba(255, 48, 64, 0.3);
+  --card-stripe: linear-gradient(90deg, #a01020, #ff3040, #ff6070, #ff3040, #a01020);
+  --card-border: #3a0810;
+}
+
+/* Emerald — Living Forest */
+.shards-chat-card[data-theme="emerald"] {
+  --card-accent: #40ff80;
+  --card-accent-light: #70ffaa;
+  --card-glow: rgba(64, 255, 128, 0.3);
+  --card-stripe: linear-gradient(90deg, #20a050, #40ff80, #70ffaa, #40ff80, #20a050);
+  --card-border: #0a3018;
+}
+
+/* Azure — Frozen Ocean */
+.shards-chat-card[data-theme="azure"] {
+  --card-accent: #40a0ff;
+  --card-accent-light: #70c0ff;
+  --card-glow: rgba(64, 160, 255, 0.3);
+  --card-stripe: linear-gradient(90deg, #2060a0, #40a0ff, #70c0ff, #40a0ff, #2060a0);
+  --card-border: #0a1830;
+}
+
+/* Violet — Arcane Void */
+.shards-chat-card[data-theme="violet"] {
+  --card-accent: #c060ff;
+  --card-accent-light: #d090ff;
+  --card-glow: rgba(192, 96, 255, 0.3);
+  --card-stripe: linear-gradient(90deg, #7030a0, #c060ff, #d090ff, #c060ff, #7030a0);
+  --card-border: #1a0830;
+}
+
+/* Gold — Royal Radiance */
+.shards-chat-card[data-theme="gold"] {
+  --card-accent: #ffd040;
+  --card-accent-light: #ffe070;
+  --card-glow: rgba(255, 208, 64, 0.3);
+  --card-stripe: linear-gradient(90deg, #a08020, #ffd040, #ffe070, #ffd040, #a08020);
+  --card-border: #302008;
+}
+
+/* Rose — Romantic Bloom */
+.shards-chat-card[data-theme="rose"] {
+  --card-accent: #ff6090;
+  --card-accent-light: #ff90b0;
+  --card-glow: rgba(255, 96, 144, 0.3);
+  --card-stripe: linear-gradient(90deg, #a03060, #ff6090, #ff90b0, #ff6090, #a03060);
+  --card-border: #300818;
+}
+
+/* Obsidian — Dark Abyss */
+.shards-chat-card[data-theme="obsidian"] {
+  --card-accent: #6688a0;
+  --card-accent-light: #88aac0;
+  --card-glow: rgba(102, 136, 160, 0.3);
+  --card-stripe: linear-gradient(90deg, #304050, #6688a0, #88aac0, #6688a0, #304050);
+  --card-border: #0a1418;
+}
+
+/* -------------------------------------------- */
+/*  Base Card Frame                              */
+/* -------------------------------------------- */
+
+.shards-chat-card {
+  font-family: var(--shards-font-body);
+  color: var(--shards-text);
+  background: linear-gradient(180deg, rgba(4, 6, 12, 0.96) 0%, rgba(6, 10, 18, 0.98) 100%);
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--card-accent);
+  border-radius: 6px;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 0 8px var(--card-glow), inset 0 0 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Top accent stripe */
+.shards-chat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--card-stripe);
+  z-index: 2;
+}
+
+/* Scan-line overlay */
+.shards-chat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 255, 255, 0.018) 2px,
+    rgba(255, 255, 255, 0.018) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 6px;
+}
+
+/* -------------------------------------------- */
+/*  Header                                       */
+/* -------------------------------------------- */
+
+.shards-chat-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  padding-top: 11px; /* account for top stripe */
+  background: linear-gradient(180deg, rgba(2, 4, 10, 0.6) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 3;
+}
+
+.shards-chat-card__portrait {
+  border-radius: 4px;
+  border: 1px solid var(--card-accent);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px var(--card-glow);
+}
+
+.shards-chat-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.shards-chat-card__skill-icon,
+.shards-chat-card__trait-icon {
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.shards-chat-card__header-icon {
+  color: var(--card-accent-light);
+  font-size: 0.9em;
+}
+
+.shards-chat-card__actor-name {
+  font-weight: bold;
+  font-size: 0.95em;
+  color: var(--shards-text);
+}
+
+.shards-chat-card__subtitle {
+  font-size: 0.85em;
+  color: var(--card-accent-light);
+}
+
+/* -------------------------------------------- */
+/*  Element Badge                                */
+/* -------------------------------------------- */
+
+.shards-chat-card__element-badge {
+  font-size: 0.7em;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--shards-bg-light);
+  color: var(--shards-text);
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+
+.element-fire { background: #c01808; color: #ff6040; text-shadow: 0 0 6px rgba(255, 96, 64, 0.4); }
+.element-ice { background: #0850b0; color: #60c0ff; text-shadow: 0 0 6px rgba(96, 192, 255, 0.4); }
+.element-lightning { background: #906800; color: #ffe040; text-shadow: 0 0 6px rgba(255, 224, 64, 0.4); }
+.element-wind { background: #18804a; color: #50ffa0; text-shadow: 0 0 6px rgba(80, 255, 160, 0.4); }
+.element-earth { background: #704810; color: #e8a040; text-shadow: 0 0 6px rgba(232, 160, 64, 0.4); }
+.element-water { background: #103890; color: #50a0ff; text-shadow: 0 0 6px rgba(80, 160, 255, 0.4); }
+.element-light { background: #908010; color: #ffee50; text-shadow: 0 0 6px rgba(255, 238, 80, 0.4); }
+.element-dark { background: #281838; color: #c080ff; text-shadow: 0 0 6px rgba(192, 128, 255, 0.4); }
+.element-plant { background: #186818; color: #60ff70; text-shadow: 0 0 6px rgba(96, 255, 112, 0.4); }
+.element-poison { background: #482060; color: #d060ff; text-shadow: 0 0 6px rgba(208, 96, 255, 0.4); }
+.element-physical { background: #404048; color: #c0c8d8; text-shadow: 0 0 4px rgba(192, 200, 216, 0.3); }
+.element-healing { background: #106838; color: #40ff90; text-shadow: 0 0 6px rgba(64, 255, 144, 0.4); }
+.element-buff { background: #302060; color: #a080ff; text-shadow: 0 0 6px rgba(160, 128, 255, 0.4); }
+
+/* -------------------------------------------- */
+/*  Cost Pills                                   */
+/* -------------------------------------------- */
+
+.shards-chat-card__costs {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px;
+  position: relative;
+  z-index: 3;
+}
+
+.shards-chat-card__cost {
+  display: inline-block;
+  font-size: 0.75em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--shards-text-muted);
+}
+
+.shards-chat-card__cost.cost-pips {
+  color: #d4a843;
+  border-color: rgba(212, 168, 67, 0.25);
+}
+
+.shards-chat-card__cost.cost-mp {
+  color: #70a8e8;
+  border-color: rgba(112, 168, 232, 0.25);
+}
+
+.shards-chat-card__detail {
+  font-size: 0.75em;
+  color: var(--shards-text-muted);
+}
+
+/* -------------------------------------------- */
+/*  Body (with corner brackets)                  */
+/* -------------------------------------------- */
+
+.shards-chat-card__body {
+  padding: 6px 10px 10px;
+  position: relative;
+  z-index: 3;
+}
+
+/* Corner brackets — top-left */
+.shards-chat-card__body::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid var(--card-accent-light);
+  border-left: 1px solid var(--card-accent-light);
+  pointer-events: none;
+  opacity: 0.45;
+  z-index: 4;
+}
+
+/* Corner brackets — bottom-right */
+.shards-chat-card__body::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-bottom: 1px solid var(--card-accent-light);
+  border-right: 1px solid var(--card-accent-light);
+  pointer-events: none;
+  opacity: 0.45;
+  z-index: 4;
+}
+
+/* -------------------------------------------- */
+/*  Section Headers                              */
+/* -------------------------------------------- */
+
+.shards-chat-card__section {
+  margin-top: 6px;
+}
+
+.shards-chat-card__section-header {
+  font-size: 0.68em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--card-accent-light);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 2px 0 3px;
+  margin-bottom: 4px;
+}
+
+/* -------------------------------------------- */
+/*  Roll Panel (d100 + outcome)                  */
+/* -------------------------------------------- */
+
+.shards-chat-card__roll-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.roll-panel--compact {
+  padding: 4px 6px;
+  margin: 2px 0;
+}
+
+.shards-chat-card__d100 {
+  font-size: 1.4em;
+  font-weight: bold;
+  color: var(--card-accent-light);
+  min-width: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.shards-chat-card__vs {
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+}
+
+/* -------------------------------------------- */
+/*  Degree-of-Success Badges                     */
+/* -------------------------------------------- */
+
+.shards-chat-card__outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8em;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: auto;
+}
+
+.shards-chat-card__outcome i {
+  font-size: 0.85em;
+}
+
+.outcome-crit-success {
+  background: linear-gradient(135deg, #042810, #0a4018);
+  color: #40ff80;
+  border: 1px solid #30e060;
+  box-shadow: 0 0 10px rgba(64, 255, 128, 0.4);
+  text-shadow: 0 0 6px rgba(64, 255, 128, 0.5);
+}
+
+.outcome-success {
+  background: linear-gradient(135deg, #041828, #081e38);
+  color: #40c0ff;
+  border: 1px solid #3090d0;
+  box-shadow: 0 0 6px rgba(64, 192, 255, 0.25);
+}
+
+.outcome-failure {
+  background: linear-gradient(135deg, #301804, #3a2008);
+  color: #ffa030;
+  border: 1px solid #d08020;
+  box-shadow: 0 0 6px rgba(255, 160, 48, 0.25);
+}
+
+.outcome-crit-failure {
+  background: linear-gradient(135deg, #300404, #400808);
+  color: #ff4050;
+  border: 1px solid #e02030;
+  box-shadow: 0 0 10px rgba(255, 64, 80, 0.4);
+  text-shadow: 0 0 6px rgba(255, 64, 80, 0.5);
+  animation: crit-fail-pulse 2s ease-in-out infinite;
+}
+
+@keyframes crit-fail-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 64, 80, 0.4); }
+  50% { box-shadow: 0 0 18px rgba(255, 64, 80, 0.6); }
+}
+
+/* -------------------------------------------- */
+/*  Stat Test                                    */
+/* -------------------------------------------- */
+
+.shards-stat-test__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.shards-stat-test__stat {
+  font-weight: bold;
+  font-size: 1.05em;
+  color: var(--card-accent-light);
+}
+
+.shards-stat-test__target,
+.shards-stat-test__modifier {
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+}
+
+/* -------------------------------------------- */
+/*  Attack Roll                                  */
+/* -------------------------------------------- */
+
+.shards-attack-roll__target-block {
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.shards-attack-roll__target-block:first-child {
+  border-top: none;
+}
+
+.shards-attack-roll__target-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: var(--card-accent-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.shards-attack-roll__target-name i {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.shards-attack-roll__thresholds {
+  display: flex;
+  gap: 12px;
+  font-size: 0.72em;
+  color: var(--shards-text-muted);
+  padding: 0 8px 2px;
+  opacity: 0.8;
+}
+
+/* Damage Breakdown */
+.shards-attack-roll__damage-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  font-size: 0.82em;
+}
+
+.shards-attack-roll__dmg-line {
+  display: flex;
+  justify-content: space-between;
+  color: var(--shards-text-muted);
+}
+
+.shards-attack-roll__dmg-label {
+  opacity: 0.8;
+}
+
+.shards-attack-roll__dmg-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.shards-attack-roll__dmg-line.resist-weak .shards-attack-roll__dmg-value {
+  color: #ff8080;
+}
+
+.shards-attack-roll__dmg-line.resist-strong .shards-attack-roll__dmg-value {
+  color: #80b0ff;
+}
+
+/* Pack Tactics */
+.shards-attack-roll__dmg-value--bonus {
+  color: #40ff80;
+}
+
+/* (Pack tactics detail removed — combat simplification) */
+
+/* Final Damage */
+.shards-attack-roll__final-damage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-top: 2px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  font-size: 0.95em;
+}
+
+.shards-attack-roll__final-label {
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+}
+
+.shards-attack-roll__final-damage strong {
+  color: var(--shards-danger);
+  font-size: 1.2em;
+  text-shadow: 0 0 6px rgba(212, 64, 64, 0.4);
+}
+
+.shards-attack-roll__crit-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7em;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #4a0a0a, #6a1a1a);
+  color: #ff8a8a;
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  box-shadow: 0 0 6px rgba(255, 80, 80, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.shards-attack-roll__crit-label i {
+  font-size: 0.9em;
+  color: #ffaa80;
+}
+
+/* Pierce indicator */
+.shards-attack-roll__pierced {
+  color: #e8a060;
+  font-weight: bold;
+}
+
+.shards-attack-roll__pierced i {
+  color: #ffaa80;
+  margin-right: 2px;
+}
+
+/* (Bonus element damage section removed — combat simplification) */
+
+/* Inline element badge on main damage line */
+.shards-attack-roll__dmg-element {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: capitalize;
+  margin-left: 3px;
+  vertical-align: baseline;
+}
+
+/* Special States */
+.shards-attack-roll__immune {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 0.9em;
+  font-weight: bold;
+  color: var(--shards-text-muted);
+}
+
+.shards-attack-roll__immune i {
+  opacity: 0.6;
+}
+
+.shards-attack-roll__absorb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 0.9em;
+}
+
+.shards-attack-roll__absorb i {
+  color: var(--shards-success);
+}
+
+.shards-attack-roll__heal-value {
+  color: var(--shards-success);
+  font-weight: bold;
+  margin-left: auto;
+}
+
+.shards-attack-roll__reflected {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.85em;
+  color: var(--card-accent-light);
+  font-weight: bold;
+}
+
+/* Condition Infliction */
+.shards-attack-roll__condition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.85em;
+}
+
+.shards-attack-roll__condition.inflicted {
+  color: var(--shards-warning);
+}
+
+.shards-attack-roll__condition.resisted {
+  color: var(--shards-text-muted);
+}
+
+.shards-attack-roll__condition-name {
+  font-weight: 700;
+}
+
+.shards-attack-roll__condition-status {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.shards-attack-roll__condition-roll {
+  font-size: 0.9em;
+  opacity: 0.7;
+}
+
+.shards-attack-roll__condition-resist-note {
+  font-size: 0.8em;
+  color: var(--shards-text-muted);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* (On-Hit Push/Pull styles removed — combat simplification) */
+
+/* -------------------------------------------- */
+/*  Healing Roll                                 */
+/* -------------------------------------------- */
+
+.shards-healing-roll__amount {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 0;
+  justify-content: center;
+}
+
+.shards-healing-roll__value {
+  font-size: 1.6em;
+  font-weight: bold;
+  color: var(--shards-success);
+  text-shadow: 0 0 10px rgba(64, 176, 96, 0.4);
+}
+
+.shards-healing-roll__label {
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+}
+
+.shards-healing-roll__diamond {
+  font-size: 1.2em;
+  color: var(--shards-success);
+  opacity: 0.6;
+}
+
+.shards-healing-roll__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* --- Undead Target Result in Healing Card --- */
+.shards-undead-result {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(180, 40, 40, 0.12);
+  border: 1px solid rgba(180, 40, 40, 0.25);
+}
+
+.shards-chat-card__target-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.shards-chat-card__target-header .fa-skull {
+  color: #cc4444;
+  font-size: 0.9em;
+}
+
+.shards-chat-card__target-name {
+  font-weight: bold;
+  color: var(--shards-text-heading);
+}
+
+.shards-chat-card__undead-tag {
+  font-size: 0.75em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(180, 40, 40, 0.3);
+  color: #ff6666;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.shards-chat-card__hit-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+  margin-bottom: 4px;
+}
+
+.shards-chat-card__miss-line {
+  text-align: center;
+  color: var(--shards-text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.shards-chat-card__miss-line .fa-xmark {
+  color: #cc4444;
+}
+
+/* -------------------------------------------- */
+/*  Contest Roll                                 */
+/* -------------------------------------------- */
+
+.shards-contest-roll__sides {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.shards-contest-roll__side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.shards-contest-roll__side.winner {
+  border-color: var(--shards-success);
+  background: rgba(64, 176, 96, 0.08);
+  box-shadow: 0 0 8px rgba(64, 176, 96, 0.2);
+}
+
+.shards-contest-roll__portrait {
+  border-radius: 4px;
+  border: 1px solid var(--card-border);
+}
+
+.shards-contest-roll__name {
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.shards-contest-roll__stat {
+  font-size: 0.8em;
+  color: var(--shards-text-muted);
+}
+
+.shards-contest-roll__vs {
+  font-weight: bold;
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+.shards-contest-roll__result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 4px;
+}
+
+.shards-contest-roll__result i {
+  color: var(--shards-accent);
+}
+
+.shards-contest-roll__winner-label {
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+}
+
+.shards-contest-roll__winner {
+  font-weight: bold;
+  font-size: 1.05em;
+  color: var(--shards-success);
+}
+
+/* -------------------------------------------- */
+/*  Chat Action Buttons                          */
+/* -------------------------------------------- */
+
+.shards-chat-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  margin: 4px 0;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--shards-text);
+  font-family: var(--shards-font-body);
+  font-size: 0.82em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+  z-index: 3;
+}
+
+.shards-chat-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--card-accent);
+}
+
+.shards-chat-btn--damage {
+  border-color: rgba(212, 64, 64, 0.5);
+}
+
+.shards-chat-btn--damage:hover {
+  background: rgba(212, 64, 64, 0.12);
+  border-color: var(--shards-danger);
+  box-shadow: 0 0 6px rgba(212, 64, 64, 0.2);
+}
+
+.shards-chat-btn--heal {
+  border-color: rgba(64, 176, 96, 0.5);
+}
+
+.shards-chat-btn--heal:hover {
+  background: rgba(64, 176, 96, 0.12);
+  border-color: var(--shards-success);
+  box-shadow: 0 0 6px rgba(64, 176, 96, 0.2);
+}
+
+/* (Retaliation button styles removed — combat simplification) */
+
+.shards-chat-btn--condition {
+  border-color: rgba(224, 165, 38, 0.5);
+  font-size: 0.78em;
+  padding: 3px 8px;
+  width: auto;
+}
+
+.shards-chat-btn--condition:hover {
+  background: rgba(224, 165, 38, 0.12);
+  border-color: var(--shards-warning);
+  box-shadow: 0 0 6px rgba(224, 165, 38, 0.2);
+}
+
+.shards-chat-btn--spend {
+  margin-top: 6px;
+  border-color: rgba(0, 212, 160, 0.5);
+  color: var(--card-accent-light);
+}
+
+.shards-chat-btn--spend:hover {
+  background: rgba(0, 212, 160, 0.12);
+  border-color: var(--card-accent);
+  box-shadow: 0 0 6px var(--card-glow);
+}
+
+.shards-chat-btn--experience {
+  border-color: rgba(0, 212, 160, 0.5);
+}
+
+.shards-chat-btn--experience:hover {
+  background: rgba(0, 212, 160, 0.12);
+  border-color: var(--shards-primary);
+}
+
+.shards-chat-btn:disabled,
+.shards-chat-btn.used {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* -------------------------------------------- */
+/*  Display-Only Mode                            */
+/* -------------------------------------------- */
+
+.shards-chat-card__display-only {
+  padding: 6px 0;
+  font-size: 0.82em;
+  color: var(--shards-text-muted);
+  text-align: center;
+}
+
+/* -------------------------------------------- */
+/*  Skill Info Card                              */
+/* -------------------------------------------- */
+
+.shards-skill-card__sl-badge {
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--card-accent-light);
+  background: rgba(0, 212, 160, 0.15);
+  border: 1px solid rgba(0, 212, 160, 0.25);
+  border-radius: 3px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.shards-skill-card__typebar {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.8em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 4px;
+}
+
+.shards-skill-card__type {
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.shards-skill-card__element {
+  color: #e8a060;
+  font-weight: 600;
+}
+
+.shards-skill-card__defense {
+  color: #70c8e8;
+  font-weight: 600;
+}
+
+.shards-skill-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.shards-skill-card__pill {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  font-size: 0.8em;
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.shards-skill-card__pill-label {
+  color: var(--shards-text-muted);
+  font-size: 0.85em;
+}
+
+.shards-skill-card__pill-value {
+  font-weight: 700;
+}
+
+.shards-skill-card__pill--mp .shards-skill-card__pill-value {
+  color: #70a8e8;
+}
+
+.shards-skill-card__pill--pips .shards-skill-card__pill-value {
+  color: #d4a843;
+}
+
+.shards-skill-card__combat {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.shards-skill-card__combat-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.shards-skill-card__combat-value {
+  font-size: 1.1em;
+  font-weight: 800;
+}
+
+.shards-skill-card__combat-value--hit { color: #70e870; }
+.shards-skill-card__combat-value--dmg { color: #e87070; }
+
+.shards-skill-card__combat-label {
+  font-size: 0.7em;
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+}
+
+.shards-skill-card__passive {
+  padding: 6px 0;
+  font-size: 0.8em;
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shards-skill-card__condition {
+  padding: 4px 0;
+  font-size: 0.8em;
+  color: #e8a060;
+}
+
+.shards-skill-card__condition i {
+  color: #e8d070;
+  margin-right: 2px;
+}
+
+.shards-skill-card__description {
+  padding: 6px 0;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--shards-text-muted);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* -------------------------------------------- */
+/*  Trait Chat Card                              */
+/* -------------------------------------------- */
+
+.shards-trait-card .shards-chat-card__trait-icon {
+  border-radius: 3px;
+  border: 1px solid var(--card-border);
+  vertical-align: middle;
+}
+
+.shards-trait-card__typebar {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0;
+  background: rgba(12, 20, 32, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.78em;
+  margin-bottom: 4px;
+}
+
+.shards-trait-card__category {
+  font-weight: 600;
+  color: #90c0e0;
+  text-transform: capitalize;
+}
+
+.shards-trait-card__prereqs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  font-size: 0.8em;
+  color: var(--shards-text-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.shards-trait-card__prereqs i {
+  color: #e8d070;
+  font-size: 0.85em;
+}
+
+.shards-trait-card__description {
+  padding: 6px 0;
+  font-size: 0.85em;
+  color: var(--shards-text);
+}
+
+.shards-trait-card__description p {
+  margin: 0 0 4px;
+}
+
+.shards-trait-card__description p:last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------- */
+/*  Level Up Card                                */
+/* -------------------------------------------- */
+
+.shards-levelup__level-badge {
+  font-size: 0.85em;
+  font-weight: 800;
+  color: var(--shards-accent-light, #e0c060);
+  background: rgba(224, 165, 38, 0.12);
+  border: 1px solid rgba(224, 165, 38, 0.3);
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.shards-levelup__results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.shards-levelup__stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.shards-levelup__stat-row--pass {
+  background: rgba(64, 176, 96, 0.08);
+}
+
+.shards-levelup__stat-row--fail {
+  background: rgba(12, 16, 28, 0.04);
+}
+
+.shards-levelup__stat-name {
+  font-weight: 700;
+  min-width: 32px;
+  text-transform: uppercase;
+  font-size: 0.9em;
+  color: var(--shards-text, #e8e8f0);
+}
+
+.shards-levelup__roll {
+  font-weight: 700;
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.shards-levelup__stat-row--pass .shards-levelup__roll {
+  color: var(--shards-success, #40b060);
+}
+
+.shards-levelup__stat-row--fail .shards-levelup__roll {
+  color: var(--shards-text-muted, #8888a0);
+}
+
+.shards-levelup__vs {
+  font-size: 0.75em;
+  color: var(--shards-text-muted, #8888a0);
+}
+
+.shards-levelup__rate {
+  font-size: 0.85em;
+  color: var(--shards-text-muted, #8888a0);
+  min-width: 32px;
+}
+
+.shards-levelup__outcome {
+  margin-left: auto;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+}
+
+.shards-levelup__stat-row--pass .shards-levelup__outcome {
+  color: var(--shards-success, #40b060);
+}
+
+.shards-levelup__stat-row--fail .shards-levelup__outcome {
+  color: var(--shards-text-muted, #8888a0);
+}
+
+.shards-levelup__summary {
+  text-align: center;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.9em;
+  color: var(--shards-text, #e8e8f0);
+}
+
+.shards-levelup__summary strong {
+  color: var(--shards-success, #40b060);
+  font-size: 1.15em;
+}
+
+.shards-levelup__rank-advance {
+  text-align: center;
+  padding: 8px;
+  margin: 4px 0;
+  background: rgba(224, 165, 38, 0.08);
+  border: 1px solid rgba(224, 165, 38, 0.2);
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: var(--shards-accent-light, #e0c060);
+}
+
+.shards-levelup__rank-advance i {
+  color: var(--shards-accent, #c4a24e);
+  margin-right: 4px;
+}
+
+/* -------------------------------------------- */
+/*  Level Up Summary Card                        */
+/* -------------------------------------------- */
+
+.shards-levelup-summary__range {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-weight: 700;
+  font-size: 1.05em;
+  color: var(--card-accent-light);
+}
+
+.shards-levelup-summary__range i {
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.shards-levelup-summary__gains {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.shards-levelup-summary__stat-chip {
+  font-size: 0.78em;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(64, 176, 96, 0.1);
+  border: 1px solid rgba(64, 176, 96, 0.2);
+  color: var(--shards-success);
+}
+
+.shards-levelup-summary__total {
+  text-align: center;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.9em;
+}
+
+.shards-levelup-summary__total strong {
+  color: var(--shards-success);
+  font-size: 1.1em;
+}
+
+.shards-levelup-summary__rank-advance {
+  text-align: center;
+  padding: 6px;
+  margin: 4px 0;
+  background: rgba(224, 165, 38, 0.08);
+  border: 1px solid rgba(224, 165, 38, 0.2);
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: var(--shards-accent-light, #e0c060);
+}
+
+.shards-levelup-summary__rank-advance i {
+  color: var(--shards-accent);
+  margin-right: 4px;
+}
+
+.shards-levelup-summary__xp-spent {
+  text-align: center;
+  padding: 4px 0;
+  font-size: 0.82em;
+  color: var(--shards-text-muted);
+}
+
+.shards-levelup-summary__level-log {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.shards-levelup-summary__level-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8em;
+  padding: 2px 8px;
+}
+
+.shards-levelup-summary__level-entry .level-num {
+  font-weight: 700;
+  min-width: 40px;
+  color: var(--shards-text);
+}
+
+.shards-levelup-summary__level-entry .stat-gains {
+  color: var(--shards-success);
+  font-weight: 600;
+}
+
+.shards-levelup-summary__level-entry .rank-note {
+  margin-left: auto;
+  color: var(--shards-accent-light, #e0c060);
+  font-size: 0.9em;
+}
+
+.shards-levelup-summary__level-entry .rank-note i {
+  font-size: 0.85em;
+}
+
+/* -------------------------------------------- */
+/*  Skill Acquired Card                          */
+/* -------------------------------------------- */
+
+.shards-skill-acquired__skill-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.shards-skill-acquired__icon {
+  border-radius: 4px;
+  border: 2px solid var(--card-accent);
+  box-shadow: 0 0 8px var(--card-glow);
+}
+
+.shards-skill-acquired__skill-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shards-skill-acquired__skill-name {
+  font-weight: 800;
+  font-size: 1.05em;
+  color: var(--card-accent-light);
+}
+
+.shards-skill-acquired__sl-badge {
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--card-accent-light);
+  background: rgba(0, 212, 160, 0.15);
+  border: 1px solid rgba(0, 212, 160, 0.25);
+  border-radius: 3px;
+  padding: 1px 6px;
+  width: fit-content;
+}
+
+.shards-skill-acquired__origin {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  background: rgba(12, 20, 32, 0.06);
+  border-left: 3px solid var(--card-accent);
+  border-radius: 0 4px 4px 0;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--shards-text-muted);
+}
+
+.shards-skill-acquired__origin i {
+  color: var(--card-accent);
+  margin-top: 2px;
+}
+
+.shards-skill-acquired__system-voice {
+  text-align: center;
+  padding: 8px 0;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--shards-accent-light, #e0c060);
+}
+
+/* -------------------------------------------- */
+/*  Exposure Notification                        */
+/* -------------------------------------------- */
+
+.shards-exposure-notice__body {
+  padding: 8px 10px;
+}
+
+.shards-exposure-notice__body p {
+  margin: 0 0 8px;
+  font-size: 0.85em;
+}
+
+.shards-exposure-notice__body i {
+  color: var(--card-accent);
+  margin-right: 4px;
+}
+
+/* -------------------------------------------- */
+/*  Chat Confirmation Messages                   */
+/* -------------------------------------------- */
+
+.shards-chat-confirm {
+  font-family: var(--shards-font-body);
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+/* -------------------------------------------- */
+/*  Use Skill Button (in combat tab)             */
+/* -------------------------------------------- */
+
+.adv-skill__use-btn {
+  background: none;
+  border: 1px solid var(--shards-primary);
+  border-radius: 3px;
+  color: var(--shards-primary-light);
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: background 0.15s, color 0.15s;
+}
+
+.adv-skill__use-btn:hover {
+  background: var(--shards-primary);
+  color: white;
+}
+
+/* -------------------------------------------- */
+/*  Contest Dialog                               */
+/* -------------------------------------------- */
+
+.shards-contest-form {
+  padding: 10px;
+}
+
+.shards-contest-form__sides {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shards-contest-form__side {
+  flex: 1;
+  border: 1px solid var(--shards-border);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.shards-contest-form__side legend {
+  font-weight: bold;
+  font-size: 0.9em;
+  color: var(--shards-primary-light);
+}
+
+.shards-contest-form__vs {
+  font-weight: bold;
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+}
+
+.shards-contest-form__btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  border: 1px solid var(--shards-primary);
+  border-radius: 4px;
+  background: var(--shards-primary);
+  color: white;
+  font-family: var(--shards-font-body);
+  font-size: 0.95em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.shards-contest-form__btn:hover {
+  background: var(--shards-primary-light);
+}
+
+/* -------------------------------------------- */
+/*  Death Alert                                  */
+/* -------------------------------------------- */
+
+.shards-death-alert {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(60, 10, 10, 0.9), rgba(40, 10, 10, 0.95));
+  border: 1px solid #8a2020;
+  color: #f0a0a0;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  animation: death-pulse 2s ease-in-out infinite;
+}
+
+@keyframes death-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(200, 30, 30, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(200, 30, 30, 0.6); }
+}
+
+/* -------------------------------------------- */
+/*  Limit Break Ready Card                      */
+/* -------------------------------------------- */
+
+.shards-lb-ready-card {
+  background: linear-gradient(135deg, rgba(60, 40, 10, 0.9), rgba(40, 20, 60, 0.9));
+  border: 1px solid #d4a843;
+  border-radius: 6px;
+  padding: 0;
+  overflow: hidden;
+  animation: lb-ready-pulse 1.5s ease-in-out infinite;
+}
+
+.shards-lb-ready-card__inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.shards-lb-ready-card__portrait {
+  border-radius: 4px;
+  border: 2px solid #d4a843;
+  object-fit: cover;
+}
+
+.shards-lb-ready-card__content {
+  flex: 1;
+}
+
+.shards-lb-ready-card__title {
+  font-size: 1.1em;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffd866;
+  text-shadow: 0 0 8px rgba(255, 216, 102, 0.4);
+}
+
+.shards-lb-ready-card__name {
+  font-size: 0.9em;
+  color: #e0d0c0;
+  font-weight: 600;
+}
+
+.shards-lb-ready-card__icon {
+  font-size: 1.6em;
+  color: #ffd866;
+  animation: lb-icon-glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes lb-ready-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(212, 168, 67, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(212, 168, 67, 0.5), 0 0 30px rgba(0, 212, 160, 0.2); }
+}
+
+@keyframes lb-icon-glow {
+  0% { text-shadow: 0 0 4px rgba(255, 216, 102, 0.3); }
+  100% { text-shadow: 0 0 12px rgba(255, 216, 102, 0.6), 0 0 20px rgba(255, 180, 50, 0.3); }
+}
+
+/* Limit Break Fill Notification */
+.shards-lb-fill {
+  color: #d4a843;
+  font-style: italic;
+}
+
+.shards-lb-consumed {
+  color: #ffd866;
+  text-shadow: 0 0 4px rgba(255, 216, 102, 0.3);
+}
+
+/* -------------------------------------------- */
+/*  Turn Start Summary Card                     */
+/* -------------------------------------------- */
+
+.shards-turn-start-card {
+  padding: 0;
+}
+
+.shards-turn-start__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  padding-top: 11px;
+  background: linear-gradient(180deg, rgba(2, 4, 10, 0.6) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 3;
+}
+
+.shards-turn-start__portrait {
+  border-radius: 4px;
+  border: 1px solid var(--card-accent);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.shards-turn-start__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.shards-turn-start__name {
+  font-weight: 800;
+  font-size: 0.95em;
+  color: var(--card-accent-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shards-turn-start__round {
+  font-size: 0.72em;
+  color: var(--shards-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shards-turn-start__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px 8px;
+  position: relative;
+  z-index: 3;
+}
+
+.shards-turn-start__entry {
+  font-size: 0.82em;
+  padding: 2px 6px;
+  border-left: 2px solid var(--card-accent);
+  border-radius: 0 2px 2px 0;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--shards-text);
+}
+
+.shards-turn-start__entry .shards-death-alert {
+  font-size: 1em;
+}
+
+/* ============================================ */
+/*  Loot Drop Card                              */
+/* ============================================ */
+
+.shards-loot-drop__system-voice {
+  padding: 6px 12px;
+  font-style: italic;
+  font-size: 0.85em;
+  color: var(--card-accent-light);
+  text-align: center;
+  text-shadow: 0 0 8px var(--card-glow);
+  position: relative;
+  z-index: 3;
+}
+
+/* Roll Results (all drops with d100 outcomes) */
+.shards-loot-drop__roll-results {
+  padding: 4px 10px 8px;
+  position: relative;
+  z-index: 3;
+}
+
+.shards-loot-drop__roll-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 0.82em;
+  margin-bottom: 2px;
+}
+
+.shards-loot-drop__roll-row.roll-success {
+  background: rgba(64, 176, 96, 0.1);
+  border-left: 2px solid rgba(64, 176, 96, 0.5);
+}
+
+.shards-loot-drop__roll-row.roll-fail {
+  background: rgba(16, 24, 40, 0.06);
+  border-left: 2px solid rgba(16, 24, 40, 0.25);
+  opacity: 0.6;
+}
+
+.shards-loot-drop__roll-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shards-loot-drop__roll-dice {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--shards-font-heading, monospace);
+}
+
+.shards-loot-drop__d100 {
+  font-weight: 700;
+  font-size: 1.1em;
+}
+
+.shards-loot-drop__vs {
+  color: var(--shards-text-muted);
+  font-size: 0.9em;
+}
+
+.shards-loot-drop__roll-outcome {
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shards-loot-drop__roll-outcome.outcome-success {
+  color: #40b060;
+}
+
+.shards-loot-drop__roll-outcome.outcome-fail {
+  color: var(--shards-text-muted);
+}
+
+/* Gold Section */
+.shards-loot-drop__gold-section {
+  padding: 6px 10px 8px;
+  border-top: 1px solid rgba(20, 30, 48, 0.3);
+  position: relative;
+  z-index: 3;
+}
+
+.shards-loot-drop__gold-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1em;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.shards-loot-drop__gold-display i {
+  color: #ffd040;
+  text-shadow: 0 0 6px rgba(224, 165, 38, 0.4);
+}
+
+.shards-loot-drop__gold-amount {
+  color: #f0c040;
+  font-size: 1.15em;
+  font-weight: 700;
+  text-shadow: 0 0 4px rgba(240, 192, 64, 0.3);
+}
+
+/* Drops List */
+.shards-loot-drop__drops-list {
+  padding: 4px 10px 8px;
+  border-top: 1px solid rgba(20, 30, 48, 0.3);
+  position: relative;
+  z-index: 3;
+}
+
+.shards-loot-drop__drop-row {
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(20, 30, 48, 0.2);
+}
+
+.shards-loot-drop__drop-row:last-child {
+  border-bottom: none;
+}
+
+.shards-loot-drop__drop-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.shards-loot-drop__drop-name {
+  font-weight: 600;
+  font-size: 0.92em;
+}
+
+.shards-loot-drop__drop-qty {
+  font-size: 0.82em;
+  color: var(--card-accent-light);
+  font-weight: 600;
+}
+
+.shards-loot-drop__drop-sl {
+  font-size: 0.78em;
+  color: var(--shards-text-muted);
+  background: rgba(0, 212, 160, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* Claim Row (buttons per adventurer) */
+.shards-loot-drop__claim-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.shards-loot-drop__claim-btn {
+  font-size: 0.72em !important;
+  padding: 2px 6px !important;
+  gap: 3px;
+}
+
+.shards-loot-drop__claim-btn img {
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 160, 0.3);
+}
+
+/* Bulk Actions */
+.shards-loot-drop__bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(20, 30, 48, 0.3);
+  position: relative;
+  z-index: 3;
+}
+
+.shards-loot-drop__bulk-actions .shards-chat-btn {
+  font-size: 0.78em;
+  flex: 1 1 auto;
+}
+
+/* Empty state */
+.shards-loot-drop__empty {
+  text-align: center;
+  padding: 12px;
+  color: var(--shards-text-muted);
+  font-style: italic;
+  font-size: 0.85em;
+  position: relative;
+  z-index: 3;
+}
+
+.shards-loot-drop__empty i {
+  margin-right: 4px;
+  font-size: 1.2em;
+}
+
+/* Test mode banner */
+.shards-loot-drop__test-banner {
+  text-align: center;
+  padding: 4px 10px;
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ffd040;
+  background: rgba(224, 165, 38, 0.08);
+  border-top: 1px solid rgba(224, 165, 38, 0.2);
+  position: relative;
+  z-index: 3;
+}
+
+.shards-loot-drop__test-banner i {
+  margin-right: 4px;
+}
+
+/* -------------------------------------------- */
+/*  Buff Roll Card                               */
+/* -------------------------------------------- */
+
+.shards-buff-roll__duration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 0;
+  font-size: 0.88em;
+  font-weight: 600;
+  color: #a080ff;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shards-buff-roll__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shards-buff-roll__target {
+  background: rgba(160, 128, 255, 0.06);
+  border: 1px solid rgba(160, 128, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.shards-buff-roll__target-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.88em;
+  color: #c0b0ff;
+  margin-bottom: 4px;
+}
+
+.shards-buff-roll__effect-count {
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--shards-text-muted);
+}
+
+.shards-buff-roll__effects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 4px;
+}
+
+.shards-buff-roll__effect-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82em;
+}
+
+.shards-buff-roll__effect-icon {
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.shards-buff-roll__effect-name {
+  color: var(--shards-text-light);
+}
+
+.shards-buff-roll__no-effects {
+  font-size: 0.82em;
+  color: var(--shards-text-muted);
+  font-style: italic;
+}

@@ -1,0 +1,38 @@
+<div class="levelup-finalize">
+
+  <div class="levelup-finalize__header">
+    <i class="fa-solid fa-check-double"></i>
+    <h3>{{localize "SHARDS.LevelUp.ReadyToApply"}}</h3>
+  </div>
+
+  <div class="levelup-finalize__summary">
+    <div class="levelup-finalize__field">
+      <span class="levelup-finalize__label">{{localize "SHARDS.Adventurer.Level"}}</span>
+      <span class="levelup-finalize__value">
+        {{state.originalLevel}} &rarr; <strong>{{state.currentLevel}}</strong>
+      </span>
+    </div>
+    <div class="levelup-finalize__field">
+      <span class="levelup-finalize__label">{{localize "SHARDS.Rank"}}</span>
+      <span class="levelup-finalize__value">
+        {{state.originalRank}} &rarr; <strong>{{state.finalRank}}</strong>
+      </span>
+    </div>
+
+    {{!-- Stat gains compact display --}}
+    <div class="levelup-finalize__stats">
+      {{#each statComparison}}
+      {{#if this.gained}}
+      <span class="levelup-finalize__stat-chip">
+        {{this.label}}: {{this.before}} &rarr; <strong>{{this.after}}</strong> (+{{this.gain}})
+      </span>
+      {{/if}}
+      {{/each}}
+    </div>
+  </div>
+
+  <p class="levelup-finalize__note">
+    {{localize "SHARDS.LevelUp.FinalizeNote"}}
+  </p>
+
+</div>

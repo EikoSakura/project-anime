@@ -1,0 +1,74 @@
+<section class="tab inventory" data-group="primary" data-tab="inventory">
+
+  {{!-- Equipment --}}
+  <h2>{{localize "SHARDS.EquipmentLabel"}}</h2>
+  <ol class="item-list equipment-list">
+    {{#each items.equipment as |item|}}
+    <li class="item flexrow" data-item-id="{{item._id}}">
+      <div class="item-name" data-action="editItem">
+        <img src="{{item.img}}" width="24" height="24" />
+        <span>{{item.name}}</span>
+      </div>
+      <span class="item-detail">{{item.system.slot}}</span>
+      <span class="item-detail">{{item.system.rank}}</span>
+      <div class="item-controls flexrow">
+        <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        <button type="button" data-action="deleteItem" title="{{localize 'SHARDS.Delete'}}">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </li>
+    {{/each}}
+  </ol>
+
+  {{!-- Manacite --}}
+  <h2>{{localize "SHARDS.ManaciteLabel"}}</h2>
+  <ol class="item-list manacite-list">
+    {{#each items.manacite as |item|}}
+    <li class="item flexrow" data-item-id="{{item._id}}">
+      <div class="item-name" data-action="editItem">
+        <img src="{{item.img}}" width="24" height="24" />
+        <span>{{item.name}}</span>
+      </div>
+      <span class="item-detail">{{item.system.rank}}</span>
+      <div class="item-controls flexrow">
+        <button type="button" data-action="useItem" title="{{localize 'SHARDS.Use'}}">
+          <i class="fa-solid fa-dice-d20"></i>
+        </button>
+        <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        <button type="button" data-action="deleteItem" title="{{localize 'SHARDS.Delete'}}">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </li>
+    {{/each}}
+  </ol>
+
+  {{!-- Jobs --}}
+  <h2>{{localize "SHARDS.JobsLabel"}}</h2>
+  <ol class="item-list job-list">
+    {{#each items.job as |item|}}
+    <li class="item flexrow" data-item-id="{{item._id}}">
+      <div class="item-name" data-action="editItem">
+        <img src="{{item.img}}" width="24" height="24" />
+        <span>{{item.name}}</span>
+      </div>
+      <span class="item-detail">{{item.system.rank}}</span>
+      <div class="item-controls flexrow">
+        <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        <button type="button" data-action="deleteItem" title="{{localize 'SHARDS.Delete'}}">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </li>
+    {{/each}}
+  </ol>
+
+
+</section>

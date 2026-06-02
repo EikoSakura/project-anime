@@ -1,0 +1,38 @@
+{{!-- Shared Active Effects panel for item sheets --}}
+<div class="item-effects-panel">
+  <h3 class="crystal-heading">
+    <i class="fa-solid fa-sparkles"></i>
+    {{localize "SHARDS.Effects.ActiveEffects"}}
+    {{#if effects.length}}
+    <span class="count-badge">{{effects.length}}</span>
+    {{/if}}
+  </h3>
+
+  {{#if effects.length}}
+  <div class="effect-icon-grid">
+    {{#each effects}}
+    <div class="effect-icon-cell {{#if this.disabled}}effect-off{{/if}} {{this.effectType}}"
+         data-effect-id="{{this._id}}"
+         data-action="toggleEffect"
+         title="{{this.name}}">
+      <img class="effect-icon-img" src="{{this.img}}" alt="{{this.name}}" width="32" height="32" />
+      {{#if this.disabled}}
+      <div class="effect-disabled-overlay"><i class="fa-solid fa-xmark"></i></div>
+      {{/if}}
+      {{#if this.durationBadge}}
+      <span class="effect-duration-badge">{{this.durationBadge}}</span>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{else}}
+  <div class="effect-empty-state">
+    <i class="fa-solid fa-shield-halved effect-empty-icon"></i>
+    <span>{{localize "SHARDS.Effects.None"}}</span>
+  </div>
+  {{/if}}
+
+  <button type="button" class="add-effect-btn" data-action="createEffect">
+    <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Effects.AddEffect"}}
+  </button>
+</div>

@@ -1,358 +1,518 @@
-import { monsterSPCost, memberPower, partyPower, encounterBudget, resolveActor } from "../helpers/encounter.mjs";
-import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
-
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
 
-/** Stable ordering: by sort, then name. */
-const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
-
-/** Item types that can live in the shared Stash (everything but Skills / Packages). */
-const STASHABLE = new Set(["weapon", "armor", "shield", "accessory", "consumable", "container", "gear"]);
-
 /**
- * The Party sheet — a three-tab planner.
- *   • Party     — the roster of Player Characters + the party's total Skill Points.
- *   • Stash     — shared storage: items the party holds together (drag items in).
- *   • Encounter — GM-ONLY budget builder: Party SP × difficulty = a monster budget, and a
- *                 drag-in tally of the fight's monsters (each priced in SP) vs that budget.
- * Members and encounter monsters are stored as UUIDs; the Stash uses embedded Items.
+ * Party sheet — member roster, shared treasury, quest log.
  */
-export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorSheetV2) {
+export class ShardsPartySheet extends HandlebarsApplicationMixin(ActorSheetV2) {
+
+  /** Transient quest filter state. */
+  _questFilter = "all";
+
+  /** Track which quests are expanded (by quest id). */
+  _expandedQuests = new Set();
+
+  /** @override */
   static DEFAULT_OPTIONS = {
-    classes: ["project-anime", "sheet", "party-sheet"],
-    position: { width: 560, height: 620 },
-    window: { resizable: true, icon: "fa-solid fa-users" },
-    form: { submitOnChange: true, closeOnSubmit: false },
+    classes: ["shards-of-mana", "party-sheet"],
+    position: { width: 720, height: 640 },
+    window: { resizable: true },
+    form: { submitOnChange: true },
     actions: {
-      editImage: ProjectAnimePartySheet.#onEditImage,
-      selectTab: ProjectAnimePartySheet.#onSelectTab,
-      removeMember: ProjectAnimePartySheet.#onRemoveMember,
-      removeMonster: ProjectAnimePartySheet.#onRemoveMonster,
-      incMonster: ProjectAnimePartySheet.#onIncMonster,
-      decMonster: ProjectAnimePartySheet.#onDecMonster,
-      removeStashItem: ProjectAnimePartySheet.#onRemoveStashItem,
-      openStashItem: ProjectAnimePartySheet.#onOpenStashItem,
-      giveItem: ProjectAnimePartySheet.#onGiveItem,
-      splitGold: ProjectAnimePartySheet.#onSplitGold,
-      collectGold: ProjectAnimePartySheet.#onCollectGold,
-      openActor: ProjectAnimePartySheet.#onOpenActor
+      // Members
+      removeMember: ShardsPartySheet.#onRemoveMember,
+      openMemberSheet: ShardsPartySheet.#onOpenMemberSheet,
+      browseActors: ShardsPartySheet.#onBrowseActors,
+      // Treasury
+      depositGold: ShardsPartySheet.#onDepositGold,
+      withdrawGold: ShardsPartySheet.#onWithdrawGold,
+      // Stash items
+      editItem: ShardsPartySheet.#onEditItem,
+      deleteItem: ShardsPartySheet.#onDeleteItem,
+      // Quests
+      addQuest: ShardsPartySheet.#onAddQuest,
+      deleteQuest: ShardsPartySheet.#onDeleteQuest,
+      toggleObjective: ShardsPartySheet.#onToggleObjective,
+      addObjective: ShardsPartySheet.#onAddObjective,
+      deleteObjective: ShardsPartySheet.#onDeleteObjective,
+      filterQuests: ShardsPartySheet.#onFilterQuests,
+      toggleQuestExpand: ShardsPartySheet.#onToggleQuestExpand
     }
   };
 
+  /** @override */
   static PARTS = {
-    tabs: { template: "systems/project-anime/templates/party/tabs.hbs" },
-    party: { template: "systems/project-anime/templates/party/party.hbs", scrollable: [""] },
-    stash: { template: "systems/project-anime/templates/party/stash.hbs", scrollable: [""] },
-    encounter: { template: "systems/project-anime/templates/party/encounter.hbs", scrollable: [""] }
+    header: {
+      template: "systems/shards-of-mana/templates/actors/party/party-header.hbs"
+    },
+    tabs: {
+      template: "templates/generic/tab-navigation.hbs"
+    },
+    members: {
+      template: "systems/shards-of-mana/templates/actors/party/tab-members.hbs",
+      scrollable: [""]
+    },
+    treasury: {
+      template: "systems/shards-of-mana/templates/actors/party/tab-treasury.hbs",
+      scrollable: [""]
+    },
+    quests: {
+      template: "systems/shards-of-mana/templates/actors/party/tab-quests.hbs",
+      scrollable: [""]
+    }
   };
 
-  /** Active tab ("party" | "stash" | "encounter"). Survives re-render. */
-  #activeTab = "party";
-
-  /** @override — the Encounter tab (and its part) is GM-only. */
-  _configureRenderOptions(options) {
-    super._configureRenderOptions(options);
-    const parts = ["tabs", "party", "stash"];
-    if (game.user.isGM) parts.push("encounter");
-    options.parts = parts;
-  }
+  /** @override */
+  static TABS = {
+    primary: {
+      tabs: [
+        { id: "members", group: "primary", icon: "fa-solid fa-users", label: "SHARDS.Tabs.Members" },
+        { id: "treasury", group: "primary", icon: "fa-solid fa-coins", label: "SHARDS.Tabs.Treasury" },
+        { id: "quests", group: "primary", icon: "fa-solid fa-scroll", label: "SHARDS.Tabs.Quests" }
+      ],
+      initial: "members",
+      labelPrefix: "SHARDS.Tabs"
+    }
+  };
 
   /** @override */
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
-    const cfg = CONFIG.PROJECTANIME;
-    const sys = this.actor.system;
-    const isGM = game.user.isGM;
-    context.editable = this.isEditable;
-    context.actor = this.actor;
-    context.system = sys;
-    context.isGM = isGM;
+    const actor = this.actor;
+    const system = actor.system;
 
-    // Tabs — Encounter is GM-only; reconcile the active tab to one that's available.
-    const available = ["party", "stash", ...(isGM ? ["encounter"] : [])];
-    if (!available.includes(this.#activeTab)) this.#activeTab = "party";
-    const active = this.#activeTab;
-    context.onParty = active === "party";
-    context.onStash = active === "stash";
-    context.onEncounter = active === "encounter";
-    context.tabs = [
-      { key: "party", icon: "fa-user-group", label: game.i18n.localize("PROJECTANIME.Party.tabParty"), active: active === "party" },
-      { key: "stash", icon: "fa-box-archive", label: game.i18n.localize("PROJECTANIME.Party.tabStash"), active: active === "stash" }
-    ];
-    if (isGM) context.tabs.push({ key: "encounter", icon: "fa-skull", label: game.i18n.localize("PROJECTANIME.Party.tabEncounter"), active: active === "encounter" });
+    context.actor = actor;
+    context.system = system;
+    context.config = CONFIG.SHARDS;
+    context.isGM = game.user.isGM;
 
-    // Party tab — the roster (the party folder's Characters) as dashboard cards.
-    context.members = partyMembers(this.actor).map((a) => {
-      const ms = a.system ?? {};
-      const hp = ms.hp ?? { value: 0, max: 0 };
-      const en = ms.energy ?? { value: 0, max: 0 };
-      return {
-        ref: a.uuid, name: a.name, img: a.img,
-        power: memberPower(a),
-        hp: hp.value, hpMax: hp.max, hpPct: hp.max > 0 ? Math.clamp(Math.round((hp.value / hp.max) * 100), 0, 100) : 0,
-        energy: en.value, energyMax: en.max, energyPct: en.max > 0 ? Math.clamp(Math.round((en.value / en.max) * 100), 0, 100) : 0,
-        evasion: ms.evasion?.value ?? 0,
-        defense: ms.defense?.value ?? 0,
-        movement: ms.movement?.value ?? 0
+    // Enriched biography
+    const TE = foundry.applications.ux.TextEditor.implementation;
+    context.enrichedBiography = await TE.enrichHTML(
+      system.biography, { async: true, relativeTo: actor }
+    );
+
+    // --- Member cards (resolve UUIDs to live actor data) ---
+    context.memberCards = [];
+    let totalHp = 0, totalHpMax = 0, totalMp = 0, totalMpMax = 0, totalLevel = 0;
+    let adventurerCount = 0;
+
+    for (const [idx, member] of system.members.entries()) {
+      const linkedActor = await fromUuid(member.actorUuid);
+      const isAlive = !!linkedActor;
+      const card = {
+        ...member,
+        _index: idx,
+        linkedActor: isAlive ? linkedActor : null,
+        displayName: isAlive ? linkedActor.name : member.name,
+        displayImg: isAlive ? linkedActor.img : member.img,
+        level: null,
+        activeJobName: null,
+        activeJobRank: null,
+        healthPct: 0,
+        manaPct: 0,
+        health: null,
+        mana: null,
+        roleDef: member.role ? CONFIG.SHARDS.partyRoles[member.role] : null,
+        roleLabel: member.role ? game.i18n.localize(CONFIG.SHARDS.partyRoles[member.role]?.label ?? "") : ""
       };
-    });
-    context.partyPower = partyPower(this.actor);
-    context.gold = sys.gold ?? 0; // shared treasury (Stash tab)
 
-    // Stash tab — the party's shared items.
-    context.stash = this.actor.items
-      .filter((i) => STASHABLE.has(i.type))
-      .sort(bySort)
-      .map((i) => {
-        const qty = Number(i.system?.quantity);
-        return { id: i.id, name: i.name, img: i.img, qty: qty > 1 ? qty : null, cost: Number(i.system?.cost) || 0 };
-      });
+      if (isAlive && linkedActor.system.health) {
+        const h = linkedActor.system.health;
+        const m = linkedActor.system.mana;
+        card.health = h;
+        card.mana = m;
+        card.healthPct = h.max > 0 ? Math.clamp(Math.round((h.value / h.max) * 100), 0, 100) : 0;
+        card.manaPct = m.max > 0 ? Math.clamp(Math.round((m.value / m.max) * 100), 0, 100) : 0;
+        totalHp += h.value;
+        totalHpMax += h.max;
+        totalMp += m.value;
+        totalMpMax += m.max;
+      }
 
-    // Encounter tab (GM only) — difficulty, budget, and the monster tally.
-    if (isGM) {
-      const power = context.partyPower;
-      context.difficulty = sys.difficulty ?? "standard";
-      context.difficultyChoices = Object.fromEntries(
-        cfg.encounterDifficultyKeys.map((k) => [k, game.i18n.localize(cfg.encounterDifficulty[k].label)])
-      );
-      context.budget = encounterBudget(this.actor);
-      context.thresholds = cfg.encounterDifficultyKeys.map((k) => ({
-        label: game.i18n.localize(cfg.encounterDifficulty[k].label),
-        value: Math.round(power * cfg.encounterDifficulty[k].mult),
-        active: context.difficulty === k
-      }));
+      if (isAlive && linkedActor.type === "adventurer") {
+        adventurerCount++;
+        card.level = linkedActor.system.level;
+        totalLevel += linkedActor.system.level;
+        const jobId = linkedActor.system.activeJobId;
+        if (jobId) {
+          const job = linkedActor.items.get(jobId);
+          if (job) {
+            card.activeJobName = job.name;
+            card.activeJobRank = job.system.rank;
+          }
+        }
+      }
 
-      let spent = 0;
-      context.encounter = (sys.encounter ?? []).map((entry) => {
-        const a = resolveActor(entry.uuid);
-        const qty = Math.max(1, entry.qty ?? 1);
-        if (!a) return { uuid: entry.uuid, name: "—", img: "icons/svg/mystery-man.svg", qty, costLabel: "0", missing: true };
-        const cost = monsterSPCost(a);
-        const total = cost * qty;
-        spent += total;
-        const tier = a.system?.tier ? cfg.monsterTiers[a.system.tier] : null;
-        return {
-          uuid: a.uuid, name: a.name, img: a.img, qty,
-          costLabel: qty > 1 ? `${cost} ×${qty} = ${total}` : `${cost}`,
-          tierLabel: tier ? game.i18n.localize(tier.label) : "",
-          tierColor: tier?.color ?? "var(--pa-line)"
-        };
-      });
-      context.spent = spent;
-      context.budgetTotal = context.budget;
-      context.over = spent > context.budget;
-      context.usePct = context.budget > 0 ? Math.clamp(Math.round((spent / context.budget) * 100), 0, 100) : 0;
+      context.memberCards.push(card);
     }
+
+    // Header analytics
+    context.memberCount = system.members.length;
+    context.avgLevel = adventurerCount > 0 ? Math.round(totalLevel / adventurerCount) : 0;
+    context.totalHp = totalHp;
+    context.totalHpMax = totalHpMax;
+    context.totalMp = totalMp;
+    context.totalMpMax = totalMpMax;
+
+    // Role options for select dropdowns
+    context.roleOptions = Object.entries(CONFIG.SHARDS.partyRoles).map(([key, def]) => ({
+      key,
+      label: game.i18n.localize(def.label)
+    }));
+
+    // --- Quest cards ---
+    const questFilter = this._questFilter;
+    context.questFilter = questFilter;
+    context.questCards = system.quests
+      .map((quest, idx) => ({
+        ...quest,
+        _index: idx,
+        statusLabel: game.i18n.localize(CONFIG.SHARDS.questStatuses[quest.status]?.label ?? ""),
+        statusIcon: CONFIG.SHARDS.questStatuses[quest.status]?.icon ?? "fa-solid fa-question",
+        statusColor: CONFIG.SHARDS.questStatuses[quest.status]?.color ?? "#9999b0",
+        priorityLabel: game.i18n.localize(CONFIG.SHARDS.questPriorities[quest.priority]?.label ?? ""),
+        priorityIcon: CONFIG.SHARDS.questPriorities[quest.priority]?.icon ?? "",
+        objectiveProgress: quest.objectives.length > 0
+          ? `${quest.objectives.filter(o => o.completed).length}/${quest.objectives.length}`
+          : null,
+        expanded: this._expandedQuests.has(quest.id)
+      }))
+      .filter(q => questFilter === "all" || q.status === questFilter);
+
+    context.activeQuestCount = system.quests.filter(q => q.status === "active").length;
+    context.questCounts = system.questCounts;
+
+    // --- Stash items (owned items on this party actor) ---
+    context.stashItems = [...actor.items];
 
     return context;
   }
 
-  /** @override — bind drag-drop zones + make Stash items draggable. */
-  async _onRender(context, options) {
-    await super._onRender(context, options);
-    if (!this.isEditable) return;
-    for (const zone of this.element.querySelectorAll("[data-drop]")) {
-      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
-      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (ev) => { zone.classList.remove("drag-over"); this.#onDrop(ev, zone.dataset.drop); });
+  /** @override */
+  async _preparePartContext(partId, context, options) {
+    context = await super._preparePartContext(partId, context, options);
+    const tabIds = ["members", "treasury", "quests"];
+    if (tabIds.includes(partId)) {
+      context.tab = context.tabs?.primary?.[partId] ?? context.tabs?.[partId];
     }
-    // Stash rows are draggable Items (drag one onto a member avatar below, or a PC sheet).
-    for (const row of this.element.querySelectorAll(".party-row[data-item-id]")) {
-      const item = this.actor.items.get(row.dataset.itemId);
-      if (!item) continue;
-      row.setAttribute("draggable", "true");
-      row.addEventListener("dragstart", (ev) => {
-        ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "Item", uuid: item.uuid }));
-      });
-    }
-    // Member avatars in the Stash are "give" drop targets — drop a stash item onto one to hand it over.
-    for (const tgt of this.element.querySelectorAll(".give-target[data-ref]")) {
-      tgt.addEventListener("dragover", (ev) => { ev.preventDefault(); tgt.classList.add("drag-over"); });
-      tgt.addEventListener("dragleave", () => tgt.classList.remove("drag-over"));
-      tgt.addEventListener("drop", (ev) => { ev.preventDefault(); ev.stopPropagation(); tgt.classList.remove("drag-over"); this.#giveToMember(ev, tgt.dataset.ref); });
-    }
+    return context;
   }
 
-  /** Parse a sidebar/canvas drop payload. */
-  #dropData(event) {
-    try { return JSON.parse(event.dataTransfer.getData("text/plain") || "{}"); } catch (_e) { return {}; }
+  /* -------------------------------------------- */
+  /*  Drag & Drop                                 */
+  /* -------------------------------------------- */
+
+  /** @override */
+  async _onDropActor(event, data) {
+    if (!this.actor.isOwner) return null;
+
+    const droppedActor = await Actor.implementation.fromDropData(data);
+    if (!droppedActor) return null;
+
+    // Only adventurers and NPCs
+    const allowed = new Set(["adventurer", "npc"]);
+    if (!allowed.has(droppedActor.type)) {
+      ui.notifications.warn(game.i18n.localize("SHARDS.Party.InvalidMemberType"));
+      return null;
+    }
+
+    // Check for duplicate
+    const existing = this.actor.system.members.find(m => m.actorUuid === droppedActor.uuid);
+    if (existing) {
+      ui.notifications.warn(game.i18n.format("SHARDS.Party.AlreadyMember", { name: droppedActor.name }));
+      return null;
+    }
+
+    const members = [...this.actor.system.members, {
+      actorUuid: droppedActor.uuid,
+      img: droppedActor.img || "icons/svg/mystery-man.svg",
+      name: droppedActor.name,
+      role: "",
+      joinDate: new Date().toLocaleDateString(),
+      notes: ""
+    }];
+    await this.actor.update({ "system.members": members });
+    ui.notifications.info(game.i18n.format("SHARDS.Party.MemberAdded", { name: droppedActor.name }));
   }
 
-  /** Route a drop by zone: Characters → roster, NPCs → encounter, Items → stash. */
-  async #onDrop(event, slot) {
-    event.preventDefault();
-    const data = this.#dropData(event);
-    if (!data?.type || !data.uuid) return;
+  /** @override */
+  async _onDropItem(event, data) {
+    if (!this.actor.isOwner) return null;
+    return super._onDropItem(event, data);
+  }
 
-    if (slot === "stash") {
-      if (data.type !== "Item") return;
-      const item = await fromUuid(data.uuid);
-      if (!item || !STASHABLE.has(item.type)) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.itemsAreGear"));
-      if (item.parent?.id === this.actor.id) return; // already in this stash
-      const obj = item.toObject();
-      delete obj._id;
-      await this.actor.createEmbeddedDocuments("Item", [obj]);
+  /* -------------------------------------------- */
+  /*  Member Actions                              */
+  /* -------------------------------------------- */
+
+  static async #onRemoveMember(event, target) {
+    const idx = Number(target.closest("[data-member-index]")?.dataset.memberIndex);
+    const member = this.actor.system.members[idx];
+    if (!member) return;
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("SHARDS.Party.RemoveMemberTitle") },
+      content: `<p>${game.i18n.format("SHARDS.Party.RemoveMemberConfirm", { name: member.name || "?" })}</p>`
+    });
+    if (!confirmed) return;
+    const members = this.actor.system.members.filter((_, i) => i !== idx);
+    await this.actor.update({ "system.members": members });
+  }
+
+  static async #onOpenMemberSheet(event, target) {
+    const idx = Number(target.closest("[data-member-index]")?.dataset.memberIndex);
+    const member = this.actor.system.members[idx];
+    if (!member?.actorUuid) return;
+    const actor = await fromUuid(member.actorUuid);
+    if (actor) actor.sheet.render(true);
+    else ui.notifications.warn(game.i18n.localize("SHARDS.Party.MemberNotFound"));
+  }
+
+  static async #onBrowseActors(event, target) {
+    const existing = new Set(this.actor.system.members.map(m => m.actorUuid));
+    const candidates = game.actors.filter(a =>
+      (a.type === "adventurer" || a.type === "npc") && !existing.has(a.uuid)
+    );
+    if (!candidates.length) {
+      ui.notifications.info(game.i18n.localize("SHARDS.Party.NoActorsAvailable"));
       return;
     }
 
-    if (data.type !== "Actor") return;
-    const actor = await fromUuid(data.uuid);
-    if (!actor) return;
-    if (slot === "members") {
-      if (actor.type !== "character") return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.membersArePCs"));
-      // Membership = being in the party's folder, so adding a member files them into it.
-      const folder = await ensurePartyFolder(this.actor);
-      if (folder && actor.folder?.id !== folder.id) await actor.update({ folder: folder.id });
-    } else if (slot === "encounter") {
-      if (actor.type !== "npc") return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.encounterAreMonsters"));
-      const list = foundry.utils.deepClone(this.actor.system.encounter ?? []);
-      const existing = list.find((e) => e.uuid === actor.uuid);
-      if (existing) existing.qty = (existing.qty ?? 1) + 1;
-      else list.push({ uuid: actor.uuid, qty: 1 });
-      await this.actor.update({ "system.encounter": list });
-    }
-  }
+    let selectedId = candidates[0].id;
+    const optionsHtml = candidates.map((a, idx) => `
+      <label class="party-actor-option">
+        <input type="radio" name="actorId" value="${a.id}" ${idx === 0 ? "checked" : ""} />
+        <img src="${a.img}" width="32" height="32" />
+        <span>${a.name}</span>
+        <span class="party-actor-type">${a.type}</span>
+      </label>
+    `).join("");
 
-  /** Switch tabs via CSS (toggle .active on the live DOM) — instant, no re-render. */
-  static #onSelectTab(event, target) {
-    const tab = target.dataset.tab;
-    if (!tab || tab === this.#activeTab) return;
-    this.#activeTab = tab;
-    for (const pane of this.element.querySelectorAll(".party-pane"))
-      pane.classList.toggle("active", pane.dataset.pane === tab);
-    for (const btn of this.element.querySelectorAll(".party-tab"))
-      btn.classList.toggle("active", btn.dataset.tab === tab);
-  }
-
-  static async #onEditImage() {
-    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
-    const fp = new FP({
-      type: "image",
-      current: this.actor.img || "",
-      callback: (path) => this.actor.update({ img: path }).catch((err) => ui.notifications.error(err.message))
+    const result = await foundry.applications.api.DialogV2.wait({
+      window: { title: game.i18n.localize("SHARDS.Party.BrowseActors") },
+      content: `<div class="party-actor-picker">${optionsHtml}</div>`,
+      buttons: [
+        { action: "confirm", label: game.i18n.localize("SHARDS.Party.AddMember"), icon: "fa-solid fa-plus" },
+        { action: "cancel", label: game.i18n.localize("SHARDS.Cancel") }
+      ],
+      render: (event, dialog) => {
+        for (const radio of dialog.element.querySelectorAll("input[name='actorId']")) {
+          radio.addEventListener("change", () => { selectedId = radio.value; });
+        }
+      }
     });
-    return fp.browse();
+    if (result !== "confirm") return;
+    const actor = game.actors.get(selectedId);
+    if (!actor) return;
+
+    const members = [...this.actor.system.members, {
+      actorUuid: actor.uuid,
+      img: actor.img || "icons/svg/mystery-man.svg",
+      name: actor.name,
+      role: "",
+      joinDate: new Date().toLocaleDateString(),
+      notes: ""
+    }];
+    await this.actor.update({ "system.members": members });
+    ui.notifications.info(game.i18n.format("SHARDS.Party.MemberAdded", { name: actor.name }));
   }
 
-  static async #onRemoveMember(event, target) {
-    const ref = target.closest("[data-ref]")?.dataset.ref;
-    const actor = ref ? await fromUuid(ref) : null;
-    if (actor) await actor.update({ folder: null }); // leaving the folder = leaving the party
+  /* -------------------------------------------- */
+  /*  Treasury Actions                            */
+  /* -------------------------------------------- */
+
+  static async #onDepositGold(event, target) {
+    const memberIdx = Number(target.closest("[data-member-index]")?.dataset.memberIndex);
+    const member = this.actor.system.members[memberIdx];
+    if (!member?.actorUuid) return;
+    const memberActor = await fromUuid(member.actorUuid);
+    if (!memberActor || !memberActor.isOwner) return;
+    const memberGold = memberActor.system.gold ?? 0;
+
+    let amount = 0;
+    const result = await foundry.applications.api.DialogV2.wait({
+      window: { title: game.i18n.localize("SHARDS.Party.DepositGold") },
+      content: `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+        <label>${game.i18n.localize("SHARDS.Party.Amount")}</label>
+        <input type="number" name="amount" value="0" min="0" max="${memberGold}" style="width:80px" />
+        <span style="opacity:0.6">/ ${memberGold} G</span>
+      </div>`,
+      buttons: [
+        { action: "confirm", label: game.i18n.localize("SHARDS.Party.Deposit"), icon: "fa-solid fa-arrow-down" },
+        { action: "cancel", label: game.i18n.localize("SHARDS.Cancel") }
+      ],
+      render: (event, dialog) => {
+        const input = dialog.element.querySelector("input[name='amount']");
+        input.addEventListener("change", () => { amount = Math.clamp(Number(input.value) || 0, 0, memberGold); });
+        input.addEventListener("input", () => { amount = Math.clamp(Number(input.value) || 0, 0, memberGold); });
+      }
+    });
+    if (result !== "confirm" || amount <= 0) return;
+
+    await memberActor.update({ "system.gold": memberGold - amount });
+    await this.actor.update({ "system.gold": this.actor.system.gold + amount });
   }
 
-  static async #onRemoveMonster(event, target) {
-    const uuid = target.closest("[data-uuid]")?.dataset.uuid;
-    if (!uuid) return;
-    await this.actor.update({ "system.encounter": (this.actor.system.encounter ?? []).filter((e) => e.uuid !== uuid) });
+  static async #onWithdrawGold(event, target) {
+    const memberIdx = Number(target.closest("[data-member-index]")?.dataset.memberIndex);
+    const member = this.actor.system.members[memberIdx];
+    if (!member?.actorUuid) return;
+    const memberActor = await fromUuid(member.actorUuid);
+    if (!memberActor || !memberActor.isOwner) return;
+    const partyGold = this.actor.system.gold;
+
+    let amount = 0;
+    const result = await foundry.applications.api.DialogV2.wait({
+      window: { title: game.i18n.localize("SHARDS.Party.WithdrawGold") },
+      content: `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+        <label>${game.i18n.localize("SHARDS.Party.Amount")}</label>
+        <input type="number" name="amount" value="0" min="0" max="${partyGold}" style="width:80px" />
+        <span style="opacity:0.6">/ ${partyGold} G</span>
+      </div>`,
+      buttons: [
+        { action: "confirm", label: game.i18n.localize("SHARDS.Party.Withdraw"), icon: "fa-solid fa-arrow-up" },
+        { action: "cancel", label: game.i18n.localize("SHARDS.Cancel") }
+      ],
+      render: (event, dialog) => {
+        const input = dialog.element.querySelector("input[name='amount']");
+        input.addEventListener("change", () => { amount = Math.clamp(Number(input.value) || 0, 0, partyGold); });
+        input.addEventListener("input", () => { amount = Math.clamp(Number(input.value) || 0, 0, partyGold); });
+      }
+    });
+    if (result !== "confirm" || amount <= 0) return;
+
+    await this.actor.update({ "system.gold": partyGold - amount });
+    await memberActor.update({ "system.gold": (memberActor.system.gold ?? 0) + amount });
   }
 
-  static async #onIncMonster(event, target) { await this.#bumpMonster(target, +1); }
-  static async #onDecMonster(event, target) { await this.#bumpMonster(target, -1); }
+  /* -------------------------------------------- */
+  /*  Item Stash Actions                          */
+  /* -------------------------------------------- */
 
-  /** Change a monster entry's quantity (clamped to ≥ 1). */
-  async #bumpMonster(target, delta) {
-    const uuid = target.closest("[data-uuid]")?.dataset.uuid;
-    if (!uuid) return;
-    const list = foundry.utils.deepClone(this.actor.system.encounter ?? []);
-    const entry = list.find((e) => e.uuid === uuid);
-    if (!entry) return;
-    entry.qty = Math.max(1, (entry.qty ?? 1) + delta);
-    await this.actor.update({ "system.encounter": list });
+  static #onEditItem(event, target) {
+    const itemId = target.closest("[data-item-id]")?.dataset.itemId;
+    const item = this.actor.items.get(itemId);
+    if (item) item.sheet.render(true);
   }
 
-  static async #onRemoveStashItem(event, target) {
-    const id = target.closest("[data-item-id]")?.dataset.itemId;
-    const item = id ? this.actor.items.get(id) : null;
+  static async #onDeleteItem(event, target) {
+    const itemId = target.closest("[data-item-id]")?.dataset.itemId;
+    const item = this.actor.items.get(itemId);
     if (item) await item.delete();
   }
 
-  static #onOpenStashItem(event, target) {
-    const id = target.closest("[data-item-id]")?.dataset.itemId;
-    this.actor.items.get(id)?.sheet?.render(true);
-  }
-
   /* -------------------------------------------- */
-  /*  Give items + shared Gold treasury           */
+  /*  Quest Actions                               */
   /* -------------------------------------------- */
 
-  /** The party's resolved Character members (the party folder's Characters). */
-  #resolvedMembers() {
-    return partyMembers(this.actor);
+  static async #onAddQuest(event, target) {
+    const newId = foundry.utils.randomID();
+    const quests = [...this.actor.system.quests, {
+      id: newId,
+      title: game.i18n.localize("SHARDS.Party.NewQuest"),
+      description: "",
+      status: "active",
+      priority: "normal",
+      rewards: "",
+      objectives: [],
+      gmNotes: ""
+    }];
+    this._expandedQuests.add(newId);
+    await this.actor.update({ "system.quests": quests });
   }
 
-  /** Hand a stash item to a member — copy it onto them and remove it from the stash.
-   *  Tolerates external (non-stash) items too: those are just copied to the member. */
-  async #giveToMember(event, ref) {
-    const data = this.#dropData(event);
-    if (data?.type !== "Item" || !data.uuid) return;
-    const item = await fromUuid(data.uuid);
-    const member = ref ? await fromUuid(ref) : null;
-    if (!item || !member) return;
-    const obj = item.toObject();
-    delete obj._id;
-    await member.createEmbeddedDocuments("Item", [obj]);
-    if (item.parent?.id === this.actor.id) await item.delete();
-    ui.notifications.info(game.i18n.format("PROJECTANIME.Party.gave", { item: item.name, member: member.name }));
-  }
-
-  /** "Give" button on a stash item → pick a member from a dialog, then hand it over. */
-  static async #onGiveItem(event, target) {
-    const id = target.closest("[data-item-id]")?.dataset.itemId;
-    const item = id ? this.actor.items.get(id) : null;
-    if (!item) return;
-    const members = this.#resolvedMembers();
-    if (!members.length) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.noMembers"));
-    const buttons = members.map((m) => ({ action: m.uuid, label: m.name, icon: "fas fa-user" }));
-    buttons.push({ action: "cancel", label: game.i18n.localize("Cancel"), icon: "fas fa-xmark" });
-    const choice = await foundry.applications.api.DialogV2.wait({
-      window: { title: game.i18n.format("PROJECTANIME.Party.giveTitle", { item: item.name }), icon: "fas fa-hand-holding" },
-      content: "",
-      buttons,
-      rejectClose: false
+  static async #onDeleteQuest(event, target) {
+    const questId = target.closest("[data-quest-id]")?.dataset.questId;
+    const quest = this.actor.system.quests.find(q => q.id === questId);
+    if (!quest) return;
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("SHARDS.Party.DeleteQuestTitle") },
+      content: `<p>${game.i18n.format("SHARDS.Party.DeleteQuestConfirm", { title: quest.title })}</p>`
     });
-    if (!choice || choice === "cancel") return;
-    const member = await fromUuid(choice);
-    if (!member) return;
-    const obj = item.toObject();
-    delete obj._id;
-    await member.createEmbeddedDocuments("Item", [obj]);
-    await item.delete();
-    ui.notifications.info(game.i18n.format("PROJECTANIME.Party.gave", { item: item.name, member: member.name }));
+    if (!confirmed) return;
+    this._expandedQuests.delete(questId);
+    const quests = this.actor.system.quests.filter(q => q.id !== questId);
+    await this.actor.update({ "system.quests": quests });
   }
 
-  /** Split the treasury evenly among the members you can update; any remainder stays pooled. */
-  static async #onSplitGold() {
-    const members = this.#resolvedMembers().filter((m) => m.isOwner);
-    if (!members.length) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.noMembers"));
-    const gold = this.actor.system.gold ?? 0;
-    const each = Math.floor(gold / members.length);
-    if (each <= 0) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.notEnoughGold"));
-    await Promise.all(members.map((m) => m.update({ "system.gold": (m.system.gold ?? 0) + each })));
-    await this.actor.update({ "system.gold": gold - each * members.length });
-    ui.notifications.info(game.i18n.format("PROJECTANIME.Party.splitDone", { each, n: members.length }));
+  static async #onToggleObjective(event, target) {
+    const questId = target.closest("[data-quest-id]")?.dataset.questId;
+    const objIdx = Number(target.dataset.objectiveIndex);
+    const quests = foundry.utils.deepClone(this.actor.system.quests);
+    const quest = quests.find(q => q.id === questId);
+    if (!quest || !quest.objectives[objIdx]) return;
+    quest.objectives[objIdx].completed = !quest.objectives[objIdx].completed;
+    await this.actor.update({ "system.quests": quests });
   }
 
-  /** Pull every (updatable) member's Gold into the shared treasury. */
-  static async #onCollectGold() {
-    const members = this.#resolvedMembers().filter((m) => m.isOwner);
-    let pooled = 0;
-    const updates = [];
-    for (const m of members) {
-      const g = m.system.gold ?? 0;
-      if (g > 0) { pooled += g; updates.push(m.update({ "system.gold": 0 })); }
+  static async #onAddObjective(event, target) {
+    const questId = target.closest("[data-quest-id]")?.dataset.questId;
+    const quests = foundry.utils.deepClone(this.actor.system.quests);
+    const quest = quests.find(q => q.id === questId);
+    if (!quest) return;
+    quest.objectives.push({ text: "", completed: false });
+    await this.actor.update({ "system.quests": quests });
+  }
+
+  static async #onDeleteObjective(event, target) {
+    const questId = target.closest("[data-quest-id]")?.dataset.questId;
+    const objIdx = Number(target.dataset.objectiveIndex);
+    const quests = foundry.utils.deepClone(this.actor.system.quests);
+    const quest = quests.find(q => q.id === questId);
+    if (!quest) return;
+    quest.objectives.splice(objIdx, 1);
+    await this.actor.update({ "system.quests": quests });
+  }
+
+  static #onFilterQuests(event, target) {
+    this._questFilter = target.dataset.filter ?? "all";
+    this.render();
+  }
+
+  static #onToggleQuestExpand(event, target) {
+    const questId = target.closest("[data-quest-id]")?.dataset.questId;
+    if (!questId) return;
+    if (this._expandedQuests.has(questId)) this._expandedQuests.delete(questId);
+    else this._expandedQuests.add(questId);
+    this.render();
+  }
+
+  /* -------------------------------------------- */
+  /*  Render Hooks                                 */
+  /* -------------------------------------------- */
+
+  /** @override */
+  _onRender(context, options) {
+    super._onRender(context, options);
+
+    // Handle role select changes manually to avoid form serialization
+    // wiping the members array (form only has role fields, not full member data)
+    for (const select of this.element.querySelectorAll("select.role-select[data-role-index]")) {
+      select.addEventListener("change", async (e) => {
+        const idx = Number(e.target.dataset.roleIndex);
+        const members = foundry.utils.deepClone(this.actor.system.members);
+        if (members[idx]) {
+          members[idx].role = e.target.value;
+          await this.actor.update({ "system.members": members });
+        }
+      });
     }
-    if (!pooled) return;
-    await Promise.all(updates);
-    await this.actor.update({ "system.gold": (this.actor.system.gold ?? 0) + pooled });
-    ui.notifications.info(game.i18n.format("PROJECTANIME.Party.collectDone", { gold: pooled }));
-  }
 
-  /** Open a listed member's / monster's own sheet. */
-  static async #onOpenActor(event, target) {
-    const el = target.closest("[data-ref], [data-uuid]");
-    const ref = el?.dataset.ref ?? el?.dataset.uuid;
-    const actor = ref ? await fromUuid(ref) : null;
-    actor?.sheet?.render(true);
+    // Ensure the active tab is always visible after any re-render
+    const activeTab = this.tabGroups?.primary ?? "members";
+    const tabs = this.element.querySelectorAll("[data-group='primary'][data-tab]");
+    for (const tab of tabs) {
+      tab.classList.toggle("active", tab.dataset.tab === activeTab);
+    }
+    const navButtons = this.element.querySelectorAll("[data-group='primary'][data-action='tab']");
+    for (const btn of navButtons) {
+      btn.classList.toggle("active", btn.dataset.tab === activeTab);
+    }
+
+    // Restore expanded quest card state
+    for (const questId of this._expandedQuests) {
+      const card = this.element.querySelector(`.quest-card[data-quest-id="${questId}"]`);
+      if (card) card.classList.add("expanded");
+    }
   }
 }

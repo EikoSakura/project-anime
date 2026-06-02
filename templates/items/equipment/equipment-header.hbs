@@ -1,0 +1,38 @@
+<div class="equip-header-wrapper">
+  <div class="crystal-card equip-header">
+    <div class="equip-header__portrait">
+      <img class="equip-portrait-img" src="{{item.img}}" data-action="editImage"
+           data-edit="img" title="{{item.name}}" width="96" height="96" />
+    </div>
+
+    <div class="equip-header__fields">
+
+      {{!-- Row 1: Name --}}
+      <div class="equip-header__name">
+        <input name="name" type="text" value="{{item.name}}"
+               placeholder="{{localize 'SHARDS.ItemName'}}" />
+      </div>
+
+      {{!-- Row 2: Slot dropdown + Gold Value + Clickable Rank badge --}}
+      <div class="equip-header__meta">
+        <select name="system.slot" class="equip-slot-select">
+          {{#each slotOptions}}
+          <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+        <div class="equip-header__gold">
+          <i class="fa-solid fa-coins"></i>
+          <input type="number" name="system.goldValue" value="{{system.goldValue}}"
+                 min="0" step="1" class="equip-gold-input"
+                 title="{{localize 'SHARDS.Manacite.GoldValue'}}" placeholder="0" />
+        </div>
+        <span class="rank-badge" data-rank="{{system.rank}}"
+              data-action="cycleRank"
+              title="Rank {{system.rank}}">
+          {{system.rank}}
+        </span>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,12 @@
+<div class="codex-hub-grid">
+  {{#each browsers}}
+  <button type="button" class="codex-hub-card" data-action="openBrowser" data-browser-key="{{this.key}}">
+    <i class="codex-hub-card__icon {{this.icon}}"></i>
+    <div class="codex-hub-card__text">
+      <span class="codex-hub-card__label">{{this.label}}</span>
+      <span class="codex-hub-card__desc">{{this.description}}</span>
+    </div>
+    <i class="codex-hub-card__arrow fa-solid fa-chevron-right"></i>
+  </button>
+  {{/each}}
+</div>

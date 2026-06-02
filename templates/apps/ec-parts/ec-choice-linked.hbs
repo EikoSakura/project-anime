@@ -1,0 +1,82 @@
+{{!-- Choice-Linked Effect builder: create AEs with {CHOICE_VALUE} placeholders --}}
+<div class="ec-choice-linked-form">
+
+  {{#if choiceLinked}}
+
+  {{!-- Choice Set selector (only shown if multiple sets) --}}
+  {{#if choiceLinked.hasMultipleSets}}
+  <div class="ec-builder-row">
+    <label>{{localize "SHARDS.EffectCreator.ChoiceLinkedSet"}}</label>
+    <select data-field="cl-choice-set" class="ec-cl-set-select">
+      {{#each choiceLinked.sets}}
+      <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+      {{/each}}
+    </select>
+  </div>
+  {{else}}
+  <input type="hidden" data-field="cl-choice-set" value="{{choiceLinked.selectedSetId}}" />
+  {{/if}}
+
+  {{!-- Effect Type selector --}}
+  <div class="ec-builder-row">
+    <label>{{localize "SHARDS.EffectCreator.ChoiceLinkedType"}}</label>
+    <select data-field="cl-template" class="ec-cl-template-select">
+      {{#each choiceLinked.templates}}
+      <option value="{{this.id}}"
+              data-needs-tier="{{this.needsTier}}"
+              data-needs-value="{{this.needsValue}}"
+              data-needs-custom="{{this.needsCustom}}">{{this.label}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  {{!-- Resistance Tier (for elementRes template) --}}
+  <div class="ec-builder-row ec-cl-conditional" data-cl-for="tier">
+    <label>{{localize "SHARDS.EffectCreator.ChoiceLinkedTier"}}</label>
+    <select data-field="cl-tier">
+      {{#each choiceLinked.tierOptions}}
+      <option value="{{this.value}}">{{this.label}}</option>
+      {{/each}}
+    </select>
+  </div>
+
+  {{!-- Value input (for statBonus/growthRate templates) --}}
+  <div class="ec-builder-row ec-cl-conditional" data-cl-for="value">
+    <label>{{localize "SHARDS.EffectCreator.Value"}}</label>
+    <input type="text" data-field="cl-value" placeholder="{{localize 'SHARDS.EffectCreator.ValueHint'}}" />
+  </div>
+
+  {{!-- Custom fields (for custom template) --}}
+  <div class="ec-builder-row ec-cl-conditional" data-cl-for="custom">
+    <label>{{localize "SHARDS.EffectCreator.ChoiceLinkedCustomKey"}}</label>
+    <input type="text" data-field="cl-custom-key" placeholder="system.field.{CHOICE_VALUE}" />
+  </div>
+  <div class="ec-builder-row ec-cl-conditional" data-cl-for="custom">
+    <label>{{localize "SHARDS.EffectCreator.ChoiceLinkedCustomValue"}}</label>
+    <input type="text" data-field="cl-custom-value" placeholder="{CHOICE_VALUE}" />
+  </div>
+  <div class="ec-builder-row ec-cl-conditional" data-cl-for="custom">
+    <label>{{localize "SHARDS.EffectCreator.ModeOverride"}}</label>
+    <select data-field="cl-custom-mode">
+      <option value="2">{{localize "SHARDS.EffectCreator.ModeAdd"}}</option>
+      <option value="5">{{localize "SHARDS.EffectCreator.ModeOverride"}}</option>
+    </select>
+  </div>
+
+  {{!-- Name override --}}
+  <div class="ec-builder-row">
+    <label>{{localize "SHARDS.EffectCreator.EffectName"}}</label>
+    <input type="text" data-field="cl-name" placeholder="{{localize 'SHARDS.EffectCreator.AutoName'}}" />
+  </div>
+
+  {{!-- Create button --}}
+  <button type="button" class="ec-apply-btn" data-action="createChoiceLinkedEffect">
+    <i class="fa-solid fa-wand-sparkles"></i>
+    {{localize "SHARDS.EffectCreator.Create"}}
+  </button>
+
+  {{else}}
+  <p class="muted">{{localize "SHARDS.EffectCreator.ChoiceLinkedNoSets"}}</p>
+  {{/if}}
+
+</div>

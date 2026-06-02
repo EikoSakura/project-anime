@@ -1,0 +1,71 @@
+<div class="job-header-wrapper">
+  <div class="crystal-card job-header">
+    <div class="job-header__portrait">
+      <img class="job-portrait-img" src="{{item.img}}" data-action="editImage"
+           data-edit="img" title="{{item.name}}" width="96" height="96" />
+    </div>
+
+    <div class="job-header__fields">
+
+      {{!-- Row 1: Name --}}
+      <div class="job-header__name">
+        <input name="name" type="text" value="{{item.name}}"
+               placeholder="{{localize 'SHARDS.ItemName'}}" />
+      </div>
+
+      {{!-- Row 2: Type label + Rank badge + Category badge + Category select --}}
+      <div class="job-header__meta">
+        <span class="item-type-label">{{localize "SHARDS.ItemType.job"}}</span>
+        <span class="rank-badge" data-rank="{{system.rank}}"
+              data-action="cycleRank"
+              title="Rank {{system.rank}}">
+          {{system.rank}}
+        </span>
+        <span class="job-category-badge" data-category="{{system.category}}">
+          {{categoryLabel}}
+        </span>
+        <select name="system.category" class="job-category-select">
+          {{#each categoryOptions}}
+          <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>
+            {{this.label}}
+          </option>
+          {{/each}}
+        </select>
+        <select name="system.school" class="job-school-select">
+          {{#each schoolOptions}}
+          <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>
+            {{this.label}}
+          </option>
+          {{/each}}
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  {{!-- Proficiencies Panel --}}
+  <div class="crystal-card job-proficiencies">
+    <div class="job-proficiencies__section">
+      <span class="job-proficiencies__label">{{localize "SHARDS.Job.WeaponProf"}}</span>
+      <div class="job-proficiencies__chips">
+        {{#each weaponProfOptions}}
+        <button type="button" class="prof-chip {{#if active}}prof-chip--active{{/if}}"
+                data-action="toggleProficiency" data-field="weaponProficiencies" data-value="{{key}}">
+          <span class="prof-chip__text">{{label}}</span>
+        </button>
+        {{/each}}
+      </div>
+    </div>
+    <div class="job-proficiencies__section">
+      <span class="job-proficiencies__label">{{localize "SHARDS.Job.ArmorProf"}}</span>
+      <div class="job-proficiencies__chips">
+        {{#each armorProfOptions}}
+        <button type="button" class="prof-chip {{#if active}}prof-chip--active{{/if}}"
+                data-action="toggleProficiency" data-field="armorProficiencies" data-value="{{key}}">
+          <span class="prof-chip__text">{{label}}</span>
+        </button>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,119 @@
+<section class="tab equipment" data-group="primary" data-tab="equipment">
+
+  {{!-- MMO Equipment Frame --}}
+  <div class="paperdoll-frame">
+
+    {{!-- Frame Header --}}
+    <div class="paperdoll-frame__header">
+      <span>{{localize "SHARDS.EquipmentLabel"}} <span class="paperdoll-frame__count">({{equippedCount}}/6)</span></span>
+      <button type="button" class="crystal-btn crystal-btn--small" data-action="browseEquipment">
+        <i class="fa-solid fa-magnifying-glass"></i> {{localize "SHARDS.Browser.Browse"}}
+      </button>
+    </div>
+
+    {{!-- Paperdoll Grid: left slots | portrait | right slots --}}
+    <div class="paperdoll-grid">
+
+      {{!-- Left Column: Weapon, Helm, Armor --}}
+      <div class="paperdoll-column paperdoll-column--left">
+        {{#each leftSlots as |slot|}}
+        <div class="paperdoll-slot
+                    {{#if slot.isLocked}}paperdoll-slot--locked{{/if}}
+                    {{#if slot.isEmpty}}paperdoll-slot--empty{{/if}}
+                    {{#if slot.item}}paperdoll-slot--filled{{/if}}"
+             data-slot="{{slot.slotKey}}"
+             {{#if slot.item}}data-item-id="{{slot.item._id}}" data-rank="{{slot.item.rank}}" data-action="editItem"{{/if}}
+             {{#if slot.isEmpty}}data-action="openSlotBrowser"{{/if}}>
+          {{#if slot.isLocked}}
+            <div class="paperdoll-slot__lock">
+              <i class="fa-solid fa-lock"></i>
+            </div>
+          {{else if slot.item}}
+            <img class="paperdoll-slot__icon" src="{{slot.item.img}}" width="48" height="48" />
+            <span class="rank-badge rank-badge--mini" data-rank="{{slot.item.rank}}">{{slot.item.rank}}</span>
+            {{#if slot.item.handednessAbbrev}}
+            <span class="paperdoll-slot__handedness">{{slot.item.handednessAbbrev}}</span>
+            {{/if}}
+            {{#if slot.item.oversizedWarning}}
+            <i class="fa-solid fa-triangle-exclamation paperdoll-slot__warning"></i>
+            {{/if}}
+          {{else}}
+            <div class="paperdoll-slot__placeholder">
+              <i class="{{slot.slotIcon}}"></i>
+            </div>
+          {{/if}}
+          <span class="paperdoll-slot__label">{{slot.slotLabel}}</span>
+        </div>
+        {{/each}}
+      </div>
+
+      {{!-- Center: Portrait --}}
+      <div class="paperdoll-portrait">
+        <div class="paperdoll-portrait__glow"></div>
+        <div class="paperdoll-portrait__frame">
+          <img src="{{actorImg}}" class="paperdoll-portrait__img" />
+        </div>
+      </div>
+
+      {{!-- Right Column: Offhand, Accessory1, Accessory2 --}}
+      <div class="paperdoll-column paperdoll-column--right">
+        {{#each rightSlots as |slot|}}
+        <div class="paperdoll-slot
+                    {{#if slot.isLocked}}paperdoll-slot--locked{{/if}}
+                    {{#if slot.isEmpty}}paperdoll-slot--empty{{/if}}
+                    {{#if slot.item}}paperdoll-slot--filled{{/if}}"
+             data-slot="{{slot.slotKey}}"
+             {{#if slot.item}}data-item-id="{{slot.item._id}}" data-rank="{{slot.item.rank}}" data-action="editItem"{{/if}}
+             {{#if slot.isEmpty}}data-action="openSlotBrowser"{{/if}}>
+          {{#if slot.isLocked}}
+            <div class="paperdoll-slot__lock">
+              <i class="fa-solid fa-lock"></i>
+            </div>
+          {{else if slot.item}}
+            <img class="paperdoll-slot__icon" src="{{slot.item.img}}" width="48" height="48" />
+            <span class="rank-badge rank-badge--mini" data-rank="{{slot.item.rank}}">{{slot.item.rank}}</span>
+            {{#if slot.item.handednessAbbrev}}
+            <span class="paperdoll-slot__handedness">{{slot.item.handednessAbbrev}}</span>
+            {{/if}}
+            {{#if slot.item.oversizedWarning}}
+            <i class="fa-solid fa-triangle-exclamation paperdoll-slot__warning"></i>
+            {{/if}}
+          {{else}}
+            <div class="paperdoll-slot__placeholder">
+              <i class="{{slot.slotIcon}}"></i>
+            </div>
+          {{/if}}
+          <span class="paperdoll-slot__label">{{slot.slotLabel}}</span>
+        </div>
+        {{/each}}
+      </div>
+
+    </div>
+  </div>
+
+  {{!-- Inventory Grid: Unequipped equipment items --}}
+  <div class="equip-inventory-section">
+    <span class="section-label"><i class="fa-solid fa-sack"></i> {{localize "SHARDS.Inventory.Unequipped"}}</span>
+
+    {{#if unequippedItems.length}}
+    <div class="equip-inventory-grid">
+      {{#each unequippedItems as |item|}}
+      <div class="equip-inv-card" data-item-id="{{item._id}}" data-rank="{{item.rank}}"
+           data-action="toggleEquip">
+        <img class="equip-inv-card__icon" src="{{item.img}}" width="36" height="36" />
+        <div class="equip-inv-card__info">
+          <span class="equip-inv-card__name">{{item.name}}</span>
+          <span class="equip-inv-card__slot">{{item.slotLabel}}</span>
+        </div>
+        <span class="rank-badge rank-badge--micro" data-rank="{{item.rank}}">{{item.rank}}</span>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="crystal-empty crystal-empty--small">
+      {{localize "SHARDS.Inventory.Empty"}}
+    </p>
+    {{/if}}
+  </div>
+
+</section>

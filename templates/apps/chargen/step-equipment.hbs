@@ -1,0 +1,51 @@
+<div class="chargen-equipment">
+
+  <p class="chargen-hint">{{localize "SHARDS.CharGen.Equipment.Hint"}}</p>
+
+  {{!-- Gold Budget --}}
+  <div class="chargen-gold-budget {{#if (eq remainingGold 0)}}spent{{/if}} {{#if (lt remainingGold 0)}}over{{/if}}">
+    <i class="fa-solid fa-coins"></i>
+    <span class="chargen-gold-budget__remaining">{{remainingGold}}</span>
+    <span class="chargen-gold-budget__separator">/</span>
+    <span class="chargen-gold-budget__total">{{startingGold}}</span>
+    <span class="chargen-gold-budget__label">{{localize "SHARDS.CharGen.Equipment.GoldRemaining"}}</span>
+  </div>
+
+  {{!-- Selected Equipment List --}}
+  {{#if state.selectedEquipment.length}}
+  <div class="chargen-selection-list">
+    {{#each state.selectedEquipment}}
+    <div class="chargen-selection-card chargen-selection-card--compact">
+      <img src="{{this.img}}" alt="{{this.name}}" class="chargen-selection-card__img" />
+      <div class="chargen-selection-card__info">
+        <h3 class="chargen-selection-card__name">{{this.name}}</h3>
+        <div class="chargen-selection-card__details">
+          {{#if this.system.slot}}
+          <span class="chargen-tag">{{this.system.slot}}</span>
+          {{/if}}
+          <span class="chargen-detail">
+            <i class="fa-solid fa-coins"></i>
+            {{#if this.goldValue}}{{this.goldValue}}g{{else}}{{localize "SHARDS.CharGen.Equipment.Free"}}{{/if}}
+          </span>
+        </div>
+      </div>
+      <button type="button" class="chargen-selection-card__remove" data-action="removeEquipment" data-index="{{@index}}" title="{{localize "SHARDS.CharGen.Remove"}}">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    {{/each}}
+  </div>
+  {{else}}
+  <div class="chargen-empty-state">
+    <i class="fa-solid fa-shield chargen-empty-state__icon"></i>
+    <p>{{localize "SHARDS.CharGen.Equipment.Empty"}}</p>
+  </div>
+  {{/if}}
+
+  <div class="chargen-browse-actions">
+    <button type="button" class="chargen-browse-btn" data-action="browseEquipment">
+      <i class="fa-solid fa-book-sparkles"></i> {{localize "SHARDS.CharGen.Equipment.Browse"}}
+    </button>
+  </div>
+
+</div>

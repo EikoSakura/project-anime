@@ -1,0 +1,29 @@
+<section class="tab duration" data-group="primary" data-tab="duration">
+  <div class="ae-duration-fields">
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.DurationRounds"}}</label>
+      <input type="number" name="duration.rounds" value="{{source.duration.rounds}}" min="0" data-dtype="Number" />
+    </div>
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.DurationTurns"}}</label>
+      <input type="number" name="duration.turns" value="{{source.duration.turns}}" min="0" data-dtype="Number" />
+    </div>
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.DurationSeconds"}}</label>
+      <input type="number" name="duration.seconds" value="{{source.duration.seconds}}" min="0" data-dtype="Number" />
+    </div>
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.StartRound"}}</label>
+      <input type="number" name="duration.startRound" value="{{source.duration.startRound}}" data-dtype="Number" />
+    </div>
+    <div class="ae-field">
+      <label>{{localize "SHARDS.AE.StartTurn"}}</label>
+      <input type="number" name="duration.startTurn" value="{{source.duration.startTurn}}" data-dtype="Number" />
+    </div>
+  </div>
+  {{#if isTemporary}}
+  <div class="ae-duration-summary">
+    <span class="ae-duration-label">{{effect.duration.label}}</span>
+  </div>
+  {{/if}}
+</section>

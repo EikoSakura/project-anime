@@ -1,0 +1,73 @@
+<div class="chargen-wizard" data-theme="{{sheetTheme}}">
+
+  {{!-- Progress Bar --}}
+  <nav class="chargen-progress">
+    {{#each steps}}
+    <button type="button" class="chargen-progress__step{{#if this.current}} current{{/if}}{{#if this.completed}} completed{{/if}}"
+      data-action="goToStep" data-step="{{this.index}}"
+      {{#unless this.accessible}}disabled{{/unless}}
+      title="{{this.localizedLabel}}">
+      <span class="chargen-progress__icon">
+        {{#if this.completed}}
+        <i class="fa-solid fa-check"></i>
+        {{else}}
+        <i class="{{this.icon}}"></i>
+        {{/if}}
+      </span>
+      <span class="chargen-progress__label">{{this.localizedLabel}}</span>
+    </button>
+    {{#unless @last}}
+    <span class="chargen-progress__connector{{#if this.completed}} completed{{/if}}"></span>
+    {{/unless}}
+    {{/each}}
+  </nav>
+
+  {{!-- Step Header --}}
+  <header class="chargen-step-header">
+    <span class="chargen-step-header__number">{{localize "SHARDS.CharGen.StepOf" step=stepNumber total=totalSteps}}</span>
+    <h2 class="chargen-step-header__title">{{currentStepLabel}}</h2>
+  </header>
+
+  {{!-- Step Content (scrollable) --}}
+  <div class="chargen-step-content">
+
+    {{#if (eq currentStepId "identity")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-identity.hbs"}}
+    {{else if (eq currentStepId "lineage")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-species.hbs"}}
+    {{else if (eq currentStepId "stats")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-stats.hbs"}}
+    {{else if (eq currentStepId "growth")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-growth.hbs"}}
+    {{else if (eq currentStepId "job")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-job.hbs"}}
+    {{else if (eq currentStepId "equipment")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-equipment.hbs"}}
+    {{else if (eq currentStepId "biography")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-biography.hbs"}}
+    {{else if (eq currentStepId "review")}}
+      {{> "systems/shards-of-mana/templates/apps/chargen/step-review.hbs"}}
+    {{/if}}
+
+  </div>
+
+  {{!-- Navigation Footer --}}
+  <footer class="chargen-nav">
+    {{#unless isFirstStep}}
+    <button type="button" class="chargen-nav__btn chargen-nav__btn--back" data-action="prevStep">
+      <i class="fa-solid fa-arrow-left"></i> {{localize "SHARDS.CharGen.Back"}}
+    </button>
+    {{/unless}}
+    <div class="chargen-nav__spacer"></div>
+    {{#if isReviewStep}}
+    <button type="button" class="chargen-nav__btn chargen-nav__btn--finish" data-action="finalize">
+      <i class="fa-solid fa-sparkles"></i> {{localize "SHARDS.CharGen.Finish"}}
+    </button>
+    {{else}}
+    <button type="button" class="chargen-nav__btn chargen-nav__btn--next" data-action="nextStep">
+      {{localize "SHARDS.CharGen.Next"}} <i class="fa-solid fa-arrow-right"></i>
+    </button>
+    {{/if}}
+  </footer>
+
+</div>

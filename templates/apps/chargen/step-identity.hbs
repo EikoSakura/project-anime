@@ -1,0 +1,56 @@
+<div class="chargen-identity">
+
+  {{!-- Name --}}
+  <div class="chargen-field chargen-field--name">
+    <label>{{localize "SHARDS.CharGen.Identity.Name"}} <span class="required">*</span></label>
+    <input type="text" data-chargen-field="name" value="{{state.name}}" placeholder="{{localize "SHARDS.CharGen.Identity.NamePlaceholder"}}" autofocus />
+  </div>
+
+  {{!-- Personal Details Grid --}}
+  <div class="chargen-identity__details">
+    <h3 class="chargen-section-heading">{{localize "SHARDS.CharGen.Identity.PersonalDetails"}}</h3>
+    <div class="chargen-details-grid">
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.Pronouns"}}</label>
+        <input type="text" data-chargen-field="personalDetails.pronouns" value="{{state.personalDetails.pronouns}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.Gender"}}</label>
+        <input type="text" data-chargen-field="personalDetails.gender" value="{{state.personalDetails.gender}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.Age"}}</label>
+        <input type="text" data-chargen-field="personalDetails.age" value="{{state.personalDetails.age}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.Height"}}</label>
+        <input type="text" data-chargen-field="personalDetails.height" value="{{state.personalDetails.height}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.Weight"}}</label>
+        <input type="text" data-chargen-field="personalDetails.weight" value="{{state.personalDetails.weight}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.Build"}}</label>
+        <input type="text" data-chargen-field="personalDetails.build" value="{{state.personalDetails.build}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.HairColor"}}</label>
+        <input type="text" data-chargen-field="personalDetails.hairColor" value="{{state.personalDetails.hairColor}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.EyeColor"}}</label>
+        <input type="text" data-chargen-field="personalDetails.eyeColor" value="{{state.personalDetails.eyeColor}}" />
+      </div>
+      <div class="chargen-field">
+        <label>{{localize "SHARDS.Biography.SkinTone"}}</label>
+        <input type="text" data-chargen-field="personalDetails.skinTone" value="{{state.personalDetails.skinTone}}" />
+      </div>
+      <div class="chargen-field chargen-field--full">
+        <label>{{localize "SHARDS.Biography.DistinguishingFeatures"}}</label>
+        <input type="text" data-chargen-field="personalDetails.distinguishingFeatures" value="{{state.personalDetails.distinguishingFeatures}}" />
+      </div>
+    </div>
+  </div>
+
+</div>

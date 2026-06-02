@@ -1,0 +1,105 @@
+{{!-- Token HUD Overlay — Log Horizon Style --}}
+<div class="thud__panel thud--{{disposition}} thud--{{actorType}}{{#if deploying}} thud__panel--deploying{{/if}}{{#if hpCritical}} thud__panel--hp-critical{{/if}}{{#if hpDanger}} thud__panel--hp-danger{{/if}}{{#if isDowned}} thud__panel--downed{{/if}}"
+     data-actor-id="{{actorId}}"
+     data-tier="{{tier}}"
+     style="{{themeStyle}}">
+
+  {{!-- Decorative corner brackets --}}
+  <div class="thud__corner thud__corner--tl"></div>
+  <div class="thud__corner thud__corner--tr"></div>
+  <div class="thud__corner thud__corner--bl"></div>
+  <div class="thud__corner thud__corner--br"></div>
+
+  {{!-- Scan-line overlay --}}
+  <div class="thud__scanlines"></div>
+
+  {{!-- Animated border sweep --}}
+  <div class="thud__border-sweep"></div>
+
+  {{!-- Name plate --}}
+  <div class="thud__nameplate">
+    <span class="thud__name" data-action="openSheet" data-actor-id="{{actorId}}">{{name}}</span>
+    {{#if level}}
+    <span class="thud__level">Lv.{{level}}</span>
+    {{/if}}
+    {{#if rank}}
+    <span class="thud__rank-badge" data-rank="{{rank}}">{{rank}}</span>
+    {{/if}}
+  </div>
+
+  {{!-- Job line (adventurer only) --}}
+  {{#if jobName}}
+  <div class="thud__job-line">
+    {{#if jobImg}}<img class="thud__job-icon" src="{{jobImg}}" width="16" height="16" />{{/if}}
+    {{#if jobRank}}<span class="thud__rank-badge thud__rank-badge--sm" data-rank="{{jobRank}}">{{jobRank}}</span>{{/if}}
+    <span class="thud__job-name">{{jobName}}</span>
+  </div>
+  {{/if}}
+
+  {{!-- Elevation Indicator --}}
+  {{#if showElevation}}
+  <div class="thud__elevation{{#if elevationFlying}} thud__elevation--flying{{else}} thud__elevation--underground{{/if}}">
+    <span class="thud__elevation-value">{{elevationDisplay}}</span>
+  </div>
+  {{/if}}
+
+  {{!-- HP Bar --}}
+  {{#if showHp}}
+  <div class="thud__bar thud__bar--hp">
+    <span class="thud__bar-label">HP</span>
+    <div class="thud__bar-track">
+      <div class="thud__bar-fill" style="--bar-pct: {{hpPct}}%"></div>
+      <div class="thud__bar-shine"></div>
+    </div>
+    {{#if showValues}}
+    <span class="thud__bar-value">{{hp.value}}<span class="thud__bar-sep">/</span>{{hp.max}}</span>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{!-- MP Bar --}}
+  {{#if showMp}}
+  <div class="thud__bar thud__bar--mp">
+    <span class="thud__bar-label">MP</span>
+    <div class="thud__bar-track">
+      <div class="thud__bar-fill" style="--bar-pct: {{mpPct}}%"></div>
+      <div class="thud__bar-shine"></div>
+    </div>
+    {{#if showValues}}
+    <span class="thud__bar-value">{{mp.value}}<span class="thud__bar-sep">/</span>{{mp.max}}</span>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{!-- Action Pips --}}
+  {{#if pips.max}}
+  <div class="thud__pips">
+    <span class="thud__pips-label">AP</span>
+    {{#each pips.dots}}
+    <span class="thud__pip{{#if this}} thud__pip--filled{{/if}}"></span>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{!-- Active Conditions --}}
+  {{#if activeConditions.length}}
+  <div class="thud__conditions">
+    {{#each activeConditions}}
+    <span class="thud__condition" title="{{this.label}}{{#if (gt this.magnitude 1)}} x{{this.magnitude}}{{/if}}">
+      {{#if this.img}}<img src="{{this.img}}" width="14" height="14" />{{/if}}
+      {{#if (gt this.magnitude 1)}}<span class="thud__condition-mag">{{this.magnitude}}</span>{{/if}}
+    </span>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{!-- Limit Break Gauge --}}
+  {{#if showLb}}
+  <div class="thud__lb{{#if lbReady}} thud__lb--ready{{/if}}" title="Limit Break: {{lbPct}}%">
+    <span class="thud__lb-label">LB</span>
+    <div class="thud__lb-track">
+      <div class="thud__lb-fill" style="width: {{lbPct}}%"></div>
+    </div>
+  </div>
+  {{/if}}
+</div>

@@ -1,0 +1,518 @@
+/* ============================================ */
+/*  Shards of Mana — Equipment Item Sheet       */
+/*  Log Horizon-inspired: clean, orderly,       */
+/*  crystal-themed panels with neat data grids  */
+/* ============================================ */
+
+/* -------------------------------------------- */
+/*  Equipment Header Layout                     */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+}
+
+.shards-of-mana .equip-header__portrait {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border: 2px solid var(--shards-crystal-border);
+  box-shadow:
+    0 0 8px var(--shards-crystal-glow),
+    0 0 16px rgba(0, 212, 160, 0.15);
+  overflow: hidden;
+}
+
+.shards-of-mana .equip-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.shards-of-mana .equip-header__fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shards-of-mana .equip-header__name input {
+  font-family: var(--shards-font-heading);
+  font-size: 1.3em;
+  font-weight: 700;
+  color: var(--shards-accent);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  width: 100%;
+  padding: 0;
+  text-shadow: 0 0 6px var(--shards-gold-glow);
+}
+
+.shards-of-mana .equip-header__name input:focus {
+  border-bottom-color: var(--shards-accent);
+  outline: none;
+}
+
+.shards-of-mana .equip-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shards-of-mana .equip-rank-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Gold value inline field */
+.shards-of-mana .equip-header__gold {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.shards-of-mana .equip-header__gold i {
+  font-size: 0.75em;
+  color: var(--shards-gold, #c4a24e);
+}
+
+.shards-of-mana .equip-gold-input {
+  width: 56px;
+  font-size: 0.8em;
+  padding: 1px 4px;
+  background: var(--shards-bg-input);
+  color: var(--shards-gold, #c4a24e);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+  text-align: right;
+}
+
+.shards-of-mana .equip-gold-input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Selectors (slot in header, sub in details)  */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-slot-select,
+.shards-of-mana .equip-sub-select {
+  flex: 1;
+  font-size: 0.8em;
+  padding: 1px 4px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+  min-width: 0;
+}
+
+.shards-of-mana .equip-slot-select:focus,
+.shards-of-mana .equip-sub-select:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* Classification panel in Details tab */
+.shards-of-mana .equip-panel--classification {
+  border-color: rgba(0, 212, 160, 0.25);
+}
+
+.shards-of-mana .equip-classification-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shards-of-mana .equip-classification-grid .form-group--compact label {
+  min-width: 80px;
+}
+
+/* -------------------------------------------- */
+/*  Scrollable Tab Content                      */
+/* -------------------------------------------- */
+
+.shards-of-mana.equipment-sheet .window-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.shards-of-mana.equipment-sheet .window-content > form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shards-of-mana.equipment-sheet section.tab {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 8px;
+}
+
+/* Crystal scrollbar */
+.shards-of-mana.equipment-sheet section.tab::-webkit-scrollbar {
+  width: 5px;
+}
+
+.shards-of-mana.equipment-sheet section.tab::-webkit-scrollbar-track {
+  background: rgba(6, 8, 16, 0.4);
+  border-radius: 3px;
+}
+
+.shards-of-mana.equipment-sheet section.tab::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 160, 0.35);
+  border-radius: 3px;
+}
+
+.shards-of-mana.equipment-sheet section.tab::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 160, 0.6);
+}
+
+/* -------------------------------------------- */
+/*  Details Tab Layout                          */
+/* -------------------------------------------- */
+
+.shards-of-mana .tab.details.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* -------------------------------------------- */
+/*  Shared Panel Style                          */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-panel {
+  border: 1px solid var(--shards-border);
+  border-radius: 3px;
+  padding: 10px 12px;
+  background: var(--shards-crystal-panel);
+}
+
+.shards-of-mana .equip-panel__heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.8em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--shards-text);
+}
+
+.shards-of-mana .equip-panel__heading i {
+  color: var(--shards-primary-light);
+  font-size: 0.9em;
+}
+
+/* -------------------------------------------- */
+/*  Combat Stats Panel (2×2 grid)               */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-panel--combat {
+  border-color: rgba(212, 64, 64, 0.3);
+  background:
+    linear-gradient(135deg,
+      rgba(212, 64, 64, 0.05) 0%,
+      var(--shards-crystal-panel) 50%
+    );
+}
+
+.shards-of-mana .equip-panel--combat .equip-panel__heading i {
+  color: var(--shards-danger);
+}
+
+.shards-of-mana .equip-combat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+.shards-of-mana .equip-combat-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shards-of-mana .equip-combat-label {
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  min-width: 40px;
+}
+
+.shards-of-mana .equip-combat-label--phys {
+  color: var(--shards-danger);
+}
+
+.shards-of-mana .equip-combat-label--mag {
+  color: var(--shards-primary-light);
+}
+
+.shards-of-mana .equip-combat-field input[type="number"] {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9em;
+  font-weight: 700;
+  padding: 3px 6px;
+  text-align: center;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .equip-combat-field input[type="number"]:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Stat Bonuses Panel                          */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-panel--stats {
+  border-color: rgba(0, 212, 160, 0.25);
+}
+
+.shards-of-mana .equip-stat-total {
+  margin-left: auto;
+  font-size: 0.9em;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 3px;
+}
+
+.shards-of-mana .equip-stat-total.positive {
+  color: var(--shards-primary-light);
+  background: rgba(0, 212, 160, 0.1);
+}
+
+.shards-of-mana .equip-stat-total.negative {
+  color: var(--shards-danger);
+  background: rgba(212, 64, 64, 0.15);
+}
+
+.shards-of-mana .equip-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+}
+
+.shards-of-mana .equip-stat-row {
+  display: grid;
+  grid-template-columns: 30px 1fr 50px;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: rgba(14, 20, 32, 0.4);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+  height: 24px;
+}
+
+.shards-of-mana .equip-stat-row__abbrev {
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--shards-primary-light);
+  letter-spacing: 0.04em;
+}
+
+.shards-of-mana .equip-stat-row__label {
+  font-size: 0.72em;
+  color: var(--shards-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shards-of-mana .equip-stat-input {
+  width: 50px;
+  height: 18px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8em;
+  padding: 1px 2px;
+  background: rgba(14, 20, 32, 0.4);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.shards-of-mana .equip-stat-input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+.shards-of-mana .equip-stat-input.positive {
+  color: var(--shards-primary-light);
+}
+
+.shards-of-mana .equip-stat-input.negative {
+  color: var(--shards-danger);
+}
+
+/* -------------------------------------------- */
+/*  Properties Panel                            */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-panel--properties {
+  border-color: rgba(224, 165, 38, 0.3);
+  background:
+    linear-gradient(135deg,
+      rgba(224, 165, 38, 0.04) 0%,
+      var(--shards-crystal-panel) 50%
+    );
+}
+
+.shards-of-mana .equip-panel--properties .equip-panel__heading i {
+  color: var(--shards-accent);
+}
+
+.shards-of-mana .equip-properties-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  min-height: 28px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--shards-border);
+  border-radius: 3px;
+}
+
+.shards-of-mana .equip-property-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  padding-right: 3px;
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #e0d0a0;
+  background: rgba(160, 120, 40, 0.3);
+  border: 1px solid rgba(200, 150, 50, 0.35);
+  border-radius: 3px;
+}
+
+.shards-of-mana .equip-property-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.85em;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.shards-of-mana .equip-property-remove:hover {
+  opacity: 1;
+  color: #ff8888;
+}
+
+.shards-of-mana .equip-property-input {
+  flex: 1;
+  min-width: 80px;
+  border: none;
+  background: transparent;
+  color: var(--shards-text);
+  font-size: 0.75em;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.shards-of-mana .equip-property-input::placeholder {
+  color: var(--shards-text-muted);
+  opacity: 0.6;
+}
+
+/* -------------------------------------------- */
+/*  Description Tab                             */
+/* -------------------------------------------- */
+
+.shards-of-mana .tab.description.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shards-of-mana .equip-description-editor {
+  min-height: 200px;
+}
+
+/* -------------------------------------------- */
+/*  Count Badge (shared)                        */
+/* -------------------------------------------- */
+
+.shards-of-mana.equipment-sheet .count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 0.7em;
+  font-weight: 700;
+  background: rgba(0, 212, 160, 0.15);
+  border: 1px solid rgba(0, 212, 160, 0.25);
+  border-radius: 8px;
+  color: var(--shards-primary-light);
+  margin-left: auto;
+}
+
+/* -------------------------------------------- */
+/*  Oversized Weapon Panel                      */
+/* -------------------------------------------- */
+
+.shards-of-mana .equip-panel--oversized {
+  border-color: rgba(230, 126, 34, 0.3);
+  background:
+    linear-gradient(135deg,
+      rgba(230, 126, 34, 0.04) 0%,
+      var(--shards-crystal-panel) 50%
+    );
+}
+
+.shards-of-mana .equip-panel--oversized .equip-panel__heading i {
+  color: #e67e22;
+}
+
+.shards-of-mana .equip-panel__subheading {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--shards-text-muted);
+  margin: 6px 0 4px;
+  padding: 0;
+}
+
+.shards-of-mana .equip-oversized-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.shards-of-mana .equip-oversized-penalties-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}

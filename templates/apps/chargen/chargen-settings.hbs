@@ -1,0 +1,66 @@
+<form class="chargen-settings-form" autocomplete="off">
+  <h2 class="chargen-settings-form__title">
+    <i class="fa-solid fa-wand-magic-sparkles"></i>
+    {{localize "SHARDS.CharGen.SettingsTitle"}}
+  </h2>
+
+  {{!-- Stat Distribution --}}
+  <fieldset>
+    <legend>{{localize "SHARDS.CharGen.Settings.StatDistribution"}}</legend>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.StatPool"}}</label>
+      <input type="number" name="statPool" value="{{statPool}}" min="0" max="200" step="1" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.StatPoolHint"}}</p>
+    </div>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.StatCap"}}</label>
+      <input type="number" name="statCap" value="{{statCap}}" min="10" max="99" step="1" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.StatCapHint"}}</p>
+    </div>
+  </fieldset>
+
+  {{!-- Growth Rate Distribution --}}
+  <fieldset>
+    <legend>{{localize "SHARDS.CharGen.Settings.GrowthDistribution"}}</legend>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.GrowthPool"}}</label>
+      <input type="number" name="growthPool" value="{{growthPool}}" min="0" max="800" step="10" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.GrowthPoolHint"}}</p>
+    </div>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.GrowthMin"}}</label>
+      <input type="number" name="growthMin" value="{{growthMin}}" min="0" max="100" step="5" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.GrowthMinHint"}}</p>
+    </div>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.GrowthMax"}}</label>
+      <input type="number" name="growthMax" value="{{growthMax}}" min="10" max="200" step="5" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.GrowthMaxHint"}}</p>
+    </div>
+  </fieldset>
+
+  {{!-- Starting Options --}}
+  <fieldset>
+    <legend>{{localize "SHARDS.CharGen.Settings.StartingOptions"}}</legend>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.TraitCount"}}</label>
+      <input type="number" name="traitCount" value="{{traitCount}}" min="0" max="10" step="1" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.TraitCountHint"}}</p>
+    </div>
+    <div class="form-group">
+      <label>{{localize "SHARDS.CharGen.Settings.StartingGold"}}</label>
+      <input type="number" name="startingGold" value="{{startingGold}}" min="0" max="99999" step="50" />
+      <p class="hint">{{localize "SHARDS.CharGen.Settings.StartingGoldHint"}}</p>
+    </div>
+  </fieldset>
+
+  {{!-- Footer --}}
+  <footer class="chargen-settings-form__footer">
+    <button type="button" data-action="resetDefaults">
+      <i class="fa-solid fa-rotate-left"></i> {{localize "SHARDS.CharGen.Settings.ResetDefaults"}}
+    </button>
+    <button type="submit">
+      <i class="fa-solid fa-save"></i> {{localize "SHARDS.CharGen.Settings.Save"}}
+    </button>
+  </footer>
+</form>

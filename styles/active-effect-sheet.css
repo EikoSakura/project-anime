@@ -1,0 +1,284 @@
+/* ============================================ */
+/*  Shards of Mana — Active Effect Config       */
+/*  Log Horizon MMO HUD Aesthetic               */
+/* ============================================ */
+
+.shards-ae-sheet {
+  --ae-accent: #00d4a0;
+  --ae-accent-light: #33eebb;
+  --ae-accent-glow: rgba(0, 212, 160, 0.25);
+  --ae-bg: rgba(4, 6, 12, 0.98);
+  --ae-panel: rgba(8, 10, 18, 0.6);
+  --ae-border: rgba(0, 212, 160, 0.25);
+  --ae-border-dim: rgba(60, 60, 80, 0.4);
+  --ae-input-bg: rgba(3, 4, 10, 0.6);
+  --ae-input-border: rgba(60, 60, 80, 0.5);
+}
+
+/* -------------------------------------------- */
+/*  Header                                      */
+/* -------------------------------------------- */
+
+.shards-ae-sheet .ae-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(3, 4, 10, 0.8) 0%, rgba(6, 10, 18, 0.6) 100%);
+  border-bottom: 1px solid var(--ae-border);
+}
+
+.shards-ae-sheet .ae-header__img {
+  border-radius: 4px;
+  border: 2px solid var(--ae-border);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.shards-ae-sheet .ae-header__img:hover {
+  border-color: var(--ae-accent);
+  box-shadow: 0 0 8px var(--ae-accent-glow);
+}
+
+.shards-ae-sheet .ae-header__identity {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shards-ae-sheet .ae-header__name {
+  flex: 1;
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--ae-border-dim);
+  color: #e0dce8;
+  padding: 2px 4px;
+  transition: border-color 0.2s;
+}
+
+.shards-ae-sheet .ae-header__name:focus {
+  border-bottom-color: var(--ae-accent);
+  outline: none;
+  box-shadow: 0 1px 0 var(--ae-accent-glow);
+}
+
+.shards-ae-sheet .ae-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.shards-ae-sheet .ae-status-dot.active {
+  background: #40c060;
+  box-shadow: 0 0 6px rgba(64, 192, 96, 0.5);
+}
+
+.shards-ae-sheet .ae-status-dot.disabled {
+  background: #666;
+  box-shadow: none;
+}
+
+.shards-ae-sheet .ae-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: rgba(160, 160, 180, 0.7);
+  cursor: pointer;
+}
+
+.shards-ae-sheet .ae-toggle input[type="checkbox"] {
+  accent-color: var(--ae-accent);
+}
+
+/* -------------------------------------------- */
+/*  Details Tab                                 */
+/* -------------------------------------------- */
+
+.shards-ae-sheet .ae-detail-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+}
+
+.shards-ae-sheet .ae-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.shards-ae-sheet .ae-field--full {
+  grid-column: 1 / -1;
+}
+
+.shards-ae-sheet .ae-field label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ae-accent-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.shards-ae-sheet .ae-field input[type="text"],
+.shards-ae-sheet .ae-field input[type="number"],
+.shards-ae-sheet .ae-field textarea,
+.shards-ae-sheet .ae-field select {
+  background: var(--ae-input-bg);
+  border: 1px solid var(--ae-input-border);
+  border-radius: 3px;
+  color: #e0dce8;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+}
+
+.shards-ae-sheet .ae-field input:focus,
+.shards-ae-sheet .ae-field textarea:focus,
+.shards-ae-sheet .ae-field select:focus {
+  border-color: rgba(0, 212, 160, 0.5);
+  outline: none;
+  box-shadow: 0 0 4px var(--ae-accent-glow);
+}
+
+.shards-ae-sheet .ae-field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.shards-ae-sheet .ae-readonly {
+  font-size: 0.8rem;
+  color: rgba(160, 160, 180, 0.6);
+  padding: 4px 0;
+}
+
+/* -------------------------------------------- */
+/*  Changes Tab                                 */
+/* -------------------------------------------- */
+
+.shards-ae-sheet .ae-changes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+}
+
+.shards-ae-sheet .ae-change-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 60px 24px;
+  gap: 4px;
+  align-items: center;
+  padding: 5px 8px;
+  background: rgba(3, 4, 10, 0.4);
+  border: 1px solid var(--ae-border-dim);
+  border-left: 3px solid var(--ae-accent);
+  border-radius: 4px;
+  transition: border-color 0.15s;
+}
+
+.shards-ae-sheet .ae-change-row:hover {
+  border-color: var(--ae-border);
+  border-left-color: var(--ae-accent);
+}
+
+.shards-ae-sheet .ae-change-row select,
+.shards-ae-sheet .ae-change-row input {
+  background: var(--ae-input-bg);
+  border: 1px solid var(--ae-input-border);
+  border-radius: 3px;
+  color: #e0dce8;
+  padding: 3px 4px;
+  font-size: 0.75rem;
+  width: 100%;
+}
+
+.shards-ae-sheet .ae-change-row select:focus,
+.shards-ae-sheet .ae-change-row input:focus {
+  border-color: rgba(0, 212, 160, 0.5);
+  outline: none;
+}
+
+.shards-ae-sheet .ae-change-delete {
+  cursor: pointer;
+  color: rgba(160, 160, 180, 0.5);
+  text-align: center;
+  transition: color 0.15s;
+}
+
+.shards-ae-sheet .ae-change-delete:hover {
+  color: #ff8888;
+}
+
+.shards-ae-sheet .ae-changes-empty {
+  text-align: center;
+  font-style: italic;
+  color: rgba(160, 160, 180, 0.5);
+  font-size: 0.8rem;
+  padding: 12px 0;
+}
+
+.shards-ae-sheet .add-effect-btn {
+  width: calc(100% - 20px);
+  margin: 6px 10px 8px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(0, 212, 160, 0.06);
+  border: 1px dashed rgba(0, 212, 160, 0.25);
+  border-radius: 4px;
+  color: var(--ae-accent-light);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.shards-ae-sheet .add-effect-btn:hover {
+  background: rgba(0, 212, 160, 0.12);
+  border-color: rgba(0, 212, 160, 0.45);
+  box-shadow: 0 0 6px var(--ae-accent-glow);
+}
+
+/* -------------------------------------------- */
+/*  Duration Tab                                */
+/* -------------------------------------------- */
+
+.shards-ae-sheet .ae-duration-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+}
+
+.shards-ae-sheet .ae-duration-fields .ae-field input {
+  background: var(--ae-input-bg);
+  border: 1px solid var(--ae-input-border);
+  border-radius: 3px;
+  color: #e0dce8;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  width: 100%;
+}
+
+.shards-ae-sheet .ae-duration-fields .ae-field input:focus {
+  border-color: rgba(0, 212, 160, 0.5);
+  outline: none;
+  box-shadow: 0 0 4px var(--ae-accent-glow);
+}
+
+.shards-ae-sheet .ae-duration-summary {
+  text-align: center;
+  padding: 8px;
+}
+
+.shards-ae-sheet .ae-duration-label {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: var(--ae-accent-light);
+  background: rgba(0, 212, 160, 0.1);
+  padding: 4px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 212, 160, 0.25);
+}

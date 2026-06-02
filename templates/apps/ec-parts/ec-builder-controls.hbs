@@ -1,0 +1,59 @@
+{{!-- Shared builder controls: name, duration, value input, conditional, create button --}}
+{{!-- Expects: categoryId, valueHint (optional) --}}
+<div class="ec-builder-form" data-category="{{categoryId}}">
+
+  {{!-- Selected target display (for categories with button grids) --}}
+  <div class="ec-selected-target">
+    <span class="ec-selected-label">{{localize "SHARDS.EffectCreator.Target"}}:</span>
+    <span class="ec-selected-value" data-field="selected-label">{{localize "SHARDS.EffectCreator.NoneSelected"}}</span>
+    <input type="hidden" data-field="selected-key" value="" />
+  </div>
+
+  {{!-- Value row: sign + input + percent --}}
+  <div class="ec-builder-value-row">
+    <label>{{localize "SHARDS.EffectCreator.Value"}}</label>
+    <div class="ec-value-wrap">
+      <button type="button" class="ec-sign-btn" data-action="toggleSign"
+              data-tooltip="{{localize 'SHARDS.EffectCreator.ToggleSign'}}">+</button>
+      <input type="text" data-field="value" value="" class="ec-value-input"
+             placeholder="{{#if valueHint}}{{valueHint}}{{else}}{{localize 'SHARDS.EffectCreator.ValueHint'}}{{/if}}" />
+      <button type="button" class="ec-pct-btn" data-action="togglePercent"
+              data-tooltip="{{localize 'SHARDS.EffectCreator.TogglePercent'}}">%</button>
+    </div>
+  </div>
+
+  {{!-- Duration row --}}
+  <div class="ec-builder-row">
+    <label>{{localize "SHARDS.EffectCreator.Duration"}}</label>
+    <div class="ec-duration-inputs">
+      <select data-field="duration-mode">
+        <option value="permanent">{{localize "SHARDS.EffectCreator.Permanent"}}</option>
+        <option value="rounds">{{localize "SHARDS.EffectCreator.Rounds"}}</option>
+        <option value="turns">{{localize "SHARDS.EffectCreator.Turns"}}</option>
+      </select>
+      <input type="number" data-field="duration-count" value="1" min="1" step="1" class="hidden" />
+    </div>
+  </div>
+
+  {{!-- Optional name override --}}
+  <div class="ec-builder-row">
+    <label>{{localize "SHARDS.EffectCreator.EffectName"}}</label>
+    <input type="text" data-field="name" placeholder="{{localize 'SHARDS.EffectCreator.AutoName'}}" />
+  </div>
+
+  {{!-- Conditional toggle --}}
+  <div class="ec-conditional-row">
+    <label class="ec-conditional-check">
+      <input type="checkbox" data-field="conditional" />
+      <span>{{localize "SHARDS.Effects.Conditional"}}</span>
+    </label>
+    <input type="text" data-field="conditional-label" class="ec-conditional-label"
+           placeholder="{{localize 'SHARDS.Effects.ConditionalLabelHint'}}" disabled />
+  </div>
+
+  {{!-- Create button --}}
+  <button type="button" class="ec-apply-btn" data-action="createCategoryEffect" data-category="{{categoryId}}">
+    <i class="fa-solid fa-wand-sparkles"></i>
+    {{localize "SHARDS.EffectCreator.Create"}}
+  </button>
+</div>

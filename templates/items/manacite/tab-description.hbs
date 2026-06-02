@@ -1,0 +1,41 @@
+<section class="tab description" data-group="primary" data-tab="description">
+
+  {{!-- Description Editor --}}
+  <div class="manacite-description-editor">
+    {{editor enrichedDescription target="system.description" button=true editable=true}}
+  </div>
+
+  {{!-- Data Fields Panel --}}
+  <div class="equip-panel manacite-panel--fields">
+    <h3 class="equip-panel__heading">
+      <i class="fa-solid fa-gem"></i>
+      {{localize "SHARDS.ManaciteLabel"}}
+    </h3>
+    <div class="manacite-fields-grid">
+      <div class="form-group form-group--compact">
+        <label>{{localize "SHARDS.Manacite.SkillGranted"}}</label>
+        <input type="text" name="system.skillGranted" value="{{system.skillGranted}}"
+               placeholder="Skill name" />
+      </div>
+      <div class="form-group form-group--compact">
+        <label>{{localize "SHARDS.Manacite.SkillLevel"}}</label>
+        <span class="manacite-derived-value">SL {{system.skillLevel}}</span>
+      </div>
+      <div class="form-group form-group--compact">
+        <label>{{localize "SHARDS.Manacite.Source"}}</label>
+        <input type="text" name="system.source" value="{{system.source}}"
+               placeholder="Monster name" />
+      </div>
+      <div class="form-group form-group--compact">
+        <label>{{localize "SHARDS.Manacite.GoldValue"}}</label>
+        <input type="number" name="system.goldValue" value="{{system.goldValue}}"
+               data-dtype="Number" min="0" />
+      </div>
+      <div class="form-group form-group--compact">
+        <label>{{localize "SHARDS.Manacite.Absorbed"}}</label>
+        <input type="checkbox" name="system.absorbed" {{checked system.absorbed}} />
+      </div>
+    </div>
+  </div>
+
+</section>

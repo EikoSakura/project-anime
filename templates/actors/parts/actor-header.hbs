@@ -1,0 +1,33 @@
+<header class="sheet-header flexrow">
+  <img class="profile-img" src="{{actor.img}}" data-action="editImage"
+       data-edit="img" title="{{actor.name}}" height="100" width="100" />
+  <div class="header-fields flexcol">
+    <h1 class="charname">
+      <input name="name" type="text" value="{{actor.name}}" placeholder="{{localize 'SHARDS.Name'}}" />
+    </h1>
+
+    {{!-- Health Bar --}}
+    <div class="resource health flexrow">
+      <label>{{localize "SHARDS.Health"}}</label>
+      <div class="resource-inputs flexrow">
+        <input type="number" name="system.health.value"
+               value="{{system.health.value}}" data-dtype="Number" />
+        <span class="separator">/</span>
+        <input type="number" name="system.health.max"
+               value="{{system.health.max}}" data-dtype="Number" />
+      </div>
+    </div>
+
+    {{!-- Mana Bar --}}
+    <div class="resource mana flexrow">
+      <label>{{localize "SHARDS.Mana"}}</label>
+      <div class="resource-inputs flexrow">
+        <input type="number" name="system.mana.value"
+               value="{{system.mana.value}}" data-dtype="Number" />
+        <span class="separator">/</span>
+        <input type="number" name="system.mana.max"
+               value="{{system.mana.max}}" data-dtype="Number" />
+      </div>
+    </div>
+  </div>
+</header>

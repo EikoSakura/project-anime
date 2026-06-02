@@ -1,0 +1,127 @@
+{{!-- Grant Item/Skill editor for items. Each grant is a card with UUID info. --}}
+<div class="ec-grants">
+  {{#each grants}}
+  <div class="ec-grant-card" data-grant-id="{{this.id}}">
+    <div class="ec-grant-card__header">
+      {{#if this.img}}
+      <img src="{{this.img}}" width="24" height="24" class="ec-grant-card__img" alt="" />
+      {{else}}
+      <i class="fa-solid fa-gift ec-grant-card__icon"></i>
+      {{/if}}
+      <span class="ec-grant-card__name">{{#if this.label}}{{this.label}}{{else}}{{localize "SHARDS.Grant.NoItem"}}{{/if}}</span>
+      <span class="ec-grant-card__type-badge">{{this.typeLabel}}</span>
+      <button type="button" class="ec-grant-delete" data-action="removeGrant" data-grant-id="{{this.id}}"
+              data-tooltip="{{localize 'SHARDS.EffectCreator.CtxDelete'}}">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </div>
+    <div class="ec-grant-card__body">
+      {{!-- Grant Type --}}
+      <div class="ec-grant-row">
+        <label>{{localize "SHARDS.Grant.Type"}}</label>
+        <select data-field="grant-type" data-grant-id="{{this.id}}">
+          <option value="item" {{#if this.isItem}}selected{{/if}}>{{localize "SHARDS.Grant.TypeItem"}}</option>
+          <option value="effect" {{#if this.isEffect}}selected{{/if}}>{{localize "SHARDS.Grant.TypeEffect"}}</option>
+        </select>
+      </div>
+
+      {{!-- Item UUID (only for type=item) --}}
+      {{#if this.isItem}}
+      <div class="ec-grant-row">
+        <label>{{localize "SHARDS.Grant.ItemUuid"}}</label>
+        <div class="ec-grant-uuid-field">
+          <input type="text" data-field="grant-uuid" data-grant-id="{{this.id}}"
+                 value="{{this.uuid}}" placeholder="{{localize 'SHARDS.Grant.UuidHint'}}" />
+          <div class="ec-grant-drop-zone" data-action="grantDropZone" data-grant-id="{{this.id}}"
+               data-tooltip="{{localize 'SHARDS.Grant.DropHint'}}">
+            <i class="fa-solid fa-crosshairs"></i>
+          </div>
+        </div>
+      </div>
+      {{/if}}
+
+      {{!-- Effect fields (only for type=effect) --}}
+      {{#if this.isEffect}}
+      <div class="ec-grant-effect-fields">
+        <div class="ec-grant-row">
+          <label>{{localize "SHARDS.Grant.EffectLabel"}}</label>
+          <input type="text" data-field="grant-effectLabel" data-grant-id="{{this.id}}"
+                 value="{{this.label}}" placeholder="{{localize 'SHARDS.Grant.EffectLabelHint'}}" />
+        </div>
+        <div class="ec-grant-row">
+          <label>{{localize "SHARDS.ChoiceSet.ChangeKey"}}</label>
+          <input type="text" data-field="grant-changeKey" data-grant-id="{{this.id}}"
+                 value="{{this.changeKey}}" placeholder="system.stats.str.bonus" />
+        </div>
+        <div class="ec-grant-row">
+          <label>{{localize "SHARDS.ChoiceSet.ChangeMode"}}</label>
+          <select data-field="grant-changeMode" data-grant-id="{{this.id}}">
+            <option value="2" {{#if this.modeIsAdd}}selected{{/if}}>{{localize "SHARDS.EffectCreator.ModeAdd"}}</option>
+            <option value="5" {{#if this.modeIsOverride}}selected{{/if}}>{{localize "SHARDS.EffectCreator.ModeOverride"}}</option>
+          </select>
+        </div>
+        <div class="ec-grant-row">
+          <label>{{localize "SHARDS.ChoiceSet.ChangeValue"}}</label>
+          <input type="text" data-field="grant-changeValue" data-grant-id="{{this.id}}"
+                 value="{{this.changeValue}}" placeholder="1" />
+        </div>
+      </div>
+      {{/if}}
+
+      {{!-- Optional toggle --}}
+      <label class="ec-grant-checkbox">
+        <input type="checkbox" data-field="grant-optional" data-grant-id="{{this.id}}" {{#if this.optional}}checked{{/if}} />
+        {{localize "SHARDS.Grant.Optional"}}
+      </label>
+
+      {{!-- Choice Propagation (only if parent item has choice sets) --}}
+      {{#if this.availableChoiceSets.length}}
+      <div class="ec-grant-propagation">
+        <div class="ec-grant-row">
+          <label>{{localize "SHARDS.Grant.PropagateChoice"}}</label>
+          <select data-field="grant-propagation-cs" data-grant-id="{{this.id}}">
+            <option value="">{{localize "SHARDS.Grant.PropagateNone"}}</option>
+            {{#each this.availableChoiceSets}}
+            <option value="{{this.id}}" {{#if (eq this.id ../propagationCsId)}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+        </div>
+
+        {{#if this.hasChoicePropagation}}
+        <div class="ec-grant-propagation-fields">
+          <div class="ec-grant-row">
+            <label>{{localize "SHARDS.Grant.PropagateRename"}}</label>
+            <input type="text" data-field="grant-propagation-rename" data-grant-id="{{this.id}}"
+                   value="{{this.propagationRename}}" placeholder="{NAME} ({CHOICE})" />
+          </div>
+          <p class="ec-hint">{{localize "SHARDS.Grant.PropagateRenameHint"}}</p>
+
+          {{#if this.isItem}}
+          <div class="ec-grant-row">
+            <label>{{localize "SHARDS.Grant.PropagateUpdateKey"}}</label>
+            <input type="text" data-field="grant-propagation-updateKey" data-grant-id="{{this.id}}"
+                   value="{{this.propagationUpdateKey}}" placeholder="system.damageType" />
+          </div>
+          <div class="ec-grant-row">
+            <label>{{localize "SHARDS.Grant.PropagateUpdateValue"}}</label>
+            <input type="text" data-field="grant-propagation-updateValue" data-grant-id="{{this.id}}"
+                   value="{{this.propagationUpdateValue}}" placeholder="{CHOICE_VALUE}" />
+          </div>
+          <p class="ec-hint">{{localize "SHARDS.Grant.PropagateUpdateHint"}}</p>
+          {{/if}}
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
+    </div>
+  </div>
+  {{/each}}
+
+  {{#unless grants.length}}
+  <p class="ec-grant-empty">{{localize "SHARDS.Grant.Empty"}}</p>
+  {{/unless}}
+
+  <button type="button" class="ec-grant-add-btn" data-action="addGrant">
+    <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Grant.Add"}}
+  </button>
+</div>

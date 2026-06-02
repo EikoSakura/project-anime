@@ -1,0 +1,298 @@
+<section class="tab combat" data-group="primary" data-tab="combat">
+
+  {{!-- Limit Break Banner --}}
+  <div class="limit-break-banner {{#if limitBreakReady}}ready{{/if}}">
+    <span class="limit-break-banner__text">{{localize "SHARDS.Adventurer.LimitBreak"}}</span>
+  </div>
+
+  <div class="combat-layout">
+
+    {{!-- Left Column --}}
+    <div>
+      {{!-- Active Status Bar (always visible) --}}
+      <div class="combat-status-bar">
+        {{#if hasActiveConditions}}
+        <div class="active-conditions-chips">
+          {{#each activeConditions}}
+          <span class="condition-chip {{this.type}}" data-tooltip="{{this.desc}}">
+            <span class="condition-chip__name">{{this.label}}</span>
+          </span>
+          {{/each}}
+        </div>
+        {{else}}
+        <p class="no-active-conditions">{{localize "SHARDS.NoActiveConditions"}}</p>
+        {{/if}}
+      </div>
+
+      {{!-- Resistances (merged Element + Condition) --}}
+      <div class="collapsible-section" data-section="resistances">
+        <h3 class="crystal-heading collapsible-toggle" data-action="toggleSection" data-section="resistances">
+          <span>{{localize "SHARDS.Resistances"}}</span>
+          {{#if notableResistanceCount}}
+          <span class="count-badge">{{notableResistanceCount}}</span>
+          {{/if}}
+          <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+        </h3>
+        <div class="collapsible-body">
+          {{#if hasAnyNotableResistances}}
+          {{!-- Element Resistances (non-normal only) --}}
+          {{#if hasNotableElements}}
+          <div class="collapsible-subgroup">
+            <span class="collapsible-subgroup__label">{{localize "SHARDS.Elements"}}</span>
+            <div class="element-grid">
+              {{#each notableElements}}
+              <div class="element-grid__row {{this.category}}">
+                <span class="element-grid__name">{{this.label}}</span>
+                <span class="element-grid__chip {{this.category}}">{{this.categoryLabel}}</span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+          {{/if}}
+          {{!-- Condition Resistances (non-normal only) --}}
+          {{#if hasNotableConditionResistances}}
+          <div class="collapsible-subgroup">
+            <span class="collapsible-subgroup__label">{{localize "SHARDS.ConditionResistances"}}</span>
+            <div class="element-grid">
+              {{#each notableConditionResistances}}
+              <div class="element-grid__row {{this.category}}">
+                <span class="element-grid__name">{{this.label}}</span>
+                <span class="element-grid__chip {{this.category}}">{{this.categoryLabel}}</span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+          {{/if}}
+          {{else}}
+          <p class="resistance-empty">{{localize "SHARDS.NoNotableResistances"}}</p>
+          {{/if}}
+        </div>
+      </div>
+
+      {{!-- Conditions (collapsible panel) --}}
+      <div class="collapsible-section" data-section="conditions">
+        <h3 class="crystal-heading collapsible-toggle" data-action="toggleSection" data-section="conditions">
+          <span>{{localize "SHARDS.ConditionsLabel"}}</span>
+          <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+        </h3>
+        <div class="collapsible-body">
+          {{!-- Negative Conditions --}}
+          <div class="collapsible-subgroup">
+            <span class="collapsible-subgroup__label negative">{{localize "SHARDS.ConditionsNegative"}}</span>
+            <div class="collapsible-list">
+              {{#each negativeConditions}}
+              <div class="collapsible-row {{#if this.active}}active negative{{/if}}">
+                <span class="collapsible-row__name">
+                  {{this.label}}
+                  {{#if this.resistCategory}}
+                  <span class="condition-resist-badge {{this.resistCategory}}">{{this.resist}}%</span>
+                  {{/if}}
+                </span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+          {{!-- Positive Conditions --}}
+          <div class="collapsible-subgroup">
+            <span class="collapsible-subgroup__label positive">{{localize "SHARDS.ConditionsPositive"}}</span>
+            <div class="collapsible-list">
+              {{#each positiveConditions}}
+              <div class="collapsible-row {{#if this.active}}active positive{{/if}}">
+                <span class="collapsible-row__name">{{this.label}}</span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{!-- Active Effects (collapsible panel) --}}
+      <div class="collapsible-section" data-section="effects">
+        <h3 class="crystal-heading collapsible-toggle" data-action="toggleSection" data-section="effects">
+          <span>{{localize "SHARDS.Effects.ActiveEffects"}}</span>
+          {{#if effects.length}}
+          <span class="count-badge">{{effects.length}}</span>
+          {{/if}}
+          <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+        </h3>
+        <div class="collapsible-body">
+          {{#if effects.length}}
+          <div class="effect-icon-grid">
+            {{#each effects}}
+            <div class="effect-icon-cell {{#if this.disabled}}effect-off{{/if}} {{this.effectType}}"
+                 data-effect-id="{{this._id}}"
+                 data-action="toggleEffect"
+                 title="{{this.name}}">
+              <img class="effect-icon-img" src="{{this.img}}" alt="{{this.name}}" width="32" height="32" />
+              {{#if this.disabled}}
+              <div class="effect-disabled-overlay"><i class="fa-solid fa-xmark"></i></div>
+              {{/if}}
+              {{#if this.durationBadge}}
+              <span class="effect-duration-badge">{{this.durationBadge}}</span>
+              {{/if}}
+            </div>
+            {{/each}}
+          </div>
+          {{else}}
+          <div class="effect-empty-state">
+            <i class="fa-solid fa-shield-halved effect-empty-icon"></i>
+            <span>{{localize "SHARDS.Effects.None"}}</span>
+          </div>
+          {{/if}}
+          <button type="button" class="add-effect-btn" data-action="createEffect">
+            <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Effects.AddEffect"}}
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    {{!-- Right Column: Weapons + Active Skills --}}
+    <div>
+      {{!-- Equipped Weapons --}}
+      {{#if combatWeapons.length}}
+      <div class="combat-weapons">
+        {{#each combatWeapons as |eq|}}
+        <div class="combat-weapon" data-item-id="{{eq._id}}">
+          <button type="button" class="combat-weapon__icon-btn" data-action="useWeapon" data-item-id="{{eq._id}}">
+            <img class="combat-weapon__icon" src="{{eq.img}}" width="28" height="28" />
+          </button>
+          <div class="combat-weapon__info">
+            <span class="combat-weapon__name">{{eq.name}}</span>
+            <span class="combat-weapon__slot">{{eq.slotLabel}}</span>
+          </div>
+          <div class="combat-weapon__stats">
+            {{#each eq.combatStats}}
+            <span class="combat-weapon__stat" title="{{this.label}}">
+              {{this.displayValue}} <small>{{this.label}}</small>
+            </span>
+            {{/each}}
+          </div>
+          <span class="rank-badge" data-rank="{{eq.rank}}">{{eq.rank}}</span>
+          <div class="combat-weapon__controls">
+            <button type="button" class="combat-weapon__attack-btn" data-action="useWeapon" data-item-id="{{eq._id}}" title="{{localize 'SHARDS.Roll.WeaponAttack'}}">
+              <i class="fa-solid fa-dice-d20"></i>
+            </button>
+            <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+
+      <div class="skills-scroll">
+        {{#if combatSkillCards.length}}
+        <div class="adv-skill-list">
+          {{#each combatSkillCards as |sk|}}
+          <div class="adv-skill collapsible-section" data-item-id="{{sk._id}}">
+            <div class="adv-skill__row">
+              <button type="button" class="adv-skill__icon-btn" data-action="useSkill" data-item-id="{{sk._id}}">
+                <img class="adv-skill__icon" src="{{sk.img}}" width="24" height="24" />
+              </button>
+              <div class="adv-skill__row-toggle" data-action="toggleSection">
+                <span class="adv-skill__name">{{sk.name}}</span>
+                {{#if sk.isSpell}}
+                <span class="adv-skill__sl adv-skill__sl--spell">SL {{sk.effectiveSL}}</span>
+                {{else}}
+                <span class="adv-skill__sl">SL {{sk.skillLevel}}</span>
+                {{/if}}
+                {{#if sk.damageTypeLabel}}
+                <span class="adv-skill__element">{{sk.damageTypeLabel}}</span>
+                {{/if}}
+                <div class="adv-skill__controls">
+                  {{#unless sk.isPassive}}
+                  <button type="button" class="adv-skill__use-btn" data-action="useSkill" data-item-id="{{sk._id}}" title="{{localize 'SHARDS.Roll.UseSkill'}}">
+                    <i class="fa-solid fa-dice-d20"></i>
+                  </button>
+                  {{/unless}}
+                  <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                  </button>
+                </div>
+                <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+              </div>
+            </div>
+            <div class="collapsible-body">
+              <div class="adv-skill__tooltip">
+                {{!-- Stat Pills --}}
+                <div class="adv-skill__pills">
+                  <div class="adv-skill__pill">
+                    <span class="adv-skill__pill-label">Timing</span>
+                    <span class="adv-skill__pill-value">{{sk.timingLabel}}</span>
+                  </div>
+                  <div class="adv-skill__pill adv-skill__pill--mp">
+                    <span class="adv-skill__pill-label">MP</span>
+                    <span class="adv-skill__pill-value">{{sk.computedMpCost}}</span>
+                  </div>
+                  <div class="adv-skill__pill adv-skill__pill--pips">
+                    <span class="adv-skill__pill-label">Pips</span>
+                    <span class="adv-skill__pill-value">{{sk.computedPipCost}}</span>
+                  </div>
+                  <div class="adv-skill__pill">
+                    <span class="adv-skill__pill-label">Target</span>
+                    <span class="adv-skill__pill-value">
+                      {{sk.targetLabel}}{{#if sk.showAreaFields}} {{sk.areaShapeLabel}} {{sk.areaSize}}sq{{/if}}
+                    </span>
+                  </div>
+                  {{#if sk.range}}
+                  <div class="adv-skill__pill">
+                    <span class="adv-skill__pill-label">Range</span>
+                    <span class="adv-skill__pill-value">{{sk.range}}sq</span>
+                  </div>
+                  {{/if}}
+                </div>
+                {{!-- Combat Stats --}}
+                <div class="adv-skill__combat">
+                  {{#if sk.totalHit}}
+                  <div class="adv-skill__stat">
+                    <span class="adv-skill__stat-value adv-skill__stat--hit">{{sk.totalHit}}</span>
+                    <span class="adv-skill__stat-label">Hit</span>
+                  </div>
+                  {{/if}}
+                  {{#if sk.totalDamage}}
+                  <div class="adv-skill__stat">
+                    <span class="adv-skill__stat-value adv-skill__stat--dmg">{{sk.totalDamage}}</span>
+                    <span class="adv-skill__stat-label">Dmg</span>
+                  </div>
+                  {{/if}}
+                  {{#if sk.skillRate}}
+                  <div class="adv-skill__stat">
+                    <span class="adv-skill__stat-value adv-skill__stat--rate">{{sk.skillRate}}</span>
+                    <span class="adv-skill__stat-label">Rate</span>
+                  </div>
+                  {{/if}}
+                  {{#if sk.crit}}
+                  <div class="adv-skill__stat">
+                    <span class="adv-skill__stat-value adv-skill__stat--crit">{{sk.crit}}</span>
+                    <span class="adv-skill__stat-label">Crit</span>
+                  </div>
+                  {{/if}}
+                  {{#if sk.defenseTypeLabel}}
+                  <div class="adv-skill__stat">
+                    <span class="adv-skill__stat-value adv-skill__stat--vs">{{sk.defenseTypeLabel}}</span>
+                    <span class="adv-skill__stat-label">vs Def</span>
+                  </div>
+                  {{/if}}
+                </div>
+                {{!-- Condition --}}
+                {{#if sk.conditionLabel}}
+                <div class="adv-skill__condition">
+                  <i class="fa-solid fa-bolt"></i>
+                  {{sk.conditionChance}}% &rarr; <strong>{{sk.conditionLabel}}</strong>
+                </div>
+                {{/if}}
+              </div>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{else}}
+        <p class="crystal-empty" style="font-size: 0.85em;">No active skills.</p>
+        {{/if}}
+      </div>
+    </div>
+
+  </div>
+</section>

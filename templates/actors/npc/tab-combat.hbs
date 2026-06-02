@@ -1,0 +1,176 @@
+<section class="tab combat" data-group="primary" data-tab="combat">
+
+  {{!-- Active Status Bar (always visible) --}}
+  <div class="combat-status-bar">
+    {{#if hasActiveConditions}}
+    <div class="active-conditions-chips">
+      {{#each activeConditions}}
+      <span class="condition-chip {{this.type}}" data-tooltip="{{this.desc}}">
+        <span class="condition-chip__name">{{this.label}}</span>
+      </span>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="no-active-conditions">{{localize "SHARDS.NoActiveConditions"}}</p>
+    {{/if}}
+  </div>
+
+  {{!-- Resistances (merged Element + Condition) --}}
+  <div class="collapsible-section" data-section="resistances">
+    <h3 class="crystal-heading collapsible-toggle" data-action="toggleSection" data-section="resistances">
+      <span>{{localize "SHARDS.Resistances"}}</span>
+      {{#if notableResistanceCount}}
+      <span class="count-badge">{{notableResistanceCount}}</span>
+      {{/if}}
+      <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+    </h3>
+    <div class="collapsible-body">
+      {{#if hasAnyNotableResistances}}
+      {{#if hasNotableElements}}
+      <div class="collapsible-subgroup">
+        <span class="collapsible-subgroup__label">{{localize "SHARDS.Elements"}}</span>
+        <div class="element-grid">
+          {{#each notableElements}}
+          <div class="element-grid__row {{this.category}}">
+            <span class="element-grid__name">{{this.label}}</span>
+            <span class="element-grid__chip {{this.category}}">{{this.categoryLabel}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+      {{#if hasNotableConditionResistances}}
+      <div class="collapsible-subgroup">
+        <span class="collapsible-subgroup__label">{{localize "SHARDS.ConditionResistances"}}</span>
+        <div class="element-grid">
+          {{#each notableConditionResistances}}
+          <div class="element-grid__row {{this.category}}">
+            <span class="element-grid__name">{{this.label}}</span>
+            <span class="element-grid__chip {{this.category}}">{{this.categoryLabel}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+      {{else}}
+      <p class="resistance-empty">{{localize "SHARDS.NoNotableResistances"}}</p>
+      {{/if}}
+    </div>
+  </div>
+
+  {{!-- Conditions (collapsible panel, editable) --}}
+  <div class="collapsible-section" data-section="conditions">
+    <h3 class="crystal-heading collapsible-toggle" data-action="toggleSection" data-section="conditions">
+      <span>{{localize "SHARDS.ConditionsLabel"}}</span>
+      <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+    </h3>
+    <div class="collapsible-body">
+      {{!-- Negative Conditions --}}
+      <div class="collapsible-subgroup">
+        <span class="collapsible-subgroup__label negative">{{localize "SHARDS.ConditionsNegative"}}</span>
+        <div class="collapsible-list">
+          {{#each negativeConditions}}
+          <div class="collapsible-row {{#if this.active}}active negative{{/if}}">
+            <span class="collapsible-row__name">
+              {{this.label}}
+              {{#if this.resistCategory}}
+              <span class="condition-resist-badge {{this.resistCategory}}">{{this.resist}}%</span>
+              {{/if}}
+            </span>
+            <input type="number" name="system.conditions.{{this.key}}" value="{{this.value}}"
+                   data-dtype="Number" min="0" class="collapsible-row__input" />
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{!-- Positive Conditions --}}
+      <div class="collapsible-subgroup">
+        <span class="collapsible-subgroup__label positive">{{localize "SHARDS.ConditionsPositive"}}</span>
+        <div class="collapsible-list">
+          {{#each positiveConditions}}
+          <div class="collapsible-row {{#if this.active}}active positive{{/if}}">
+            <span class="collapsible-row__name">{{this.label}}</span>
+            <input type="number" name="system.conditions.{{this.key}}" value="{{this.value}}"
+                   data-dtype="Number" min="0" class="collapsible-row__input" />
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{!-- Active Effects (collapsible panel) --}}
+  <div class="collapsible-section" data-section="effects">
+    <h3 class="crystal-heading collapsible-toggle" data-action="toggleSection" data-section="effects">
+      <span>{{localize "SHARDS.Effects.ActiveEffects"}}</span>
+      {{#if effects.length}}
+      <span class="count-badge">{{effects.length}}</span>
+      {{/if}}
+      <i class="fa-solid fa-chevron-down collapsible-icon"></i>
+    </h3>
+    <div class="collapsible-body">
+      {{#if effects.length}}
+      <div class="effect-icon-grid">
+        {{#each effects}}
+        <div class="effect-icon-cell {{#if this.disabled}}effect-off{{/if}} {{this.effectType}}"
+             data-effect-id="{{this._id}}"
+             data-action="toggleEffect"
+             title="{{this.name}}">
+          <img class="effect-icon-img" src="{{this.img}}" alt="{{this.name}}" width="32" height="32" />
+          {{#if this.disabled}}
+          <div class="effect-disabled-overlay"><i class="fa-solid fa-xmark"></i></div>
+          {{/if}}
+          {{#if this.durationBadge}}
+          <span class="effect-duration-badge">{{this.durationBadge}}</span>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="effect-empty-state">
+        <i class="fa-solid fa-shield-halved effect-empty-icon"></i>
+        <span>{{localize "SHARDS.Effects.None"}}</span>
+      </div>
+      {{/if}}
+      <button type="button" class="add-effect-btn" data-action="createEffect">
+        <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Effects.AddEffect"}}
+      </button>
+    </div>
+  </div>
+
+  {{!-- Movement Modes --}}
+  <h3 class="crystal-heading">{{localize "SHARDS.Movement.Label"}}</h3>
+  <div class="movement-modes">
+    {{#each system.movementModes as |value key|}}
+    <div class="movement-mode">
+      <span class="mode-label">{{localize (concat "SHARDS.Movement." key)}}</span>
+      <input type="number" name="system.movementModes.{{key}}" value="{{value}}" data-dtype="Number" min="0" style="width: 30px; text-align: center;" />
+    </div>
+    {{/each}}
+  </div>
+
+  {{!-- Skills --}}
+  <h3 class="crystal-heading">{{localize "SHARDS.Tabs.Skills"}}</h3>
+  <div class="skills-scroll">
+    <ol class="crystal-item-list">
+      {{#each items.skill as |item|}}
+      <li class="crystal-item" data-item-id="{{item._id}}">
+        <div class="item-name" data-action="editItem">
+          <img src="{{item.img}}" width="24" height="24" />
+          <span>{{item.name}}</span>
+        </div>
+        <span class="tag-chip">SL {{item.system.skillLevel}}</span>
+        <div class="item-controls">
+          <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button type="button" data-action="deleteItem" title="{{localize 'SHARDS.Delete'}}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </li>
+      {{/each}}
+    </ol>
+  </div>
+
+</section>

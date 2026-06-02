@@ -1,0 +1,55 @@
+<section class="tab shop" data-group="primary" data-tab="shop">
+
+  <div style="margin-bottom: 8px;">
+    <button type="button" class="crystal-btn" data-action="addShopEntry">
+      <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Merchant.AddItem"}}
+    </button>
+  </div>
+
+  {{#if system.inventory.length}}
+  <table class="shop-table">
+    <thead>
+      <tr>
+        <th>{{localize "SHARDS.Name"}}</th>
+        <th>{{localize "SHARDS.Merchant.Price"}}</th>
+        <th>{{localize "SHARDS.Merchant.Stock"}}</th>
+        <th>{{localize "SHARDS.Merchant.Available"}}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each system.inventory as |entry idx|}}
+      <tr>
+        <td><input type="text" name="system.inventory.{{idx}}.name" value="{{entry.name}}" /></td>
+        <td class="price-cell">
+          <input type="number" name="system.inventory.{{idx}}.price" value="{{entry.price}}"
+                 data-dtype="Number" min="0" style="width: 60px; text-align: right; color: var(--shards-accent); font-weight: 600;" />
+          <span style="font-size: 0.8em; color: var(--shards-text-muted);">G</span>
+        </td>
+        <td class="stock-cell {{#if (eq entry.stock -1)}}unlimited{{/if}} {{#if (eq entry.stock 0)}}sold-out{{/if}}">
+          <input type="number" name="system.inventory.{{idx}}.stock" value="{{entry.stock}}"
+                 data-dtype="Number" min="-1" style="width: 50px; text-align: center;" />
+          {{#if (eq entry.stock -1)}}
+          <span style="font-size: 0.7em;">({{localize "SHARDS.Merchant.Unlimited"}})</span>
+          {{/if}}
+        </td>
+        <td>
+          <select name="system.inventory.{{idx}}.available" style="width: 70px;">
+            <option value="1" {{#if entry.available}}selected{{/if}}>{{localize "SHARDS.Merchant.Available"}}</option>
+            <option value="0" {{#unless entry.available}}selected{{/unless}}>{{localize "SHARDS.Merchant.Hidden"}}</option>
+          </select>
+        </td>
+        <td>
+          <button type="button" data-action="deleteShopEntry" data-shop-index="{{idx}}" title="{{localize 'SHARDS.Delete'}}">
+            <i class="fa-solid fa-trash" style="color: var(--shards-text-muted);"></i>
+          </button>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="color: var(--shards-text-muted); font-size: 0.85em; font-style: italic;">{{localize "SHARDS.Merchant.ShopEmpty"}}</p>
+  {{/if}}
+
+</section>

@@ -1,0 +1,160 @@
+<div class="chargen-review">
+
+  {{!-- Identity Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-id-card"></i> {{localize "SHARDS.CharGen.Step.Identity"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="0">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body chargen-review__body--identity">
+      <div class="chargen-review__field">
+        <span class="chargen-review__label">{{localize "SHARDS.CharGen.Identity.Name"}}</span>
+        <span class="chargen-review__value">{{summary.name}}</span>
+      </div>
+    </div>
+  </section>
+
+  {{!-- Lineage Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-dna"></i> {{localize "SHARDS.CharGen.Step.Lineage"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="1">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body">
+      {{#if summary.lineageItem}}
+      <div class="chargen-review__item">
+        <img src="{{summary.lineageItem.img}}" alt="" class="chargen-review__item-img" />
+        <span>{{summary.lineageItem.name}}</span>
+      </div>
+      {{else}}
+      <span class="chargen-review__empty">{{localize "SHARDS.CharGen.Review.NoneSelected"}}</span>
+      {{/if}}
+    </div>
+  </section>
+
+  {{!-- Stats Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-chart-bar"></i> {{localize "SHARDS.CharGen.Step.Stats"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="2">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body chargen-review__stat-grid">
+      {{#each summary.stats}}
+      <div class="chargen-review__stat">
+        <span class="chargen-review__stat-label">{{this.label}}</span>
+        <span class="chargen-review__stat-value">{{this.value}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
+  {{!-- Growth Rates Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-arrow-trend-up"></i> {{localize "SHARDS.CharGen.Step.Growth"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="3">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body chargen-review__stat-grid">
+      {{#each summary.growthRates}}
+      <div class="chargen-review__stat">
+        <span class="chargen-review__stat-label">{{this.label}}</span>
+        <span class="chargen-review__stat-value">{{this.value}}%</span>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
+  {{!-- Job Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-briefcase"></i> {{localize "SHARDS.CharGen.Step.Job"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="4">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body">
+      {{#if summary.job}}
+      <div class="chargen-review__item">
+        <img src="{{summary.job.img}}" alt="" class="chargen-review__item-img" />
+        <span>{{summary.job.name}}</span>
+      </div>
+      {{else}}
+      <span class="chargen-review__empty">{{localize "SHARDS.CharGen.Review.NoneSelected"}}</span>
+      {{/if}}
+    </div>
+  </section>
+
+  {{!-- Traits Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-star"></i> {{localize "SHARDS.CharGen.Step.Traits"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="5">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body">
+      {{#if summary.traits.length}}
+      {{#each summary.traits}}
+      <div class="chargen-review__item">
+        <img src="{{this.img}}" alt="" class="chargen-review__item-img" />
+        <span>{{this.name}}</span>
+      </div>
+      {{/each}}
+      {{else}}
+      <span class="chargen-review__empty">{{localize "SHARDS.CharGen.Review.NoneSelected"}}</span>
+      {{/if}}
+    </div>
+  </section>
+
+  {{!-- Equipment Summary --}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-shield"></i> {{localize "SHARDS.CharGen.Step.Equipment"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="6">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body">
+      {{#if summary.equipment.length}}
+      {{#each summary.equipment}}
+      <div class="chargen-review__item">
+        <img src="{{this.img}}" alt="" class="chargen-review__item-img" />
+        <span>{{this.name}}</span>
+        <span class="chargen-review__item-gold">
+          {{#if this.goldValue}}{{this.goldValue}}g{{else}}{{localize "SHARDS.CharGen.Equipment.Free"}}{{/if}}
+        </span>
+      </div>
+      {{/each}}
+      <div class="chargen-review__gold-summary">
+        <span>{{localize "SHARDS.CharGen.Review.RemainingGold"}}: <strong>{{summary.remainingGold}}g</strong></span>
+      </div>
+      {{else}}
+      <span class="chargen-review__empty">{{localize "SHARDS.CharGen.Review.NoneSelected"}}</span>
+      {{/if}}
+    </div>
+  </section>
+
+  {{!-- Biography Summary --}}
+  {{#if (or summary.appearance (or summary.personality summary.biography))}}
+  <section class="chargen-review__section">
+    <header class="chargen-review__header">
+      <h3><i class="fa-solid fa-book"></i> {{localize "SHARDS.CharGen.Step.Biography"}}</h3>
+      <button type="button" class="chargen-review__edit" data-action="goToStep" data-step="7">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+    </header>
+    <div class="chargen-review__body">
+      <span class="chargen-review__check"><i class="fa-solid fa-check"></i> {{localize "SHARDS.CharGen.Review.BiographyFilled"}}</span>
+    </div>
+  </section>
+  {{/if}}
+
+</div>

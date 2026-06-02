@@ -1,0 +1,53 @@
+<div class="crystal-card" style="display: grid; grid-template-columns: 100px 1fr; gap: 12px; align-items: start;">
+
+  {{!-- Portrait --}}
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+    <img class="crystal-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}"
+         style="width: 90px; height: 90px;" />
+  </div>
+
+  {{!-- Identity --}}
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <input name="name" type="text" value="{{actor.name}}" placeholder="{{localize 'SHARDS.Name'}}"
+           style="font-family: var(--shards-font-heading); font-size: 1.3em; font-weight: 700; color: var(--shards-accent); background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; padding: 0;" />
+
+    <div style="display: flex; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 4px; flex: 1;">
+        <label style="font-size: 0.7em; text-transform: uppercase; color: var(--shards-text-muted); font-weight: 700;">{{localize "SHARDS.Merchant.ShopName"}}</label>
+        <input name="system.shopName" type="text" value="{{system.shopName}}" style="flex: 1;" />
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px; flex: 1;">
+        <label style="font-size: 0.7em; text-transform: uppercase; color: var(--shards-text-muted); font-weight: 700;">{{localize "SHARDS.Merchant.Location"}}</label>
+        <input name="system.location" type="text" value="{{system.location}}" style="flex: 1;" />
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; font-size: 0.8em; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <span style="color: var(--shards-text-muted); text-transform: uppercase; font-weight: 700; font-size: 0.85em;">{{localize "SHARDS.Size"}}</span>
+        <span style="font-weight: 600; color: var(--shards-accent);">{{system.size}}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <span style="color: var(--shards-text-muted); text-transform: uppercase; font-weight: 700; font-size: 0.85em;">{{localize "SHARDS.Merchant.BuyRate"}}</span>
+        <input type="number" name="system.buyRate" value="{{system.buyRate}}" min="0" max="1" step="0.1" style="width: 50px; text-align: center;" />
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <span style="color: var(--shards-text-muted); text-transform: uppercase; font-weight: 700; font-size: 0.85em;">{{localize "SHARDS.Merchant.WillBuy"}}</span>
+        <select name="system.willBuy" style="width: 60px;">
+          <option value="1" {{#if system.willBuy}}selected{{/if}}>Yes</option>
+          <option value="0" {{#unless system.willBuy}}selected{{/unless}}>No</option>
+        </select>
+      </div>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <span style="color: var(--shards-text-muted); text-transform: uppercase; font-weight: 700; font-size: 0.85em;">{{localize "SHARDS.Merchant.RestockInterval"}}</span>
+        <select name="system.restockInterval" style="width: 80px;">
+          <option value="none" {{#if (eq system.restockInterval "none")}}selected{{/if}}>{{localize "SHARDS.Merchant.Restock.None"}}</option>
+          <option value="daily" {{#if (eq system.restockInterval "daily")}}selected{{/if}}>{{localize "SHARDS.Merchant.Restock.Daily"}}</option>
+          <option value="weekly" {{#if (eq system.restockInterval "weekly")}}selected{{/if}}>{{localize "SHARDS.Merchant.Restock.Weekly"}}</option>
+          <option value="manual" {{#if (eq system.restockInterval "manual")}}selected{{/if}}>{{localize "SHARDS.Merchant.Restock.Manual"}}</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+</div>

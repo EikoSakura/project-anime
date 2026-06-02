@@ -1,0 +1,36 @@
+<section class="tab mastery" data-group="primary" data-tab="mastery">
+  <div class="crystal-panel">
+
+    <h3 class="crystal-heading">{{localize "SHARDS.Job.MasteryBonus"}}</h3>
+
+    <div class="form-group">
+      <label>{{localize "SHARDS.Job.MasteryDescription"}}</label>
+      <input type="text" name="system.masteryBonus.description"
+             value="{{system.masteryBonus.description}}"
+             placeholder="{{localize 'SHARDS.Job.MasteryDescriptionPlaceholder'}}" />
+    </div>
+
+    <h3 class="crystal-heading">{{localize "SHARDS.Job.MasteryGrowthIncrease"}}</h3>
+    <p class="job-panel-hint">{{localize "SHARDS.Job.MasteryGrowthIncreaseHint"}}</p>
+
+    <div class="job-growth-grid">
+      {{#each masteryGrowthRows}}
+      <div class="job-growth-row">
+        <span class="job-growth-row__abbrev">{{this.abbrev}}</span>
+        <span class="job-growth-row__label">{{this.label}}</span>
+        <div class="job-growth-bar-wrap">
+          <div class="job-growth-bar {{this.sign}}">
+            <div class="job-growth-bar__fill" style="width: {{this.barWidth}}%"></div>
+          </div>
+        </div>
+        <input type="number"
+               name="system.masteryBonus.growthRateIncrease.{{this.key}}"
+               value="{{this.value}}" class="job-growth-input {{this.sign}}"
+               data-dtype="Number" />
+        <span class="job-growth-row__sign-label">%</span>
+      </div>
+      {{/each}}
+    </div>
+
+  </div>
+</section>

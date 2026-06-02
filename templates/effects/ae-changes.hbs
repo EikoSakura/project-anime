@@ -1,0 +1,34 @@
+<section class="tab changes" data-group="primary" data-tab="changes">
+  <div class="ae-changes-list">
+    {{#each changes}}
+    <div class="ae-change-row" data-change-index="{{this.index}}">
+      <div class="ae-change-target">
+        <select name="changes.{{this.index}}.key">
+          {{#each ../changeTargets}}
+          <option value="{{this.value}}" {{#if (eq this.value ../key)}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="ae-change-mode">
+        <select name="changes.{{this.index}}.mode" data-dtype="Number">
+          {{#each ../changeModes}}
+          <option value="{{this.value}}" {{#if (eq this.value ../mode)}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="ae-change-value">
+        <input type="text" name="changes.{{this.index}}.value" value="{{this.value}}" placeholder="0" />
+      </div>
+      <a class="ae-change-delete" data-action="deleteChange" data-change-index="{{this.index}}" title="{{localize 'SHARDS.Delete'}}">
+        <i class="fa-solid fa-trash"></i>
+      </a>
+    </div>
+    {{/each}}
+    {{#unless changes.length}}
+    <p class="ae-changes-empty">{{localize "SHARDS.AE.NoChanges"}}</p>
+    {{/unless}}
+  </div>
+  <button type="button" class="add-effect-btn" data-action="addChange">
+    <i class="fa-solid fa-plus"></i> {{localize "SHARDS.AE.AddChange"}}
+  </button>
+</section>

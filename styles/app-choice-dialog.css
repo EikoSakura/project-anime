@@ -1,0 +1,77 @@
+/* ============================================================
+   Choice Set Dialog — player-facing choice selection dialog
+   Crystal-themed to match the Shards of Mana aesthetic.
+   ============================================================ */
+
+.choice-set-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+/* --- Header with item image + name --- */
+.cs-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--shards-border, rgba(139, 111, 224, 0.3));
+}
+
+.cs-dialog-header img {
+  border: 2px solid var(--shards-border, rgba(139, 111, 224, 0.3));
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.cs-dialog-header h3 {
+  margin: 0;
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 1.1rem;
+  color: var(--shards-text, #e8e0f0);
+}
+
+/* --- Choice section --- */
+.cs-dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cs-dialog-label {
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--shards-text, #e8e0f0);
+}
+
+.cs-required-badge {
+  color: #d44040;
+  font-weight: bold;
+}
+
+.cs-dialog-select {
+  width: 100%;
+  padding: 4px;
+  border: 1px solid var(--shards-border, rgba(139, 111, 224, 0.3));
+  border-radius: 4px;
+  background: var(--shards-bg-dark, rgba(20, 16, 32, 0.6));
+  color: var(--shards-text, #e8e0f0);
+  font-size: 0.85rem;
+  overflow-y: auto;
+}
+
+.cs-dialog-select option {
+  padding: 4px 6px;
+}
+
+.cs-dialog-select option:checked {
+  background: rgba(139, 111, 224, 0.3);
+}
+
+.cs-dialog-select:focus {
+  border-color: var(--shards-accent, #8b6fe0);
+  outline: none;
+  box-shadow: 0 0 4px rgba(139, 111, 224, 0.4);
+}

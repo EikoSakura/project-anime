@@ -1,0 +1,185 @@
+{{!-- Enemy HUD Overlay --}}
+
+{{#if isHidden}}
+{{!-- Hidden mode: small circular toggle button --}}
+<div class="enemy-hud__toggle-btn" data-action="toggleHud"
+     title="{{localize 'SHARDS.EnemyHud.Show'}}">
+  <i class="fa-solid fa-skull"></i>
+</div>
+{{else}}
+
+<div class="enemy-hud__container enemy-hud--{{mode}}" data-drag-handle="true">
+
+  {{!-- Header --}}
+  <div class="enemy-hud__header">
+    <span class="enemy-hud__title">
+      <i class="fa-solid fa-skull-crossbones"></i>
+      {{#if isExpanded}}{{localize "SHARDS.EnemyHud.Title"}}{{/if}}
+    </span>
+    <button type="button" class="enemy-hud__mode-btn" data-action="cycleMode"
+            title="{{#if isExpanded}}{{localize 'SHARDS.EnemyHud.Compact'}}{{else}}{{localize 'SHARDS.EnemyHud.Expand'}}{{/if}}">
+      {{#if isExpanded}}<i class="fa-solid fa-down-left-and-up-right-to-center"></i>
+      {{else}}<i class="fa-solid fa-up-right-and-down-left-from-center"></i>{{/if}}
+    </button>
+    <button type="button" class="enemy-hud__hide-btn" data-action="toggleHud"
+            title="{{localize 'SHARDS.EnemyHud.Hide'}}">
+      <i class="fa-solid fa-eye-slash"></i>
+    </button>
+  </div>
+
+  {{!-- Enemy Cards (scrollable) --}}
+  {{#if enemies.length}}
+  <div class="enemy-hud__enemies">
+    {{#each enemies as |e|}}
+    <div class="enemy-hud__enemy{{#if e.isDowned}} enemy-hud__enemy--downed{{/if}}"
+         data-actor-id="{{e.actorId}}"
+         data-rank="{{e.rank}}"
+         style="{{e.themeStyle}}">
+
+      {{!-- Portrait --}}
+      <button type="button" class="enemy-hud__portrait-btn"
+              data-action="interactEnemy" data-actor-id="{{e.actorId}}"
+              title="{{e.name}}">
+        <img class="enemy-hud__portrait" src="{{e.img}}" loading="lazy" />
+        <span class="rank-badge rank-badge--sm" data-rank="{{e.rank}}">{{e.rank}}</span>
+      </button>
+
+      {{!-- Info column --}}
+      {{#if ../showBasic}}
+      <div class="enemy-hud__info">
+        {{!-- Name row --}}
+        <div class="enemy-hud__name-row">
+          {{#if ../isGM}}
+          <span class="enemy-hud__name enemy-hud__name--gm"
+                data-action="interactEnemy" data-actor-id="{{e.actorId}}"
+                data-open-sheet="true">{{e.name}}</span>
+          {{else}}
+          <span class="enemy-hud__name">{{e.name}}</span>
+          {{/if}}
+        </div>
+
+        {{!-- HP Bar (always shown at Basic+) --}}
+        <div class="enemy-hud__bar enemy-hud__bar--hp"
+             style="--bar-pct: {{e.hpPct}}%"
+             {{#if ../showDetailed}}title="HP: {{e.hp.value}}/{{e.hp.max}}"
+             {{else}}title="HP: {{e.hpPct}}%"{{/if}}>
+          <span class="enemy-hud__bar-label">HP</span>
+          <div class="enemy-hud__bar-track">
+            <div class="enemy-hud__bar-fill"></div>
+            <div class="enemy-hud__bar-shine"></div>
+          </div>
+          {{#if ../showDetailed}}
+            {{#if (eq ../mode "expanded")}}
+            <span class="enemy-hud__bar-value">{{e.hp.value}}<span class="enemy-hud__bar-max">/{{e.hp.max}}</span></span>
+            {{/if}}
+          {{/if}}
+        </div>
+
+        {{!-- MP Bar (Detailed+ only) --}}
+        {{#if ../showDetailed}}
+        <div class="enemy-hud__bar enemy-hud__bar--mp"
+             style="--bar-pct: {{e.mpPct}}%"
+             title="MP: {{e.mp.value}}/{{e.mp.max}}">
+          <span class="enemy-hud__bar-label">MP</span>
+          <div class="enemy-hud__bar-track">
+            <div class="enemy-hud__bar-fill"></div>
+            <div class="enemy-hud__bar-shine"></div>
+          </div>
+          {{#if (eq ../mode "expanded")}}
+          <span class="enemy-hud__bar-value">{{e.mp.value}}<span class="enemy-hud__bar-max">/{{e.mp.max}}</span></span>
+          {{/if}}
+        </div>
+        {{/if}}
+
+        {{!-- Expanded-only details --}}
+        {{#if (eq ../mode "expanded")}}
+        <div class="enemy-hud__details">
+
+          {{!-- Pips (Detailed+) --}}
+          {{#if ../showDetailed}}
+            {{#if e.pips.max}}
+            <div class="enemy-hud__pips" title="Pips: {{e.pips.value}}/{{e.pips.max}}">
+              {{#each e.pips.dots}}
+              <span class="enemy-hud__pip{{#if this}} enemy-hud__pip--filled{{/if}}"></span>
+              {{/each}}
+            </div>
+            {{/if}}
+          {{/if}}
+
+          {{!-- Conditions (Detailed+) --}}
+          {{#if ../showDetailed}}
+            {{#if e.activeConditions.length}}
+            <div class="enemy-hud__conditions">
+              {{#each e.activeConditions}}
+              <span class="enemy-hud__condition-chip"
+                    title="{{this.label}}{{#if (gt this.magnitude 1)}} x{{this.magnitude}}{{/if}}">
+                {{#if this.img}}<img src="{{this.img}}" width="16" height="16" />{{/if}}
+                {{#if (gt this.magnitude 1)}}<span class="enemy-hud__condition-mag">{{this.magnitude}}</span>{{/if}}
+              </span>
+              {{/each}}
+            </div>
+            {{/if}}
+          {{/if}}
+
+          {{!-- Stats Grid (Full only) --}}
+          {{#if ../showFull}}
+          <div class="enemy-hud__stats-grid">
+            {{#each e.stats}}
+            <div class="enemy-hud__stat" title="{{this.label}}: {{this.total}}">
+              <span class="enemy-hud__stat-abbr">{{@key}}</span>
+              <span class="enemy-hud__stat-val">{{this.total}}</span>
+            </div>
+            {{/each}}
+          </div>
+
+          {{!-- Derived Stats (Full only) --}}
+          <div class="enemy-hud__derived-grid">
+            {{#each e.derived}}
+            <div class="enemy-hud__derived" title="{{this.label}}: {{this.value}}">
+              <span class="enemy-hud__derived-abbr">{{this.label}}</span>
+              <span class="enemy-hud__derived-val">{{this.value}}</span>
+            </div>
+            {{/each}}
+          </div>
+
+          {{!-- Element Resistances (Full only) --}}
+          {{#if e.hasNotableElements}}
+          <div class="enemy-hud__elements">
+            {{#each e.notableElements}}
+            <span class="enemy-hud__element-chip {{this.category}}"
+                  title="{{this.label}}: {{this.categoryLabel}}">
+              {{this.label}}: {{this.categoryLabel}}
+            </span>
+            {{/each}}
+          </div>
+          {{/if}}
+
+          {{!-- Movement Modes (Full only) --}}
+          {{#if e.activeMovementModes.length}}
+          <div class="enemy-hud__movement">
+            {{#each e.activeMovementModes}}
+            <span class="enemy-hud__move-chip" title="{{this.label}}">{{this.label}}</span>
+            {{/each}}
+          </div>
+          {{/if}}
+          {{/if}}
+
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{else}}
+  <div class="enemy-hud__empty">
+    {{#if hasCombat}}
+    <span>{{localize "SHARDS.EnemyHud.NoEnemies"}}</span>
+    {{else}}
+    <span>{{localize "SHARDS.EnemyHud.NoCombat"}}</span>
+    {{/if}}
+  </div>
+  {{/if}}
+
+</div>
+{{/if}}

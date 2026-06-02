@@ -1,0 +1,41 @@
+<div class="shards-chat-card shards-levelup-card" data-theme="{{actorTheme}}">
+  <header class="shards-chat-card__header">
+    <img class="shards-chat-card__portrait" src="{{actorImg}}" alt="{{actorName}}" width="36" height="36" />
+    <div class="shards-chat-card__title">
+      <span class="shards-chat-card__actor-name">{{actorName}}</span>
+      <span class="shards-chat-card__subtitle">{{localize "SHARDS.XP.LevelUp"}}</span>
+    </div>
+    <span class="shards-levelup__level-badge">Lv. {{newLevel}}</span>
+  </header>
+
+  <div class="shards-chat-card__body">
+    <div class="shards-levelup__results">
+      {{#each rollResults as |result|}}
+      <div class="shards-levelup__stat-row {{#if result.passed}}shards-levelup__stat-row--pass{{else}}shards-levelup__stat-row--fail{{/if}}">
+        <span class="shards-levelup__stat-name">{{result.label}}</span>
+        <span class="shards-levelup__roll">{{result.displayRoll}}</span>
+        <span class="shards-levelup__vs">vs</span>
+        <span class="shards-levelup__rate">{{result.growthRate}}%</span>
+        <span class="shards-levelup__outcome">
+          {{#if result.passed}}
+          <i class="fa-solid fa-arrow-up"></i> +1
+          {{else}}
+          <i class="fa-solid fa-minus"></i>
+          {{/if}}
+        </span>
+      </div>
+      {{/each}}
+    </div>
+
+    <div class="shards-levelup__summary">
+      {{localize "SHARDS.XP.GainsSummary"}}: <strong>+{{totalGains}}</strong> {{localize "SHARDS.XP.StatPoints"}}
+    </div>
+
+    {{#if rankAdvanced}}
+    <div class="shards-levelup__rank-advance">
+      <i class="fa-solid fa-crown"></i>
+      {{localize "SHARDS.XP.RankAdvanced"}}: {{oldRank}} &rarr; <strong>{{newRank}}</strong>
+    </div>
+    {{/if}}
+  </div>
+</div>

@@ -1,0 +1,140 @@
+<div class="shards-chat-card shards-weapon-attack" data-theme="{{actorTheme}}">
+  <header class="shards-chat-card__header">
+    <img class="shards-chat-card__portrait" src="{{actorImg}}" alt="{{actorName}}" width="36" height="36" />
+    <div class="shards-chat-card__title">
+      <img class="shards-chat-card__skill-icon" src="{{weaponImg}}" alt="" width="20" height="20" />
+      <span class="shards-chat-card__actor-name">{{actorName}}</span>
+      <span class="shards-chat-card__subtitle">{{weaponName}}</span>
+    </div>
+    <span class="shards-chat-card__element-badge element-physical">{{localize "SHARDS.Roll.WeaponAttack"}}</span>
+  </header>
+
+  {{!-- Resource Cost --}}
+  {{#unless displayOnly}}
+  <div class="shards-chat-card__costs">
+    <span class="shards-chat-card__cost cost-pips">1 Pip</span>
+  </div>
+  {{/unless}}
+  {{#if classificationLabel}}
+  <div class="shards-chat-card__costs">
+    <span class="shards-chat-card__detail">{{classificationLabel}}</span>
+  </div>
+  {{/if}}
+
+  <div class="shards-chat-card__body">
+    {{#if displayOnly}}
+    <div class="shards-chat-card__display-only">
+      <em>{{localize "SHARDS.Roll.DisplayOnly"}}</em>
+      <button type="button" class="shards-chat-btn shards-chat-btn--spend"
+        data-action="spend-resources"
+        data-actor-id="{{actorId}}"
+        data-pip-cost="1"
+        data-mp-cost="0">
+        <i class="fa-solid fa-coins"></i>
+        {{localize "SHARDS.Roll.SpendResources"}} (1 Pip)
+      </button>
+    </div>
+    {{else}}
+    {{#each results}}
+    <div class="shards-attack-roll__target-block">
+      {{#if ../isMultiTarget}}
+      <div class="shards-attack-roll__target-name">
+        <i class="fa-solid fa-crosshairs"></i> {{this.targetName}}
+      </div>
+      {{/if}}
+
+      {{!-- Hit Resolution --}}
+      <div class="shards-chat-card__section">
+        <div class="shards-chat-card__section-header">{{localize "SHARDS.Roll.HitResolution"}}</div>
+        <div class="shards-chat-card__roll-panel">
+          <span class="shards-chat-card__d100">{{this.rollTotal}}</span>
+          <span class="shards-chat-card__vs">/ {{this.hitTarget}}%</span>
+          <span class="shards-chat-card__outcome {{this.outcomeCss}}">
+            <i class="fa-solid {{this.outcomeIcon}}"></i>
+            {{this.outcomeLabel}}
+          </span>
+        </div>
+        <div class="shards-attack-roll__thresholds">
+          <span>{{localize "SHARDS.Roll.HitChance"}}: {{this.hitTarget}}%</span>
+          <span>{{localize "SHARDS.Roll.CritThreshold"}}: {{this.critThreshold}}%</span>
+        </div>
+      </div>
+
+      {{!-- Damage --}}
+      {{#if this.isHit}}
+        {{#if this.isImmune}}
+        <div class="shards-attack-roll__immune">
+          <i class="fa-solid fa-shield"></i> {{localize "SHARDS.Roll.Immune"}}
+        </div>
+        {{else if this.isAbsorb}}
+        <div class="shards-chat-card__section">
+          <div class="shards-attack-roll__absorb">
+            <i class="fa-solid fa-heart-circle-plus"></i>
+            <span>{{localize "SHARDS.Roll.Absorbed"}}</span>
+            <span class="shards-attack-roll__heal-value">+{{this.finalDamage}} HP</span>
+          </div>
+        </div>
+        <button type="button" class="shards-chat-btn shards-chat-btn--heal"
+          data-action="apply-healing"
+          data-target-id="{{this.damageTargetId}}"
+          data-healing="{{this.finalDamage}}">
+          <i class="fa-solid fa-heart"></i>
+          {{localize "SHARDS.Roll.ApplyHealing"}} ({{this.finalDamage}}) &rarr; {{this.damageTargetName}}
+        </button>
+        {{else}}
+        <div class="shards-chat-card__section">
+          <div class="shards-chat-card__section-header">{{localize "SHARDS.Roll.DamageSection"}}</div>
+          <div class="shards-attack-roll__damage-breakdown">
+            <span class="shards-attack-roll__dmg-line">
+              <span class="shards-attack-roll__dmg-label">
+                {{localize "SHARDS.Roll.Damage"}}
+                {{#if ../damageTypeLabel}}
+                <span class="shards-attack-roll__dmg-element element-{{../damageType}}">{{../damageTypeLabel}}</span>
+                {{/if}}
+              </span>
+              <span class="shards-attack-roll__dmg-value">{{this.baseDamage}}</span>
+            </span>
+            {{#if this.pierced}}
+            <span class="shards-attack-roll__dmg-line shards-attack-roll__pierced">
+              <span class="shards-attack-roll__dmg-label"><i class="fa-solid fa-burst"></i> {{localize "SHARDS.Roll.Pierced"}}</span>
+            </span>
+            {{else if this.showResistance}}
+            <span class="shards-attack-roll__dmg-line {{#if (lt this.resistance 0)}}resist-weak{{else}}resist-strong{{/if}}">
+              <span class="shards-attack-roll__dmg-label">{{localize "SHARDS.Roll.Resistance"}}</span>
+              <span class="shards-attack-roll__dmg-value">{{this.resistanceLabel}}</span>
+            </span>
+            {{/if}}
+            {{#if this.defReduction}}
+            <span class="shards-attack-roll__dmg-line">
+              <span class="shards-attack-roll__dmg-label">{{localize "SHARDS.Roll.Defense"}}</span>
+              <span class="shards-attack-roll__dmg-value">-{{this.defReduction}}</span>
+            </span>
+            {{/if}}
+          </div>
+          <div class="shards-attack-roll__final-damage">
+            <span class="shards-attack-roll__final-label">{{localize "SHARDS.Roll.FinalDamage"}}</span>
+            <strong>{{this.finalDamage}}</strong>
+            {{#if this.isCrit}}<span class="shards-attack-roll__crit-label"><i class="fa-solid fa-gem"></i> CRIT</span>{{/if}}
+          </div>
+        </div>
+
+        {{#if this.reflected}}
+        <div class="shards-attack-roll__reflected">
+          <i class="fa-solid fa-rotate-left"></i> {{localize "SHARDS.Roll.Reflected"}}
+        </div>
+        {{/if}}
+
+        <button type="button" class="shards-chat-btn shards-chat-btn--damage"
+          data-action="apply-damage"
+          data-target-id="{{this.damageTargetId}}"
+          data-damage="{{this.finalDamage}}">
+          <i class="fa-solid fa-burst"></i>
+          {{localize "SHARDS.Roll.ApplyDamage"}} ({{this.finalDamage}}) &rarr; {{this.damageTargetName}}
+        </button>
+        {{/if}}
+      {{/if}}
+    </div>
+    {{/each}}
+    {{/if}}
+  </div>
+</div>

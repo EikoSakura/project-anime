@@ -1,0 +1,28 @@
+<div class="shards-chat-card shards-stat-test" data-theme="{{actorTheme}}">
+  <header class="shards-chat-card__header">
+    <img class="shards-chat-card__portrait" src="{{actorImg}}" alt="{{actorName}}" width="36" height="36" />
+    <div class="shards-chat-card__title">
+      <span class="shards-chat-card__actor-name">{{actorName}}</span>
+      <span class="shards-chat-card__subtitle">{{localize "SHARDS.Roll.StatTest"}}</span>
+    </div>
+  </header>
+
+  <div class="shards-chat-card__body">
+    <div class="shards-stat-test__info">
+      <span class="shards-stat-test__stat">{{statLabel}}</span>
+      <span class="shards-stat-test__target">{{localize "SHARDS.Roll.Target"}}: {{target}}</span>
+      {{#if modifierStr}}
+      <span class="shards-stat-test__modifier">({{modifierStr}})</span>
+      {{/if}}
+    </div>
+
+    <div class="shards-chat-card__roll-panel">
+      <span class="shards-chat-card__d100">{{roll}}</span>
+      <span class="shards-chat-card__vs">/ {{target}}</span>
+      <span class="shards-chat-card__outcome {{outcomeCss}}">
+        <i class="fa-solid {{outcomeIcon}}"></i>
+        {{outcomeLabel}}
+      </span>
+    </div>
+  </div>
+</div>

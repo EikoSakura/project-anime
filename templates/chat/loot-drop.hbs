@@ -1,0 +1,162 @@
+<div class="shards-chat-card shards-loot-drop" data-theme="{{theme}}">
+  <header class="shards-chat-card__header">
+    <img class="shards-chat-card__portrait" src="{{monsterImg}}" alt="{{monsterName}}" width="36" height="36" />
+    <div class="shards-chat-card__title">
+      <span class="shards-chat-card__actor-name">{{monsterName}}</span>
+      <span class="shards-chat-card__subtitle">{{localize "SHARDS.Drops.Title"}}</span>
+    </div>
+    <span class="shards-chat-card__element-badge element-dark">
+      <i class="fa-solid fa-skull"></i>
+    </span>
+  </header>
+
+  {{!-- System Voice Announcement --}}
+  <div class="shards-loot-drop__system-voice">
+    &laquo; {{systemVoice}} &raquo;
+  </div>
+
+  <div class="shards-chat-card__body">
+
+    {{!-- Full Roll Results (all drops, success and failure) --}}
+    {{#if drops.length}}
+    <div class="shards-loot-drop__roll-results">
+      <div class="shards-chat-card__section-header">
+        <i class="fa-solid fa-dice-d20"></i> {{localize "SHARDS.Drops.RollResults"}}
+      </div>
+      {{#each drops}}
+      <div class="shards-loot-drop__roll-row {{#if this.success}}roll-success{{else}}roll-fail{{/if}}">
+        <span class="rank-badge" data-rank="{{this.rank}}">{{this.rank}}</span>
+        <span class="shards-loot-drop__roll-name">{{this.name}}</span>
+        <span class="shards-loot-drop__roll-dice">
+          <span class="shards-loot-drop__d100">{{this.rolled}}</span>
+          <span class="shards-loot-drop__vs">/ {{this.needed}}</span>
+        </span>
+        <span class="shards-loot-drop__roll-outcome {{#if this.success}}outcome-success{{else}}outcome-fail{{/if}}">
+          {{#if this.success}}
+          <i class="fa-solid fa-gem"></i> {{localize "SHARDS.Drops.Dropped"}}
+          {{else}}
+          <i class="fa-solid fa-xmark"></i> {{localize "SHARDS.Drops.NoDrop"}}
+          {{/if}}
+        </span>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{!-- Gold Section --}}
+    {{#if gold}}
+    <div class="shards-loot-drop__gold-section">
+      <div class="shards-loot-drop__gold-display">
+        <i class="fa-solid fa-coins"></i>
+        <span class="shards-loot-drop__gold-amount">{{gold}}</span>
+        <span>{{localize "SHARDS.Drops.Gold"}}</span>
+      </div>
+      {{#unless testMode}}
+      <div class="shards-loot-drop__claim-row">
+        {{#each recipients}}
+        <button type="button" class="shards-chat-btn shards-chat-btn--heal shards-loot-drop__claim-btn"
+          data-action="claim-gold"
+          data-actor-id="{{this.id}}"
+          data-gold="{{@root.gold}}"
+          title="{{this.name}}">
+          <img src="{{this.img}}" width="16" height="16" /> {{this.name}}
+        </button>
+        {{/each}}
+        {{#if partyId}}
+        <button type="button" class="shards-chat-btn shards-chat-btn--spend shards-loot-drop__claim-btn"
+          data-action="claim-gold"
+          data-actor-id="{{partyId}}"
+          data-gold="{{gold}}"
+          title="{{partyName}}">
+          <i class="fa-solid fa-users"></i> {{partyName}}
+        </button>
+        {{/if}}
+      </div>
+      {{/unless}}
+    </div>
+    {{/if}}
+
+    {{!-- Successful Manacite Drops --}}
+    {{#if successfulDrops.length}}
+    <div class="shards-loot-drop__drops-list">
+      <div class="shards-chat-card__section-header">
+        <i class="fa-solid fa-gem"></i> {{localize "SHARDS.Drops.ManaciteDrops"}}
+      </div>
+      {{#each successfulDrops as |drop|}}
+      <div class="shards-loot-drop__drop-row" data-drop-index="{{@index}}">
+        <div class="shards-loot-drop__drop-info">
+          <span class="rank-badge" data-rank="{{drop.rank}}">{{drop.rank}}</span>
+          <span class="shards-loot-drop__drop-name">{{drop.name}}</span>
+          {{#if (gt drop.quantity 1)}}
+          <span class="shards-loot-drop__drop-qty">&times;{{drop.quantity}}</span>
+          {{/if}}
+          <span class="shards-loot-drop__drop-sl">SL {{drop.skillLevel}}</span>
+        </div>
+        {{#unless @root.testMode}}
+        <div class="shards-loot-drop__claim-row">
+          {{#each @root.recipients}}
+          <button type="button" class="shards-chat-btn shards-chat-btn--condition shards-loot-drop__claim-btn"
+            data-action="claim-drop"
+            data-actor-id="{{this.id}}"
+            data-monster-name="{{@root.monsterName}}"
+            data-drop-name="{{drop.name}}"
+            data-drop-rank="{{drop.rank}}"
+            data-drop-skill-level="{{drop.skillLevel}}"
+            data-drop-skill-granted=""
+            data-drop-quantity="{{drop.quantity}}"
+            title="{{this.name}}">
+            <img src="{{this.img}}" width="16" height="16" /> {{this.name}}
+          </button>
+          {{/each}}
+        </div>
+        {{/unless}}
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{!-- No drops message --}}
+    {{#unless hasDrops}}
+    <div class="shards-loot-drop__empty">
+      <i class="fa-solid fa-ghost"></i>
+      <span>{{localize "SHARDS.Drops.NothingDropped"}}</span>
+    </div>
+    {{/unless}}
+
+    {{!-- Bulk Actions --}}
+    {{#unless testMode}}
+    {{#if hasDrops}}
+    <div class="shards-loot-drop__bulk-actions">
+      {{#if partyId}}
+      <button type="button" class="shards-chat-btn shards-chat-btn--spend"
+        data-action="claim-all-party"
+        data-party-id="{{partyId}}"
+        data-monster-id="{{monsterId}}">
+        <i class="fa-solid fa-users"></i> {{localize "SHARDS.Drops.ClaimAllParty"}}
+      </button>
+      {{/if}}
+      <button type="button" class="shards-chat-btn shards-chat-btn--spend"
+        data-action="open-loot-dialog"
+        data-monster-id="{{monsterId}}">
+        <i class="fa-solid fa-hand-holding"></i> {{localize "SHARDS.Drops.OpenDialog"}}
+      </button>
+      {{#if isGM}}
+      <button type="button" class="shards-chat-btn shards-chat-btn--damage"
+        data-action="reroll-drops"
+        data-monster-id="{{monsterId}}">
+        <i class="fa-solid fa-rotate"></i> {{localize "SHARDS.Drops.ReRoll"}}
+      </button>
+      {{/if}}
+    </div>
+    {{/if}}
+    {{/unless}}
+
+    {{!-- Test Mode Banner --}}
+    {{#if testMode}}
+    <div class="shards-loot-drop__test-banner">
+      <i class="fa-solid fa-flask"></i> {{localize "SHARDS.Drops.TestResult"}}
+    </div>
+    {{/if}}
+
+  </div>
+</div>

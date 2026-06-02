@@ -1,77 +1,161 @@
 {
-  "id": "project-anime",
-  "title": "Project: Anime",
-  "description": "A setting-agnostic anime TTRPG of attribute dice, player-built Skills, and cinematic scenes. Playtest implementation for Foundry Virtual Tabletop V13.",
-  "version": "0.1.1",
+  "id": "shards-of-mana",
+  "title": "Shards of Mana",
+  "description": "An original TTRPG system built for Foundry VTT. Explore a world of crystallized magic, master Jobs, bond with allies, and rise through the ranks of the Adventuring Guild.",
+  "version": "0.1.2",
   "compatibility": {
     "minimum": "13",
-    "verified": "13.351",
-    "maximum": ""
+    "verified": "13"
   },
   "authors": [
-    { "name": "Vinny", "flags": {} },
-    { "name": "Hellfire", "flags": {} },
-    { "name": "CSwrites", "flags": {} }
+    {
+      "name": "EikoSakura"
+    }
   ],
-  "esmodules": ["module/project-anime.mjs"],
-  "styles": ["css/project-anime.css"],
-  "languages": [
-    { "lang": "en", "name": "English", "path": "lang/en.json" }
+  "esmodules": ["shards-of-mana.mjs"],
+  "styles": [
+    "styles/shards-of-mana.css",
+    "styles/actor-shared.css",
+    "styles/actor-adventurer.css",
+    "styles/item-job.css",
+    "styles/app-jobs.css",
+    "styles/app-item-browser.css",
+    "styles/app-codex-hub.css",
+    "styles/active-effect-sheet.css",
+    "styles/effect-creator.css",
+    "styles/item-skill.css",
+    "styles/item-equipment.css",
+    "styles/item-manacite.css",
+
+    "styles/chat-cards.css",
+    "styles/effects-shared.css",
+    "styles/app-chargen.css",
+    "styles/app-levelup.css",
+    "styles/actor-party.css",
+    "styles/app-preroll.css",
+    "styles/combat-tracker.css",
+    "styles/app-loot.css",
+    "styles/app-quest-creator.css",
+    "styles/app-encounter-builder.css",
+    "styles/item-effect.css",
+    "styles/item-lineage.css",
+    "styles/app-party-hud.css",
+    "styles/app-enemy-hud.css",
+    "styles/app-token-hud.css",
+    "styles/app-choice-dialog.css",
+    "styles/mana-grid.css"
   ],
   "packs": [
-    { "name": "weapons", "label": "Weapons", "type": "Item", "system": "project-anime", "path": "packs/weapons" },
-    { "name": "armor", "label": "Armor", "type": "Item", "system": "project-anime", "path": "packs/armor" },
-    { "name": "shields", "label": "Shields", "type": "Item", "system": "project-anime", "path": "packs/shields" },
-    { "name": "accessories", "label": "Accessories", "type": "Item", "system": "project-anime", "path": "packs/accessories" },
-    { "name": "consumables", "label": "Consumables", "type": "Item", "system": "project-anime", "path": "packs/consumables" },
-    { "name": "containers", "label": "Containers", "type": "Item", "system": "project-anime", "path": "packs/containers" },
-    { "name": "skills", "label": "Skills", "type": "Item", "system": "project-anime", "path": "packs/skills" },
-    { "name": "npcs", "label": "NPCs", "type": "Actor", "system": "project-anime", "path": "packs/npcs" }
-  ],
-  "packFolders": [
     {
-      "name": "Project: Anime",
-      "sorting": "a",
-      "color": "#6c4f9c",
-      "packs": ["weapons", "armor", "shields", "accessories", "consumables", "containers", "skills", "npcs"]
+      "name": "jobs",
+      "label": "Shards of Mana - Jobs",
+      "type": "Item",
+      "path": "packs/jobs",
+      "system": "shards-of-mana"
+    },
+    {
+      "name": "equipment",
+      "label": "Shards of Mana - Equipment",
+      "type": "Item",
+      "path": "packs/equipment",
+      "system": "shards-of-mana"
+    },
+    {
+      "name": "manacite",
+      "label": "Shards of Mana - Manacite",
+      "type": "Item",
+      "path": "packs/manacite",
+      "system": "shards-of-mana"
+    },
+
+    {
+      "name": "skills",
+      "label": "Shards of Mana - Skills",
+      "type": "Item",
+      "path": "packs/skills",
+      "system": "shards-of-mana"
+    },
+    {
+      "name": "monsters",
+      "label": "Shards of Mana - Monsters",
+      "type": "Actor",
+      "path": "packs/monsters",
+      "system": "shards-of-mana"
+    },
+    {
+      "name": "rules",
+      "label": "Shards of Mana - Rulebook",
+      "type": "JournalEntry",
+      "path": "packs/rules",
+      "system": "shards-of-mana"
+    },
+    {
+      "name": "effects",
+      "label": "Shards of Mana - Effects",
+      "type": "Item",
+      "path": "packs/effects",
+      "system": "shards-of-mana"
+    },
+    {
+      "name": "lineages",
+      "label": "Shards of Mana - Lineages",
+      "type": "Item",
+      "path": "packs/lineages",
+      "system": "shards-of-mana"
+    }
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
     }
   ],
   "documentTypes": {
     "Actor": {
-      "character": { "htmlFields": ["biography"] },
-      "npc": { "htmlFields": ["biography"] },
-      "party": {}
+      "adventurer": {
+        "htmlFields": ["biography", "appearance", "personality"]
+      },
+      "monster": {
+        "htmlFields": ["biography"]
+      },
+      "npc": {
+        "htmlFields": ["biography"]
+      },
+      "merchant": {
+        "htmlFields": ["biography"]
+      },
+      "party": {
+        "htmlFields": ["biography"]
+      }
     },
     "Item": {
-      "skill": { "htmlFields": ["description"] },
-      "weapon": { "htmlFields": ["description"] },
-      "armor": { "htmlFields": ["description"] },
-      "shield": { "htmlFields": ["description"] },
-      "accessory": { "htmlFields": ["description"] },
-      "consumable": { "htmlFields": ["description"] },
-      "container": { "htmlFields": ["description"] },
-      "gear": { "htmlFields": ["description"] },
-      "package": { "htmlFields": ["description"] }
+      "job": {
+        "htmlFields": ["description"]
+      },
+      "manacite": {
+        "htmlFields": ["description"]
+      },
+      "equipment": {
+        "htmlFields": ["description"]
+      },
+
+      "skill": {
+        "htmlFields": ["description"]
+      },
+      "effect": {
+        "htmlFields": ["description"]
+      },
+      "lineage": {
+        "htmlFields": ["description"]
+      }
     }
   },
-  "socket": true,
   "grid": {
-    "type": 1,
     "distance": 1,
-    "units": "tile",
-    "diagonals": 0
+    "units": "sq"
   },
-  "primaryTokenAttribute": "hp",
-  "secondaryTokenAttribute": "energy",
-  "url": "https://github.com/EikoSakura/project-anime",
-  "manifest": "https://raw.githubusercontent.com/EikoSakura/project-anime/main/system.json",
-  "download": "https://github.com/EikoSakura/project-anime/releases/latest/download/project-anime.zip",
-  "readme": "README.md",
-  "changelog": "CHANGELOG.md",
-  "flags": {
-    "hotReload": {
-      "extensions": ["css", "hbs", "json"],
-      "paths": ["css", "lang", "templates"]
-    }
-  }
+  "primaryTokenAttribute": "health",
+  "secondaryTokenAttribute": "mana",
+  "socket": false
 }

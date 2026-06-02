@@ -1,0 +1,72 @@
+{{!-- Critical HP (<25%) category: creates effects that auto-activate at low HP --}}
+<div class="ec-critical-hp-info">
+  <i class="fa-solid fa-heart-crack"></i>
+  <span>{{localize "SHARDS.EffectCreator.CriticalHpDesc"}}</span>
+</div>
+
+{{!-- Existing critical HP effects --}}
+{{#if criticalHpEffects.length}}
+<div class="ec-critical-hp-effects">
+  {{#each criticalHpEffects}}
+  <div class="ec-critical-hp-effect">
+    <img src="{{this.img}}" alt="" />
+    <span class="ec-critical-hp-effect__name">{{this.name}}</span>
+    <span class="ec-critical-hp-effect__status {{#if this.active}}active{{else}}standby{{/if}}">
+      {{#if this.active}}{{localize "SHARDS.EffectCreator.CriticalHpActive"}}{{else}}{{localize "SHARDS.EffectCreator.CriticalHpStandby"}}{{/if}}
+    </span>
+    <button type="button" class="ec-critical-hp-delete" data-action="deleteCriticalHpEffect" data-effect-id="{{this.effectId}}" data-tooltip="{{localize 'SHARDS.EffectCreator.CtxDelete'}}">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  {{/each}}
+</div>
+{{/if}}
+
+{{!-- Builder: pick target + value --}}
+<div class="ec-button-grid ec-button-grid--stats">
+  {{#each criticalHpStatButtons}}
+  <button type="button"
+          class="ec-pick-btn {{#if this.selected}}selected{{/if}}"
+          data-action="pickTarget"
+          data-category="criticalHp"
+          data-target-key="{{this.key}}"
+          data-tooltip="{{this.label}}">
+    <span class="ec-pick-btn__abbr">{{this.abbr}}</span>
+    <span class="ec-pick-btn__label">{{this.label}}</span>
+  </button>
+  {{/each}}
+</div>
+
+<div class="ec-builder-form" data-category="criticalHp">
+  {{!-- Selected target --}}
+  <div class="ec-selected-target">
+    <span class="ec-selected-label">{{localize "SHARDS.EffectCreator.Target"}}:</span>
+    <span class="ec-selected-value" data-field="selected-label">{{localize "SHARDS.EffectCreator.NoneSelected"}}</span>
+    <input type="hidden" data-field="selected-key" value="" />
+  </div>
+
+  {{!-- Value row --}}
+  <div class="ec-builder-value-row">
+    <label>{{localize "SHARDS.EffectCreator.Value"}}</label>
+    <div class="ec-value-wrap">
+      <button type="button" class="ec-sign-btn" data-action="toggleSign"
+              data-tooltip="{{localize 'SHARDS.EffectCreator.ToggleSign'}}">+</button>
+      <input type="text" data-field="value" value="" class="ec-value-input"
+             placeholder="{{localize 'SHARDS.EffectCreator.ValueHint'}}" />
+      <button type="button" class="ec-pct-btn" data-action="togglePercent"
+              data-tooltip="{{localize 'SHARDS.EffectCreator.TogglePercent'}}">%</button>
+    </div>
+  </div>
+
+  {{!-- Optional name override --}}
+  <div class="ec-builder-row">
+    <label>{{localize "SHARDS.EffectCreator.EffectName"}}</label>
+    <input type="text" data-field="name" placeholder="{{localize 'SHARDS.EffectCreator.AutoName'}}" />
+  </div>
+
+  {{!-- Create button --}}
+  <button type="button" class="ec-apply-btn" data-action="createCriticalHpEffect" data-category="criticalHp">
+    <i class="fa-solid fa-heart-crack"></i>
+    {{localize "SHARDS.EffectCreator.Create"}}
+  </button>
+</div>

@@ -1,0 +1,64 @@
+<form class="stat-test-form" data-theme="{{theme}}">
+  {{!-- Header: Stat Name + Value --}}
+  <div class="stat-test-header">
+    <div class="stat-test-header__stat">
+      <span class="stat-test-header__label">{{statLabel}}</span>
+      <span class="stat-test-header__value">{{statTotal}}</span>
+    </div>
+    {{#if conditionalBonus}}
+    <div class="stat-test-header__adjusted">
+      <span class="stat-test-header__arrow"><i class="fa-solid fa-arrow-right"></i></span>
+      <span class="stat-test-header__adjusted-value">{{adjustedTotal}}</span>
+    </div>
+    {{/if}}
+  </div>
+
+  {{!-- Modifier Input --}}
+  <div class="stat-test-modifier">
+    <label class="stat-test-modifier__label" for="stat-test-mod">
+      {{localize "SHARDS.StatTest.Modifier"}}
+    </label>
+    <input type="number" id="stat-test-mod" name="modifier" value="0"
+           class="stat-test-modifier__input" step="1" />
+  </div>
+
+  {{!-- Conditional Effects --}}
+  {{#if hasConditionals}}
+  <div class="stat-test-conditionals">
+    <h4 class="stat-test-conditionals__header">
+      <i class="fa-solid fa-toggle-on"></i>
+      {{localize "SHARDS.StatTest.ConditionalEffects"}}
+    </h4>
+    <div class="stat-test-conditionals__list">
+      {{#each conditionalEffects}}
+      <div class="stat-test-conditional-row{{#if toggled}} stat-test-conditional-row--active{{/if}}{{#unless isRelevant}} stat-test-conditional-row--dim{{/unless}}"
+           data-action="toggleConditional" data-effect-id="{{id}}">
+        <img class="stat-test-conditional-row__icon" src="{{img}}" width="24" height="24" />
+        <div class="stat-test-conditional-row__info">
+          <span class="stat-test-conditional-row__name">{{name}}</span>
+          {{#if label}}
+          <span class="stat-test-conditional-row__label">{{label}}</span>
+          {{/if}}
+        </div>
+        {{#if bonusStr}}
+        <span class="stat-test-conditional-row__bonus">{{bonusStr}}</span>
+        {{/if}}
+        <div class="stat-test-conditional-row__toggle">
+          <i class="fa-solid {{#if toggled}}fa-toggle-on{{else}}fa-toggle-off{{/if}}"></i>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{!-- Footer Buttons --}}
+  <div class="stat-test-footer">
+    <button type="button" data-action="confirmRoll" class="preroll-btn preroll-btn--confirm">
+      <i class="fa-solid fa-dice-d20"></i> {{localize "SHARDS.PreRoll.Confirm"}}
+    </button>
+    <button type="button" data-action="cancelRoll" class="preroll-btn preroll-btn--cancel">
+      <i class="fa-solid fa-xmark"></i> {{localize "SHARDS.PreRoll.Cancel"}}
+    </button>
+  </div>
+</form>

@@ -1,0 +1,67 @@
+<section class="tab treasury" data-group="primary" data-tab="treasury">
+  {{!-- Shared Gold Pool --}}
+  <div class="treasury-gold-panel crystal-panel">
+    <h3 class="crystal-heading">{{localize "SHARDS.Party.SharedGold"}}</h3>
+    <div class="treasury-gold-display">
+      <i class="fa-solid fa-coins treasury-gold-icon"></i>
+      <input type="number" name="system.gold" value="{{system.gold}}" class="treasury-gold-input"
+             data-dtype="Number" min="0" />
+      <span class="treasury-gold-label">G</span>
+    </div>
+
+    {{!-- Per-member deposit/withdraw --}}
+    {{#if memberCards.length}}
+    <div class="treasury-member-list">
+      {{#each memberCards as |member|}}
+      {{#if member.linkedActor}}
+      <div class="treasury-member-row" data-member-index="{{member._index}}">
+        <img src="{{member.displayImg}}" width="24" height="24" class="treasury-member-icon" />
+        <span class="treasury-member-name">{{member.displayName}}</span>
+        <span class="treasury-member-gold">{{member.linkedActor.system.gold}} G</span>
+        <button type="button" class="crystal-btn crystal-btn--small"
+                data-action="depositGold" title="{{localize 'SHARDS.Party.Deposit'}}">
+          <i class="fa-solid fa-arrow-down"></i>
+        </button>
+        <button type="button" class="crystal-btn crystal-btn--small"
+                data-action="withdrawGold" title="{{localize 'SHARDS.Party.Withdraw'}}">
+          <i class="fa-solid fa-arrow-up"></i>
+        </button>
+      </div>
+      {{/if}}
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  {{!-- Shared Item Stash --}}
+  <div class="treasury-stash crystal-panel">
+    <h3 class="crystal-heading">
+      {{localize "SHARDS.Party.ItemStash"}}
+      <span class="count-badge">{{stashItems.length}}</span>
+    </h3>
+
+    {{#if stashItems.length}}
+    <ul class="crystal-item-list">
+      {{#each stashItems}}
+      <li class="crystal-item" data-item-id="{{this._id}}">
+        <div class="item-name" data-action="editItem">
+          <img src="{{this.img}}" width="24" height="24" />
+          <span>{{this.name}}</span>
+        </div>
+        <span class="item-detail">{{this.type}}</span>
+        <div class="item-controls">
+          <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button type="button" data-action="deleteItem" title="{{localize 'SHARDS.Delete'}}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="party-stash-empty">{{localize "SHARDS.Party.NoItems"}}</p>
+    {{/if}}
+  </div>
+</section>

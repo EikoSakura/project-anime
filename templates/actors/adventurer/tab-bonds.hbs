@@ -1,0 +1,102 @@
+<section class="tab bonds" data-group="primary" data-tab="bonds">
+
+  {{!-- Toolbar --}}
+  <div class="bonds-toolbar">
+    <button type="button" class="crystal-btn crystal-btn--small" data-action="addBond">
+      <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Bonds.Add"}}
+    </button>
+  </div>
+
+  {{!-- Bond Card Grid --}}
+  {{#if bondCards.length}}
+  <div class="bond-card-grid">
+    {{#each bondCards as |bond|}}
+    <div class="bond-card collapsible-section{{#if bond.bondBroken}} bond-card--broken{{/if}}"
+         data-bond-index="{{bond._index}}" data-section="bond-{{bond._index}}" data-archetype="{{bond.archetype}}">
+
+      {{!-- Card Header --}}
+      <div class="bond-card__header">
+        {{!-- Portrait: click opens linked actor sheet --}}
+        <button type="button" class="bond-card__portrait-btn"
+                data-action="openBondActor" data-bond-index="{{bond._index}}"
+                title="{{localize 'SHARDS.Bonds.OpenSheet'}}">
+          <img class="bond-card__portrait" src="{{bond.img}}" width="48" height="48" />
+        </button>
+
+        {{!-- Name + Archetype (not inside toggle to avoid input conflict) --}}
+        <div class="bond-card__info">
+          <input type="text" class="bond-card__name" name="system.bonds.{{bond._index}}.characterName"
+                 value="{{bond.characterName}}" placeholder="{{localize 'SHARDS.Bonds.Character'}}" />
+          <span class="bond-card__archetype-badge" data-archetype="{{bond.archetype}}">
+            <i class="{{bond.archetypeIcon}}"></i>
+            {{bond.archetypeLabel}}
+          </span>
+        </div>
+
+        {{!-- Hearts + Chevron toggle --}}
+        <div class="bond-card__toggle-area" data-action="toggleSection">
+          <div class="bond-card__hearts">
+            {{#each bond.heartPips as |pip|}}
+            <i class="fa-solid fa-heart heart-pip{{#if pip.filled}} filled{{/if}}{{#if pip.broken}} broken{{/if}}"
+               data-action="setHeartRank" data-bond-index="{{../bond._index}}" data-rank="{{pip.rank}}"></i>
+            {{/each}}
+          </div>
+          <i class="fa-solid fa-chevron-down bond-card__chevron"></i>
+        </div>
+      </div>
+
+      {{!-- Collapsible Body --}}
+      <div class="bond-card__collapse">
+        {{!-- Rank Notes --}}
+        <div class="bond-card__rank-notes">
+          {{#each bond.rankNotes as |rn rnIdx|}}
+          <div class="bond-rank-row{{#if rn.unlocked}} bond-rank-row--unlocked{{/if}}">
+            <span class="bond-rank-row__label">
+              <i class="fa-solid fa-heart{{#if rn.unlocked}} filled{{/if}}"></i>
+              {{rn.rankLabel}}
+            </span>
+            <div class="bond-rank-row__fields">
+              <input type="text" name="system.bonds.{{../bond._index}}.rankNotes.{{rnIdx}}.condition"
+                     value="{{rn.condition}}" placeholder="{{localize 'SHARDS.Bonds.ConditionPlaceholder'}}" />
+              <input type="text" name="system.bonds.{{../bond._index}}.rankNotes.{{rnIdx}}.unlock"
+                     value="{{rn.unlock}}" placeholder="{{localize 'SHARDS.Bonds.UnlockPlaceholder'}}" />
+            </div>
+          </div>
+          {{/each}}
+        </div>
+
+        {{!-- General Notes --}}
+        <div class="bond-card__notes">
+          <textarea name="system.bonds.{{bond._index}}.notes"
+                    placeholder="{{localize 'SHARDS.Bonds.NotesPlaceholder'}}" rows="2">{{bond.notes}}</textarea>
+        </div>
+
+        {{!-- Controls --}}
+        <div class="bond-card__controls">
+          {{#if bond.bondBroken}}
+          <button type="button" class="crystal-btn crystal-btn--small" data-action="restoreBond" data-bond-index="{{bond._index}}">
+            <i class="fa-solid fa-heart-circle-plus"></i> {{localize "SHARDS.Bonds.Restore"}}
+          </button>
+          {{else}}
+          <button type="button" class="crystal-btn crystal-btn--small bond-card__btn--danger" data-action="breakBond" data-bond-index="{{bond._index}}">
+            <i class="fa-solid fa-heart-crack"></i> {{localize "SHARDS.Bonds.Break"}}
+          </button>
+          {{/if}}
+          <button type="button" class="bond-card__delete-btn" data-action="deleteBond" data-bond-index="{{bond._index}}" title="{{localize 'SHARDS.Delete'}}">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+    {{/each}}
+  </div>
+  {{else}}
+  <div class="bond-empty-state">
+    <i class="fa-solid fa-heart bond-empty-state__icon"></i>
+    <p class="bond-empty-state__text">{{localize "SHARDS.Bonds.NoBonds"}}</p>
+    <p class="bond-empty-state__hint">{{localize "SHARDS.Bonds.NoBondsHint"}}</p>
+  </div>
+  {{/if}}
+
+</section>

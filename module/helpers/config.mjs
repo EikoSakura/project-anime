@@ -1,362 +1,900 @@
 /**
- * Project: Anime — central configuration constants.
- * Values are localization keys (resolved from lang/en.json) unless noted.
- * This object is attached to `CONFIG.PROJECTANIME` during the init hook and
- * is also imported directly by the data models for use as field `choices`.
+ * Shards of Mana system configuration constants.
  */
-export const PROJECTANIME = {};
-
-/* -------------------------------------------- */
-/*  Attributes                                  */
-/* -------------------------------------------- */
-
-/** The five core attributes, keyed by their stored id. */
-PROJECTANIME.attributes = {
-  might: "PROJECTANIME.Attribute.might.long",
-  agility: "PROJECTANIME.Attribute.agility.long",
-  mind: "PROJECTANIME.Attribute.mind.long",
-  spirit: "PROJECTANIME.Attribute.spirit.long",
-  charm: "PROJECTANIME.Attribute.charm.long"
-};
-
-/** Iteration order for the five attributes. */
-PROJECTANIME.attributeKeys = ["might", "agility", "mind", "spirit", "charm"];
-
-/** Font Awesome icon shown on each attribute card (FA6 Free Solid). */
-PROJECTANIME.attributeIcons = {
-  might: "fa-solid fa-hand-fist",
-  agility: "fa-solid fa-feather-pointed",
-  mind: "fa-solid fa-brain",
-  spirit: "fa-solid fa-spa",
-  charm: "fa-solid fa-masks-theater"
-};
-
-/* -------------------------------------------- */
-/*  Skills                                      */
-/* -------------------------------------------- */
-
-PROJECTANIME.actionTypes = {
-  action: "PROJECTANIME.Skill.actionType.action",
-  passive: "PROJECTANIME.Skill.actionType.passive",
-  react: "PROJECTANIME.Skill.actionType.react"
-};
-
-/** Skill Range scopes (single-target / AOE centre point). */
-PROJECTANIME.ranges = {
-  self: "PROJECTANIME.Range.self",
-  weapon: "PROJECTANIME.Range.weapon",
-  melee: "PROJECTANIME.Range.melee",
-  near: "PROJECTANIME.Range.near",
-  far: "PROJECTANIME.Range.far",
-  veryFar: "PROJECTANIME.Range.veryFar"
-};
-
-/** Recommended ("up to") tile value per Range scope. 0 = not a tile distance
- *  (Self / Weapon / Very Far carry no tile count); the rest the player sets, with
- *  these as the rules' suggested cap. */
-PROJECTANIME.rangeTiles = { self: 0, weapon: 0, melee: 1, near: 5, far: 10, veryFar: 0 };
-
-/** True when a Range scope uses an editable tile count (Melee / Near / Far). */
-export function rangeHasTiles(scope) {
-  return (PROJECTANIME.rangeTiles[scope] ?? 0) > 0;
-}
-
-/** Localized display for a Skill's range: "Near · 4 tiles" for tile scopes, else
- *  just the scope ("Self"). Tolerates the legacy string form during migration. */
-export function rangeLabel(range) {
-  const scope = (range && typeof range === "object" ? range.scope : range) ?? "near";
-  const label = game.i18n.localize(PROJECTANIME.ranges[scope] ?? scope);
-  if (!rangeHasTiles(scope)) return label;
-  const tiles = (range && typeof range === "object" ? range.tiles : PROJECTANIME.rangeTiles[scope]) ?? 0;
-  return `${label} · ${tiles} ${game.i18n.localize("PROJECTANIME.Skill.tiles")}`;
-}
-
-/** Rank metadata: SP cost to create, Energy cost to use, and max Modifiers. */
-PROJECTANIME.skillRanks = {
-  1: { label: "PROJECTANIME.Skill.rank.basic", stars: "★", sp: 1, energy: 2, maxModifiers: 1 },
-  2: { label: "PROJECTANIME.Skill.rank.intermediate", stars: "★★", sp: 2, energy: 4, maxModifiers: 2 },
-  3: { label: "PROJECTANIME.Skill.rank.advanced", stars: "★★★", sp: 3, energy: 6, maxModifiers: 3 },
-  4: { label: "PROJECTANIME.Skill.rank.expert", stars: "★★★★", sp: 4, energy: 8, maxModifiers: 4 },
-  5: { label: "PROJECTANIME.Skill.rank.master", stars: "★★★★★", sp: 5, energy: 10, maxModifiers: 5 }
-};
-
-/** The single primary Effect a Skill is built around. */
-PROJECTANIME.skillEffects = {
-  affinity: "PROJECTANIME.Skill.effect.affinity",
-  bolster: "PROJECTANIME.Skill.effect.bolster",
-  hinder: "PROJECTANIME.Skill.effect.hinder",
-  mend: "PROJECTANIME.Skill.effect.mend",
-  move: "PROJECTANIME.Skill.effect.move",
-  sense: "PROJECTANIME.Skill.effect.sense",
-  strike: "PROJECTANIME.Skill.effect.strike",
-  sustain: "PROJECTANIME.Skill.effect.sustain"
-};
-
-/** A Strike Skill can deal Hit Point or Energy damage (rules: Strike). */
-PROJECTANIME.damagePools = {
-  hp: "PROJECTANIME.Skill.damagePool.hp",
-  energy: "PROJECTANIME.Skill.damagePool.energy"
-};
-
-/** Effects that use a Damage Type: Strike (the damage it deals) and Affinity (the
- *  element you Resist/Immune/Absorb). Every other Effect hides the Damage Type field. */
-PROJECTANIME.damageEffects = ["strike", "affinity"];
-
-/** Effects that roll one of the Skill's two Attribute dice for an amount: Strike
- *  (damage) and Mend (healing). The player picks WHICH of the two (rules: "choose
- *  one of its two Attributes. You roll that Attribute's die"). */
-PROJECTANIME.dieEffects = ["strike", "mend"];
-
-/** Effects that choose a pool (Hit Points / Energy): Strike (which pool its damage hits) and
- *  Sustain (which pool it regenerates each turn). Other Effects hide the pool field. */
-PROJECTANIME.poolEffects = ["strike", "sustain"];
-
-/** Optional Modifiers that shape a Skill (count toward the Rank's max). */
-PROJECTANIME.skillModifiers = {
-  burst: "PROJECTANIME.Skill.modifier.burst",
-  chain: "PROJECTANIME.Skill.modifier.chain",
-  charge: "PROJECTANIME.Skill.modifier.charge",
-  cleanse: "PROJECTANIME.Skill.modifier.cleanse",
-  decay: "PROJECTANIME.Skill.modifier.decay",
-  devour: "PROJECTANIME.Skill.modifier.devour",
-  drainEnergy: "PROJECTANIME.Skill.modifier.drainEnergy",
-  drainHP: "PROJECTANIME.Skill.modifier.drainHP",
-  inflict: "PROJECTANIME.Skill.modifier.inflict",
-  line: "PROJECTANIME.Skill.modifier.line",
-  mass: "PROJECTANIME.Skill.modifier.mass",
-  pierce: "PROJECTANIME.Skill.modifier.pierce",
-  pull: "PROJECTANIME.Skill.modifier.pull",
-  push: "PROJECTANIME.Skill.modifier.push",
-  reflect: "PROJECTANIME.Skill.modifier.reflect"
-};
-
-/** Modifiers flagged "Heavy" count as two Modifiers. */
-PROJECTANIME.heavyModifiers = ["devour", "mass"];
-
-/** Area-of-effect modifiers and how each shapes targeting (see helpers/templates.mjs). */
-PROJECTANIME.areaModifiers = ["burst", "line", "mass", "chain"];
-
-/** Modifiers with a numeric value the "Turn a Modifier" advancement grows (+1 per SP).
- *  `base` is the value before any growth; per-skill growth is stored in system.modifierGrowth.
- *  Burst = the circle radius in tiles; Chain = extra targets it leaps to after the first hit. */
-PROJECTANIME.growableModifiers = {
-  burst: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  chain: { base: 2, unit: "PROJECTANIME.Skill.growUnit.targets" }
-};
-
-/** The Range scope a Chain may leap within between targets ("within Near"). */
-PROJECTANIME.chainRangeScope = "near";
-
-/** A growable Modifier's effective value on an item = its base + that item's stored growth. */
-export function modifierValue(item, key) {
-  const g = PROJECTANIME.growableModifiers?.[key];
-  if (!g) return 0;
-  return (g.base ?? 0) + (item?.system?.modifierGrowth?.[key] ?? 0);
-}
-
-/** Triggers — required for every React Skill. */
-PROJECTANIME.triggers = {
-  alerted: "PROJECTANIME.Skill.trigger.alerted",
-  attacked: "PROJECTANIME.Skill.trigger.attacked",
-  critical: "PROJECTANIME.Skill.trigger.critical",
-  damaged: "PROJECTANIME.Skill.trigger.damaged",
-  enters: "PROJECTANIME.Skill.trigger.enters"
-};
-
-/* -------------------------------------------- */
-/*  Damage, Affinities & Status                 */
-/* -------------------------------------------- */
-
-PROJECTANIME.damageTypes = {
-  physical: "PROJECTANIME.DamageType.physical",
-  earth: "PROJECTANIME.DamageType.earth",
-  fire: "PROJECTANIME.DamageType.fire",
-  mental: "PROJECTANIME.DamageType.mental",
-  sonic: "PROJECTANIME.DamageType.sonic",
-  water: "PROJECTANIME.DamageType.water",
-  wind: "PROJECTANIME.DamageType.wind"
-};
-
-/** Font Awesome icon per damage type — FF8-style Elemental Defense grid. Easy to swap. */
-PROJECTANIME.damageTypeIcons = {
-  physical: "fa-solid fa-khanda",
-  earth: "fa-solid fa-mountain",
-  fire: "fa-solid fa-fire",
-  mental: "fa-solid fa-brain",
-  sonic: "fa-solid fa-volume-high",
-  water: "fa-solid fa-droplet",
-  wind: "fa-solid fa-wind"
-};
-
-/** Affinity levels including "none" — used for the per-damage-type selector. */
-PROJECTANIME.affinityLevels = {
-  none: "PROJECTANIME.Affinity.none",
-  weak: "PROJECTANIME.Affinity.weak",
-  resist: "PROJECTANIME.Affinity.resist",
-  immune: "PROJECTANIME.Affinity.immune",
-  absorb: "PROJECTANIME.Affinity.absorb"
-};
-
-/** Flat damage adjustments applied by affinity (before Defense). null = special. */
-PROJECTANIME.affinityDamage = { weak: 2, resist: -2, immune: null, absorb: null };
-
-/** Iteration order for the conditions. */
-PROJECTANIME.conditionKeys = ["blinded", "bound", "decay", "exhausted", "prone", "slowed", "stunned"];
+export const SHARDS = {};
 
 /**
- * Condition registry assigned to CONFIG.statusEffects during init, giving each
- * status a token-HUD icon. Foundry localizes the `name` keys.
+ * Core stat abbreviations and labels.
+ * @enum {string}
  */
-PROJECTANIME.statusConditions = [
-  { id: "blinded", name: "PROJECTANIME.Status.blinded", img: "icons/svg/blind.svg" },
-  { id: "bound", name: "PROJECTANIME.Status.bound", img: "icons/svg/net.svg" },
-  { id: "decay", name: "PROJECTANIME.Status.decay", img: "icons/svg/degen.svg" },
-  { id: "exhausted", name: "PROJECTANIME.Status.exhausted", img: "icons/svg/downgrade.svg" },
-  { id: "prone", name: "PROJECTANIME.Status.prone", img: "icons/svg/falling.svg" },
-  { id: "slowed", name: "PROJECTANIME.Status.slowed", img: "icons/svg/daze.svg" },
-  { id: "stunned", name: "PROJECTANIME.Status.stunned", img: "icons/svg/paralysis.svg" }
+SHARDS.stats = {
+  str: "SHARDS.Stats.Str",
+  agi: "SHARDS.Stats.Agi",
+  vit: "SHARDS.Stats.Vit",
+  mag: "SHARDS.Stats.Mag",
+  spi: "SHARDS.Stats.Spi",
+  per: "SHARDS.Stats.Per",
+  lck: "SHARDS.Stats.Lck",
+  chm: "SHARDS.Stats.Chm"
+};
+
+/**
+ * Derived stat labels.
+ * @enum {string}
+ */
+SHARDS.derivedStats = {
+  acc: "SHARDS.Derived.Acc",
+  eva: "SHARDS.Derived.Eva",
+  pDef: "SHARDS.Derived.PDef",
+  mDef: "SHARDS.Derived.MDef",
+  crit: "SHARDS.Derived.Crit"
+};
+
+/**
+ * Rank progression: F -> E -> D -> C -> B -> A -> S
+ * @enum {string}
+ */
+SHARDS.ranks = {
+  F: "SHARDS.Ranks.F",
+  E: "SHARDS.Ranks.E",
+  D: "SHARDS.Ranks.D",
+  C: "SHARDS.Ranks.C",
+  B: "SHARDS.Ranks.B",
+  A: "SHARDS.Ranks.A",
+  S: "SHARDS.Ranks.S"
+};
+
+/**
+ * Rank order for comparison (higher = better).
+ * @type {Object<string, number>}
+ */
+SHARDS.rankOrder = {
+  F: 0,
+  E: 1,
+  D: 2,
+  C: 3,
+  B: 4,
+  A: 5,
+  S: 6
+};
+
+/**
+ * Schools / affinities for Jobs and Manacite.
+ * Determines which skill sockets a Manacite can be placed in on the Mana Grid.
+ * @type {Object<string, {label: string, color: string, icon: string}>}
+ */
+SHARDS.schools = {
+  martial:  { label: "SHARDS.School.Martial",  color: "#e05050", icon: "fa-solid fa-sword" },
+  arcane:   { label: "SHARDS.School.Arcane",   color: "#7060e0", icon: "fa-solid fa-hat-wizard" },
+  divine:   { label: "SHARDS.School.Divine",    color: "#e8d060", icon: "fa-solid fa-sun" },
+  nature:   { label: "SHARDS.School.Nature",    color: "#50b850", icon: "fa-solid fa-leaf" },
+  rogue:    { label: "SHARDS.School.Rogue",     color: "#60c0c0", icon: "fa-solid fa-mask" },
+  general:  { label: "SHARDS.School.General",   color: "#a0a0b0", icon: "fa-solid fa-circle-nodes" }
+};
+
+/**
+ * Job categories and their localization keys.
+ * @enum {string}
+ */
+SHARDS.jobCategories = {
+  basic: "SHARDS.Job.Category.Basic",
+  advanced: "SHARDS.Job.Category.Advanced",
+  hybrid: "SHARDS.Job.Category.Hybrid",
+  special: "SHARDS.Job.Category.Special"
+};
+
+/**
+ * Job category colors for badge rendering (reference; actual colors in CSS via data-category).
+ * @type {Object<string, string>}
+ */
+SHARDS.jobCategoryColors = {
+  basic: "#4CAF50",
+  advanced: "#42A5F5",
+  hybrid: "#8b6fe0",
+  special: "#d4a843"
+};
+
+/**
+ * Pip counts by Job Rank.
+ * @type {Object<string, number>}
+ */
+SHARDS.pipsByRank = {
+  F: 2,
+  E: 2,
+  D: 3,
+  C: 3,
+  B: 4,
+  A: 4,
+  S: 5
+};
+
+/**
+ * Equipment slot types.
+ * @enum {string}
+ */
+SHARDS.equipmentSlots = {
+  weapon: "SHARDS.Equipment.Weapon",
+  offhand: "SHARDS.Equipment.Offhand",
+  helm: "SHARDS.Equipment.Helm",
+  armor: "SHARDS.Equipment.Armor",
+  accessory1: "SHARDS.Equipment.Accessory1",
+  accessory2: "SHARDS.Equipment.Accessory2"
+};
+
+/**
+ * Weapon groups.
+ * @enum {string}
+ */
+SHARDS.weaponGroups = {
+  bows: "SHARDS.WeaponGroup.Bows",
+  chains: "SHARDS.WeaponGroup.Chains",
+  clubs: "SHARDS.WeaponGroup.Clubs",
+  firearms: "SHARDS.WeaponGroup.Firearms",
+  heavy: "SHARDS.WeaponGroup.Heavy",
+  instruments: "SHARDS.WeaponGroup.Instruments",
+  longBlades: "SHARDS.WeaponGroup.LongBlades",
+  natural: "SHARDS.WeaponGroup.Natural",
+  polearms: "SHARDS.WeaponGroup.Polearms",
+  shields: "SHARDS.WeaponGroup.Shields",
+  shortBlades: "SHARDS.WeaponGroup.ShortBlades",
+  staves: "SHARDS.WeaponGroup.Staves",
+  throwing: "SHARDS.WeaponGroup.Throwing",
+  tomes: "SHARDS.WeaponGroup.Tomes",
+  unarmed: "SHARDS.WeaponGroup.Unarmed",
+  wands: "SHARDS.WeaponGroup.Wands"
+};
+
+/**
+ * Weapon handedness types.
+ * @enum {string}
+ */
+SHARDS.handedness = {
+  "one-handed": "SHARDS.Equipment.OneHanded",
+  "two-handed": "SHARDS.Equipment.TwoHanded",
+  "oversized": "SHARDS.Equipment.Oversized"
+};
+
+/**
+ * Armor categories.
+ * @enum {string}
+ */
+SHARDS.armorCategories = {
+  clothing: "SHARDS.ArmorCategory.Clothing",
+  light: "SHARDS.ArmorCategory.Light",
+  heavy: "SHARDS.ArmorCategory.Heavy",
+  shields: "SHARDS.ArmorCategory.Shields"
+};
+
+// Trait categories removed — traits are now freeform.
+// Lineages are a separate item type — see LineageData.
+
+/**
+ * Target types (skills, monster actions).
+ * @enum {string}
+ */
+SHARDS.targetTypes = {
+  self: "SHARDS.Target.Self",
+  single: "SHARDS.Target.Single",
+  area: "SHARDS.Target.Area",
+  field: "SHARDS.Target.Field"
+};
+
+/**
+ * Damage types.
+ * @enum {string}
+ */
+SHARDS.damageTypes = {
+  physical: "SHARDS.DamageType.Physical",
+  fire: "SHARDS.DamageType.Fire",
+  ice: "SHARDS.DamageType.Ice",
+  lightning: "SHARDS.DamageType.Lightning",
+  wind: "SHARDS.DamageType.Wind",
+  earth: "SHARDS.DamageType.Earth",
+  water: "SHARDS.DamageType.Water",
+  light: "SHARDS.DamageType.Light",
+  dark: "SHARDS.DamageType.Dark",
+  plant: "SHARDS.DamageType.Plant",
+  poison: "SHARDS.DamageType.Poison",
+  healing: "SHARDS.DamageType.Healing",
+  buff: "SHARDS.DamageType.Buff"
+};
+
+/**
+ * Conditions that can affect combatants.
+ * @enum {string}
+ */
+SHARDS.conditions = {
+  // Negative (9)
+  poison: "SHARDS.Condition.poison",
+  burn: "SHARDS.Condition.burn",
+  stun: "SHARDS.Condition.stun",
+  blind: "SHARDS.Condition.blind",
+  silence: "SHARDS.Condition.silence",
+  slow: "SHARDS.Condition.slow",
+  root: "SHARDS.Condition.root",
+  weaken: "SHARDS.Condition.weaken",
+  downed: "SHARDS.Condition.downed",
+  // Positive (7)
+  regen: "SHARDS.Condition.regen",
+  refresh: "SHARDS.Condition.refresh",
+  haste: "SHARDS.Condition.haste",
+  guard: "SHARDS.Condition.guard",
+  reflect: "SHARDS.Condition.reflect",
+  undying: "SHARDS.Condition.undying",
+  berserk: "SHARDS.Condition.berserk"
+};
+
+/**
+ * Movement modes.
+ * @enum {string}
+ */
+SHARDS.movementModes = {
+  walk: "SHARDS.Movement.Walk",
+  fly: "SHARDS.Movement.Fly",
+  swim: "SHARDS.Movement.Swim",
+  climb: "SHARDS.Movement.Climb",
+  burrow: "SHARDS.Movement.Burrow",
+  teleport: "SHARDS.Movement.Teleport"
+};
+
+/**
+ * Difficulty modifiers for d100 stat tests.
+ * @type {Object<string, number>}
+ */
+SHARDS.difficultyModifiers = {
+  easy: 20,
+  normal: 0,
+  hard: -20,
+  severe: -40,
+  extreme: -60
+};
+
+/* -------------------------------------------- */
+/*  Combat Formula Constants                    */
+/* -------------------------------------------- */
+
+/**
+ * BRP-style combat resolution constants.
+ * Hit%  = baseAccuracy + (ACC - target.EVA) × HIT_SCALAR
+ * Stat test% = STAT_TEST_BASE + (stat - STAT_BASELINE) × STAT_TEST_SCALAR + difficulty
+ * Crit% = CRIT_BASE + attackerCrit
+ * @type {Object<string, number>}
+ */
+SHARDS.combatFormula = {
+  HIT_SCALAR: 3,        // Each point of (ACC - EVA) differential = ±3% hit
+  HIT_FLOOR: 5,         // Minimum hit chance %
+  HIT_CEILING: 95,      // Maximum hit chance %
+  CRIT_BASE: 5,         // Base crit chance %
+  CRIT_FLOOR: 1,        // Minimum crit chance %
+  CRIT_CEILING: 30,     // Maximum crit chance %
+  DMG_FLOOR_PCT: 10,    // Minimum % of pre-defense damage that always gets through
+  STAT_TEST_BASE: 50,   // Base % for stat tests (50 = coin flip at baseline stat)
+  STAT_BASELINE: 10,    // The "average" stat value (matches base stat initial value)
+  STAT_TEST_SCALAR: 2,  // Each stat point above baseline = +2% on stat tests
+  UNARMED_ACCURACY: 40  // Default base accuracy for unarmed/improvised attacks
+};
+
+/**
+ * Manacite types.
+ * @enum {string}
+ */
+SHARDS.manaciteTypes = {
+  standard: "SHARDS.Manacite.Standard",
+  monster: "SHARDS.Manacite.Monster"
+};
+
+/**
+ * Skill type classifications (simplified: 4 types).
+ * active = combat, spells, utility abilities.
+ * passive = always-on effects.
+ * reaction = triggered responses.
+ * limitBreak = ultimate abilities gated by limit gauge.
+ * @enum {string}
+ */
+SHARDS.skillTypes = {
+  active: "SHARDS.Skill.Type.Active",
+  passive: "SHARDS.Skill.Type.Passive",
+  reaction: "SHARDS.Skill.Type.Reaction",
+  limitBreak: "SHARDS.Skill.Type.LimitBreak"
+};
+
+/**
+ * Skill timing (action economy).
+ * @enum {string}
+ */
+SHARDS.skillTimings = {
+  action: "SHARDS.Skill.Timing.Action",
+  reaction: "SHARDS.Skill.Timing.Reaction",
+  passive: "SHARDS.Skill.Timing.Passive",
+  limitBreak: "SHARDS.Skill.Timing.LimitBreak"
+};
+
+/**
+ * Power tiers for auto-formula generation.
+ * statMultiplier scales the stat contribution, slMultiplier scales SL contribution.
+ * @enum {{ label: string, statMultiplier: number, slMultiplier: number }}
+ */
+SHARDS.powerTiers = {
+  weak:        { label: "SHARDS.PowerTier.Weak",        statMultiplier: 0.5, slMultiplier: 2 },
+  standard:    { label: "SHARDS.PowerTier.Standard",    statMultiplier: 1.0, slMultiplier: 4 },
+  strong:      { label: "SHARDS.PowerTier.Strong",      statMultiplier: 1.5, slMultiplier: 6 },
+  devastating: { label: "SHARDS.PowerTier.Devastating", statMultiplier: 2.0, slMultiplier: 8 }
+};
+
+/**
+ * Skill creation templates — pre-built presets that fill all fields at once.
+ * GMs pick a template, customize name/element, and the skill is ready.
+ * @type {Object<string, {label: string, icon: string, data: object}>}
+ */
+SHARDS.skillTemplates = {
+  basicStrike: {
+    label: "SHARDS.SkillTemplate.BasicStrike",
+    icon: "icons/svg/sword.svg",
+    data: {
+      skillType: "active", timing: "action", target: "single",
+      damageType: "physical", defenseType: "physical",
+      skillStats: ["str"], powerTier: "standard", autoFormula: true,
+      baseAccuracy: 80, pipCost: "2", mpCost: "0"
+    }
+  },
+  magicBolt: {
+    label: "SHARDS.SkillTemplate.MagicBolt",
+    icon: "icons/svg/lightning.svg",
+    data: {
+      skillType: "active", timing: "action", target: "single",
+      damageType: "", defenseType: "magical",
+      skillStats: ["mag"], powerTier: "standard", autoFormula: true,
+      baseAccuracy: 75, pipCost: "2", mpCost: "SL"
+    }
+  },
+  aoeBurst: {
+    label: "SHARDS.SkillTemplate.AoeBurst",
+    icon: "icons/svg/explosion.svg",
+    data: {
+      skillType: "active", timing: "action", target: "area",
+      areaShape: "burst", areaSize: 2, aoeFilter: "all",
+      damageType: "", defenseType: "magical",
+      skillStats: ["mag"], powerTier: "standard", autoFormula: true,
+      baseAccuracy: 70, pipCost: "3", mpCost: "SL + 2"
+    }
+  },
+  aoeLine: {
+    label: "SHARDS.SkillTemplate.AoeLine",
+    icon: "icons/svg/lightning.svg",
+    data: {
+      skillType: "active", timing: "action", target: "area",
+      areaShape: "line", areaSize: 4, aoeFilter: "enemies",
+      damageType: "", defenseType: "magical",
+      skillStats: ["mag"], powerTier: "standard", autoFormula: true,
+      baseAccuracy: 70, pipCost: "3", mpCost: "SL + 2"
+    }
+  },
+  aoeCross: {
+    label: "SHARDS.SkillTemplate.AoeCross",
+    icon: "icons/svg/explosion.svg",
+    data: {
+      skillType: "active", timing: "action", target: "area",
+      areaShape: "cross", areaSize: 3, aoeFilter: "all",
+      damageType: "", defenseType: "magical",
+      skillStats: ["mag"], powerTier: "strong", autoFormula: true,
+      baseAccuracy: 65, pipCost: "4", mpCost: "SL + 3"
+    }
+  },
+  heal: {
+    label: "SHARDS.SkillTemplate.Heal",
+    icon: "icons/svg/regen.svg",
+    data: {
+      skillType: "active", timing: "action", target: "single",
+      damageType: "healing", defenseType: "none",
+      skillStats: ["spi"], powerTier: "standard", autoFormula: true,
+      baseAccuracy: null, pipCost: "3", mpCost: "SL + 1"
+    }
+  },
+  buff: {
+    label: "SHARDS.SkillTemplate.Buff",
+    icon: "icons/svg/upgrade.svg",
+    data: {
+      skillType: "active", timing: "action", target: "single",
+      damageType: "buff", defenseType: "none",
+      skillStats: [], powerTier: "standard", autoFormula: false,
+      baseAccuracy: null, pipCost: "3", mpCost: "SL",
+      buffDuration: "SL", damageFormula: ""
+    }
+  },
+  condition: {
+    label: "SHARDS.SkillTemplate.Condition",
+    icon: "icons/svg/daze.svg",
+    data: {
+      skillType: "active", timing: "action", target: "single",
+      damageType: "", defenseType: "magical",
+      skillStats: [], powerTier: "weak", autoFormula: true,
+      baseAccuracy: 70, pipCost: "2", mpCost: "SL",
+      conditionChance: "50"
+    }
+  },
+  passiveBoost: {
+    label: "SHARDS.SkillTemplate.PassiveBoost",
+    icon: "icons/svg/aura.svg",
+    data: {
+      skillType: "passive", timing: "passive", target: "self",
+      damageType: "", defenseType: "none",
+      skillStats: [], powerTier: "standard", autoFormula: false,
+      baseAccuracy: null, pipCost: "0", mpCost: "0", damageFormula: ""
+    }
+  },
+  quickReaction: {
+    label: "SHARDS.SkillTemplate.QuickReaction",
+    icon: "icons/svg/shield.svg",
+    data: {
+      skillType: "reaction", timing: "reaction", target: "self",
+      damageType: "", defenseType: "none",
+      skillStats: [], powerTier: "standard", autoFormula: false,
+      baseAccuracy: null, pipCost: "1", mpCost: "0", damageFormula: ""
+    }
+  }
+};
+
+/**
+ * Area of effect shapes.
+ * @enum {string}
+ */
+SHARDS.areaShapes = {
+  burst: "SHARDS.Skill.Area.Burst",
+  line: "SHARDS.Skill.Area.Line",
+  cross: "SHARDS.Skill.Area.Cross"
+};
+
+/**
+ * AoE disposition filters — who gets targeted within a measured template.
+ * @enum {string}
+ */
+SHARDS.aoeFilters = {
+  all: "SHARDS.AoE.Filter.All",
+  enemies: "SHARDS.AoE.Filter.Enemies",
+  allies: "SHARDS.AoE.Filter.Allies"
+};
+
+/**
+ * Mapping from Shards area shapes to Foundry MeasuredTemplate types.
+ * Cross is handled specially as two perpendicular rays.
+ * @type {Object<string, string>}
+ */
+SHARDS.areaShapeToTemplateType = {
+  burst: "circle",
+  line: "ray",
+  cross: "ray"
+};
+
+/**
+ * Defense types for skill resolution.
+ * @enum {string}
+ */
+SHARDS.defenseTypes = {
+  physical: "SHARDS.Skill.Defense.Physical",
+  magical: "SHARDS.Skill.Defense.Magical",
+  none: "SHARDS.Skill.Defense.None"
+};
+
+/* -------------------------------------------- */
+/*  Constellation Tree System                    */
+/* -------------------------------------------- */
+
+// SP economy removed — skills level via manacite XP siphon, bonds via GM award
+
+/**
+ * SP cost to advance a skill from SL N to SL N+1.
+ * Index = current skill level; value = SP cost to reach the next level.
+ * Total cost to max (SL 1 → 5): 10 SP.
+ * @type {number[]}
+ */
+SHARDS.skillLevelCosts = [0, 1, 2, 3, 4];
+
+/**
+ * Maximum skill level.
+ * @type {number}
+ */
+SHARDS.skillLevelMax = 5;
+
+/**
+ * Cumulative XP thresholds for Manacite skill level advancement.
+ * Index = target SL (SL 1 = 0 XP, SL 2 = 50 cumulative, etc.)
+ * @type {number[]}
+ */
+SHARDS.manaciteXpThresholds = [0, 0, 50, 150, 350, 750];
+
+/**
+ * Fraction of earned adventurer XP that each socketed item (manacite/job) absorbs.
+ * This is bonus XP — adventurer XP is NOT reduced.
+ * @type {number}
+ */
+SHARDS.manaciteXpSiphonRate = 0.10;
+
+/**
+ * Cumulative XP thresholds for Job rank advancement via XP siphon.
+ * Ranks: F(start) → E → D → C → B → A → S
+ * @type {Object<string, number>}
+ */
+SHARDS.jobXpThresholds = {
+  E: 200,
+  D: 700,
+  C: 1700,
+  B: 3700,
+  A: 7700,
+  S: 15700
+};
+
+/**
+ * Adventurer levels at which new job sockets unlock on the Mana Grid.
+ * @type {number[]}
+ */
+SHARDS.gridJobSocketLevels = [1, 10, 20];
+
+/**
+ * Number of skill sockets that branch from a job socket, by job rank.
+ * @type {Object<string, number>}
+ */
+SHARDS.gridSkillSocketsByJobRank = {
+  F: 1, E: 2, D: 2, C: 3, B: 3, A: 4, S: 5
+};
+
+/**
+ * Number of free sockets (any-school) available by adventurer level.
+ * Returns a count: 1 at level 1, +1 every 5 levels.
+ * @param {number} level
+ * @returns {number}
+ */
+SHARDS.gridFreeSocketsByLevel = function(level) {
+  return Math.max(1, 1 + Math.floor((level - 1) / 5));
+};
+
+/**
+ * Constellation tree node types with display info.
+ * @enum {{ label: string, icon: string, color: string }}
+ */
+SHARDS.nodeTypes = {
+  innate:      { label: "SHARDS.Tree.NodeType.Innate",       icon: "fa-solid fa-dna",             color: "#e8eaf0" },
+  talent:      { label: "SHARDS.Tree.NodeType.Talent",       icon: "fa-solid fa-gem",             color: "#ffd040" },
+  skill:       { label: "SHARDS.Tree.NodeType.Skill",        icon: "fa-solid fa-burst",           color: "#00d4a0" },
+  growth:      { label: "SHARDS.Tree.NodeType.Growth",       icon: "fa-solid fa-arrow-trend-up",  color: "#4CAF50" },
+  elemental:   { label: "SHARDS.Tree.NodeType.Elemental",    icon: "fa-solid fa-shield-halved",   color: "#e05070" },
+  passive:     { label: "SHARDS.Tree.NodeType.Passive",      icon: "fa-solid fa-circle-dot",      color: "#42A5F5" },
+  proficiency: { label: "SHARDS.Tree.NodeType.Proficiency",  icon: "fa-solid fa-star",            color: "#ff9800" },
+  movement:    { label: "SHARDS.Tree.NodeType.Movement",     icon: "fa-solid fa-person-running",  color: "#8b6fe0" },
+  form:        { label: "SHARDS.Tree.NodeType.Form",         icon: "fa-solid fa-diamond",         color: "#d4a843" },
+  job:         { label: "SHARDS.Tree.NodeType.Job",          icon: "fa-solid fa-briefcase",       color: "#e8806a" }
+};
+
+/**
+ * Default SP cost per node type.
+ * @type {Object<string, number>}
+ */
+SHARDS.nodeCostDefaults = {
+  innate: 0,
+  talent: 1,
+  skill: 2,
+  growth: 1,
+  elemental: 1,
+  passive: 1,
+  proficiency: 1,
+  movement: 1,
+  form: 0,
+  job: 1
+};
+
+/**
+ * Grant types for tree nodes with display labels.
+ * @enum {string}
+ */
+SHARDS.grantTypes = {
+  skill: "SHARDS.Tree.Grant.Skill",
+  activeEffect: "SHARDS.Tree.Grant.ActiveEffect",
+  proficiency: "SHARDS.Tree.Grant.Proficiency",
+  job: "SHARDS.Tree.Grant.Job"
+};
+
+/**
+ * NPC disposition values.
+ * @enum {string}
+ */
+SHARDS.dispositions = {
+  friendly: "SHARDS.Npc.Disposition.Friendly",
+  neutral: "SHARDS.Npc.Disposition.Neutral",
+  hostile: "SHARDS.Npc.Disposition.Hostile",
+  unknown: "SHARDS.Npc.Disposition.Unknown"
+};
+
+/**
+ * Merchant restock intervals.
+ * @enum {string}
+ */
+SHARDS.restockIntervals = {
+  none: "SHARDS.Merchant.Restock.None",
+  daily: "SHARDS.Merchant.Restock.Daily",
+  weekly: "SHARDS.Merchant.Restock.Weekly",
+  manual: "SHARDS.Merchant.Restock.Manual"
+};
+
+/**
+ * Element resistance tiers.
+ * Stored as integers: -1 = weak, 0 = normal, 1 = resist, 2 = immune, 3 = absorb.
+ * @type {Object<number, {label: string, multiplier: number, css: string}>}
+ */
+SHARDS.resistanceTiers = {
+  "-1": { label: "SHARDS.Resistance.Weak",   multiplier: 1.5, css: "weak" },
+  "0":  { label: "SHARDS.Resistance.Normal", multiplier: 1.0, css: "normal" },
+  "1":  { label: "SHARDS.Resistance.Resist", multiplier: 0.5, css: "resist" },
+  "2":  { label: "SHARDS.Resistance.Immune", multiplier: 0.0, css: "immune" },
+  "3":  { label: "SHARDS.Resistance.Absorb", multiplier: -1.0, css: "absorb" }
+};
+
+/**
+ * Resistance tier integer values for convenient reference.
+ * @enum {number}
+ */
+SHARDS.RESISTANCE = {
+  WEAK: -1,
+  NORMAL: 0,
+  RESIST: 1,
+  IMMUNE: 2,
+  ABSORB: 3
+};
+
+/* -------------------------------------------- */
+/*  Bond Archetypes                             */
+/* -------------------------------------------- */
+
+/**
+ * Defined bond archetypes, each with a localization label, icon, and accent color.
+ * Inspired by Re:Fantazio Royal Virtues.
+ * @enum {{ label: string, icon: string, color: string }}
+ */
+SHARDS.bondArchetypes = {
+  rival:    { label: "SHARDS.Bonds.Archetype.Rival",    icon: "fa-solid fa-khanda",          color: "#d44040" },
+  mentor:   { label: "SHARDS.Bonds.Archetype.Mentor",   icon: "fa-solid fa-hat-wizard",      color: "#c4a24e" },
+  beloved:  { label: "SHARDS.Bonds.Archetype.Beloved",  icon: "fa-solid fa-heart",           color: "#e070a0" },
+  sworn:    { label: "SHARDS.Bonds.Archetype.Sworn",    icon: "fa-solid fa-shield-halved",   color: "#4080d4" },
+  kindred:  { label: "SHARDS.Bonds.Archetype.Kindred",  icon: "fa-solid fa-people-arrows",   color: "#40b070" },
+  shadow:   { label: "SHARDS.Bonds.Archetype.Shadow",   icon: "fa-solid fa-mask",            color: "#8b6fe0" },
+  muse:     { label: "SHARDS.Bonds.Archetype.Muse",     icon: "fa-solid fa-feather-pointed", color: "#40c4c8" },
+  guardian: { label: "SHARDS.Bonds.Archetype.Guardian",  icon: "fa-solid fa-chess-rook",      color: "#8a8a9e" }
+};
+
+/* -------------------------------------------- */
+/*  XP & Progression System                     */
+/* -------------------------------------------- */
+
+/**
+ * XP required per level (flat).
+ * @type {number}
+ */
+SHARDS.xpPerLevel = 500;
+
+/**
+ * XP award categories with default amounts and icons.
+ * @type {Object<string, {label: string, icon: string, amount: number}>}
+ */
+SHARDS.xpAwardCategories = {
+  session:    { label: "SHARDS.XP.Category.Session",    icon: "fa-solid fa-calendar-check",    amount: 100 },
+  quest:     { label: "SHARDS.XP.Category.Quest",      icon: "fa-solid fa-scroll",            amount: 0   },
+  milestone: { label: "SHARDS.XP.Category.Milestone",  icon: "fa-solid fa-flag-checkered",    amount: 250 },
+  conviction:{ label: "SHARDS.XP.Category.Conviction", icon: "fa-solid fa-fire-flame-curved",  amount: 50  },
+  discovery: { label: "SHARDS.XP.Category.Discovery",  icon: "fa-solid fa-compass",           amount: 50  }
+};
+
+/**
+ * Level thresholds for adventurer rank advancement.
+ * @type {Object<string, number>}
+ */
+SHARDS.adventurerRankThresholds = {
+  F: 1,
+  E: 10,
+  D: 20,
+  C: 30,
+  B: 45,
+  A: 60,
+  S: 80
+};
+
+/* -------------------------------------------- */
+/*  Active Effect Mode Shorthand                */
+/* -------------------------------------------- */
+
+const ADD = 2;  // CONST.ACTIVE_EFFECT_MODES.ADD
+
+/**
+ * Helper: build a change entry for condition flag + optional stat modifications.
+ * @param {string} conditionKey
+ * @param {Array<{key: string, value: number}>} [extras=[]] Additional changes
+ * @returns {object[]}
+ */
+function _conditionChanges(conditionKey, extras = []) {
+  return [
+    { key: `system.conditions.${conditionKey}`, mode: ADD, value: "1" },
+    ...extras.map(e => ({ key: e.key, mode: ADD, value: String(e.value) }))
+  ];
+}
+
+/* -------------------------------------------- */
+/*  Condition Effect Configurations              */
+/* -------------------------------------------- */
+
+/**
+ * Status effect definitions for all 16 conditions.
+ * Registered as CONFIG.statusEffects in the init hook.
+ * Each entry populates the Token HUD and creates an ActiveEffect with
+ * the appropriate changes when toggled.
+ * @type {object[]}
+ */
+SHARDS.conditionEffects = [
+  // ---- Negative Conditions (9) ----
+  {
+    id: "poison",
+    name: "SHARDS.Condition.poison",
+    img: "icons/svg/poison.svg",
+    statuses: ["poison"],
+    changes: _conditionChanges("poison")
+  },
+  {
+    id: "burn",
+    name: "SHARDS.Condition.burn",
+    img: "icons/svg/fire.svg",
+    statuses: ["burn"],
+    changes: _conditionChanges("burn")
+  },
+  {
+    id: "stun",
+    name: "SHARDS.Condition.stun",
+    img: "icons/svg/stoned.svg",
+    statuses: ["stun"],
+    changes: _conditionChanges("stun")
+  },
+  {
+    id: "blind",
+    name: "SHARDS.Condition.blind",
+    img: "icons/svg/blind.svg",
+    statuses: ["blind"],
+    changes: _conditionChanges("blind", [
+      { key: "system.derived.acc", value: -10 }
+    ])
+  },
+  {
+    id: "silence",
+    name: "SHARDS.Condition.silence",
+    img: "icons/svg/silenced.svg",
+    statuses: ["silence"],
+    changes: _conditionChanges("silence")
+  },
+  {
+    id: "slow",
+    name: "SHARDS.Condition.slow",
+    img: "icons/svg/clockwork.svg",
+    statuses: ["slow"],
+    changes: _conditionChanges("slow", [
+      { key: "system.derived.eva", value: -5 },
+      { key: "system.mov", value: -2 }
+    ])
+  },
+  {
+    id: "root",
+    name: "SHARDS.Condition.root",
+    img: "icons/svg/net.svg",
+    statuses: ["root"],
+    changes: _conditionChanges("root")
+  },
+  {
+    id: "weaken",
+    name: "SHARDS.Condition.weaken",
+    img: "icons/svg/falling.svg",
+    statuses: ["weaken"],
+    changes: _conditionChanges("weaken", [
+      { key: "system.derived.pDef", value: -5 },
+      { key: "system.derived.mDef", value: -5 }
+    ])
+  },
+  {
+    id: "downed",
+    name: "SHARDS.Condition.downed",
+    img: "icons/svg/falling.svg",
+    statuses: ["downed"],
+    changes: _conditionChanges("downed")
+  },
+
+  // ---- Positive Conditions (7) ----
+  {
+    id: "regen",
+    name: "SHARDS.Condition.regen",
+    img: "icons/svg/regen.svg",
+    statuses: ["regen"],
+    changes: _conditionChanges("regen")
+  },
+  {
+    id: "refresh",
+    name: "SHARDS.Condition.refresh",
+    img: "icons/svg/daze.svg",
+    statuses: ["refresh"],
+    changes: _conditionChanges("refresh")
+  },
+  {
+    id: "haste",
+    name: "SHARDS.Condition.haste",
+    img: "icons/svg/wing.svg",
+    statuses: ["haste"],
+    changes: _conditionChanges("haste", [
+      { key: "system.derived.eva", value: 5 },
+      { key: "system.mov", value: 2 }
+    ])
+  },
+  {
+    id: "guard",
+    name: "SHARDS.Condition.guard",
+    img: "icons/svg/shield.svg",
+    statuses: ["guard"],
+    changes: _conditionChanges("guard", [
+      { key: "system.derived.pDef", value: 5 },
+      { key: "system.derived.mDef", value: 5 }
+    ])
+  },
+  {
+    id: "reflect",
+    name: "SHARDS.Condition.reflect",
+    img: "icons/svg/holy-shield.svg",
+    statuses: ["reflect"],
+    changes: _conditionChanges("reflect")
+  },
+  {
+    id: "undying",
+    name: "SHARDS.Condition.undying",
+    img: "icons/svg/angel.svg",
+    statuses: ["undying"],
+    changes: _conditionChanges("undying")
+  },
+  {
+    id: "berserk",
+    name: "SHARDS.Condition.berserk",
+    img: "icons/svg/sword.svg",
+    statuses: ["berserk"],
+    changes: _conditionChanges("berserk", [
+      { key: "system.stats.str.bonus", value: 5 },
+      { key: "system.stats.mag.bonus", value: 5 },
+      { key: "system.derived.pDef", value: -3 },
+      { key: "system.derived.mDef", value: -3 }
+    ])
+  }
 ];
 
 /* -------------------------------------------- */
-/*  Tests & Gear                                */
-/* -------------------------------------------- */
-
-/** What a consumable restores when used (the amount is set per item). */
-PROJECTANIME.consumableRestore = {
-  none: "PROJECTANIME.Consumable.restore.none",
-  hp: "PROJECTANIME.Consumable.restore.hp",
-  energy: "PROJECTANIME.Consumable.restore.energy"
-};
-
-/** Weapon/Skill physical range categories. */
-PROJECTANIME.rangeTypes = {
-  melee: "PROJECTANIME.RangeType.melee",
-  ranged: "PROJECTANIME.RangeType.ranged"
-};
-
-/** Which equipment slot a weapon/shield occupies. Two-handedness is `grip`, not a hand. */
-PROJECTANIME.hands = {
-  main: "PROJECTANIME.Hand.main",
-  off: "PROJECTANIME.Hand.off"
-};
-
-/** Grip — one- or two-handed (the single source of two-handedness; Steps Up damage). */
-PROJECTANIME.grips = {
-  one: "PROJECTANIME.Grip.one",
-  two: "PROJECTANIME.Grip.two"
-};
-
-/** NPC disposition toward the party. */
-PROJECTANIME.dispositions = {
-  friendly: "PROJECTANIME.Disposition.friendly",
-  neutral: "PROJECTANIME.Disposition.neutral",
-  hostile: "PROJECTANIME.Disposition.hostile"
-};
-
-/* -------------------------------------------- */
-/*  Monster Tiers (anime ranking)               */
-/* -------------------------------------------- */
-
-/** Default "Encounter Power" — the party-power baseline the Monster Creator scales Tiers
- *  from until the GM sets the world setting. Read it as "a typical CURRENT PC's total Skill
- *  Points" (a fresh PC starts around 6); the GM raises it as the campaign advances. */
-PROJECTANIME.encounterPowerDefault = 6;
-
-/**
- * Monster "Tier" — the anime power-ranking the Monster Creator stamps on an NPC. A monster
- * is built on the same rules as a Player Character (the five Attributes start at d4 and you
- * spend Step-Ups; HP = ⟪Might⟫×2, Energy = ⟪Spirit⟫×2); the Tier scales that baseline up.
- *
- * Two knobs SCALE with the GM's Encounter Power dial (see getEncounterPower / tierScaling),
- * so monsters keep pace as the party accumulates Skill Points over a campaign — bump the
- * dial and newly-built monsters rescale:
- *   • `spFactor`  — Skill Points granted = round(EncounterPower × spFactor). Read the factor
- *                   as "how many PCs' worth of skills": Elite 1 (a peer), Boss 2, Raid 3.5.
- *   • `vitalBase` — base HP/Energy multiplier on ⟪Might⟫×2 / ⟪Spirit⟫×2; the EFFECTIVE
- *                   multiplier grows with the dial = vitalBase × (EncounterPower / default).
- * The other knobs are FIXED per Tier — Attributes cap at d12 for everyone, so a Tier's dice
- * already top out near a maxed PC's and need no runaway scaling:
- *   • `stepUps`   — the Attribute Step-Up budget (a starting PC gets 5).
- *   • `evasion` / `defense` — flat bonuses written to the NPC's Evasion / Defense Bonus.
- * All plain, easily-tuned numbers (like `skillRanks`) — a starting point to iterate on, not
- * a finished balance pass. `icon` / `color` drive the Tier badge on the NPC sheet header.
- */
-PROJECTANIME.monsterTiers = {
-  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5 },
-  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75 },
-  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.5,  evasion: 1, defense: 1, spFactor: 1 },
-  boss:     { label: "PROJECTANIME.Tier.boss",     icon: "fa-solid fa-dragon",        color: "#9c6c4f", stepUps: 7,  vitalBase: 2.5,  evasion: 2, defense: 2, spFactor: 2 },
-  raid:     { label: "PROJECTANIME.Tier.raid",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 10, vitalBase: 4,    evasion: 3, defense: 3, spFactor: 3.5 }
-};
-
-/** Iteration order for monster Tiers (weakest → strongest). */
-PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "boss", "raid"];
-
-/** World-setting key for the Monster Creator's Encounter Power dial. */
-export const ENCOUNTER_POWER_SETTING = "encounterPower";
-
-/** The GM's Encounter Power (the party-power baseline Tiers scale from) — falls back to the
- *  default until the world sets it. Always a positive integer. */
-export function getEncounterPower() {
-  try {
-    const v = Number(game.settings.get("project-anime", ENCOUNTER_POWER_SETTING));
-    if (Number.isFinite(v) && v > 0) return Math.round(v);
-  } catch (_e) { /* setting not registered yet (very early) — use the default */ }
-  return PROJECTANIME.encounterPowerDefault;
-}
-
-/** A Tier's EFFECTIVE numbers at a given Encounter Power: its Skill-Point grant and HP/Energy
- *  multiplier scaled by the dial, with the fixed knobs (stepUps / evasion / defense / label /
- *  icon / color) spread through. Returns null for an unknown Tier key. */
-export function tierScaling(tierKey, power = getEncounterPower()) {
-  const t = PROJECTANIME.monsterTiers[tierKey];
-  if (!t) return null;
-  const base = PROJECTANIME.encounterPowerDefault || 6;
-  return {
-    ...t,
-    skillPoints: Math.max(0, Math.round(power * (t.spFactor ?? 0))),
-    vitalMult: (t.vitalBase ?? 1) * (power / base)
-  };
-}
-
-/* -------------------------------------------- */
-/*  Encounter budget (Party sheet)              */
+/*  Party System                                */
 /* -------------------------------------------- */
 
 /**
- * Encounter difficulty → the multiplier on the party's total Skill Points that yields the
- * monster budget for a fight (Budget = Party SP × mult). Plain, tunable numbers. NOTE: a raw
- * SP sum ignores action economy (many small monsters out-act one big brute), so treat these
- * as a planning guide, not a guarantee.
+ * Cosmetic party roles — no mechanical effect.
+ * @enum {{ label: string, icon: string, color: string }}
  */
-PROJECTANIME.encounterDifficulty = {
-  easy:     { label: "PROJECTANIME.Encounter.difficulty.easy",     mult: 0.5 },
-  standard: { label: "PROJECTANIME.Encounter.difficulty.standard", mult: 1 },
-  hard:     { label: "PROJECTANIME.Encounter.difficulty.hard",     mult: 1.5 },
-  deadly:   { label: "PROJECTANIME.Encounter.difficulty.deadly",   mult: 2 }
+SHARDS.partyRoles = {
+  tank:    { label: "SHARDS.Party.Role.Tank",    icon: "fa-solid fa-shield-halved",     color: "#4080d4" },
+  healer:  { label: "SHARDS.Party.Role.Healer",  icon: "fa-solid fa-heart-pulse",       color: "#40b060" },
+  dps:     { label: "SHARDS.Party.Role.DPS",      icon: "fa-solid fa-crosshairs",        color: "#d44040" },
+  support: { label: "SHARDS.Party.Role.Support",  icon: "fa-solid fa-hand-holding-heart", color: "#8b6fe0" },
+  scout:   { label: "SHARDS.Party.Role.Scout",    icon: "fa-solid fa-eye",               color: "#40c4c8" }
 };
 
-/** Iteration order for encounter difficulties (easiest → hardest). */
-PROJECTANIME.encounterDifficultyKeys = ["easy", "standard", "hard", "deadly"];
+/**
+ * Quest status definitions.
+ * @enum {{ label: string, icon: string, color: string }}
+ */
+SHARDS.questStatuses = {
+  active:    { label: "SHARDS.Party.QuestStatus.Active",    icon: "fa-solid fa-circle-play",  color: "#8b6fe0" },
+  completed: { label: "SHARDS.Party.QuestStatus.Completed", icon: "fa-solid fa-circle-check", color: "#40b060" },
+  failed:    { label: "SHARDS.Party.QuestStatus.Failed",    icon: "fa-solid fa-circle-xmark", color: "#d44040" }
+};
 
-/* -------------------------------------------- */
-/*  Biography dossier                           */
-/* -------------------------------------------- */
-
-/** Default Bio-tab dossier fields. The GM can rename / re-icon / retype / add / remove
- *  these via the Bio Fields setting (apps/bio-field-config.mjs); this is just the
- *  built-in starting set, used until the world customizes it. Each: `label` (lang key),
- *  `icon` (FA class or image path — optional), `type` ("short" input | "long" textarea). */
-PROJECTANIME.bioFields = {
-  age:         { label: "PROJECTANIME.Bio.age",         icon: "fa-solid fa-hourglass-half" },
-  gender:      { label: "PROJECTANIME.Bio.gender",      icon: "fa-solid fa-venus-mars" },
-  height:      { label: "PROJECTANIME.Bio.height",      icon: "fa-solid fa-ruler-vertical" },
-  weight:      { label: "PROJECTANIME.Bio.weight",      icon: "fa-solid fa-weight-hanging" },
-  homeland:    { label: "PROJECTANIME.Bio.homeland",    icon: "fa-solid fa-mountain-sun" },
-  affiliation: { label: "PROJECTANIME.Bio.affiliation", icon: "fa-solid fa-flag" },
-  occupation:  { label: "PROJECTANIME.Bio.occupation",  icon: "fa-solid fa-briefcase" },
-  alias:       { label: "PROJECTANIME.Bio.alias",       icon: "fa-solid fa-mask" },
-  likes:       { label: "PROJECTANIME.Bio.likes",       icon: "fa-solid fa-heart" },
-  dislikes:    { label: "PROJECTANIME.Bio.dislikes",    icon: "fa-solid fa-heart-crack" },
-  goal:        { label: "PROJECTANIME.Bio.goal",        icon: "fa-solid fa-bullseye", type: "long" }
+/**
+ * Quest priority levels.
+ * @enum {{ label: string, icon: string }}
+ */
+SHARDS.questPriorities = {
+  low:      { label: "SHARDS.Party.Priority.Low",      icon: "fa-solid fa-arrow-down" },
+  normal:   { label: "SHARDS.Party.Priority.Normal",   icon: "" },
+  high:     { label: "SHARDS.Party.Priority.High",     icon: "fa-solid fa-arrow-up" },
+  critical: { label: "SHARDS.Party.Priority.Critical", icon: "fa-solid fa-triangle-exclamation" }
 };

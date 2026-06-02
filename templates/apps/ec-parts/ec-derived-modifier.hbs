@@ -1,0 +1,16 @@
+{{!-- Derived Stat Modifier category: 5 derived stat buttons + builder controls --}}
+<div class="ec-button-grid ec-button-grid--derived">
+  {{#each derivedStats}}
+  <button type="button"
+          class="ec-pick-btn {{#if this.selected}}selected{{/if}}"
+          data-action="pickTarget"
+          data-category="derived"
+          data-target-key="{{this.key}}"
+          data-tooltip="{{this.label}}">
+    <span class="ec-pick-btn__abbr">{{this.abbr}}</span>
+    <span class="ec-pick-btn__label">{{this.label}}</span>
+  </button>
+  {{/each}}
+</div>
+
+{{> "systems/shards-of-mana/templates/apps/ec-parts/ec-builder-controls.hbs" categoryId="derived"}}

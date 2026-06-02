@@ -1,0 +1,823 @@
+/* ============================================================
+   Token HUD Overlay — Log Horizon JRPG Style
+   A floating canvas-anchored info panel with anime aesthetics:
+   deploy animations, scan-lines, corner brackets, and glowing bars.
+   ============================================================ */
+
+/* -------------------------------------------- */
+/*  Container — Strip Foundry Chrome            */
+/* -------------------------------------------- */
+
+#shards-token-hud {
+  position: fixed !important;
+  z-index: 70;
+  pointer-events: auto;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  right: unset !important;
+  bottom: unset !important;
+  transform: none !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* -------------------------------------------- */
+/*  Panel Base                                  */
+/* -------------------------------------------- */
+
+.thud__panel {
+  --thud-border-color: rgba(0, 212, 160, 0.45);
+  --thud-glow-color: rgba(0, 212, 160, 0.2);
+  --thud-accent: #00d4a0;
+  --thud-accent-light: #33eebb;
+  --thud-accent-glow: rgba(0, 212, 160, 0.3);
+
+  position: relative;
+  min-width: 170px;
+  max-width: 260px;
+  padding: 10px 14px 8px;
+  background: linear-gradient(135deg,
+    rgba(4, 8, 16, 0.93) 0%,
+    rgba(8, 14, 26, 0.90) 40%,
+    rgba(4, 8, 16, 0.93) 100%
+  );
+  border: 1px solid var(--thud-border-color);
+  border-radius: 2px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 0 16px var(--thud-glow-color),
+    0 0 40px rgba(0, 0, 0, 0.15),
+    inset 0 0 30px rgba(0, 0, 0, 0.25),
+    0 4px 16px rgba(0, 0, 0, 0.5);
+  font-family: var(--shards-font-body, "Raleway", sans-serif);
+  color: #e8eaf0;
+  overflow: hidden;
+}
+
+/* -------------------------------------------- */
+/*  Disposition Themes                          */
+/* -------------------------------------------- */
+
+.thud--friendly {
+  --thud-border-color: rgba(0, 212, 160, 0.5);
+  --thud-glow-color: rgba(0, 212, 160, 0.2);
+  --thud-accent: #00d4a0;
+  --thud-accent-light: #33eebb;
+  --thud-accent-glow: rgba(0, 212, 160, 0.3);
+}
+
+.thud--hostile {
+  --thud-border-color: rgba(255, 48, 64, 0.5);
+  --thud-glow-color: rgba(255, 48, 64, 0.2);
+  --thud-accent: #ff3040;
+  --thud-accent-light: #ff6070;
+  --thud-accent-glow: rgba(255, 48, 64, 0.3);
+}
+
+.thud--neutral {
+  --thud-border-color: rgba(255, 208, 64, 0.5);
+  --thud-glow-color: rgba(255, 208, 64, 0.2);
+  --thud-accent: #ffd040;
+  --thud-accent-light: #ffe060;
+  --thud-accent-glow: rgba(255, 208, 64, 0.3);
+}
+
+/* -------------------------------------------- */
+/*  Corner Brackets — Targeting Reticle         */
+/* -------------------------------------------- */
+
+.thud__corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.thud__corner--tl {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid var(--thud-accent);
+  border-left: 2px solid var(--thud-accent);
+}
+
+.thud__corner--tr {
+  top: -1px;
+  right: -1px;
+  border-top: 2px solid var(--thud-accent);
+  border-right: 2px solid var(--thud-accent);
+}
+
+.thud__corner--bl {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 2px solid var(--thud-accent);
+  border-left: 2px solid var(--thud-accent);
+}
+
+.thud__corner--br {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid var(--thud-accent);
+  border-right: 2px solid var(--thud-accent);
+}
+
+/* Glow on corners */
+.thud__corner::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--thud-accent);
+  border-radius: 50%;
+  opacity: 0.4;
+  filter: blur(3px);
+}
+
+.thud__corner--tl::after { top: -2px; left: -2px; }
+.thud__corner--tr::after { top: -2px; right: -2px; }
+.thud__corner--bl::after { bottom: -2px; left: -2px; }
+.thud__corner--br::after { bottom: -2px; right: -2px; }
+
+/* -------------------------------------------- */
+/*  Scan-Line Overlay — Holographic CRT         */
+/* -------------------------------------------- */
+
+.thud__scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 212, 160, 0.018) 2px,
+    rgba(0, 212, 160, 0.018) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Adjust scan-line tint for hostile */
+.thud--hostile .thud__scanlines {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 48, 64, 0.015) 2px,
+    rgba(255, 48, 64, 0.015) 4px
+  );
+}
+
+.thud--neutral .thud__scanlines {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 208, 64, 0.012) 2px,
+    rgba(255, 208, 64, 0.012) 4px
+  );
+}
+
+/* -------------------------------------------- */
+/*  Animated Border Sweep                       */
+/* -------------------------------------------- */
+
+.thud__border-sweep {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--thud-accent) 15%,
+    transparent 30%
+  );
+  background-size: 300% 100%;
+  animation: thud-border-sweep 4s linear infinite;
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes thud-border-sweep {
+  0% { background-position: 300% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* -------------------------------------------- */
+/*  Deploy Animation                            */
+/* -------------------------------------------- */
+
+@keyframes thud-deploy {
+  0% {
+    opacity: 0;
+    transform: scale(0.6, 0.25) translateY(12px);
+    filter: brightness(2.5) saturate(0);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.04, 0.9);
+    filter: brightness(1.6) saturate(0.4);
+  }
+  55% {
+    transform: scale(0.97, 1.04);
+    filter: brightness(1.15) saturate(0.7);
+  }
+  75% {
+    transform: scale(1.01, 0.99);
+    filter: brightness(1.05) saturate(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1, 1);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+.thud__panel--deploying {
+  animation: thud-deploy 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Retract */
+@keyframes thud-retract {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7, 0.35) translateY(8px);
+    filter: brightness(1.8) saturate(0);
+  }
+}
+
+.thud__panel--retracting {
+  animation: thud-retract 0.2s ease-in forwards;
+  pointer-events: none;
+}
+
+/* -------------------------------------------- */
+/*  Name Plate                                  */
+/* -------------------------------------------- */
+
+.thud__nameplate {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 5px;
+  position: relative;
+  z-index: 2;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 4px;
+}
+
+.thud__name {
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f0f4ff;
+  text-shadow: 0 0 8px var(--thud-glow-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: color 0.2s, text-shadow 0.2s;
+}
+
+/* Name readout shimmer on deploy */
+.thud__panel--deploying .thud__name {
+  animation: thud-name-readout 0.7s ease-out forwards;
+}
+
+@keyframes thud-name-readout {
+  0% {
+    color: var(--thud-accent);
+    text-shadow: 0 0 24px var(--thud-accent);
+    letter-spacing: 0.25em;
+    opacity: 0.6;
+  }
+  50% {
+    letter-spacing: 0.06em;
+    opacity: 1;
+  }
+  100% {
+    color: #f0f4ff;
+    text-shadow: 0 0 8px var(--thud-glow-color);
+    letter-spacing: 0.03em;
+    opacity: 1;
+  }
+}
+
+.thud__name:hover {
+  color: var(--thud-accent-light);
+  text-shadow: 0 0 12px var(--thud-accent-glow);
+}
+
+.thud__level {
+  font-family: var(--shards-font-body, "Raleway", sans-serif);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--thud-accent);
+  text-shadow: 0 0 4px var(--thud-glow-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.06em;
+}
+
+/* -------------------------------------------- */
+/*  Rank Badge (inline hex)                     */
+/* -------------------------------------------- */
+
+.thud__rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  flex-shrink: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.thud__rank-badge--sm {
+  width: 16px;
+  height: 16px;
+  font-size: 0.5rem;
+}
+
+.thud__rank-badge[data-rank="F"] { background: #7788a0; }
+.thud__rank-badge[data-rank="E"] { background: #40c060; }
+.thud__rank-badge[data-rank="D"] { background: #40a0d4; }
+.thud__rank-badge[data-rank="C"] { background: #c060d4; }
+.thud__rank-badge[data-rank="B"] { background: #d4a040; }
+.thud__rank-badge[data-rank="A"] { background: #d44040; }
+.thud__rank-badge[data-rank="S"] {
+  background: linear-gradient(135deg, #e0d050, #f0e080);
+  box-shadow: 0 0 6px rgba(224, 208, 80, 0.4);
+}
+
+/* -------------------------------------------- */
+/*  Job Line                                    */
+/* -------------------------------------------- */
+
+.thud__job-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 5px;
+  position: relative;
+  z-index: 2;
+}
+
+.thud__job-icon {
+  border-radius: 2px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.thud__job-name {
+  font-size: 0.65rem;
+  color: #a0aab8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+
+/* -------------------------------------------- */
+/*  Elevation Indicator                        */
+/* -------------------------------------------- */
+
+.thud__elevation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  position: relative;
+  z-index: 2;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.thud__elevation--flying {
+  background: rgba(96, 192, 255, 0.1);
+  border: 1px solid rgba(96, 192, 255, 0.3);
+}
+
+.thud__elevation--flying .thud__elevation-value {
+  color: #60c0ff;
+  text-shadow: 0 0 6px rgba(96, 192, 255, 0.4);
+}
+
+.thud__elevation--underground {
+  background: rgba(192, 128, 64, 0.1);
+  border: 1px solid rgba(192, 128, 64, 0.3);
+}
+
+.thud__elevation--underground .thud__elevation-value {
+  color: #c08040;
+  text-shadow: 0 0 6px rgba(192, 128, 64, 0.4);
+}
+
+/* Deploy animation stagger */
+.thud__panel--deploying .thud__elevation {
+  animation: thud-fade-in 0.3s ease-out 0.08s both;
+}
+
+/* -------------------------------------------- */
+/*  Bars (HP / MP)                              */
+/* -------------------------------------------- */
+
+.thud__bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+  position: relative;
+  z-index: 2;
+}
+
+.thud__bar-label {
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.thud__bar--hp .thud__bar-label {
+  color: #50e880;
+  text-shadow: 0 0 4px rgba(80, 232, 128, 0.4);
+}
+
+.thud__bar--mp .thud__bar-label {
+  color: #60a8ff;
+  text-shadow: 0 0 4px rgba(96, 168, 255, 0.4);
+}
+
+.thud__bar-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.thud__bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--bar-pct, 0%);
+  border-radius: 1px;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* HP fill gradient */
+.thud__bar--hp .thud__bar-fill {
+  background: linear-gradient(90deg,
+    #5a0a0a 0%,
+    #cc2020 15%,
+    #ff4040 40%,
+    #ff6848 65%,
+    #ff9060 85%,
+    #ffcc66 100%
+  );
+  box-shadow: 0 0 6px rgba(255, 64, 64, 0.35);
+}
+
+/* MP fill gradient */
+.thud__bar--mp .thud__bar-fill {
+  background: linear-gradient(90deg,
+    #0a1a4a 0%,
+    #2060c0 15%,
+    #4080ff 40%,
+    #50a0ff 65%,
+    #60c0ff 85%,
+    #88eeff 100%
+  );
+  box-shadow: 0 0 6px rgba(64, 128, 255, 0.35);
+}
+
+/* Shine overlay */
+.thud__bar-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+  border-radius: 1px 1px 0 0;
+}
+
+/* Bar values */
+.thud__bar-value {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #d0d4e0;
+  white-space: nowrap;
+  min-width: 40px;
+  text-align: right;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.thud__bar-sep {
+  color: #667080;
+  font-weight: 400;
+}
+
+/* Bar fill animation on deploy */
+.thud__panel--deploying .thud__bar-fill {
+  animation: thud-bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes thud-bar-grow {
+  0% { transform: scaleX(0); transform-origin: left; }
+  100% { transform: scaleX(1); transform-origin: left; }
+}
+
+/* -------------------------------------------- */
+/*  Action Pips                                 */
+/* -------------------------------------------- */
+
+.thud__pips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 2px 0 3px;
+  position: relative;
+  z-index: 2;
+}
+
+.thud__pips-label {
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.45rem;
+  font-weight: 700;
+  color: var(--thud-accent);
+  text-shadow: 0 0 4px var(--thud-glow-color);
+  letter-spacing: 0.1em;
+  margin-right: 2px;
+  width: 18px;
+  text-align: right;
+}
+
+.thud__pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.2s;
+}
+
+.thud__pip--filled {
+  background: radial-gradient(circle at 40% 35%,
+    var(--thud-accent-light) 0%,
+    var(--thud-accent) 60%,
+    rgba(0, 160, 120, 0.8) 100%
+  );
+  border-color: var(--thud-accent);
+  box-shadow: 0 0 5px var(--thud-accent-glow);
+}
+
+/* -------------------------------------------- */
+/*  Active Conditions                           */
+/* -------------------------------------------- */
+
+.thud__conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 3px 0 2px;
+  position: relative;
+  z-index: 2;
+}
+
+.thud__condition {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 2px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.thud__condition img {
+  filter: drop-shadow(0 0 3px var(--thud-accent-glow));
+  display: block;
+}
+
+.thud__condition-mag {
+  font-size: 0.48rem;
+  font-weight: 700;
+  color: var(--thud-accent);
+  text-shadow: 0 0 3px var(--thud-glow-color);
+}
+
+/* -------------------------------------------- */
+/*  Limit Break Gauge                           */
+/* -------------------------------------------- */
+
+.thud__lb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  position: relative;
+  z-index: 2;
+}
+
+.thud__lb-label {
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.45rem;
+  font-weight: 700;
+  color: #d4a843;
+  text-shadow: 0 0 4px rgba(212, 168, 67, 0.4);
+  letter-spacing: 0.1em;
+  width: 18px;
+  text-align: right;
+}
+
+.thud__lb-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(212, 168, 67, 0.15);
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.thud__lb-fill {
+  height: 100%;
+  background: linear-gradient(90deg,
+    #806020 0%,
+    #d4a843 40%,
+    #ffe060 80%,
+    #fff8a0 100%
+  );
+  border-radius: 1px;
+  transition: width 0.4s ease;
+}
+
+.thud__lb--ready .thud__lb-fill {
+  animation: thud-lb-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.thud__lb--ready .thud__lb-label {
+  animation: thud-lb-label-glow 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes thud-lb-pulse {
+  0% {
+    box-shadow: 0 0 4px rgba(255, 224, 96, 0.3);
+    filter: brightness(1);
+  }
+  100% {
+    box-shadow: 0 0 12px rgba(255, 224, 96, 0.7), 0 0 20px rgba(255, 224, 96, 0.2);
+    filter: brightness(1.2);
+  }
+}
+
+@keyframes thud-lb-label-glow {
+  0% { text-shadow: 0 0 4px rgba(212, 168, 67, 0.4); }
+  100% { text-shadow: 0 0 10px rgba(255, 224, 96, 0.8), 0 0 20px rgba(255, 224, 96, 0.3); }
+}
+
+/* -------------------------------------------- */
+/*  Critical HP State                           */
+/* -------------------------------------------- */
+
+.thud__panel--hp-critical {
+  animation: thud-danger-border 1s ease-in-out infinite alternate;
+}
+
+.thud__panel--hp-critical .thud__bar--hp .thud__bar-fill {
+  animation: thud-hp-flash 0.8s ease-in-out infinite alternate;
+}
+
+.thud__panel--hp-critical .thud__bar--hp .thud__bar-label {
+  animation: thud-hp-label-flash 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes thud-danger-border {
+  0% {
+    border-color: rgba(255, 48, 48, 0.3);
+    box-shadow:
+      0 0 12px rgba(255, 48, 48, 0.15),
+      inset 0 0 20px rgba(255, 48, 48, 0.03),
+      0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+  100% {
+    border-color: rgba(255, 48, 48, 0.6);
+    box-shadow:
+      0 0 20px rgba(255, 48, 48, 0.3),
+      0 0 40px rgba(255, 48, 48, 0.08),
+      inset 0 0 20px rgba(255, 48, 48, 0.06),
+      0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes thud-hp-flash {
+  0% {
+    box-shadow: 0 0 4px rgba(255, 48, 48, 0.3);
+    filter: brightness(0.85);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(255, 48, 48, 0.7);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes thud-hp-label-flash {
+  0% { color: #50e880; }
+  100% { color: #ff6060; text-shadow: 0 0 6px rgba(255, 64, 64, 0.5); }
+}
+
+/* HP at 0 — downed / danger state */
+.thud__panel--hp-danger {
+  border-color: rgba(255, 30, 30, 0.5);
+}
+
+.thud__panel--hp-danger .thud__bar--hp .thud__bar-track {
+  border-color: rgba(255, 30, 30, 0.3);
+}
+
+/* Downed overlay — desaturated */
+.thud__panel--downed {
+  filter: saturate(0.4) brightness(0.8);
+}
+
+/* -------------------------------------------- */
+/*  Deploy Animation for Child Elements         */
+/* -------------------------------------------- */
+
+/* Stagger child elements on deploy */
+.thud__panel--deploying .thud__nameplate {
+  animation: thud-fade-in 0.3s ease-out 0.05s both;
+}
+
+.thud__panel--deploying .thud__job-line {
+  animation: thud-fade-in 0.3s ease-out 0.1s both;
+}
+
+.thud__panel--deploying .thud__bar--hp {
+  animation: thud-fade-in 0.3s ease-out 0.12s both;
+}
+
+.thud__panel--deploying .thud__bar--mp {
+  animation: thud-fade-in 0.3s ease-out 0.16s both;
+}
+
+.thud__panel--deploying .thud__pips {
+  animation: thud-fade-in 0.3s ease-out 0.2s both;
+}
+
+.thud__panel--deploying .thud__conditions {
+  animation: thud-fade-in 0.3s ease-out 0.22s both;
+}
+
+.thud__panel--deploying .thud__lb {
+  animation: thud-fade-in 0.3s ease-out 0.25s both;
+}
+
+@keyframes thud-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

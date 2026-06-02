@@ -1,0 +1,133 @@
+<section class="tab description {{tab.cssClass}}" data-group="primary" data-tab="description">
+
+  {{!-- MMO-Style Skill Tooltip Card --}}
+  <div class="skill-tooltip crystal-panel">
+
+    {{!-- Header Bar --}}
+    <div class="skill-tooltip__header">
+      <span class="skill-tooltip__name">{{item.name}}</span>
+      <span class="skill-tooltip__tier" data-tier="{{system.tier}}">
+        {{#each tierStars}}<i class="fa-solid fa-star"></i>{{/each}}
+      </span>
+    </div>
+
+    {{!-- Type Bar: skill type, damage element, attack type --}}
+    <div class="skill-tooltip__typebar">
+      <span class="skill-tooltip__type">{{skillTypeLabel}}</span>
+      {{#if damageTypeLabel}}<span class="skill-tooltip__element">{{damageTypeLabel}}</span>{{/if}}
+      {{#if defenseTypeLabel}}<span class="skill-tooltip__attack-type">{{defenseTypeLabel}}</span>{{/if}}
+    </div>
+
+    {{!-- Tags --}}
+    {{#if tagArray.length}}
+    <div class="skill-tooltip__tags">
+      {{#each tagArray}}
+      <span class="skill-tooltip__tag">{{this}}</span>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{!-- Stat Pills Row (cost / timing / target / range) --}}
+    {{#unless isPassive}}
+    <div class="skill-tooltip__stats">
+      <div class="skill-tooltip__pill">
+        <span class="skill-tooltip__pill-label">Timing</span>
+        <span class="skill-tooltip__pill-value">{{timingLabel}}</span>
+      </div>
+      <div class="skill-tooltip__pill skill-tooltip__pill--mp">
+        <span class="skill-tooltip__pill-label">MP</span>
+        <span class="skill-tooltip__pill-value">{{computedMpCost}}</span>
+      </div>
+      <div class="skill-tooltip__pill skill-tooltip__pill--pips">
+        <span class="skill-tooltip__pill-label">Pips</span>
+        <span class="skill-tooltip__pill-value">{{computedPipCost}}</span>
+      </div>
+      <div class="skill-tooltip__pill">
+        <span class="skill-tooltip__pill-label">Target</span>
+        <span class="skill-tooltip__pill-value">
+          {{targetLabel}}{{#if showAreaFields}} {{areaShapeLabel}} {{system.areaSize}}sq{{/if}}
+        </span>
+      </div>
+      {{#if computedRange}}
+      <div class="skill-tooltip__pill">
+        <span class="skill-tooltip__pill-label">Range</span>
+        <span class="skill-tooltip__pill-value">{{computedRange}}sq</span>
+      </div>
+      {{/if}}
+    </div>
+    {{/unless}}
+
+    {{!-- Combat Numbers Row --}}
+    {{#unless isPassive}}
+    <div class="skill-tooltip__combat">
+      {{#if skillRate}}
+      <div class="skill-tooltip__combat-stat">
+        <span class="skill-tooltip__combat-value skill-tooltip__combat-value--hit">{{skillRate}}</span>
+        <span class="skill-tooltip__combat-label">Skill Rate{{#if allSkillStatLabels}} <small>({{allSkillStatLabels}})</small>{{/if}}</span>
+      </div>
+      {{/if}}
+      {{#if computedDamage}}
+      <div class="skill-tooltip__combat-stat">
+        <span class="skill-tooltip__combat-value skill-tooltip__combat-value--dmg">{{computedDamage}}</span>
+        <span class="skill-tooltip__combat-label">Base Dmg</span>
+      </div>
+      {{/if}}
+      {{#if actorDerived.crit}}
+      <div class="skill-tooltip__combat-stat">
+        <span class="skill-tooltip__combat-value skill-tooltip__combat-value--crit">{{actorDerived.crit}}</span>
+        <span class="skill-tooltip__combat-label">Crit</span>
+      </div>
+      {{/if}}
+      {{#if defenseTypeLabel}}
+      <div class="skill-tooltip__combat-stat">
+        <span class="skill-tooltip__combat-value skill-tooltip__combat-value--vs">{{defenseTypeLabel}}</span>
+        <span class="skill-tooltip__combat-label">vs Defense</span>
+      </div>
+      {{/if}}
+    </div>
+    {{/unless}}
+
+    {{!-- Actor Totals Bar (only when owned) --}}
+    {{#if actorDerived}}
+    <div class="skill-tooltip__totals">
+      {{#if actorDerived.totalHit}}
+      <div class="skill-tooltip__total">
+        <span class="skill-tooltip__total-value">{{actorDerived.totalHit}}</span>
+        <span class="skill-tooltip__total-label">Total Hit</span>
+        <span class="skill-tooltip__total-breakdown">{{skillRate}} + {{actorDerived.hitStat}} {{actorDerived.hitLabel}}</span>
+      </div>
+      {{/if}}
+      {{#if actorDerived.totalDamage}}
+      <div class="skill-tooltip__total">
+        <span class="skill-tooltip__total-value">{{actorDerived.totalDamage}}</span>
+        <span class="skill-tooltip__total-label">Total Dmg</span>
+        <span class="skill-tooltip__total-breakdown">{{computedDamage}} + {{actorDerived.dmgStat}} {{actorDerived.dmgLabel}}</span>
+      </div>
+      {{/if}}
+    </div>
+    {{/if}}
+
+    {{!-- Condition Line --}}
+    {{#if conditionLabel}}
+    <div class="skill-tooltip__condition">
+      <i class="fa-solid fa-bolt"></i>
+      {{system.conditionChance}}% chance to apply <strong>{{conditionLabel}}</strong>
+    </div>
+    {{/if}}
+
+    {{!-- Enriched Description / Flavor Text --}}
+    {{#if enrichedDescription}}
+    <div class="skill-tooltip__flavor">{{{enrichedDescription}}}</div>
+    {{/if}}
+
+    {{!-- No Actor Warning --}}
+    {{#unless isOwned}}
+    <div class="skill-tooltip__no-actor">
+      <i class="fa-solid fa-circle-info"></i>
+      {{localize "SHARDS.Skill.FormulaNoActor"}}
+    </div>
+    {{/unless}}
+
+  </div>
+
+</section>

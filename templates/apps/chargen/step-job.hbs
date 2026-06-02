@@ -1,0 +1,34 @@
+<div class="chargen-job">
+
+  <p class="chargen-hint">{{localize "SHARDS.CharGen.Job.Hint"}}</p>
+
+  {{#if state.selectedJob}}
+  {{!-- Selected Job Card --}}
+  <div class="chargen-selection-card">
+    <img src="{{state.selectedJob.img}}" alt="{{state.selectedJob.name}}" class="chargen-selection-card__img" />
+    <div class="chargen-selection-card__info">
+      <h3 class="chargen-selection-card__name">{{state.selectedJob.name}}</h3>
+      <div class="chargen-selection-card__details">
+        <span class="chargen-detail"><i class="fa-solid fa-heart"></i> HP: {{state.selectedJob.system.baseHp}}</span>
+        <span class="chargen-detail"><i class="fa-solid fa-droplet"></i> MP: {{state.selectedJob.system.baseMp}}</span>
+      </div>
+    </div>
+    <button type="button" class="chargen-selection-card__remove" data-action="removeJob" title="{{localize "SHARDS.CharGen.Remove"}}">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  {{else}}
+  {{!-- Empty State --}}
+  <div class="chargen-empty-state">
+    <i class="fa-solid fa-briefcase chargen-empty-state__icon"></i>
+    <p>{{localize "SHARDS.CharGen.Job.Empty"}}</p>
+  </div>
+  {{/if}}
+
+  <div class="chargen-browse-actions">
+    <button type="button" class="chargen-browse-btn" data-action="browseJobs">
+      <i class="fa-solid fa-book-sparkles"></i> {{localize "SHARDS.CharGen.Job.Browse"}}
+    </button>
+  </div>
+
+</div>

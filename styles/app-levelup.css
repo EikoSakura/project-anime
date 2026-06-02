@@ -1,0 +1,1384 @@
+/* ============================================ */
+/*  Shards of Mana — Level Up Wizard            */
+/*  Log Horizon / Isekai Status Window Aesthetic */
+/* ============================================ */
+
+/* -------------------------------------------- */
+/*  Base Theme Variables (Silver default)        */
+/* -------------------------------------------- */
+
+.levelup-wizard {
+  --lh-border-outer: #1a5a50;
+  --lh-border-silver: #00d4a0;
+  --lh-border-silver-light: #33eebb;
+  --lh-border-silver-dark: #0a6050;
+  --lh-border-inner: #0d3030;
+  --lh-gold: #ffd040;
+  --lh-gold-light: #ffe060;
+  --lh-gold-glow: rgba(255, 208, 64, 0.5);
+  --lh-panel-bg: rgba(6, 8, 14, 0.95);
+  --lh-panel-bg-gradient: linear-gradient(135deg, rgba(3, 4, 10, 0.95) 0%, rgba(6, 10, 18, 0.92) 50%, rgba(3, 4, 10, 0.95) 100%);
+  --lh-panel-inner-glow: rgba(0, 212, 160, 0.06);
+  --lh-text-primary: #eef0f8;
+  --lh-text-muted: #6688a0;
+  --lh-text-label: #88aac0;
+  --lh-bg-ambient: rgba(0, 212, 160, 0.03);
+  --lh-heading-color: var(--lh-border-silver-light);
+  --lh-heading-border: rgba(0, 212, 160, 0.25);
+  --lh-btn-color: var(--lh-border-silver-light);
+  --lh-btn-hover-color: var(--lh-text-primary);
+  --lh-btn-border: var(--lh-border-inner);
+  --lh-btn-hover-glow: rgba(0, 212, 160, 0.3);
+  --lh-scrollbar: rgba(0, 212, 160, 0.4);
+  --lh-scrollbar-hover: rgba(0, 212, 160, 0.7);
+  --lh-stat-value: var(--lh-gold-light);
+  --lh-stat-glow: var(--lh-gold-glow);
+  --lh-hp-gradient: linear-gradient(90deg, #5a0a0a 0%, #b82020 15%, #ff4040 35%, #e86050 55%, #f09060 75%, #ffcc66 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #0a1a3a 0%, #2050a0 15%, #4080ff 35%, #50a0e8 55%, #60c0f0 75%, #88eeff 100%);
+
+  /* Level-up specific colors */
+  --lu-pass: #00ff88;
+  --lu-pass-glow: rgba(0, 255, 136, 0.4);
+  --lu-fail: #556680;
+  --lu-fail-bg: rgba(12, 16, 28, 0.5);
+  --lu-rank-glow: rgba(255, 208, 64, 0.6);
+}
+
+/* -------------------------------------------- */
+/*  Window Frame                                 */
+/* -------------------------------------------- */
+
+.levelup-wizard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--lh-panel-bg-gradient);
+  color: var(--lh-text-primary);
+  font-family: inherit;
+  overflow: hidden;
+}
+
+/* -------------------------------------------- */
+/*  Progress Bar                                 */
+/* -------------------------------------------- */
+
+.levelup-progress {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--lh-border-inner);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.levelup-progress__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 54px;
+}
+
+.levelup-progress__step:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.levelup-progress__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--lh-border-silver-dark);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--lh-text-muted);
+  font-size: 12px;
+  transition: all 0.25s;
+}
+
+.levelup-progress__step.current .levelup-progress__icon {
+  border-color: var(--lh-gold);
+  color: var(--lh-gold-light);
+  box-shadow: 0 0 8px var(--lh-gold-glow);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.levelup-progress__step.completed .levelup-progress__icon {
+  border-color: var(--lh-gold);
+  color: var(--lh-gold-light);
+  background: rgba(255, 208, 64, 0.15);
+}
+
+.levelup-progress__label {
+  font-size: 9px;
+  color: var(--lh-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.levelup-progress__step.current .levelup-progress__label {
+  color: var(--lh-gold-light);
+}
+
+.levelup-progress__connector {
+  flex: 1;
+  height: 1px;
+  min-width: 12px;
+  background: var(--lh-border-silver-dark);
+  margin: 0 4px;
+  margin-bottom: 14px;
+  transition: background 0.3s;
+}
+
+.levelup-progress__connector.completed {
+  background: var(--lh-gold);
+}
+
+/* -------------------------------------------- */
+/*  Step Header                                  */
+/* -------------------------------------------- */
+
+.levelup-step-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 16px 4px;
+  border-bottom: 1px solid var(--lh-heading-border);
+  flex-shrink: 0;
+}
+
+.levelup-step-header__number {
+  font-size: 10px;
+  color: var(--lh-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.levelup-step-header__title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--lh-heading-color);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* -------------------------------------------- */
+/*  Step Content (scrollable)                    */
+/* -------------------------------------------- */
+
+.levelup-step-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.levelup-step-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.levelup-step-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.levelup-step-content::-webkit-scrollbar-thumb {
+  background: var(--lh-scrollbar);
+  border-radius: 3px;
+}
+
+.levelup-step-content::-webkit-scrollbar-thumb:hover {
+  background: var(--lh-scrollbar-hover);
+}
+
+/* -------------------------------------------- */
+/*  Navigation Footer                            */
+/* -------------------------------------------- */
+
+.levelup-nav {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--lh-border-inner);
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.levelup-nav__spacer {
+  flex: 1;
+}
+
+.levelup-nav__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: 1px solid var(--lh-btn-border);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--lh-btn-color);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+
+.levelup-nav__btn:hover {
+  color: var(--lh-btn-hover-color);
+  border-color: var(--lh-border-silver);
+  box-shadow: 0 0 6px var(--lh-btn-hover-glow);
+}
+
+.levelup-nav__btn--finish {
+  border-color: var(--lh-gold);
+  color: var(--lh-gold-light);
+}
+
+.levelup-nav__btn--finish:hover {
+  box-shadow: 0 0 10px var(--lh-gold-glow);
+  color: #fff;
+}
+
+/* ============================================ */
+/*  STEP 1: Overview — Status Window             */
+/* ============================================ */
+
+.levelup-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Status Window (isekai-style) */
+.levelup-status-window {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--lh-border-silver-dark);
+  border-radius: 4px;
+  padding: 12px;
+  box-shadow: inset 0 0 20px var(--lh-panel-inner-glow);
+}
+
+.levelup-status__header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.levelup-status__portrait {
+  width: 64px;
+  height: 64px;
+  border-radius: 4px;
+  border: 2px solid var(--lh-border-silver);
+  object-fit: cover;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+.levelup-status__identity {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.levelup-status__name {
+  margin: 0;
+  font-size: 18px;
+  color: var(--lh-text-primary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.levelup-status__meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.levelup-status__lineage {
+  font-size: 11px;
+  color: var(--lh-text-muted);
+}
+
+.levelup-status__rank {
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--lh-border-silver-dark);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--lh-gold-light);
+  font-weight: 600;
+}
+
+.levelup-status__level-info {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  margin-top: 2px;
+}
+
+.levelup-status__level {
+  font-size: 14px;
+  color: var(--lh-stat-value);
+  font-weight: 700;
+  text-shadow: 0 0 6px var(--lh-stat-glow);
+}
+
+.levelup-status__xp {
+  font-size: 12px;
+  color: var(--lh-text-muted);
+}
+
+/* Active Job Display */
+.levelup-status__job {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.levelup-status__job img {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  border: 1px solid var(--lh-border-silver-dark);
+}
+
+.levelup-status__job span {
+  font-size: 12px;
+  color: var(--lh-text-label);
+}
+
+.levelup-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--lh-border-silver-dark);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--lh-gold-light);
+  font-weight: 600;
+}
+
+/* Available Levels Panel */
+.levelup-available-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--lh-gold);
+  border-radius: 4px;
+  box-shadow: 0 0 12px var(--lh-gold-glow);
+}
+
+.levelup-available__count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+}
+
+.levelup-available__number {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--lh-gold-light);
+  line-height: 1;
+  text-shadow: 0 0 12px var(--lh-gold-glow);
+}
+
+.levelup-available__label {
+  font-size: 10px;
+  color: var(--lh-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.levelup-available__detail {
+  font-size: 12px;
+  color: var(--lh-text-label);
+  line-height: 1.4;
+}
+
+.levelup-available__detail strong {
+  color: var(--lh-gold-light);
+}
+
+/* Growth Rates Preview */
+.levelup-section-heading {
+  font-size: 12px;
+  color: var(--lh-heading-color);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--lh-heading-border);
+}
+
+.levelup-growth-preview {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--lh-border-inner);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.levelup-growth-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.levelup-growth-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.levelup-growth-cell__label {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--lh-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.levelup-growth-cell__value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lh-stat-value);
+  text-shadow: 0 0 4px var(--lh-stat-glow);
+}
+
+.levelup-growth-cell__bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.levelup-growth-cell__bar-fill {
+  height: 100%;
+  background: var(--lh-gold);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+/* ============================================ */
+/*  STEP 2: Growth Rolls                         */
+/* ============================================ */
+
+.levelup-growth {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.levelup-growth__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.levelup-growth__level-label {
+  font-size: 12px;
+  color: var(--lh-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.levelup-growth__level-number {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--lh-gold-light);
+  text-shadow: 0 0 10px var(--lh-gold-glow);
+}
+
+.levelup-growth__sublabel {
+  font-size: 11px;
+  color: var(--lh-text-muted);
+}
+
+/* Roll Prompt (before rolling) */
+.levelup-growth__roll-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 20px;
+}
+
+.levelup-hint {
+  font-size: 12px;
+  color: var(--lh-text-label);
+  text-align: center;
+  max-width: 400px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.levelup-growth__roll-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 32px;
+  border: 2px solid var(--lh-gold);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--lh-gold-light);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.25s;
+  animation: roll-btn-pulse 2s infinite;
+}
+
+.levelup-growth__roll-btn:hover {
+  background: rgba(255, 208, 64, 0.15);
+  box-shadow: 0 0 20px var(--lh-gold-glow);
+  color: #fff;
+  transform: scale(1.02);
+}
+
+@keyframes roll-btn-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--lh-gold-glow); }
+  50% { box-shadow: 0 0 16px var(--lh-gold-glow), 0 0 24px rgba(255, 208, 64, 0.2); }
+}
+
+/* Roll Results Grid */
+.levelup-growth__results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--lh-border-inner);
+  border-radius: 4px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.levelup-roll-row {
+  display: grid;
+  grid-template-columns: 80px 48px 24px 56px 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  animation: roll-fade-in 0.4s ease-out both;
+}
+
+/* Staggered animation delays */
+.levelup-roll-row:nth-child(1) { animation-delay: 0ms; }
+.levelup-roll-row:nth-child(2) { animation-delay: 60ms; }
+.levelup-roll-row:nth-child(3) { animation-delay: 120ms; }
+.levelup-roll-row:nth-child(4) { animation-delay: 180ms; }
+.levelup-roll-row:nth-child(5) { animation-delay: 240ms; }
+.levelup-roll-row:nth-child(6) { animation-delay: 300ms; }
+.levelup-roll-row:nth-child(7) { animation-delay: 360ms; }
+.levelup-roll-row:nth-child(8) { animation-delay: 420ms; }
+
+@keyframes roll-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.levelup-roll-row--pass {
+  background: rgba(0, 255, 136, 0.08);
+  border-left: 3px solid var(--lu-pass);
+  box-shadow: inset 0 0 12px var(--lu-pass-glow);
+}
+
+.levelup-roll-row--fail {
+  background: var(--lu-fail-bg);
+  border-left: 3px solid transparent;
+  opacity: 0.65;
+}
+
+.levelup-roll-row__stat {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lh-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.levelup-roll-row__dice {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: monospace;
+  text-align: center;
+}
+
+.levelup-roll-row--pass .levelup-roll-row__dice {
+  color: var(--lu-pass);
+  text-shadow: 0 0 6px var(--lu-pass-glow);
+}
+
+.levelup-roll-row--fail .levelup-roll-row__dice {
+  color: var(--lu-fail);
+}
+
+.levelup-roll-row__vs {
+  font-size: 10px;
+  color: var(--lh-text-muted);
+  text-align: center;
+}
+
+.levelup-roll-row__rate {
+  font-size: 12px;
+  color: var(--lh-text-label);
+  text-align: center;
+}
+
+.levelup-roll-row__result {
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.levelup-roll-row--pass .levelup-roll-row__result {
+  color: var(--lu-pass);
+  text-shadow: 0 0 4px var(--lu-pass-glow);
+}
+
+.levelup-roll-row--fail .levelup-roll-row__result {
+  color: var(--lu-fail);
+}
+
+/* Level Summary (per-level) */
+.levelup-growth__level-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border: 1px solid var(--lh-heading-border);
+  font-size: 13px;
+  color: var(--lh-text-label);
+}
+
+.levelup-growth__level-summary strong {
+  color: var(--lh-gold-light);
+}
+
+.levelup-growth__rank-advance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 208, 64, 0.1);
+  border: 1px solid var(--lh-gold);
+  border-radius: 4px;
+  color: var(--lh-gold-light);
+  font-size: 13px;
+  font-weight: 600;
+  animation: rank-flash 0.6s ease-out;
+}
+
+.levelup-growth__rank-advance i {
+  color: var(--lh-gold-light);
+}
+
+@keyframes rank-flash {
+  0% { transform: scale(1.1); box-shadow: 0 0 20px var(--lu-rank-glow); }
+  100% { transform: scale(1); box-shadow: 0 0 6px var(--lh-gold-glow); }
+}
+
+/* Action Buttons after Roll */
+.levelup-growth__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.levelup-growth__continue-btn,
+.levelup-growth__proceed-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--lh-btn-border);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--lh-btn-color);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+
+.levelup-growth__continue-btn:hover,
+.levelup-growth__proceed-btn:hover {
+  color: var(--lh-btn-hover-color);
+  border-color: var(--lh-border-silver);
+  box-shadow: 0 0 6px var(--lh-btn-hover-glow);
+}
+
+.levelup-growth__continue-btn {
+  border-color: var(--lh-gold);
+  color: var(--lh-gold-light);
+}
+
+.levelup-growth__continue-btn:hover {
+  box-shadow: 0 0 10px var(--lh-gold-glow);
+  color: #fff;
+}
+
+/* ============================================ */
+/*  STEP 3: Summary                              */
+/* ============================================ */
+
+.levelup-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Level Progression Banner */
+.levelup-summary__banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--lh-gold);
+  border-radius: 4px;
+  box-shadow: 0 0 12px var(--lh-gold-glow);
+}
+
+.levelup-summary__from,
+.levelup-summary__to {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--lh-stat-value);
+  text-shadow: 0 0 8px var(--lh-stat-glow);
+}
+
+.levelup-summary__to {
+  color: var(--lh-gold-light);
+}
+
+.levelup-summary__arrow {
+  font-size: 16px;
+  color: var(--lh-text-muted);
+}
+
+.levelup-summary__rank-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--lh-border-inner);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.levelup-summary__rank-change span {
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--lh-border-silver-dark);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.levelup-summary__new-rank {
+  color: var(--lh-gold-light) !important;
+  border-color: var(--lh-gold) !important;
+  box-shadow: 0 0 8px var(--lh-gold-glow);
+  animation: rank-flash 0.6s ease-out;
+}
+
+/* Stat Comparison Grid */
+.levelup-summary__stat-compare {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--lh-border-inner);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.levelup-stat-compare-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.levelup-stat-compare-row {
+  display: grid;
+  grid-template-columns: 80px 40px 24px 40px 48px;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.levelup-stat-compare-row--gained {
+  background: rgba(0, 255, 136, 0.06);
+}
+
+.levelup-stat-compare__label {
+  font-weight: 600;
+  color: var(--lh-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.levelup-stat-compare__before {
+  text-align: center;
+  color: var(--lh-text-muted);
+}
+
+.levelup-stat-compare__arrow {
+  text-align: center;
+  color: var(--lh-text-muted);
+  font-size: 10px;
+}
+
+.levelup-stat-compare__after {
+  text-align: center;
+  color: var(--lh-text-primary);
+  font-weight: 600;
+}
+
+.levelup-stat-compare-row--gained .levelup-stat-compare__after {
+  color: var(--lu-pass);
+  text-shadow: 0 0 4px var(--lu-pass-glow);
+}
+
+.levelup-stat-compare__delta {
+  text-align: right;
+  font-weight: 700;
+  color: var(--lu-pass);
+  font-size: 13px;
+}
+
+.levelup-stat-compare__total {
+  text-align: center;
+  padding: 6px 0 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--lh-heading-border);
+  font-size: 13px;
+  color: var(--lh-text-label);
+}
+
+.levelup-stat-compare__total strong {
+  color: var(--lh-gold-light);
+  text-shadow: 0 0 4px var(--lh-gold-glow);
+}
+
+/* Per-Level Breakdown */
+.levelup-summary__level-log {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--lh-border-inner);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.levelup-level-entry {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.levelup-level-entry:last-child {
+  border-bottom: none;
+}
+
+.levelup-level-entry__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.levelup-level-entry__level {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lh-stat-value);
+}
+
+.levelup-level-entry__gains {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lu-pass);
+}
+
+.levelup-level-entry__rank {
+  font-size: 10px;
+  color: var(--lh-gold-light);
+  margin-left: auto;
+}
+
+.levelup-level-entry__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.levelup-mini-stat {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: monospace;
+}
+
+.levelup-mini-stat.pass {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--lu-pass);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.levelup-mini-stat.fail {
+  background: rgba(12, 16, 28, 0.3);
+  color: var(--lu-fail);
+  border: 1px solid rgba(24, 36, 56, 0.15);
+}
+
+/* XP Summary */
+.levelup-summary__xp {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--lh-text-label);
+}
+
+.levelup-summary__xp strong {
+  color: var(--lh-gold-light);
+}
+
+/* ============================================ */
+/*  STEP 4: Finalize                             */
+/* ============================================ */
+
+.levelup-finalize {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.levelup-finalize__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  color: var(--lh-gold-light);
+}
+
+.levelup-finalize__header i {
+  font-size: 18px;
+}
+
+.levelup-finalize__header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.levelup-finalize__summary {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--lh-border-silver-dark);
+  border-radius: 4px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.levelup-finalize__field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.levelup-finalize__field:last-of-type {
+  border-bottom: none;
+}
+
+.levelup-finalize__label {
+  font-size: 12px;
+  color: var(--lh-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.levelup-finalize__value {
+  font-size: 13px;
+  color: var(--lh-text-label);
+}
+
+.levelup-finalize__value strong {
+  color: var(--lh-gold-light);
+  text-shadow: 0 0 4px var(--lh-gold-glow);
+}
+
+.levelup-finalize__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.levelup-finalize__stat-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  color: var(--lu-pass);
+}
+
+.levelup-finalize__stat-chip strong {
+  color: var(--lu-pass);
+}
+
+.levelup-finalize__note {
+  font-size: 11px;
+  color: var(--lh-text-muted);
+  text-align: center;
+  font-style: italic;
+  margin: 0;
+  padding: 0 20px;
+  line-height: 1.5;
+}
+
+/* ============================================ */
+/*  Header Button (in adventurer sheet)          */
+/* ============================================ */
+
+.levelup-wizard-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--lh-text-muted, #6688a0);
+  font-size: 14px;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.levelup-wizard-btn:hover {
+  color: var(--lh-gold-light, #ffe060);
+}
+
+.levelup-wizard-btn.cannot-level {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.levelup-wizard-btn.cannot-level:hover {
+  color: var(--lh-text-muted, #6688a0);
+}
+
+.levelup-wizard-btn.can-level-up {
+  color: var(--lh-gold-light, #ffe060);
+  animation: levelup-glow-pulse 2s infinite;
+}
+
+@keyframes levelup-glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(255, 208, 64, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(255, 208, 64, 0.7)) drop-shadow(0 0 10px rgba(255, 208, 64, 0.3));
+  }
+}
+
+/* ============================================ */
+/*  Chat Card: Level-Up Summary                  */
+/* ============================================ */
+
+.shards-levelup-summary-card .shards-levelup-summary__range {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.shards-levelup-summary__gains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.shards-levelup-summary__stat-chip {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 255, 136, 0.12);
+  color: #00ff88;
+}
+
+.shards-levelup-summary__total {
+  text-align: center;
+  font-size: 12px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.shards-levelup-summary__rank-advance {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 208, 64, 0.1);
+  border-radius: 3px;
+  color: #ffe060;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shards-levelup-summary__xp-spent {
+  text-align: center;
+  font-size: 11px;
+  color: #6688a0;
+  padding: 2px 0;
+}
+
+.shards-levelup-summary__level-log {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.shards-levelup-summary__level-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.shards-levelup-summary__level-entry .level-num {
+  font-weight: 700;
+  color: #ffe060;
+  min-width: 40px;
+}
+
+.shards-levelup-summary__level-entry .stat-gains {
+  color: #00ff88;
+}
+
+.shards-levelup-summary__level-entry .rank-note {
+  margin-left: auto;
+  color: #ffe060;
+  font-size: 10px;
+}
+
+/* ============================================ */
+/*  Theme Overrides                              */
+/* ============================================ */
+
+.levelup-wizard[data-theme="crimson"] {
+  --lh-border-outer: #8a4848;
+  --lh-border-silver: #9e5555;
+  --lh-border-silver-light: #c47a7a;
+  --lh-border-silver-dark: #6a3838;
+  --lh-border-inner: #5a3030;
+  --lh-gold: #d4884e;
+  --lh-gold-light: #e8a060;
+  --lh-gold-glow: rgba(212, 136, 78, 0.45);
+  --lh-panel-inner-glow: rgba(180, 70, 50, 0.07);
+  --lh-bg-ambient: rgba(200, 60, 40, 0.04);
+  --lh-heading-color: #c47a7a;
+  --lh-heading-border: rgba(180, 80, 60, 0.3);
+  --lh-btn-color: #c47a7a;
+  --lh-btn-hover-color: #ffe0cc;
+  --lh-btn-border: #5a3030;
+  --lh-btn-hover-glow: rgba(200, 80, 50, 0.35);
+  --lh-scrollbar: rgba(180, 70, 50, 0.45);
+  --lh-scrollbar-hover: rgba(200, 90, 60, 0.7);
+  --lh-stat-value: #e8a060;
+  --lh-stat-glow: rgba(212, 136, 78, 0.4);
+  --lh-hp-gradient: linear-gradient(90deg, #3a0808 0%, #8b1a1a 12%, #c03020 28%, #e05030 45%, #f07838 62%, #ffaa44 80%, #ffe088 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #1a0808 0%, #4a1a0a 12%, #803018 28%, #b04820 45%, #d06830 62%, #e8903e 80%, #ffbb66 100%);
+}
+
+.levelup-wizard[data-theme="emerald"] {
+  --lh-border-outer: #48804a;
+  --lh-border-silver: #559e60;
+  --lh-border-silver-light: #7ac488;
+  --lh-border-silver-dark: #386040;
+  --lh-border-inner: #305838;
+  --lh-gold: #a0c44e;
+  --lh-gold-light: #c0e060;
+  --lh-gold-glow: rgba(160, 196, 78, 0.45);
+  --lh-panel-inner-glow: rgba(80, 170, 90, 0.06);
+  --lh-bg-ambient: rgba(50, 180, 80, 0.04);
+  --lh-heading-color: #7ac488;
+  --lh-heading-border: rgba(80, 160, 80, 0.3);
+  --lh-btn-color: #7ac488;
+  --lh-btn-hover-color: #ccffcc;
+  --lh-btn-border: #305838;
+  --lh-btn-hover-glow: rgba(80, 170, 80, 0.35);
+  --lh-scrollbar: rgba(70, 160, 80, 0.4);
+  --lh-scrollbar-hover: rgba(90, 190, 100, 0.7);
+  --lh-stat-value: #c0e060;
+  --lh-stat-glow: rgba(160, 196, 78, 0.4);
+  --lh-hp-gradient: linear-gradient(90deg, #0a2a0a 0%, #1a5a20 12%, #2a8030 28%, #40a840 45%, #60c850 62%, #88e068 80%, #bbff88 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #081a18 0%, #104838 12%, #187858 28%, #20a078 45%, #30c098 62%, #50d8b0 80%, #88ffdd 100%);
+}
+
+.levelup-wizard[data-theme="azure"] {
+  --lh-border-outer: #4868a0;
+  --lh-border-silver: #5580b8;
+  --lh-border-silver-light: #80aad4;
+  --lh-border-silver-dark: #384870;
+  --lh-border-inner: #303860;
+  --lh-gold: #60b8e8;
+  --lh-gold-light: #88d4f0;
+  --lh-gold-glow: rgba(96, 184, 232, 0.45);
+  --lh-panel-inner-glow: rgba(60, 140, 220, 0.06);
+  --lh-bg-ambient: rgba(40, 120, 220, 0.04);
+  --lh-heading-color: #80aad4;
+  --lh-heading-border: rgba(70, 130, 200, 0.3);
+  --lh-btn-color: #80aad4;
+  --lh-btn-hover-color: #c8e8ff;
+  --lh-btn-border: #303860;
+  --lh-btn-hover-glow: rgba(60, 140, 220, 0.35);
+  --lh-scrollbar: rgba(60, 130, 210, 0.4);
+  --lh-scrollbar-hover: rgba(80, 160, 230, 0.7);
+  --lh-stat-value: #88d4f0;
+  --lh-stat-glow: rgba(96, 184, 232, 0.4);
+  --lh-hp-gradient: linear-gradient(90deg, #080a2a 0%, #102060 12%, #184098 28%, #2868c0 45%, #4090e0 62%, #60b8f0 80%, #a0e0ff 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #0a0a20 0%, #181848 12%, #283880 28%, #3858b0 45%, #5080d8 62%, #70a8f0 80%, #a8d8ff 100%);
+}
+
+.levelup-wizard[data-theme="violet"] {
+  --lh-border-outer: #6848a0;
+  --lh-border-silver: #7858b8;
+  --lh-border-silver-light: #a080d4;
+  --lh-border-silver-dark: #483868;
+  --lh-border-inner: #402e60;
+  --lh-gold: #c4a0e8;
+  --lh-gold-light: #d8b8f4;
+  --lh-gold-glow: rgba(196, 160, 232, 0.45);
+  --lh-panel-inner-glow: rgba(130, 80, 200, 0.07);
+  --lh-bg-ambient: rgba(120, 60, 200, 0.04);
+  --lh-heading-color: #a080d4;
+  --lh-heading-border: rgba(130, 80, 200, 0.3);
+  --lh-btn-color: #a080d4;
+  --lh-btn-hover-color: #e8ccff;
+  --lh-btn-border: #402e60;
+  --lh-btn-hover-glow: rgba(130, 80, 200, 0.35);
+  --lh-scrollbar: rgba(120, 70, 200, 0.4);
+  --lh-scrollbar-hover: rgba(150, 90, 220, 0.7);
+  --lh-stat-value: #d8b8f4;
+  --lh-stat-glow: rgba(196, 160, 232, 0.4);
+  --lh-hp-gradient: linear-gradient(90deg, #180828 0%, #381060 12%, #582090 28%, #7838b8 45%, #9850d8 62%, #b878f0 80%, #e0b0ff 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #100820 0%, #281050 12%, #481888 28%, #6828b0 45%, #8840d0 62%, #b060e8 80%, #e0a0ff 100%);
+}
+
+.levelup-wizard[data-theme="gold"] {
+  --lh-border-outer: #8a7840;
+  --lh-border-silver: #a08848;
+  --lh-border-silver-light: #c8b070;
+  --lh-border-silver-dark: #685830;
+  --lh-border-inner: #584828;
+  --lh-gold: #d4b440;
+  --lh-gold-light: #f0d050;
+  --lh-gold-glow: rgba(220, 180, 60, 0.5);
+  --lh-panel-inner-glow: rgba(200, 160, 60, 0.08);
+  --lh-bg-ambient: rgba(220, 180, 60, 0.04);
+  --lh-heading-color: #c8b070;
+  --lh-heading-border: rgba(200, 160, 60, 0.3);
+  --lh-btn-color: #c8b070;
+  --lh-btn-hover-color: #fff0cc;
+  --lh-btn-border: #584828;
+  --lh-btn-hover-glow: rgba(200, 160, 60, 0.4);
+  --lh-scrollbar: rgba(180, 140, 50, 0.45);
+  --lh-scrollbar-hover: rgba(210, 170, 60, 0.7);
+  --lh-stat-value: #f0d050;
+  --lh-stat-glow: rgba(220, 180, 60, 0.45);
+  --lh-hp-gradient: linear-gradient(90deg, #281808 0%, #604020 12%, #987030 28%, #c09838 45%, #d8b840 62%, #e8d048 80%, #fff088 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #181008 0%, #403010 12%, #706020 28%, #a08830 45%, #c0a840 62%, #d8c858 80%, #fff0a0 100%);
+}
+
+.levelup-wizard[data-theme="rose"] {
+  --lh-border-outer: #90507a;
+  --lh-border-silver: #a85888;
+  --lh-border-silver-light: #d080b0;
+  --lh-border-silver-dark: #704060;
+  --lh-border-inner: #5e3050;
+  --lh-gold: #e8a0c8;
+  --lh-gold-light: #f4b8d8;
+  --lh-gold-glow: rgba(232, 160, 200, 0.45);
+  --lh-panel-inner-glow: rgba(200, 100, 150, 0.06);
+  --lh-bg-ambient: rgba(200, 80, 140, 0.035);
+  --lh-heading-color: #d080b0;
+  --lh-heading-border: rgba(200, 100, 150, 0.3);
+  --lh-btn-color: #d080b0;
+  --lh-btn-hover-color: #ffe0ee;
+  --lh-btn-border: #5e3050;
+  --lh-btn-hover-glow: rgba(200, 100, 150, 0.35);
+  --lh-scrollbar: rgba(190, 90, 140, 0.4);
+  --lh-scrollbar-hover: rgba(210, 110, 160, 0.7);
+  --lh-stat-value: #f4b8d8;
+  --lh-stat-glow: rgba(232, 160, 200, 0.4);
+  --lh-hp-gradient: linear-gradient(90deg, #280818 0%, #601830 12%, #982850 28%, #c04070 45%, #d86090 62%, #e888b0 80%, #ffc0dd 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #180820 0%, #381050 12%, #582078 28%, #783898 45%, #9858b8 62%, #b880d0 80%, #e0b8f0 100%);
+}
+
+.levelup-wizard[data-theme="obsidian"] {
+  --lh-border-outer: #383840;
+  --lh-border-silver: #444450;
+  --lh-border-silver-light: #606070;
+  --lh-border-silver-dark: #282830;
+  --lh-border-inner: #222228;
+  --lh-gold: #7878a0;
+  --lh-gold-light: #9898b8;
+  --lh-gold-glow: rgba(120, 120, 160, 0.35);
+  --lh-panel-inner-glow: rgba(80, 80, 100, 0.05);
+  --lh-bg-ambient: rgba(60, 60, 80, 0.025);
+  --lh-heading-color: #606070;
+  --lh-heading-border: rgba(80, 80, 100, 0.2);
+  --lh-btn-color: #606070;
+  --lh-btn-hover-color: #c0c0d0;
+  --lh-btn-border: #222228;
+  --lh-btn-hover-glow: rgba(80, 80, 100, 0.25);
+  --lh-scrollbar: rgba(70, 70, 90, 0.35);
+  --lh-scrollbar-hover: rgba(90, 90, 110, 0.6);
+  --lh-stat-value: #9898b8;
+  --lh-stat-glow: rgba(120, 120, 160, 0.3);
+  --lh-hp-gradient: linear-gradient(90deg, #080808 0%, #181820 12%, #282838 28%, #384050 45%, #506070 62%, #708090 80%, #a0b0c0 100%);
+  --lh-mp-gradient: linear-gradient(90deg, #050508 0%, #101018 12%, #1a1a28 28%, #282840 45%, #383858 62%, #505070 80%, #787898 100%);
+}

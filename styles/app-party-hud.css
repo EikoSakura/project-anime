@@ -1,0 +1,761 @@
+/* ============================================ */
+/*  Shards of Mana — Party HUD Overlay         */
+/*  JRPG-style floating party status display    */
+/* ============================================ */
+
+/* -------------------------------------------- */
+/*  Container & Positioning                     */
+/* -------------------------------------------- */
+
+#shards-party-hud {
+  position: fixed !important;
+  z-index: 60;
+  pointer-events: auto;
+  /* Strip all Foundry window chrome & positioning overrides */
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  right: unset !important;
+  bottom: unset !important;
+  transform: none !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* -------------------------------------------- */
+/*  Hidden Mode — Toggle Button                 */
+/* -------------------------------------------- */
+
+.party-hud__toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(4, 6, 12, 0.95), rgba(8, 12, 20, 0.92));
+  border: 2px solid rgba(0, 212, 160, 0.5);
+  box-shadow:
+    0 0 10px rgba(0, 212, 160, 0.3),
+    0 0 20px rgba(0, 212, 160, 0.1),
+    inset 0 0 8px rgba(0, 212, 160, 0.05);
+  color: rgba(0, 212, 160, 0.9);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.party-hud__toggle-btn:hover {
+  box-shadow:
+    0 0 14px rgba(0, 212, 160, 0.5),
+    0 0 28px rgba(0, 212, 160, 0.2),
+    inset 0 0 12px rgba(0, 212, 160, 0.1);
+  transform: scale(1.1);
+  color: #fff;
+  border-color: rgba(0, 212, 160, 0.8);
+}
+
+/* -------------------------------------------- */
+/*  Main Container                              */
+/* -------------------------------------------- */
+
+.party-hud__container {
+  background: linear-gradient(180deg,
+    rgba(12, 14, 28, 0.95) 0%,
+    rgba(18, 20, 40, 0.93) 50%,
+    rgba(12, 14, 28, 0.95) 100%
+  );
+  border: 1px solid rgba(0, 212, 160, 0.35);
+  border-radius: 4px;
+  box-shadow:
+    0 0 12px rgba(0, 212, 160, 0.15),
+    0 0 30px rgba(0, 212, 160, 0.05),
+    inset 0 0 30px rgba(0, 212, 160, 0.02),
+    0 6px 20px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  font-family: var(--shards-font-body, "Raleway", sans-serif);
+  min-width: 160px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Subtle animated border shimmer */
+.party-hud__container::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: -1px; right: -1px; bottom: -1px;
+  border-radius: 5px;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(0, 212, 160, 0.1) 25%,
+    transparent 50%,
+    rgba(224, 180, 50, 0.1) 75%,
+    transparent 100%
+  );
+  background-size: 400% 400%;
+  animation: hud-border-shimmer 8s linear infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes hud-border-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+}
+
+/* -------------------------------------------- */
+/*  Header                                      */
+/* -------------------------------------------- */
+
+.party-hud__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: linear-gradient(90deg, rgba(0, 212, 160, 0.08), rgba(0, 212, 160, 0.06), transparent);
+  border-bottom: 1px solid rgba(0, 212, 160, 0.15);
+  cursor: grab;
+  user-select: none;
+}
+
+.party-hud__header:active { cursor: grabbing; }
+
+.party-hud__title {
+  flex: 1;
+  font-family: var(--shards-font-heading, "Cinzel", serif);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(0, 212, 160, 0.9);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(0, 212, 160, 0.3);
+}
+
+.party-hud__title i {
+  margin-right: 4px;
+  font-size: 0.65rem;
+}
+
+.party-hud__mode-btn,
+.party-hud__hide-btn,
+.party-hud__party-btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: rgba(180, 200, 220, 0.5);
+  cursor: pointer;
+  font-size: 0.65rem;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s, text-shadow 0.15s;
+}
+
+.party-hud__mode-btn:hover,
+.party-hud__hide-btn:hover,
+.party-hud__party-btn:hover {
+  color: rgba(0, 212, 160, 0.95);
+  background: rgba(0, 212, 160, 0.08);
+  text-shadow: 0 0 6px rgba(0, 212, 160, 0.4);
+}
+
+/* Party selector dropdown (GM only) */
+.party-hud__party-select {
+  all: unset;
+  font-family: var(--shards-font-body, "Raleway", sans-serif);
+  font-size: 0.6rem;
+  color: rgba(180, 200, 220, 0.7);
+  background: rgba(10, 10, 25, 0.7);
+  border: 1px solid rgba(0, 212, 160, 0.2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  cursor: pointer;
+  max-width: 80px;
+}
+
+.party-hud__party-select:focus {
+  border-color: rgba(0, 212, 160, 0.5);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Members Container                           */
+/* -------------------------------------------- */
+
+.party-hud__members {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+}
+
+.party-hud__empty {
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 0.7rem;
+  color: rgba(180, 200, 220, 0.4);
+  font-style: italic;
+}
+
+/* -------------------------------------------- */
+/*  Portrait                                    */
+/* -------------------------------------------- */
+
+.party-hud__portrait-btn {
+  all: unset;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: block;
+  position: relative;
+}
+
+.party-hud__portrait {
+  display: block;
+  object-fit: cover;
+  border: 2px solid var(--phud-accent, rgba(0, 212, 160, 0.4));
+  border-radius: 4px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.party-hud__portrait-btn:hover .party-hud__portrait {
+  border-color: var(--phud-accent-light, rgba(0, 212, 160, 0.8));
+  box-shadow:
+    0 0 8px var(--phud-accent-glow, rgba(0, 212, 160, 0.4)),
+    0 0 16px var(--phud-accent-glow, rgba(0, 212, 160, 0.15));
+}
+
+/* Job icon overlay (bottom-right corner of portrait) */
+.party-hud__job-icon {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid var(--phud-accent, rgba(0, 212, 160, 0.5));
+  background: rgba(12, 14, 28, 0.9);
+  box-shadow: 0 0 4px var(--phud-accent-glow, rgba(0, 212, 160, 0.2));
+  object-fit: cover;
+}
+
+.party-hud--compact .party-hud__job-icon {
+  width: 14px;
+  height: 14px;
+  bottom: -1px;
+  right: -1px;
+}
+
+/* ============================================ */
+/*  COMPACT MODE                                */
+/* ============================================ */
+
+.party-hud--compact .party-hud__member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+
+.party-hud--compact .party-hud__member:hover {
+  background: rgba(0, 212, 160, 0.04);
+}
+
+.party-hud--compact .party-hud__portrait {
+  width: 30px;
+  height: 30px;
+}
+
+.party-hud--compact .party-hud__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.party-hud--compact .party-hud__name-row {
+  display: flex;
+  align-items: baseline;
+}
+
+.party-hud--compact .party-hud__name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #e0e4ec;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.party-hud--compact .party-hud__details {
+  display: none;
+}
+
+/* ============================================ */
+/*  EXPANDED MODE                               */
+/* ============================================ */
+
+.party-hud--expanded {
+  min-width: 260px;
+}
+
+.party-hud--expanded .party-hud__member {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg,
+    rgba(6, 8, 16, 0.8) 0%,
+    rgba(8, 12, 20, 0.7) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--phud-accent, rgba(0, 212, 160)) 25%, transparent);
+  border-radius: 4px;
+  margin-bottom: 2px;
+  transition: background 0.15s, border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.party-hud--expanded .party-hud__member:last-child { margin-bottom: 0; }
+
+.party-hud--expanded .party-hud__member:hover {
+  background: linear-gradient(135deg,
+    rgba(6, 10, 18, 0.9) 0%,
+    rgba(12, 16, 28, 0.85) 100%
+  );
+  border-color: var(--phud-accent, rgba(0, 212, 160, 0.3));
+  box-shadow: 0 0 8px var(--phud-accent-glow, rgba(0, 212, 160, 0.08));
+}
+
+.party-hud--expanded .party-hud__portrait {
+  width: 48px;
+  height: 48px;
+}
+
+.party-hud--expanded .party-hud__job-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.party-hud--expanded .party-hud__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.party-hud--expanded .party-hud__name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.party-hud--expanded .party-hud__name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e8ecf4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 8px var(--phud-accent-glow, rgba(0, 212, 160, 0.15));
+}
+
+.party-hud--expanded .party-hud__level {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--phud-accent-light, rgba(0, 212, 160, 0.8));
+  text-shadow: 0 0 4px var(--phud-accent-glow, rgba(0, 212, 160, 0.2));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* -------------------------------------------- */
+/*  Job Line                                    */
+/* -------------------------------------------- */
+
+.party-hud__job-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.67rem;
+  color: rgba(180, 200, 220, 0.6);
+}
+
+.party-hud__job-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Small rank badge */
+.rank-badge--sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  flex-shrink: 0;
+}
+
+.rank-badge--sm[data-rank="F"] { background: var(--shards-gem-f, #7788a0); }
+.rank-badge--sm[data-rank="E"] { background: var(--shards-gem-e, #40c060); }
+.rank-badge--sm[data-rank="D"] { background: var(--shards-gem-d, #40a0d4); }
+.rank-badge--sm[data-rank="C"] { background: var(--shards-gem-c, #c060d4); }
+.rank-badge--sm[data-rank="B"] { background: var(--shards-gem-b, #d4a040); }
+.rank-badge--sm[data-rank="A"] { background: var(--shards-gem-a, #d44040); }
+.rank-badge--sm[data-rank="S"] { background: var(--shards-gem-s, #e0e060); }
+
+/* ============================================ */
+/*  HP/MP BARS — JRPG Style                     */
+/*  Bordered, labeled, with glow + shine layer  */
+/* ============================================ */
+
+.party-hud__bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 12px;
+}
+
+/* HP/MP label tag */
+.party-hud__bar-label {
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.party-hud__bar--hp .party-hud__bar-label {
+  color: var(--phud-hp-label, #40e870);
+  text-shadow: 0 0 4px var(--phud-hp-glow, rgba(64, 232, 112, 0.4));
+}
+
+.party-hud__bar--mp .party-hud__bar-label {
+  color: var(--phud-mp-label, #50a0ff);
+  text-shadow: 0 0 4px var(--phud-mp-glow, rgba(80, 160, 255, 0.4));
+}
+
+/* Bar track (the bordered container) */
+.party-hud__bar-track {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  background: rgba(6, 8, 16, 0.9);
+  border: 1px solid rgba(80, 100, 120, 0.35);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* Themed track borders per bar type */
+.party-hud__bar--hp .party-hud__bar-track {
+  border-color: var(--phud-hp-border, rgba(80, 100, 120, 0.35));
+}
+.party-hud__bar--mp .party-hud__bar-track {
+  border-color: var(--phud-mp-border, rgba(80, 100, 120, 0.35));
+}
+
+/* The actual fill bar */
+.party-hud__bar-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: var(--bar-pct, 0%);
+  border-radius: 1px;
+  transition: width 0.35s ease;
+}
+
+/* HP fill — themed gradient synced from adventurer sheet */
+.party-hud__bar--hp .party-hud__bar-fill {
+  background: var(--phud-hp-gradient, linear-gradient(90deg, #5a0a0a, #d44040, #ffcc66));
+  box-shadow:
+    0 0 6px var(--phud-hp-glow, rgba(212, 64, 64, 0.4)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* MP fill — themed gradient synced from adventurer sheet */
+.party-hud__bar--mp .party-hud__bar-fill {
+  background: var(--phud-mp-gradient, linear-gradient(90deg, #0a1a3a, #4080d4, #88eeff));
+  box-shadow:
+    0 0 6px var(--phud-mp-glow, rgba(64, 128, 212, 0.4)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Shine layer (top highlight streak) */
+.party-hud__bar-shine {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  pointer-events: none;
+  border-radius: 1px 1px 0 0;
+}
+
+/* Numeric value (expanded mode) */
+.party-hud__bar-value {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #e0e4ec;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 44px;
+  text-align: right;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.party-hud__bar-max {
+  color: rgba(180, 200, 220, 0.45);
+  font-weight: 600;
+}
+
+/* Compact mode: thinner bars, no label, no value */
+.party-hud--compact .party-hud__bar {
+  height: 7px;
+}
+
+.party-hud--compact .party-hud__bar-label {
+  font-size: 0.4rem;
+  width: 12px;
+}
+
+.party-hud--compact .party-hud__bar-value {
+  display: none;
+}
+
+/* Expanded mode: taller bars */
+.party-hud--expanded .party-hud__bar {
+  height: 14px;
+}
+
+.party-hud--expanded .party-hud__bar-label {
+  font-size: 0.55rem;
+  width: 18px;
+}
+
+/* -------------------------------------------- */
+/*  Expanded Details                            */
+/* -------------------------------------------- */
+
+.party-hud__details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+/* Pip dots */
+.party-hud__pips {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.party-hud__pip {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(224, 168, 40, 0.2);
+  transition: all 0.15s;
+}
+
+.party-hud__pip--filled {
+  background: radial-gradient(circle, #ffe060, #d4a843);
+  border-color: #d4a843;
+  box-shadow: 0 0 4px rgba(212, 168, 67, 0.5);
+}
+
+/* Condition chips */
+.party-hud__conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.party-hud__condition-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--phud-accent, rgba(0, 212, 160)) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--phud-accent, rgba(0, 212, 160)) 18%, transparent);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.party-hud__condition-chip:hover {
+  border-color: var(--phud-accent, rgba(0, 212, 160, 0.3));
+  box-shadow: 0 0 4px var(--phud-accent-glow, rgba(0, 212, 160, 0.15));
+}
+
+.party-hud__condition-chip img {
+  border: none;
+  border-radius: 2px;
+  display: block;
+}
+
+/* Limit Break gauge */
+.party-hud__lb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 6px;
+}
+
+.party-hud__lb-label {
+  font-size: 0.45rem;
+  font-weight: 800;
+  color: var(--phud-accent-light, rgba(200, 170, 100, 0.6));
+  text-shadow: 0 0 4px var(--phud-accent-glow, rgba(212, 168, 67, 0.2));
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.party-hud__lb-track {
+  flex: 1;
+  height: 100%;
+  background: rgba(6, 8, 16, 0.8);
+  border: 1px solid color-mix(in srgb, var(--phud-accent, rgba(212, 168, 67)) 30%, transparent);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.party-hud__lb-fill {
+  height: 100%;
+  background: var(--phud-lb-gradient, linear-gradient(90deg, rgba(212, 64, 64, 0.8), rgba(224, 165, 38, 0.9) 60%, rgba(255, 220, 100, 1) 100%));
+  border-radius: 1px;
+  transition: width 0.35s ease;
+  box-shadow: 0 0 4px var(--phud-lb-glow, rgba(212, 168, 67, 0.3));
+}
+
+.party-hud__lb--ready {
+  animation: hud-lb-glow 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes hud-lb-glow {
+  0% {
+    box-shadow:
+      0 0 4px var(--phud-lb-glow, rgba(212, 168, 67, 0.3)),
+      inset 0 0 2px rgba(255, 240, 100, 0.2);
+  }
+  100% {
+    box-shadow:
+      0 0 10px var(--phud-lb-glow, rgba(255, 220, 80, 0.6)),
+      0 0 20px var(--phud-lb-glow, rgba(255, 220, 80, 0.2)),
+      inset 0 0 6px rgba(255, 240, 100, 0.4);
+  }
+}
+
+/* -------------------------------------------- */
+/*  Downed State                                */
+/* -------------------------------------------- */
+
+.party-hud__member--downed {
+  opacity: 0.45;
+}
+
+.party-hud__member--downed .party-hud__portrait {
+  filter: grayscale(0.8) brightness(0.7);
+}
+
+.party-hud__member--downed .party-hud__name {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 60, 60, 0.6);
+}
+
+/* -------------------------------------------- */
+/*  Low HP Warning Pulse                        */
+/* -------------------------------------------- */
+
+.party-hud__bar--hp[style*="--bar-pct: 0%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 1%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 2%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 3%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 4%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 5%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 6%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 7%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 8%"] .party-hud__bar-fill,
+.party-hud__bar--hp[style*="--bar-pct: 9%"] .party-hud__bar-fill {
+  background: linear-gradient(180deg, #ff5050, #cc2020, #991010) !important;
+  animation: hud-hp-critical 0.8s ease-in-out infinite alternate;
+}
+
+/* Also pulse the HP label when critical */
+.party-hud__bar--hp[style*="--bar-pct: 0%"] ~ .party-hud__bar-label,
+.party-hud__bar--hp[style*="--bar-pct: 1%"] ~ .party-hud__bar-label,
+.party-hud__bar--hp[style*="--bar-pct: 2%"] ~ .party-hud__bar-label {
+  animation: hud-label-flash 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes hud-hp-critical {
+  0% { opacity: 0.5; box-shadow: 0 0 4px rgba(255, 40, 40, 0.3); }
+  100% { opacity: 1; box-shadow: 0 0 10px rgba(255, 40, 40, 0.7), 0 0 20px rgba(255, 40, 40, 0.2); }
+}
+
+@keyframes hud-label-flash {
+  0% { color: #ff4040; }
+  100% { color: #ff8080; text-shadow: 0 0 6px rgba(255, 64, 64, 0.5); }
+}
+
+/* -------------------------------------------- */
+/*  Role-Based Accent Colors                    */
+/* -------------------------------------------- */
+
+.party-hud--expanded .party-hud__member[data-role="tank"] {
+  border-left: 3px solid #4080d4;
+  box-shadow: inset 3px 0 8px -3px rgba(64, 128, 212, 0.15);
+}
+.party-hud--expanded .party-hud__member[data-role="healer"] {
+  border-left: 3px solid #40b060;
+  box-shadow: inset 3px 0 8px -3px rgba(64, 176, 96, 0.15);
+}
+.party-hud--expanded .party-hud__member[data-role="dps"] {
+  border-left: 3px solid #d44040;
+  box-shadow: inset 3px 0 8px -3px rgba(212, 64, 64, 0.15);
+}
+.party-hud--expanded .party-hud__member[data-role="support"] {
+  border-left: 3px solid #00d4a0;
+  box-shadow: inset 3px 0 8px -3px rgba(0, 212, 160, 0.15);
+}
+.party-hud--expanded .party-hud__member[data-role="scout"] {
+  border-left: 3px solid #40c4c8;
+  box-shadow: inset 3px 0 8px -3px rgba(64, 196, 200, 0.15);
+}
+
+/* Compact mode: subtle left accent */
+.party-hud--compact .party-hud__member[data-role="tank"] {
+  border-left: 2px solid rgba(64, 128, 212, 0.7);
+  padding-left: 6px;
+}
+.party-hud--compact .party-hud__member[data-role="healer"] {
+  border-left: 2px solid rgba(64, 176, 96, 0.7);
+  padding-left: 6px;
+}
+.party-hud--compact .party-hud__member[data-role="dps"] {
+  border-left: 2px solid rgba(212, 64, 64, 0.7);
+  padding-left: 6px;
+}
+.party-hud--compact .party-hud__member[data-role="support"] {
+  border-left: 2px solid rgba(0, 212, 160, 0.7);
+  padding-left: 6px;
+}
+.party-hud--compact .party-hud__member[data-role="scout"] {
+  border-left: 2px solid rgba(64, 196, 200, 0.7);
+  padding-left: 6px;
+}

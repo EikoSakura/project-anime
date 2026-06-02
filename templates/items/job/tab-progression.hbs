@@ -1,0 +1,133 @@
+<section class="tab progression" data-group="primary" data-tab="progression">
+
+  {{!-- Prerequisites Panel --}}
+  <div class="crystal-panel" style="margin-bottom: 8px;">
+    <h3 class="crystal-heading crystal-heading--small">
+      <i class="fa-solid fa-lock"></i>
+      {{localize "SHARDS.Job.PrerequisitesLabel"}}
+    </h3>
+
+    {{#if isBasicCategory}}
+    <p class="job-panel-hint">{{localize "SHARDS.Job.PrereqBasicSkip"}}</p>
+    {{else}}
+    {{#if hasPrerequisites}}
+    <div class="job-prereq-list">
+      {{#each prerequisites}}
+      <div class="job-prereq-entry">
+        <input type="text" class="job-prereq-skill-input"
+               data-prereq-index="{{@index}}"
+               data-field="skillName"
+               value="{{this.skillName}}"
+               placeholder="{{localize 'SHARDS.Job.PrereqSkillPlaceholder'}}" />
+        <span class="job-prereq-sl-label">SL</span>
+        <input type="number" class="job-prereq-level-input"
+               data-prereq-index="{{@index}}"
+               data-field="minLevel"
+               value="{{this.minLevel}}"
+               min="1" max="10" step="1" />
+        <button type="button" class="crystal-btn crystal-btn--icon"
+                data-action="removePrerequisite"
+                data-prereq-index="{{@index}}"
+                title="{{localize 'SHARDS.Delete'}}">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+    <button type="button" class="crystal-btn crystal-btn--small"
+            data-action="addPrerequisite">
+      <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Job.AddPrerequisite"}}
+    </button>
+
+    {{!-- Drop Zone --}}
+    <div class="job-prereq-drop-zone">
+      <i class="fa-solid fa-hand-holding-droplet"></i>
+      <span>{{localize "SHARDS.Job.PrereqDropHint"}}</span>
+    </div>
+    {{/if}}
+  </div>
+
+  {{!-- Limit Break Panel (always available, shown at top) --}}
+  <div class="job-limitbreak-panel crystal-panel">
+    <h3 class="crystal-heading job-limitbreak-heading">
+      <i class="fa-solid fa-fire-flame-curved"></i>
+      {{localize "SHARDS.Job.LimitBreak"}}
+    </h3>
+
+    <div class="job-limitbreak-fields">
+      <div class="form-group--compact">
+        <label>{{localize "SHARDS.Job.LimitBreakName"}}</label>
+        <input type="text" name="system.limitBreak.name"
+               value="{{system.limitBreak.name}}"
+               placeholder="{{localize 'SHARDS.Job.LimitBreakNamePlaceholder'}}" />
+      </div>
+
+      <div class="form-group--compact">
+        <label>{{localize "SHARDS.Job.LimitBreakEffect"}}</label>
+        <input type="text" name="system.limitBreak.effect"
+               value="{{system.limitBreak.effect}}"
+               placeholder="{{localize 'SHARDS.Job.LimitBreakEffectPlaceholder'}}" />
+      </div>
+    </div>
+
+    <div class="job-editor-section">
+      <label class="crystal-heading crystal-heading--small">{{localize "SHARDS.Job.LimitBreakDescription"}}</label>
+      <div class="editor-container editor-container--medium">
+        {{editor enrichedLimitBreakDesc target="system.limitBreak.description"
+                 button=true editable=true}}
+      </div>
+    </div>
+  </div>
+
+  {{!-- Rank Rows (F through S) --}}
+  {{#each rankRows}}
+  <div class="job-rank-row {{#if this.isCurrentRank}}current-rank{{/if}}" data-rank="{{this.rank}}">
+
+    <div class="job-rank-row__header">
+      <span class="rank-badge" data-rank="{{this.rank}}">{{this.rank}}</span>
+      {{#if this.isMasteryRank}}
+      <span class="job-rank-label mastery-label">{{localize "SHARDS.Job.MasteryLabel"}}</span>
+      {{/if}}
+    </div>
+
+    <div class="job-rank-row__body">
+
+      {{!-- Starter Skills --}}
+      <div class="job-rank-skills">
+        <span class="crystal-heading crystal-heading--small">
+          <i class="fa-solid fa-book-sparkles"></i>
+          {{localize "SHARDS.Job.SkillsLabel"}}
+        </span>
+        {{#if this.hasSkills}}
+        <div class="job-skills-list">
+          {{#each this.skillNames}}
+          <div class="job-skill-entry">
+            <input type="text" class="job-skill-input"
+                   data-rank="{{../rank}}"
+                   data-skill-index="{{@index}}"
+                   value="{{this}}"
+                   placeholder="{{localize 'SHARDS.Job.SkillPlaceholder'}}" />
+            <button type="button" class="crystal-btn crystal-btn--icon"
+                    data-action="removeSkillAtRank"
+                    data-rank="{{../rank}}"
+                    data-skill-index="{{@index}}"
+                    title="{{localize 'SHARDS.Delete'}}">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+        <button type="button" class="crystal-btn crystal-btn--small"
+                data-action="addSkillAtRank"
+                data-rank="{{this.rank}}">
+          <i class="fa-solid fa-plus"></i> {{localize "SHARDS.Job.AddSkill"}}
+        </button>
+      </div>
+
+    </div>
+  </div>
+  {{/each}}
+
+</section>

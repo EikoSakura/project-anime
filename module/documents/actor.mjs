@@ -1,184 +1,823 @@
-import { applyStructuredRules } from "../helpers/effects.mjs";
+import { rollStatTest as _rollStatTest } from "../helpers/rolls.mjs";
+import { resolveFormulaValue } from "../helpers/formulas.mjs";
+import { processItemChoiceSets, cleanupChoiceSetEffects, hasChoiceSets } from "../helpers/choice-sets.mjs";
+import { applyItemGrants, cleanupItemGrants, hasItemGrants } from "../helpers/item-grants.mjs";
 
 /**
- * Enforce one equipped item per equipment slot after `item` becomes equipped:
- * one weapon per hand, one armor, at most two accessories, and a two-handed weapon
- * (or a shield) clears the conflicting hand. Called from the `updateItem` hook, so it
- * covers EVERY equip path (the bag quick-equip button, the item-sheet checkbox, …);
- * the paperdoll's own equip logic already clears conflicts, so this is a no-op there.
- * Unequips the displaced items in one batch (the resulting equipped→false updates don't
- * re-trigger enforcement).
+ * Custom Actor document class for Shards of Mana.
  */
-export function enforceEquipExclusivity(actor, item) {
-  if (!actor || !item?.system?.equipped) return;
-  const others = actor.items.filter((i) => i.id !== item.id && i.system?.equipped);
-  const clears = [];
-  const clear = (it) => clears.push({ _id: it.id, "system.equipped": false });
+export class ShardsActor extends Actor {
 
-  switch (item.type) {
-    case "weapon": {
-      const hand = item.system.hand === "off" ? "off" : "main";
-      for (const it of others) if (it.type === "weapon" && it.system.hand === hand) clear(it);
-      // A two-handed grip occupies both hands → also free the off-hand.
-      if (item.system.grip === "two") {
-        for (const it of others) if (it.type === "shield" || (it.type === "weapon" && it.system.hand === "off")) clear(it);
-      }
-      break;
-    }
-    case "shield":
-      // Shields equip to the off-hand: clear another off-hand item and a 2H main weapon.
-      for (const it of others) {
-        if (it.type === "shield") clear(it);
-        else if (it.type === "weapon" && it.system.hand === "off") clear(it);
-        else if (it.type === "weapon" && it.system.hand === "main" && it.system.grip === "two") clear(it);
-      }
-      break;
-    case "armor":
-      for (const it of others) if (it.type === "armor") clear(it);
-      break;
-    case "accessory": {
-      // At most two accessories; drop the oldest (by sort) until the new one fits.
-      const accs = others.filter((i) => i.type === "accessory").sort((a, b) => (a.sort || 0) - (b.sort || 0));
-      while (accs.length > 1) clear(accs.shift());
-      break;
-    }
-  }
-  if (clears.length) actor.updateEmbeddedDocuments("Item", clears);
-}
-
-/**
- * Refund a deleted Skill's logged Skill Points. Called from the `deleteItem` hook so that
- * removing a Skill by ANY path (drawer trash, Skill-Builder, creator, drag-out) returns the
- * SP that was logged against it and prunes its ledger entries — the ledger never dangles, and
- * a Skill's SP is always recoverable (matching the "remove = refund" creation behaviour).
- * Only the user who made the deletion runs it (they own the actor); a no-op for NPCs (no log).
- */
-export function refundSkillOnDelete(item, userId) {
-  if (game.user.id !== userId) return;
-  const actor = item.parent;
-  if (actor?.documentName !== "Actor" || item.type !== "skill") return;
-  const log = actor.system.skillPoints?.log;
-  if (!Array.isArray(log) || !log.length) return;
-  const mine = log.filter((e) => e.ref === item.id);
-  if (!mine.length) return;
-  const refund = mine.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const value = actor.system.skillPoints?.value ?? 0;
-  return actor.update({
-    "system.skillPoints.value": value + refund,
-    "system.skillPoints.log": log.filter((e) => e.ref !== item.id)
-  });
-}
-
-/**
- * Extends the base Actor with Project: Anime behaviour. All stat derivation
- * (including equipped gear and carried load) lives in the type DataModels;
- * this class only exposes roll data so formulas can reference attributes.
- */
-export class ProjectAnimeActor extends Actor {
-  /**
-   * @override — apply core ActiveEffect changes, then our no-code structured
-   * rules (effect.flags["project-anime"].rules). This runs in Foundry's native
-   * slot: after prepareBaseData (attribute `value` seeded from `base`) and before
-   * prepareDerivedData (which reads the `.bonus` fields and clamps the dice), so
-   * Bolster/Hinder and flat stat bonuses land on the right base fields.
-   */
-  applyActiveEffects() {
-    super.applyActiveEffects();
-    applyStructuredRules(this);
+  /** @override */
+  prepareData() {
+    super.prepareData();
   }
 
   /** @override */
-  getRollData() {
-    const data = this.system.getRollData?.() ?? { ...this.system };
-    data.name = this.name;
-    return data;
-  }
-
-  /* -------------------------------------------- */
-  /*  Skill-Point ledger                          */
-  /* -------------------------------------------- */
-
-  /**
-   * Spend Skill Points and record the transaction in the ledger. Deducts `amount` from the
-   * unspent pool and appends a `log` entry describing the purchase so it can be Refunded later.
-   * Any additional document changes for the purchase (the raised attribute, the bought stat)
-   * are passed in `changes` and written in the same atomic update. Callers check affordability.
-   * @param {{amount:number, label:string, kind:string, ref?:string, data?:object, changes?:object}} entry
-   */
-  async recordSkillPointSpend({ amount, label, kind, ref = "", data = {}, changes = {} }) {
-    const value = this.system.skillPoints?.value ?? 0;
-    const log = [...(this.system.skillPoints?.log ?? [])];
-    log.push({ id: foundry.utils.randomID(), label, amount, kind, ref, data, time: Date.now() });
-    return this.update({ ...changes, "system.skillPoints.value": Math.max(0, value - amount), "system.skillPoints.log": log });
+  prepareBaseData() {
+    super.prepareBaseData();
   }
 
   /**
-   * Refund a single ledger entry: reverse the change it recorded and return its SP to the pool.
-   *  • skill     — delete the Skill (the deleteItem hook refunds + prunes every entry for it).
-   *  • improve   — undo the refinement on the Skill (rank, accuracy, energy, range, modifier).
-   *  • attribute — step the base attribute back down.
-   *  • stat      — undo the combat-stat purchase.
-   * "legacy" (pre-ledger advancement lump) carries nothing to reverse and is not refundable.
+   * Set default prototype token options for new actors.
+   * Adventurers, NPCs, and Merchants link actor data by default.
+   * @override
    */
-  async refundSkillPointEntry(entryId) {
-    const log = this.system.skillPoints?.log ?? [];
-    const entry = log.find((e) => e.id === entryId);
-    if (!entry || entry.kind === "legacy") return;
-    const value = this.system.skillPoints?.value ?? 0;
-    const amount = Number(entry.amount) || 0;
-    const without = log.filter((e) => e.id !== entryId);
+  async _preCreate(data, options, userId) {
+    await super._preCreate(data, options, userId);
+    const linkTypes = new Set(["adventurer", "npc", "merchant", "party"]);
+    const tokenDefaults = {};
 
-    if (entry.kind === "skill") {
-      const item = this.items.get(entry.ref);
-      if (item) return item.delete(); // deleteItem hook refunds + prunes all of this skill's entries
-      // The skill is already gone: refund every entry that referenced it, and drop them.
-      const refund = log.filter((e) => e.ref === entry.ref).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-      return this.update({ "system.skillPoints.value": value + refund, "system.skillPoints.log": log.filter((e) => e.ref !== entry.ref) });
+    if (linkTypes.has(this.type)) {
+      tokenDefaults["prototypeToken.actorLink"] = true;
     }
 
-    if (entry.kind === "improve") {
-      const item = this.items.get(entry.ref);
-      if (item) await this.#reverseImprovement(item, entry);
-      return this.update({ "system.skillPoints.value": value + amount, "system.skillPoints.log": without });
+    // Lock artwork rotation so token art stays upright
+    tokenDefaults["prototypeToken.lockRotation"] = true;
+
+    // Auto-configure token resource bars for combat-capable actors
+    const combatTypes = new Set(["adventurer", "monster", "npc"]);
+    if (combatTypes.has(this.type)) {
+      tokenDefaults["prototypeToken.bar1.attribute"] = "health";
+      tokenDefaults["prototypeToken.bar2.attribute"] = "mana";
+      tokenDefaults["prototypeToken.displayBars"] = CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER;
+      tokenDefaults["prototypeToken.displayName"] = CONST.TOKEN_DISPLAY_MODES.ALWAYS;
     }
 
-    // attribute / stat — reverse on this actor, in the same update as the refund.
-    return this.update({ ...this.#reverseAdvancement(entry), "system.skillPoints.value": value + amount, "system.skillPoints.log": without });
+    if (Object.keys(tokenDefaults).length) {
+      this.updateSource(tokenDefaults);
+    }
   }
 
-  /** Undo one Skill refinement (Improve mode) recorded by an "improve" ledger entry. */
-  async #reverseImprovement(item, entry) {
-    const sys = item.system;
-    const key = entry.data?.key;
-    switch (entry.data?.op) {
-      case "rank": return item.update({ "system.rank": Math.max(1, (sys.rank ?? 1) - 1) });
-      case "accuracy": return item.update({ "system.accuracyMod": Math.max(0, (sys.accuracyMod ?? 0) - 1) });
-      case "energy": return item.update({ "system.energyReduction": Math.max(0, (sys.energyReduction ?? 0) - 1) });
-      case "range": return item.update({ "system.range.tiles": Math.max(0, (sys.range?.tiles ?? 0) - 1) });
-      case "modifier": {
-        const upd = { "system.modifiers": (sys.modifiers ?? []).filter((m) => m !== key) };
-        if (key && sys.modifierGrowth?.[key] != null) upd[`system.modifierGrowth.-=${key}`] = null;
-        return item.update(upd);
+  /**
+   * After actor creation, generate initial Mana Grid for adventurers.
+   * @override
+   */
+  _onCreate(data, options, userId) {
+    super._onCreate(data, options, userId);
+    if (this.type !== "adventurer" || game.user.id !== userId) return;
+
+    // Guard: skip if grid already has sockets (import/copy safety)
+    if (this.system.grid?.sockets?.length) return;
+
+    // Defer to avoid mid-creation conflicts — generate initial Mana Grid
+    setTimeout(async () => {
+      const { generateInitialGrid } = await import("../data/grid-schema.mjs");
+      const grid = generateInitialGrid(this.system.level ?? 1);
+      await this.update({ "system.grid": grid });
+    }, 0);
+  }
+
+  /**
+   * Override applyActiveEffects to:
+   * 1. Pre-process formula strings in AE change values (e.g. "5 * RANK" → "5")
+   * 2. Collect derived stat bonuses for post-derivation application
+   * @override
+   */
+  applyActiveEffects() {
+    // Pre-process: resolve formula strings and intercept percentage values
+    // before Foundry core processes them (core just does Number(change.value)).
+    // This mutation is transient — prepareData() re-reads from source each cycle.
+    this._aePercentBonuses = {};
+    for (const effect of this.allApplicableEffects()) {
+      if (!effect.active) continue;
+      for (const change of effect.changes) {
+        const val = change.value;
+        if (typeof val !== "string" || !val.trim()) continue;
+
+        // Intercept percentage values (e.g. "5%") — collect and neutralize
+        // so Foundry core applies +0 instead of NaN.
+        if (val.endsWith("%")) {
+          const pct = Number(val.slice(0, -1));
+          if (!isNaN(pct)) {
+            this._aePercentBonuses[change.key] =
+              (this._aePercentBonuses[change.key] ?? 0) + pct;
+            change.value = "0";
+            continue;
+          }
+        }
+
+        // Skip if already a plain number (fast path — avoids context build)
+        if (!isNaN(Number(val))) continue;
+        // Skip boolean strings — these are flag toggles, not formulas
+        if (val === "true" || val === "false") continue;
+        // Resolve formula to a number string
+        change.value = String(resolveFormulaValue(val, this));
       }
-      case "growth":
-        if (key) return item.update({ [`system.modifierGrowth.${key}`]: Math.max(0, (sys.modifierGrowth?.[key] ?? 0) - 1) });
+    }
+
+    super.applyActiveEffects();
+
+    // Only actors with derived stats (not merchant)
+    if (!this.system.derived) return;
+
+    // Collect derived stat bonuses from active effects for post-derivation
+    // application.  Derived stats are computed from base stats in prepareDerivedData,
+    // so AE bonuses for derived stats must be re-applied after that computation.
+    // Element/condition resistances use a simpler additive approach — Foundry core
+    // applies AE changes (from equipment, manacite, etc.) directly.
+    this._aeDerivedBonuses = {};
+    for (const effect of this.allApplicableEffects()) {
+      if (!effect.active) continue;
+      for (const change of effect.changes) {
+        if (change.key.startsWith("system.derived.")) {
+          const derivedKey = change.key.replace("system.derived.", "");
+          this._aeDerivedBonuses[derivedKey] =
+            (this._aeDerivedBonuses[derivedKey] ?? 0) + Number(change.value);
+        }
+      }
     }
   }
 
-  /** Build the actor-update that reverses an "attribute" or "stat" advancement entry. */
-  #reverseAdvancement(entry) {
-    const sys = this.system;
-    if (entry.kind === "attribute") {
-      const base = sys.attributes?.[entry.ref]?.base ?? 4;
-      const from = Number(entry.data?.from);
-      return { [`system.attributes.${entry.ref}.base`]: Math.max(4, Number.isFinite(from) ? from : base - 2) };
+  /**
+   * Override allApplicableEffects to filter out conditional and non-passive
+   * skill effects that should only apply explicitly during rolls.
+   * @override
+   */
+  *allApplicableEffects() {
+    for (const effect of super.allApplicableEffects()) {
+      // Skip conditional effects — they only apply when toggled in pre-roll dialogs
+      // Exception: effects with _conditionalActive are temporarily activated by the dialog
+      if (effect.flags?.["shards-of-mana"]?.conditional && !effect._conditionalActive) continue;
+
+      // Non-passive skill effects should not passively transfer — they are applied
+      // explicitly by roll functions (rollBuff, rollAttack, etc.).  Without this guard,
+      // a buff skill's embedded AE would double-apply: once via Foundry's transfer
+      // system and once via the copy created by rollBuff().
+      if (effect.transfer && effect.parent?.type === "skill"
+        && effect.parent?.system?.timing !== "passive") continue;
+
+      yield effect;
     }
-    switch (entry.ref) {
-      case "hp": { const max = Math.max(0, (sys.hp?.max ?? 0) - 2); return { "system.hp.max": max, "system.hp.value": Math.min(sys.hp?.value ?? 0, max) }; }
-      case "energy": { const max = Math.max(0, (sys.energy?.max ?? 0) - 2); return { "system.energy.max": max, "system.energy.value": Math.min(sys.energy?.value ?? 0, max) }; }
-      case "carryingCapacity": return { "system.carryingCapacity.bonus": Math.max(0, (sys.carryingCapacity?.bonus ?? 0) - 1) };
-      case "movement": return { "system.movement.bonus": Math.max(0, (sys.movement?.bonus ?? 0) - 1) };
+  }
+
+  /** @override */
+  prepareDerivedData() {
+    // BaseActorData.prepareDerivedData() computes stat.total and derived stats from AE-modified bonuses
+    super.prepareDerivedData();
+
+    const system = this.system;
+
+    // Merchant/Party have no stats/combat — skip everything below
+    if (this.type === "merchant" || this.type === "party") {
+      this._syncTokenSize();
+      return;
     }
-    return {};
+
+    // --- Equipment stat bonus aggregation ---
+    // Loop equipped items and sum their statBonuses into stats.*.bonus
+    for (const item of this.items) {
+      if (item.type !== "equipment") continue;
+      if (!item.system.equipped) continue;
+      const bonuses = item.system.statBonuses;
+      if (!bonuses) continue;
+      for (const key of Object.keys(system.stats)) {
+        if (bonuses[key]) system.stats[key].bonus += bonuses[key];
+      }
+    }
+
+    // Recompute stat totals with equipment bonuses included
+    for (const key of Object.keys(system.stats)) {
+      system.stats[key].total = system.statTotal(key);
+    }
+
+    // Apply percentage-based stat bonuses (e.g. "+5% STR")
+    const aePerc = this._aePercentBonuses ?? {};
+    let statPctApplied = false;
+    for (const key of Object.keys(system.stats)) {
+      const pct = aePerc[`system.stats.${key}.bonus`];
+      if (pct) {
+        const total = system.statTotal(key);
+        system.stats[key].bonus += Math.floor(total * pct / 100);
+        statPctApplied = true;
+      }
+    }
+    if (statPctApplied) {
+      for (const key of Object.keys(system.stats)) {
+        system.stats[key].total = system.statTotal(key);
+      }
+    }
+
+    // Recompute derived stats from final stat totals (simplified: 5 stats)
+    const agi = system.statTotal("agi");
+    const vit = system.statTotal("vit");
+    const spi = system.statTotal("spi");
+    const per = system.statTotal("per");
+    const lck = system.statTotal("lck");
+
+    system.derived.acc = per;
+    system.derived.eva = agi + Math.floor(lck / 4);
+    system.derived.pDef = vit;
+    system.derived.mDef = spi;
+    system.derived.crit = Math.floor(lck / 2) + Math.floor(per / 4);
+
+    // Apply percentage-based derived stat bonuses (e.g. "+5% P.Eva")
+    for (const key of Object.keys(system.derived)) {
+      const pct = aePerc[`system.derived.${key}`];
+      if (pct) {
+        system.derived[key] += Math.floor(system.derived[key] * pct / 100);
+      }
+    }
+
+    // Apply oversized weapon penalties if STR requirement is not met.
+    this._oversizedPenalties = [];
+    for (const item of this.items) {
+      if (item.type !== "equipment") continue;
+      if (!item.system.equipped) continue;
+      const slot = item.system.slot;
+      if (slot !== "weapon" && slot !== "offhand") continue;
+
+      // Oversized weapon penalty: apply if STR requirement not met
+      if (item.system.handedness === "oversized" && item.system.strRequirement > 0) {
+        const strTotal = system.stats.str.total ?? system.statTotal("str");
+        if (strTotal < item.system.strRequirement) {
+          const penalties = item.system.oversizedPenalties;
+          system.derived.acc += penalties.acc ?? 0;
+          system.derived.eva += penalties.eva ?? 0;
+          this._oversizedPenalties.push({
+            itemId: item._id,
+            name: item.name,
+            strRequired: item.system.strRequirement,
+            strActual: strTotal,
+            penalties
+          });
+        }
+      }
+    }
+
+    // Apply AE-sourced derived stat bonuses (collected in applyActiveEffects)
+    for (const [key, bonus] of Object.entries(this._aeDerivedBonuses ?? {})) {
+      if (key in system.derived) {
+        system.derived[key] += bonus;
+      }
+    }
+
+    // Apply percentage-based MOV bonus (before root/downed override)
+    const movPct = aePerc["system.mov"];
+    if (movPct) {
+      system.mov += Math.floor(system.mov * movPct / 100);
+    }
+
+    // Root and Downed override MOV to 0
+    if (system.conditions.root > 0 || system.conditions.downed > 0) {
+      system.mov = 0;
+    }
+
+    // Adventurer: derive HP/MP max and pip max from active job
+    if (this.type === "adventurer" && system.activeJobId) {
+      const activeJob = this.items.get(system.activeJobId);
+      if (activeJob) {
+        system.deriveHpMp(activeJob);
+
+        // Apply percentage-based HP/MP max bonuses
+        const hpPct = aePerc["system.health.max"];
+        if (hpPct) system.health.max += Math.floor(system.health.max * hpPct / 100);
+        const mpPct = aePerc["system.mana.max"];
+        if (mpPct) system.mana.max += Math.floor(system.mana.max * mpPct / 100);
+
+        // Pip max scales with adventurer rank (F:2, E:2, D:3, C:3, B:4, A:4, S:5)
+        system.pips.max = CONFIG.SHARDS.pipsByRank[system.adventurerRank] ?? 2;
+        system.pips.value = Math.clamp(system.pips.value, 0, system.pips.max);
+      }
+    }
+
+    // Adventurer: derive lineage display, size, and movement modes from the
+    // single embedded lineage item. Lineage provides body, not power — no
+    // resistances or condition immunities come from lineage.
+    if (this.type === "adventurer") {
+      const lineageItem = [...this.items].find(i => i.type === "lineage");
+
+      // Auto-derive lineage display name
+      system.lineage = lineageItem?.name ?? "";
+
+      // --- Size from lineage ---
+      if (lineageItem) {
+        system.size = lineageItem.system.size ?? 1;
+      }
+
+      // --- Movement modes from lineage ---
+      if (lineageItem) {
+        for (const [mode, granted] of Object.entries(lineageItem.system.movementModes)) {
+          if (granted && system.movementModes[mode] != null) {
+            system.movementModes[mode] = Math.max(system.movementModes[mode], 1);
+          }
+        }
+      }
+
+      // Re-apply non-lineage size AEs on top (equipment, buffs, etc.)
+      const sizeChanges = [];
+      for (const effect of this.allApplicableEffects()) {
+        if (!effect.active) continue;
+        const parent = effect.parent;
+        // Skip lineage item AEs for size — lineage size is set directly above
+        if (parent?.type === "lineage") continue;
+        for (const change of effect.changes) {
+          if (change.key === "system.size") sizeChanges.push(change);
+        }
+      }
+      sizeChanges.sort((a, b) => (a.priority ?? a.mode * 10) - (b.priority ?? b.mode * 10));
+      for (const change of sizeChanges) {
+        const val = Number(change.value);
+        if (isNaN(val)) continue;
+        switch (change.mode) {
+          case CONST.ACTIVE_EFFECT_MODES.ADD: system.size += val; break;
+          case CONST.ACTIVE_EFFECT_MODES.OVERRIDE: system.size = val; break;
+          case CONST.ACTIVE_EFFECT_MODES.MULTIPLY: system.size *= val; break;
+          case CONST.ACTIVE_EFFECT_MODES.UPGRADE: system.size = Math.max(system.size, val); break;
+          case CONST.ACTIVE_EFFECT_MODES.DOWNGRADE: system.size = Math.min(system.size, val); break;
+        }
+      }
+    }
+
+    // Round and clamp size for all actor types that have the field.
+    // 0.5 is the only valid non-integer size; everything else floors to a whole number.
+    if (system.size != null) {
+      if (system.size !== 0.5) {
+        system.size = Math.floor(system.size);
+      }
+      system.size = Math.max(0.5, system.size);
+    }
+
+    // Sync token dimensions to match effective size (handles AE-driven changes)
+    this._syncTokenSize();
+
+    // Sync Critical HP effects: auto-enable/disable based on HP threshold
+    this._syncCriticalHpEffects();
+  }
+
+  /**
+   * Inject prototype token dimensions into the same update when system.size changes
+   * via a direct actor update (not AE).
+   * @override
+   */
+  async _preUpdate(changed, options, userId) {
+    await super._preUpdate(changed, options, userId);
+    if (foundry.utils.hasProperty(changed, "system.size")) {
+      let newSize = Number(foundry.utils.getProperty(changed, "system.size"));
+      // Apply rounding: 0.5 is preserved, everything else floors to integer
+      if (newSize !== 0.5) newSize = Math.floor(newSize);
+      newSize = Math.max(0.5, newSize);
+      foundry.utils.setProperty(changed, "system.size", newSize);
+      changed.prototypeToken ??= {};
+      changed.prototypeToken.width = newSize;
+      changed.prototypeToken.height = newSize;
+    }
+  }
+
+  /**
+   * Sync token dimensions to match the effective system.size.
+   * Called at the end of prepareDerivedData (after AEs are applied) so it
+   * catches both direct edits AND Active-Effect-driven size changes.
+   * Uses a deferred update to avoid modifying documents mid-preparation.
+   */
+  _syncTokenSize() {
+    if (!game.ready) return;
+    const size = this.system.size;
+    if (size == null) return;
+
+    // Guard: prevent re-entrant syncs from triggering infinite update loops
+    if (this._tokenSizeSyncPending) return;
+
+    // Sync prototype token if out of date
+    const pt = this.prototypeToken;
+    const ptNeedsSync = pt && (pt.width !== size || pt.height !== size);
+
+    // Sync placed tokens on active scenes (GM only — permissions required)
+    const tokenUpdates = [];
+    if (game.user?.isGM) {
+      for (const token of this.getActiveTokens()) {
+        if (token.document.width !== size || token.document.height !== size) {
+          tokenUpdates.push(token.document);
+        }
+      }
+    }
+
+    if (!ptNeedsSync && tokenUpdates.length === 0) return;
+
+    this._tokenSizeSyncPending = true;
+    setTimeout(async () => {
+      try {
+        if (ptNeedsSync) {
+          await this.update({
+            "prototypeToken.width": size,
+            "prototypeToken.height": size
+          }, { render: false });
+        }
+        for (const tokenDoc of tokenUpdates) {
+          await tokenDoc.update({ width: size, height: size });
+        }
+      } finally {
+        this._tokenSizeSyncPending = false;
+      }
+    }, 0);
+  }
+
+  /**
+   * Sync Critical HP effects: enable when HP < 25%, disable when HP >= 25%.
+   * Uses a deferred update to avoid modifying documents mid-preparation.
+   * Only applies to adventurers with the criticalHp flag on effects.
+   */
+  _syncCriticalHpEffects() {
+    if (!game.ready) return;
+    if (this.type !== "adventurer") return;
+    if (this._criticalHpSyncPending) return;
+
+    const system = this.system;
+    if (!system.health || system.health.max <= 0) return;
+
+    const ratio = system.health.value / system.health.max;
+    const isCritical = ratio > 0 && ratio < 0.25;
+
+    const updates = [];
+    for (const effect of this.effects) {
+      if (!effect.flags?.["shards-of-mana"]?.criticalHp) continue;
+      // If critical: enable (disabled=false). If not critical: disable (disabled=true).
+      const shouldBeDisabled = !isCritical;
+      if (effect.disabled !== shouldBeDisabled) {
+        updates.push({ _id: effect.id, disabled: shouldBeDisabled });
+      }
+    }
+
+    if (!updates.length) return;
+
+    this._criticalHpSyncPending = true;
+    setTimeout(async () => {
+      try {
+        await this.updateEmbeddedDocuments("ActiveEffect", updates, { render: false });
+      } finally {
+        this._criticalHpSyncPending = false;
+      }
+    }, 0);
+  }
+
+  /**
+   * Roll a d100 stat test. Delegates to the centralized roll engine.
+   * @param {string} statKey - The stat key (str, agi, etc.)
+   * @param {object} [options={}]
+   * @param {number} [options.modifier=0] - Difficulty modifier
+   * @returns {Promise<{roll: Roll, target: number, outcome: string}>}
+   */
+  async rollStatTest(statKey, { modifier = 0 } = {}) {
+    return _rollStatTest(this, statKey, { modifier });
+  }
+
+  /* -------------------------------------------- */
+  /*  Lineage Grant Automation                      */
+  /* -------------------------------------------- */
+
+  /**
+   * When a lineage item is added to an adventurer, auto-create granted items.
+   * When removed, auto-delete granted items that came from that lineage.
+   * @override
+   */
+  _onCreateDescendantDocuments(parent, collection, documents, data, options, userId) {
+    super._onCreateDescendantDocuments(parent, collection, documents, data, options, userId);
+    if (collection !== "items") return;
+
+    for (const doc of documents) {
+      if (doc.type === "lineage" && this.type === "adventurer") {
+        // Defer to avoid mid-creation conflicts
+        setTimeout(() => this._applyLineageGrants(doc), 0);
+      }
+
+      const hasChoices = hasChoiceSets(doc);
+      const hasGrants = hasItemGrants(doc);
+
+      if (hasChoices && hasGrants) {
+        // Both: sequence choices first so grants can propagate choice results.
+        // After processItemChoiceSets stores choiceResults via setFlag, the original
+        // doc reference may be stale — re-fetch from actor to get updated flags.
+        const actor = this;
+        const docId = doc.id;
+        setTimeout(async () => {
+          await processItemChoiceSets(actor, doc);
+          const freshDoc = actor.items.get(docId) ?? doc;
+          await applyItemGrants(actor, freshDoc);
+        }, 50);
+      } else if (hasChoices) {
+        setTimeout(() => processItemChoiceSets(this, doc), 50);
+      } else if (hasGrants) {
+        setTimeout(() => applyItemGrants(this, doc), 50);
+      }
+    }
+  }
+
+  /** @override */
+  _onDeleteDescendantDocuments(parent, collection, documents, data, options, userId) {
+    super._onDeleteDescendantDocuments(parent, collection, documents, data, options, userId);
+    if (collection !== "items") return;
+
+    for (const doc of documents) {
+      if (doc.type === "lineage" && this.type === "adventurer") {
+        // Lineages are templates — cleanup is handled passively in prepareDerivedData
+        setTimeout(() => this._cleanupLineageGrants(doc._id), 0);
+      } else if (doc.type === "job" && this.type === "adventurer") {
+        setTimeout(() => this._cleanupJobRemoval(doc._id), 0);
+      }
+
+      // Choice Set AE cleanup — any item type on any actor type
+      setTimeout(() => cleanupChoiceSetEffects(this, doc._id), 0);
+
+      // Item Grant cleanup — any item type on any actor type
+      setTimeout(() => cleanupItemGrants(this, doc._id), 0);
+    }
+  }
+
+  /**
+   * Handle lineage addition to an adventurer.
+   * Lineages are body templates — size and movement modes are applied
+   * passively in prepareDerivedData(). No item grants needed.
+   * @param {Item} lineageItem - The embedded lineage item
+   */
+  async _applyLineageGrants(lineageItem) {
+    // Lineages are body templates. Size and movement modes are applied
+    // in prepareDerivedData(). Nothing to create here.
+    ui.notifications.info(game.i18n.format("SHARDS.Lineage.Applied", {
+      name: lineageItem.name
+    }));
+  }
+
+  /**
+   * Clean up when a lineage is removed from an adventurer.
+   * Lineages are body templates — size and movement modes are derived
+   * passively in prepareDerivedData(), so removal just needs a re-render.
+   * @param {string} removedLineageId - The ID of the lineage item that was removed
+   */
+  async _cleanupLineageGrants(removedLineageId) {
+    // Lineages are body templates. Size and movement modes are removed
+    // automatically when prepareDerivedData() runs without the lineage
+    // item present. No manual cleanup needed.
+  }
+
+  /**
+   * Clean up when a job item is removed from the adventurer.
+   * Unsockets from the Mana Grid (cascading to children) and syncs activeJobId.
+   * @param {string} removedJobId - The ID of the job item that was removed
+   */
+  async _cleanupJobRemoval(removedJobId) {
+    // Unsocket from grid if the job was socketed
+    const grid = this.system.grid;
+    const jobSocket = grid?.sockets?.find(s => s.type === "job" && s.itemId === removedJobId);
+    if (jobSocket) {
+      await this.unsocketFromGrid(jobSocket.id);
+    }
+
+    // Sync activeJobId if it referenced the deleted job (belt and suspenders)
+    if (this.system.activeJobId === removedJobId) {
+      const firstJob = this.system.grid?.sockets?.find(s => s.type === "job" && s.itemId);
+      await this.update({ "system.activeJobId": firstJob?.itemId ?? "" });
+    }
+  }
+
+  /* -------------------------------------------- */
+  /*  Mana Grid Socketing                           */
+  /* -------------------------------------------- */
+
+  /**
+   * Socket an item into a Mana Grid socket.
+   * Validates socket type, item type, and school affinity.
+   * @param {string} socketId - The grid socket ID to socket into
+   * @param {string} itemId - The item ID (Job or Manacite) to socket
+   */
+  async socketToGrid(socketId, itemId) {
+    if (this.type !== "adventurer") return;
+
+    const grid = foundry.utils.deepClone(this.system.grid);
+    const socket = grid.sockets.find(s => s.id === socketId);
+    if (!socket) {
+      ui.notifications.warn("Invalid socket.");
+      return;
+    }
+    if (socket.itemId) {
+      ui.notifications.warn("Socket is already occupied. Unsocket first.");
+      return;
+    }
+
+    const item = this.items.get(itemId);
+    if (!item) {
+      ui.notifications.warn("Item not found.");
+      return;
+    }
+
+    // Validate item type matches socket type
+    if (socket.type === "job" && item.type !== "job") {
+      ui.notifications.warn("Only Jobs can be placed in job sockets.");
+      return;
+    }
+    if ((socket.type === "skill" || socket.type === "free") && item.type !== "manacite") {
+      ui.notifications.warn("Only Manacite can be placed in skill/free sockets.");
+      return;
+    }
+
+    // Validate school affinity for skill sockets
+    if (socket.type === "skill") {
+      const parentJobSocket = grid.sockets.find(s => s.id === socket.parentJobSocketId);
+      if (parentJobSocket?.itemId) {
+        const parentJob = this.items.get(parentJobSocket.itemId);
+        const jobSchool = parentJob?.system?.school ?? "general";
+        const manaciteSchool = item.system.school ?? "general";
+        if (manaciteSchool !== "general" && jobSchool !== "general" && manaciteSchool !== jobSchool) {
+          const jobSchoolLabel = game.i18n.localize(CONFIG.SHARDS.schools[jobSchool]?.label ?? jobSchool);
+          const manaciteSchoolLabel = game.i18n.localize(CONFIG.SHARDS.schools[manaciteSchool]?.label ?? manaciteSchool);
+          ui.notifications.warn(`School mismatch: ${manaciteSchoolLabel} manacite cannot go in a ${jobSchoolLabel} job's socket.`);
+          return;
+        }
+      }
+    }
+
+    // Mark socket as occupied
+    socket.itemId = itemId;
+
+    // Mark item as socketed
+    const itemUpdate = { _id: itemId, "system.socketed": true };
+    if (item.type === "manacite") {
+      itemUpdate["system.socketId"] = socketId;
+    }
+
+    // Build update object — sync activeJobId if a job was socketed
+    const actorUpdate = { "system.grid": grid };
+    if (item.type === "job") {
+      // First socketed job becomes the primary (activeJobId)
+      const firstJobSocket = grid.sockets.find(s => s.type === "job" && s.itemId);
+      actorUpdate["system.activeJobId"] = firstJobSocket?.itemId ?? "";
+    }
+
+    await this.update(actorUpdate);
+    await this.updateEmbeddedDocuments("Item", [itemUpdate]);
+
+    // If job was socketed, expand grid to add branch skill sockets
+    if (item.type === "job") {
+      await this.recalculateGrid();
+    }
+  }
+
+  /**
+   * Unsocket an item from a Mana Grid socket.
+   * If unsocketing a Job, unsockets all children first.
+   * @param {string} socketId - The grid socket ID to unsocket
+   */
+  async unsocketFromGrid(socketId) {
+    if (this.type !== "adventurer") return;
+
+    const grid = foundry.utils.deepClone(this.system.grid);
+    const socket = grid.sockets.find(s => s.id === socketId);
+    if (!socket || !socket.itemId) return;
+
+    const item = this.items.get(socket.itemId);
+    const itemUpdates = [];
+
+    // If unsocketing a job, unsocket all child skill sockets first
+    if (socket.type === "job") {
+      const childSockets = grid.sockets.filter(s => s.type === "skill" && s.parentJobSocketId === socketId);
+      for (const child of childSockets) {
+        if (child.itemId) {
+          const childItem = this.items.get(child.itemId);
+          if (childItem) {
+            itemUpdates.push({
+              _id: childItem.id,
+              "system.socketed": false,
+              "system.socketId": ""
+            });
+          }
+          child.itemId = "";
+        }
+      }
+      // Remove branch skill sockets from grid (they'll be re-added by recalculateGrid if job is re-socketed)
+      grid.sockets = grid.sockets.filter(s => !(s.type === "skill" && s.parentJobSocketId === socketId));
+    }
+
+    // Mark the socket as empty
+    socket.itemId = "";
+
+    // Mark the item as unsocketed
+    if (item) {
+      const update = { _id: item.id, "system.socketed": false };
+      if (item.type === "manacite") update["system.socketId"] = "";
+      itemUpdates.push(update);
+    }
+
+    // Build update — sync activeJobId if a job was unsocketed
+    const actorUpdate = { "system.grid": grid };
+    if (socket.type === "job") {
+      const firstJobSocket = grid.sockets.find(s => s.type === "job" && s.itemId);
+      actorUpdate["system.activeJobId"] = firstJobSocket?.itemId ?? "";
+    }
+
+    await this.update(actorUpdate);
+    if (itemUpdates.length) {
+      await this.updateEmbeddedDocuments("Item", itemUpdates);
+    }
+  }
+
+  /**
+   * Recalculate the grid — ensure correct number of sockets based on level and job ranks.
+   * Called after level-up, job rank-up, or socketing/unsocketing a job.
+   */
+  async recalculateGrid() {
+    if (this.type !== "adventurer") return;
+
+    const { expandGrid } = await import("../data/grid-schema.mjs");
+    const level = this.system.level;
+
+    // Build list of socketed jobs with their ranks
+    const socketedJobs = [];
+    for (const socket of this.system.grid.sockets) {
+      if (socket.type === "job" && socket.itemId) {
+        const job = this.items.get(socket.itemId);
+        if (job) {
+          socketedJobs.push({ socketId: socket.id, rank: job.system.rank });
+        }
+      }
+    }
+
+    const expandedGrid = expandGrid(this.system.grid, level, socketedJobs);
+    await this.update({ "system.grid": expandedGrid });
+  }
+
+  /* -------------------------------------------- */
+  /*  XP Siphon (Mana Grid)                        */
+  /* -------------------------------------------- */
+
+  /**
+   * Distribute bonus XP to all socketed items (manacite and jobs) on this actor.
+   * Called when the adventurer gains XP. Does NOT reduce actor XP — siphoned XP is bonus.
+   * @param {number} xpAmount - The amount of XP the adventurer earned
+   */
+  async distributeXpToGrid(xpAmount) {
+    if (this.type !== "adventurer" || xpAmount <= 0) return;
+
+    const siphonRate = CONFIG.SHARDS?.manaciteXpSiphonRate ?? 0.10;
+    const siphonXp = Math.floor(xpAmount * siphonRate);
+    if (siphonXp <= 0) return;
+
+    const manaciteThresholds = CONFIG.SHARDS?.manaciteXpThresholds ?? [0, 0, 50, 150, 350, 750];
+    const jobThresholds = CONFIG.SHARDS?.jobXpThresholds ?? {};
+    const maxSL = CONFIG.SHARDS?.skillLevelMax ?? 5;
+    const rankOrder = ["F", "E", "D", "C", "B", "A", "S"];
+    const itemUpdates = [];
+    const notifications = [];
+    let jobRankedUp = false;
+
+    // Find all socketed manacite
+    for (const item of this.items) {
+      if (item.type === "manacite" && item.system.socketed) {
+        const sys = item.system;
+        const newXp = sys.manaciteXp + siphonXp;
+        let newSL = sys.skillLevel;
+
+        // Check for level-ups
+        while (newSL < maxSL && manaciteThresholds[newSL + 1] != null && newXp >= manaciteThresholds[newSL + 1]) {
+          newSL++;
+          notifications.push(game.i18n.format("SHARDS.Siphon.ManaciteLevelUp", { name: item.name, level: newSL }));
+        }
+
+        itemUpdates.push({
+          _id: item.id,
+          "system.manaciteXp": newXp,
+          "system.skillLevel": newSL
+        });
+      }
+
+      if (item.type === "job" && item.system.socketed) {
+        const sys = item.system;
+        const newXp = (sys.jobXp ?? 0) + siphonXp;
+        let newRank = sys.rank;
+        const currentRankIdx = rankOrder.indexOf(newRank);
+
+        // Check for rank-ups
+        for (let i = currentRankIdx + 1; i < rankOrder.length; i++) {
+          const nextRank = rankOrder[i];
+          const threshold = jobThresholds[nextRank];
+          if (threshold != null && newXp >= threshold) {
+            newRank = nextRank;
+            notifications.push(game.i18n.format("SHARDS.Siphon.JobRankUp", { name: item.name, rank: newRank }));
+            jobRankedUp = true;
+          } else break;
+        }
+
+        itemUpdates.push({
+          _id: item.id,
+          "system.jobXp": newXp,
+          "system.rank": newRank
+        });
+      }
+    }
+
+    if (itemUpdates.length) {
+      await this.updateEmbeddedDocuments("Item", itemUpdates);
+    }
+
+    // If any job ranked up, expand the grid to add new skill sockets
+    if (jobRankedUp) {
+      await this.recalculateGrid();
+    }
+
+    // Post notifications to chat
+    for (const msg of notifications) {
+      ChatMessage.create({
+        content: `<div class="siphon-notification"><i class="fa-solid fa-gem"></i> ${msg}</div>`,
+        speaker: ChatMessage.getSpeaker({ actor: this })
+      });
+    }
   }
 }

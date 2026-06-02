@@ -1,0 +1,78 @@
+<section class="tab build" data-group="primary" data-tab="build">
+
+  {{!-- ============================== --}}
+  {{!-- Lineage Section                  --}}
+  {{!-- ============================== --}}
+  <div class="build-lineage-section">
+      {{#if lineageItems.length}}
+      <div class="adv-species-grid">
+        {{#each lineageItems as |sp|}}
+        <div class="adv-species-card collapsible-section {{#if sp.isOpen}}open{{/if}}" data-item-id="{{sp._id}}">
+          <div class="adv-species-card__header">
+            <button type="button" class="adv-species-card__icon-btn" data-action="editItem">
+              <img class="adv-species-card__img" src="{{sp.img}}" width="32" height="32" />
+            </button>
+            <div class="adv-species-card__header-toggle" data-action="toggleSection">
+              <div class="adv-species-card__info">
+                <span class="adv-species-card__name">{{sp.name}}</span>
+                <span class="adv-species-card__size">{{localize "SHARDS.Size"}}: {{sp.system.size}}</span>
+              </div>
+              {{#if sp.innateTraits.length}}
+              <span class="adv-species-card__fx-badge"><i class="fa-solid fa-sparkles"></i> {{sp.innateTraits.length}}</span>
+              {{/if}}
+              <span class="adv-species-card__chevron"><i class="fa-solid fa-chevron-down"></i></span>
+            </div>
+          </div>
+          <div class="adv-species-card__collapse">
+            {{!-- Innate Traits --}}
+            {{#if sp.innateTraits.length}}
+            <div class="adv-species-card__traits">
+              {{#each sp.innateTraits}}
+              <div class="adv-species-trait">
+                <span class="adv-species-trait__name"><i class="fa-solid fa-sparkles"></i> {{this.name}}</span>
+                {{#if this.description}}
+                <span class="adv-species-trait__desc">{{this.description}}</span>
+                {{/if}}
+              </div>
+              {{/each}}
+            </div>
+            {{/if}}
+            {{!-- Description --}}
+            {{#if sp.hasDescription}}
+            <div class="adv-species-card__description">{{{sp.enrichedDescription}}}</div>
+            {{else}}
+            <p class="adv-species-card__no-desc">{{localize "SHARDS.Jobs.NoDescription"}}</p>
+            {{/if}}
+            <div class="adv-species-card__controls">
+              <button type="button" data-action="editItem" title="{{localize 'SHARDS.Edit'}}">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button type="button" data-action="removeLineage" title="{{localize 'SHARDS.Delete'}}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <p class="build-empty-hint muted">{{localize "SHARDS.Adventurer.NoLineage"}}</p>
+      {{/if}}
+  </div>
+
+  <hr class="build-divider" />
+
+  {{!-- ============================== --}}
+  {{!-- Mana Grid                        --}}
+  {{!-- ============================== --}}
+  <div class="build-grid-section">
+    <div class="build-grid-header">
+      <span class="build-grid-title"><i class="fa-solid fa-gem"></i> {{localize "SHARDS.Grid.Title"}}</span>
+      <span class="build-grid-info">
+        {{gridSocketSummary}}
+      </span>
+    </div>
+    <div class="mana-grid-mount"></div>
+  </div>
+
+</section>

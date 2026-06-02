@@ -1,0 +1,111 @@
+<section class="tab biography" data-group="primary" data-tab="biography">
+
+  {{!-- ========== PERSONAL DETAILS ========== --}}
+  <div class="bio-details-grid">
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.Age"}}</label>
+      <input type="text" name="system.personalDetails.age"
+             value="{{system.personalDetails.age}}"
+             placeholder="{{localize 'SHARDS.Biography.AgePlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.Height"}}</label>
+      <input type="text" name="system.personalDetails.height"
+             value="{{system.personalDetails.height}}"
+             placeholder="{{localize 'SHARDS.Biography.HeightPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.Weight"}}</label>
+      <input type="text" name="system.personalDetails.weight"
+             value="{{system.personalDetails.weight}}"
+             placeholder="{{localize 'SHARDS.Biography.WeightPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.Pronouns"}}</label>
+      <input type="text" name="system.personalDetails.pronouns"
+             value="{{system.personalDetails.pronouns}}"
+             placeholder="{{localize 'SHARDS.Biography.PronounsPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.Gender"}}</label>
+      <input type="text" name="system.personalDetails.gender"
+             value="{{system.personalDetails.gender}}"
+             placeholder="{{localize 'SHARDS.Biography.GenderPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.HairColor"}}</label>
+      <input type="text" name="system.personalDetails.hairColor"
+             value="{{system.personalDetails.hairColor}}"
+             placeholder="{{localize 'SHARDS.Biography.HairColorPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.EyeColor"}}</label>
+      <input type="text" name="system.personalDetails.eyeColor"
+             value="{{system.personalDetails.eyeColor}}"
+             placeholder="{{localize 'SHARDS.Biography.EyeColorPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.SkinTone"}}</label>
+      <input type="text" name="system.personalDetails.skinTone"
+             value="{{system.personalDetails.skinTone}}"
+             placeholder="{{localize 'SHARDS.Biography.SkinTonePlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field">
+      <label>{{localize "SHARDS.Biography.Build"}}</label>
+      <input type="text" name="system.personalDetails.build"
+             value="{{system.personalDetails.build}}"
+             placeholder="{{localize 'SHARDS.Biography.BuildPlaceholder'}}" />
+    </div>
+
+    <div class="bio-detail-field bio-detail-field--wide">
+      <label>{{localize "SHARDS.Biography.DistinguishingFeatures"}}</label>
+      <input type="text" name="system.personalDetails.distinguishingFeatures"
+             value="{{system.personalDetails.distinguishingFeatures}}"
+             placeholder="{{localize 'SHARDS.Biography.DistinguishingFeaturesPlaceholder'}}" />
+    </div>
+
+  </div>
+
+  {{!-- ========== APPEARANCE ========== --}}
+  <div class="editor-container bio-editor">
+    <span class="section-label">{{localize "SHARDS.Biography.Appearance"}}</span>
+    <prose-mirror name="system.appearance" toggled value="{{source.system.appearance}}">
+      {{{enrichedAppearance}}}
+    </prose-mirror>
+  </div>
+
+  {{!-- ========== PERSONALITY ========== --}}
+  <div class="editor-container bio-editor">
+    <span class="section-label">{{localize "SHARDS.Biography.Personality"}}</span>
+    <prose-mirror name="system.personality" toggled value="{{source.system.personality}}">
+      {{{enrichedPersonality}}}
+    </prose-mirror>
+  </div>
+
+  {{!-- ========== BACKSTORY ========== --}}
+  <div class="editor-container bio-editor">
+    <span class="section-label">{{localize "SHARDS.Biography.Backstory"}}</span>
+    <prose-mirror name="system.biography" toggled value="{{source.system.biography}}">
+      {{{enrichedBiography}}}
+    </prose-mirror>
+  </div>
+
+  {{!-- ========== GM NOTES (GM only) ========== --}}
+  {{#if isGM}}
+  <div class="bio-gm-notes">
+    <span class="section-label"><i class="fa-solid fa-eye-slash"></i> {{localize "SHARDS.Biography.GmNotes"}}</span>
+    <textarea name="system.gmNotes" rows="4"
+              placeholder="{{localize 'SHARDS.Biography.GmNotesPlaceholder'}}">{{system.gmNotes}}</textarea>
+  </div>
+  {{/if}}
+
+</section>

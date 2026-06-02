@@ -1,0 +1,85 @@
+{{#if error}}
+<div class="loot-dialog__error">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  <span>Monster not found.</span>
+</div>
+{{else}}
+<form class="loot-dialog__form">
+
+  {{!-- Monster Header --}}
+  <div class="loot-dialog__header">
+    <img class="loot-dialog__portrait" src="{{monsterImg}}" alt="{{monsterName}}" width="48" height="48" />
+    <div class="loot-dialog__title">
+      <h3>{{monsterName}}</h3>
+      <span class="loot-dialog__subtitle">{{localize "SHARDS.Drops.LootDialog"}}</span>
+    </div>
+    <button type="button" class="crystal-btn crystal-btn--small" data-action="reroll" title="{{localize 'SHARDS.Drops.ReRoll'}}">
+      <i class="fa-solid fa-rotate"></i>
+    </button>
+  </div>
+
+  {{!-- Gold Distribution --}}
+  {{#if hasGold}}
+  <fieldset class="loot-dialog__section">
+    <legend>
+      <i class="fa-solid fa-coins"></i>
+      {{localize "SHARDS.Drops.Gold"}} — {{gold}}
+    </legend>
+    <div class="loot-dialog__gold-options">
+      {{#each goldOptions}}
+      <label class="loot-dialog__radio">
+        <input type="radio" name="goldDistribution" value="{{this.value}}"
+          {{#if (eq @index 0)}}checked{{/if}} />
+        {{this.label}}
+      </label>
+      {{/each}}
+    </div>
+  </fieldset>
+  {{/if}}
+
+  {{!-- Manacite Drops --}}
+  {{#if hasDrops}}
+  <fieldset class="loot-dialog__section">
+    <legend>
+      <i class="fa-solid fa-gem"></i>
+      {{localize "SHARDS.Drops.ManaciteDrops"}}
+    </legend>
+    <div class="loot-dialog__drops">
+      {{#each successfulDrops}}
+      <div class="loot-dialog__drop-row">
+        <div class="loot-dialog__drop-info">
+          <span class="rank-badge" data-rank="{{this.rank}}">{{this.rank}}</span>
+          <span class="loot-dialog__drop-name">{{this.name}}</span>
+          {{#if (gt this.quantity 1)}}
+          <span class="loot-dialog__drop-qty">&times;{{this.quantity}}</span>
+          {{/if}}
+          <span class="loot-dialog__drop-sl">SL {{this.skillLevel}}</span>
+        </div>
+        <select name="drop-{{@index}}" class="loot-dialog__assign-select">
+          {{#each ../assignOptions}}
+          <option value="{{this.value}}">{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      {{/each}}
+    </div>
+  </fieldset>
+  {{else}}
+  <div class="loot-dialog__empty">
+    <i class="fa-solid fa-ghost"></i>
+    <span>{{localize "SHARDS.Drops.NothingDropped"}}</span>
+  </div>
+  {{/if}}
+
+  {{!-- Distribute Button --}}
+  {{#if (or hasGold hasDrops)}}
+  <div class="loot-dialog__actions">
+    <button type="button" class="crystal-btn" data-action="distribute">
+      <i class="fa-solid fa-hand-holding"></i>
+      {{localize "SHARDS.Drops.Distribute"}}
+    </button>
+  </div>
+  {{/if}}
+
+</form>
+{{/if}}

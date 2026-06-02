@@ -1,0 +1,33 @@
+<div class="effect-item-header-wrapper">
+  <div class="crystal-card effect-item-header">
+
+    {{!-- Portrait with decorative frame --}}
+    <div class="effect-item-header__portrait-frame">
+      <div class="effect-item-header__portrait">
+        <img class="effect-item-portrait-img" src="{{item.img}}" data-action="editImage"
+             data-edit="img" title="{{item.name}}" />
+      </div>
+      <div class="effect-item-header__count-badge" title="{{localize 'SHARDS.EffectItem.EffectCount'}}">
+        {{effectCount}}
+      </div>
+    </div>
+
+    {{!-- Identity Column --}}
+    <div class="effect-item-header__identity">
+
+      {{!-- Type Label --}}
+      <div class="effect-item-header__type-row">
+        <span class="effect-item-header__type-label">
+          <i class="fa-solid fa-sparkles"></i> {{localize "SHARDS.EffectItem.TypeLabel"}}
+        </span>
+      </div>
+
+      {{!-- Name --}}
+      <div class="effect-item-header__name">
+        <input name="name" type="text" value="{{item.name}}"
+               placeholder="{{localize 'SHARDS.ItemName'}}" />
+      </div>
+
+    </div>
+  </div>
+</div>

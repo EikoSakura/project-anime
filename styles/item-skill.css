@@ -1,0 +1,639 @@
+/* ============================================ */
+/*  Shards of Mana — Skill Item Sheet          */
+/* ============================================ */
+
+/* -------------------------------------------- */
+/*  Skill Header Layout                        */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+}
+
+.shards-of-mana .skill-header__portrait {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  border: 2px solid var(--shards-crystal-border);
+  box-shadow:
+    0 0 8px var(--shards-crystal-glow),
+    0 0 16px rgba(0, 212, 160, 0.15);
+  overflow: hidden;
+}
+
+.shards-of-mana .skill-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+}
+
+.shards-of-mana .skill-header__fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shards-of-mana .skill-header__name input {
+  font-family: var(--shards-font-heading);
+  font-size: 1.3em;
+  font-weight: 700;
+  color: var(--shards-accent);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  width: 100%;
+  padding: 0;
+  text-shadow: 0 0 6px var(--shards-gold-glow);
+}
+
+.shards-of-mana .skill-header__name input:focus {
+  border-bottom-color: var(--shards-accent);
+  outline: none;
+}
+
+.shards-of-mana .skill-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shards-of-mana .skill-type-select {
+  font-size: 0.75em;
+  padding: 1px 4px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .skill-type-select:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+/* -------------------------------------------- */
+/*  Tier Badge (Star Rating)                   */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 6px;
+  font-size: 0.65em;
+  color: #e8d070;
+  background: rgba(212, 168, 67, 0.12);
+  border: 1px solid rgba(212, 168, 67, 0.3);
+  border-radius: 3px;
+  text-shadow: 0 0 4px rgba(212, 168, 67, 0.4);
+}
+
+.shards-of-mana .skill-tier-badge i {
+  font-size: 0.85em;
+}
+
+/* Tooltip tier stars */
+.shards-of-mana .skill-tooltip__tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 0.75em;
+  color: #e8d070;
+  text-shadow: 0 0 4px rgba(212, 168, 67, 0.4);
+}
+
+/* -------------------------------------------- */
+/*  Tag Chips                                   */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-header__tags {
+  margin-top: 2px;
+}
+
+.shards-of-mana .skill-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  min-height: 28px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--shards-border);
+  border-radius: 3px;
+}
+
+.shards-of-mana .skill-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  padding-right: 3px;
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #e8c0c8;
+  background: rgba(120, 40, 50, 0.5);
+  border: 1px solid rgba(160, 60, 70, 0.5);
+  border-radius: 3px;
+}
+
+.shards-of-mana .skill-tag-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.85em;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.shards-of-mana .skill-tag-remove:hover {
+  opacity: 1;
+  color: #ff8888;
+}
+
+.shards-of-mana .skill-tag-input {
+  flex: 1;
+  min-width: 60px;
+  border: none;
+  background: transparent;
+  color: var(--shards-text);
+  font-size: 0.75em;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.shards-of-mana .skill-tag-input::placeholder {
+  color: var(--shards-text-muted);
+  opacity: 0.6;
+}
+
+/* -------------------------------------------- */
+/*  Scrollable Tab Content                     */
+/* -------------------------------------------- */
+
+.shards-of-mana.skill-sheet .window-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.shards-of-mana.skill-sheet .window-content > form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shards-of-mana.skill-sheet section.tab {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 8px;
+}
+
+/* Crystal scrollbar */
+.shards-of-mana.skill-sheet section.tab::-webkit-scrollbar {
+  width: 5px;
+}
+
+.shards-of-mana.skill-sheet section.tab::-webkit-scrollbar-track {
+  background: rgba(6, 8, 16, 0.4);
+  border-radius: 3px;
+}
+
+.shards-of-mana.skill-sheet section.tab::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 160, 0.35);
+  border-radius: 3px;
+}
+
+.shards-of-mana.skill-sheet section.tab::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 160, 0.6);
+}
+
+/* -------------------------------------------- */
+/*  Details Tab — Panels                       */
+/* -------------------------------------------- */
+
+.shards-of-mana .tab.details.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shards-of-mana .skill-panel {
+  border: 1px solid var(--shards-border);
+  border-radius: 3px;
+  padding: 10px 12px;
+  background: var(--shards-crystal-panel);
+}
+
+.shards-of-mana .skill-panel__heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.8em;
+}
+
+.shards-of-mana .skill-panel__heading i {
+  color: var(--shards-primary-light);
+  font-size: 0.9em;
+}
+
+.shards-of-mana .skill-description-editor {
+  min-height: 120px;
+}
+
+/* -------------------------------------------- */
+/*  Stat Grid (rows within panels)             */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-stat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shards-of-mana .skill-stat-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Full-width row (for stat chips etc.) */
+.shards-of-mana .skill-stat-row--full {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shards-of-mana .skill-stat-row--full label {
+  margin-bottom: 2px;
+}
+
+.shards-of-mana .skill-stat-row label {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--shards-text-muted);
+}
+
+.shards-of-mana .skill-stat-row select,
+.shards-of-mana .skill-stat-row input[type="text"],
+.shards-of-mana .skill-stat-row input[type="number"] {
+  font-size: 0.85em;
+  padding: 3px 6px;
+  background: var(--shards-bg-input);
+  color: var(--shards-text);
+  border: 1px solid var(--shards-border);
+  border-radius: 2px;
+}
+
+.shards-of-mana .skill-stat-row select:focus,
+.shards-of-mana .skill-stat-row input:focus {
+  border-color: var(--shards-crystal-border);
+  outline: none;
+}
+
+.shards-of-mana .skill-stat-row input[type="number"] {
+  width: 60px;
+}
+
+.shards-of-mana .skill-stat-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+/* Inline display (value + unit suffix) */
+.shards-of-mana .skill-inline-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shards-of-mana .skill-unit {
+  font-size: 0.7em;
+  color: var(--shards-text-muted);
+  font-style: italic;
+}
+
+/* -------------------------------------------- */
+/*  Stat Toggle Chips (for skill stats)        */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-stat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.shards-of-mana .skill-stat-chip {
+  padding: 2px 8px;
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--shards-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--shards-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.shards-of-mana .skill-stat-chip:hover {
+  border-color: var(--shards-crystal-border);
+  color: var(--shards-text);
+}
+
+.shards-of-mana .skill-stat-chip.selected {
+  background: rgba(0, 212, 160, 0.2);
+  border-color: var(--shards-crystal-border);
+  color: var(--shards-primary-light);
+  box-shadow: 0 0 4px var(--shards-crystal-glow);
+}
+
+/* -------------------------------------------- */
+/*  MMO-Style Skill Tooltip (Description Tab)   */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-tooltip {
+  border: 1.5px solid var(--shards-crystal-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    rgba(4, 6, 12, 0.95) 0%,
+    rgba(8, 12, 20, 0.9) 100%
+  );
+  box-shadow:
+    0 0 8px rgba(0, 212, 160, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* --- Header --- */
+.shards-of-mana .skill-tooltip__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px 4px;
+  background: linear-gradient(90deg, rgba(0, 212, 160, 0.15), transparent);
+}
+
+.shards-of-mana .skill-tooltip__name {
+  font-family: var(--shards-font-heading);
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--shards-accent);
+  text-shadow: 0 0 8px var(--shards-gold-glow);
+}
+
+/* --- Type Bar --- */
+.shards-of-mana .skill-tooltip__typebar {
+  display: flex;
+  gap: 6px;
+  padding: 2px 12px 6px;
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shards-of-mana .skill-tooltip__type {
+  color: var(--shards-text-muted);
+}
+
+.shards-of-mana .skill-tooltip__element {
+  color: #e8a060;
+}
+
+.shards-of-mana .skill-tooltip__attack-type {
+  color: #80c0e0;
+}
+
+/* --- Tags --- */
+.shards-of-mana .skill-tooltip__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 0 12px 6px;
+}
+
+.shards-of-mana .skill-tooltip__tag {
+  font-size: 0.6em;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  background: rgba(120, 40, 50, 0.4);
+  border: 1px solid rgba(160, 60, 70, 0.4);
+  border-radius: 3px;
+  color: #e8c0c8;
+}
+
+/* --- Stat Pills Row --- */
+.shards-of-mana .skill-tooltip__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  border-top: 1px solid rgba(0, 212, 160, 0.1);
+}
+
+.shards-of-mana .skill-tooltip__pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(0, 212, 160, 0.1);
+  border-radius: 3px;
+  font-size: 0.72em;
+  line-height: 1.3;
+}
+
+.shards-of-mana .skill-tooltip__pill-label {
+  color: var(--shards-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.03em;
+}
+
+.shards-of-mana .skill-tooltip__pill-value {
+  color: var(--shards-text-primary, var(--shards-text));
+  font-weight: 500;
+}
+
+.shards-of-mana .skill-tooltip__pill--mp .skill-tooltip__pill-value {
+  color: #70a8e8;
+}
+
+.shards-of-mana .skill-tooltip__pill--pips .skill-tooltip__pill-value {
+  color: #e8d070;
+}
+
+/* --- Combat Numbers Row --- */
+.shards-of-mana .skill-tooltip__combat {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(0, 212, 160, 0.1);
+  background: rgba(0, 212, 160, 0.03);
+}
+
+.shards-of-mana .skill-tooltip__combat-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 48px;
+}
+
+.shards-of-mana .skill-tooltip__combat-value {
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.shards-of-mana .skill-tooltip__combat-value--hit  { color: #70e870; }
+.shards-of-mana .skill-tooltip__combat-value--dmg  { color: #e87070; }
+.shards-of-mana .skill-tooltip__combat-value--crit { color: #e8d070; }
+.shards-of-mana .skill-tooltip__combat-value--vs   { color: #80c0e0; font-size: 0.85em; }
+
+.shards-of-mana .skill-tooltip__combat-label {
+  font-size: 0.6em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--shards-text-muted);
+  white-space: nowrap;
+}
+
+.shards-of-mana .skill-tooltip__combat-label small {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+/* --- Actor Totals Bar --- */
+.shards-of-mana .skill-tooltip__totals {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 6px 12px;
+  border-top: 1px solid rgba(0, 212, 160, 0.15);
+  background: rgba(0, 212, 160, 0.06);
+}
+
+.shards-of-mana .skill-tooltip__total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.shards-of-mana .skill-tooltip__total-value {
+  font-size: 1.3em;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 6px rgba(0, 212, 160, 0.4);
+  line-height: 1.2;
+}
+
+.shards-of-mana .skill-tooltip__total-label {
+  font-size: 0.6em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--shards-primary-light);
+}
+
+.shards-of-mana .skill-tooltip__total-breakdown {
+  font-size: 0.55em;
+  color: var(--shards-text-muted);
+  opacity: 0.6;
+}
+
+/* --- Condition Line --- */
+.shards-of-mana .skill-tooltip__condition {
+  padding: 5px 12px;
+  font-size: 0.75em;
+  color: #e8a060;
+  border-top: 1px solid rgba(0, 212, 160, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.shards-of-mana .skill-tooltip__condition i {
+  font-size: 0.85em;
+  color: #e8d070;
+}
+
+/* --- Flavor Text --- */
+.shards-of-mana .skill-tooltip__flavor {
+  padding: 6px 12px 8px;
+  border-top: 1px solid rgba(0, 212, 160, 0.08);
+  font-size: 0.75em;
+  font-style: italic;
+  color: var(--shards-text-muted);
+  line-height: 1.5;
+}
+
+/* --- No Actor Warning --- */
+.shards-of-mana .skill-tooltip__no-actor {
+  padding: 6px 12px;
+  font-size: 0.7em;
+  color: var(--shards-text-muted);
+  font-style: italic;
+  border-top: 1px solid rgba(0, 212, 160, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shards-of-mana .skill-tooltip__no-actor i {
+  color: var(--shards-primary-light);
+  opacity: 0.6;
+}
+
+/* -------------------------------------------- */
+/*  Description Tab                            */
+/* -------------------------------------------- */
+
+.shards-of-mana .tab.description.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* -------------------------------------------- */
+/*  Effects Tab                                */
+/* -------------------------------------------- */
+
+.shards-of-mana.skill-sheet .tab.effects.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* -------------------------------------------- */
+/*  Magic Requirement Panel (Spell Skills)      */
+/* -------------------------------------------- */
+
+.shards-of-mana .skill-stat-value {
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 2px 6px;
+}
+.shards-of-mana .skill-stat-value--locked {
+  color: var(--shards-danger, #d44040);
+}

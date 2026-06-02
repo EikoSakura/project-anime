@@ -1,0 +1,30 @@
+<div class="shards-chat-card shards-skill-acquired" data-theme="{{actorTheme}}">
+  <header class="shards-chat-card__header">
+    <img class="shards-chat-card__portrait" src="{{actorImg}}" alt="{{actorName}}" width="36" height="36" />
+    <div class="shards-chat-card__title">
+      <span class="shards-chat-card__actor-name">{{actorName}}</span>
+      <span class="shards-chat-card__subtitle">{{localize "SHARDS.Experience.SkillAcquired"}}</span>
+    </div>
+  </header>
+
+  <div class="shards-chat-card__body">
+    <div class="shards-skill-acquired__skill-row">
+      <img class="shards-skill-acquired__icon" src="{{skillImg}}" width="32" height="32" />
+      <div class="shards-skill-acquired__skill-info">
+        <span class="shards-skill-acquired__skill-name">{{skillName}}</span>
+        <span class="shards-skill-acquired__sl-badge">SL {{skillLevel}}</span>
+      </div>
+    </div>
+
+    {{#if originNote}}
+    <div class="shards-skill-acquired__origin">
+      <i class="fa-solid fa-scroll"></i>
+      <span>{{originNote}}</span>
+    </div>
+    {{/if}}
+
+    <div class="shards-skill-acquired__system-voice">
+      &laquo; {{systemVoice}} &raquo;
+    </div>
+  </div>
+</div>
