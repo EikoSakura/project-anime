@@ -208,7 +208,8 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
         break;
       case "shield":
-        push("PROJECTANIME.Field.evasionBonus", signed(sys.evasionBonus));
+        if (sys.evasionBonus) push("PROJECTANIME.Field.evasionBonus", signed(sys.evasionBonus));
+        if (sys.defenseBonus) push("PROJECTANIME.Field.defenseBonus", signed(sys.defenseBonus));
         push("PROJECTANIME.Field.accuracy", accuracy());
         push("PROJECTANIME.Field.damage", damage());
         push("PROJECTANIME.Field.range", phRange());

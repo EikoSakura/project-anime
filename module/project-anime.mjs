@@ -332,14 +332,25 @@ function tickStunned(actor) {
  * Combat turn-tick automation (GM-side only, mirroring expireEffects' single-active-GM guard).
  * On a turn/round advance: the combatant whose turn just ENDED takes Decay; the one whose turn
  * just STARTED gets Sustain regen + a Stunned skip notice. Reads combat.previous / combat.current.
+ * Sustain regen is gated to once per round per combatant via a high-water `sustainRound` flag, so
+ * stepping back through the turn order — within a round or across rounds — never re-heals.
  */
 async function combatTurnTick(combat, change) {
   if (game.users.activeGM?.id !== game.user.id) return;
   if (!("turn" in change) && !("round" in change)) return;
   const endedActor = combat.combatants.get(combat.previous?.combatantId)?.actor ?? null;
-  const startedActor = combat.combatants.get(combat.current?.combatantId)?.actor ?? null;
+  const started = combat.combatants.get(combat.current?.combatantId) ?? null;
   if (endedActor) await tickDecay(endedActor);
-  if (startedActor) { await tickSustain(startedActor); tickStunned(startedActor); }
+  if (started?.actor) {
+    // HP/Energy regen applies once per round: only when this combatant first reaches a round it
+    // hasn't sustained in yet. Going back in the turn order won't clear the flag, so it won't reheal.
+    const lastSustained = Number(started.getFlag("project-anime", "sustainRound")) || 0;
+    if (combat.round > lastSustained) {
+      await started.setFlag("project-anime", "sustainRound", combat.round);
+      await tickSustain(started.actor);
+    }
+    tickStunned(started.actor);
+  }
 }
 
 Hooks.on("updateCombat", combatTurnTick);
@@ -383,6 +394,21 @@ async function recoverDefeatedOnCombatEnd(combat) {
   }
 }
 Hooks.on("deleteCombat", recoverDefeatedOnCombatEnd);
+
+/** Foundry only steps over Defeated combatants on turn advancement when the world's "Skip
+ *  Defeated" combat-tracker option is enabled, and it ships off. The rules (p.14) make skipping
+ *  the Defeated mandatory, so the active GM turns it on at startup. Idempotent (writes only when
+ *  it's currently off) and the change is reflected in the tracker's ⚙ settings, so a GM still
+ *  sees it enabled. With it on, `Combat#nextTurn` skips any combatant `markDefeatedFromHP`
+ *  flagged at 0 HP; healing one back above 0 clears the flag and returns it to the order. */
+async function ensureSkipDefeated() {
+  const key = CONFIG.Combat.documentClass?.CONFIG_SETTING ?? "combatTrackerConfig";
+  const current = game.settings.get("core", key);
+  const cfg = current?.toObject?.() ?? foundry.utils.deepClone(current ?? {});
+  if (cfg.skipDefeated) return;
+  cfg.skipDefeated = true;
+  await game.settings.set("core", key, cfg);
+}
 
 // Drag an ActiveEffect onto a token to apply a copy to its actor (requires ownership;
 // effects dragged from a sheet's Effects list, an item's Effects tab, or a compendium).
@@ -431,13 +457,15 @@ Hooks.on("updateActiveEffect", (effect, change, options, userId) => resyncGrants
 
 // Whenever an item becomes equipped, clear anything else occupying its slot (one
 // weapon per hand, one armor, ≤2 accessories, a 2H weapon/shield frees the off-hand).
-// Catches every equip path; only the user who made the change enforces (they own the
-// actor, so they can unequip the displaced items). Handles flat ("system.equipped")
-// and nested ({system:{equipped}}) change shapes.
+// Catches every equip path, plus grip flips (switching to a two-handed grip must free the
+// off hand). Only the user who made the change enforces (they own the actor, so they can
+// unequip the displaced items). Handles flat ("system.equipped") and nested
+// ({system:{equipped}}) change shapes.
 Hooks.on("updateItem", (item, change, options, userId) => {
   if (game.user.id !== userId || !item.actor || !item.system?.equipped) return;
-  const touched = foundry.utils.hasProperty(change, "system.equipped")
-    || Object.prototype.hasOwnProperty.call(change, "system.equipped");
+  const touched = ["system.equipped", "system.grip"].some(
+    (k) => foundry.utils.hasProperty(change, k) || Object.prototype.hasOwnProperty.call(change, k)
+  );
   if (touched) enforceEquipExclusivity(item.actor, item);
 });
 
@@ -571,6 +599,10 @@ Hooks.once("ready", function () {
 
   // One-time: back each existing Party with a real Folder (migrating any legacy system.members).
   if (paIsActiveGM()) ensureAllPartyFolders();
+
+  // Enforce the rules' "skip the Defeated" turn order (p.14) — defeated enemies/PCs at 0 HP
+  // are stepped over in the encounter tracker.
+  if (paIsActiveGM()) ensureSkipDefeated();
 
   // GM-side relay for applying damage. A player clicking "Apply" on a target
   // they don't own (e.g. the GM's monster) can't update it directly — the server

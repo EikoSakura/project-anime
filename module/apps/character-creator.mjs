@@ -57,6 +57,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
       recalcVitals: CharacterCreatorApp.#onRecalcVitals,
       rollLuck: CharacterCreatorApp.#onRollLuck,
       openSkillBuilder: CharacterCreatorApp.#onOpenSkillBuilder,
+      editSkill: CharacterCreatorApp.#onEditSkill,
       removeSkill: CharacterCreatorApp.#onRemoveSkill,
       chooseOption: CharacterCreatorApp.#onChooseOption,
       shopFilter: CharacterCreatorApp.#onShopFilter,
@@ -430,6 +431,14 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     const existing = foundry.applications.instances.get(id);
     if (existing) return existing.bringToFront();
     return new SkillBuilderApp(this.actor, { startMode: "build" }).render(true);
+  }
+
+  /** Edit a built Skill in the full Skill Builder, pre-loaded with all its choices. */
+  static #onEditSkill(event, target) {
+    const id = target.closest("[data-skill-id]")?.dataset.skillId;
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "skill") return;
+    return SkillBuilderApp.open(this.actor, { skillId: id });
   }
 
   /** Delete a built Skill (creation is a sandbox — undo is free). Deleting a Skill refunds its

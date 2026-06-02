@@ -207,7 +207,7 @@
         {{#unless isFirst}}<button type="button" class="sb-back" data-action="stepBack"><i class="fas fa-chevron-left"></i> {{localize "PROJECTANIME.SkillBuilder.back"}}</button>{{/unless}}
         {{#if isLast}}
         <button type="button" class="sb-finish" data-action="finishBuild" {{#unless affordable}}disabled{{/unless}}>
-          <i class="fas fa-check"></i> {{localize "PROJECTANIME.SkillBuilder.learn"}} ({{review.spCost}})
+          <i class="fas fa-check"></i> {{finishLabel}}{{#if netCostLabel}} ({{netCostLabel}}){{/if}}
         </button>
         {{else}}
         <button type="button" class="sb-next" data-action="stepNext">{{localize "PROJECTANIME.SkillBuilder.next"}} <i class="fas fa-chevron-right"></i></button>

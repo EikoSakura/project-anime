@@ -158,6 +158,9 @@
           <span class="cc-skill-name">{{s.name}}</span>
           <span class="cc-skill-sub muted">{{s.stars}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}} · <i class="fas fa-star"></i>{{s.spCost}}</span>
         </div>
+        <button type="button" class="cc-icon-btn" data-action="editSkill" title="{{localize 'PROJECTANIME.Action.edit'}}">
+          <i class="fas fa-pen-to-square"></i>
+        </button>
         <button type="button" class="cc-icon-btn danger" data-action="removeSkill" title="{{localize 'PROJECTANIME.Creator.removeSkill'}}">
           <i class="fas fa-trash"></i>
         </button>

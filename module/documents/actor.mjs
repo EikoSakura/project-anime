@@ -16,23 +16,20 @@ export function enforceEquipExclusivity(actor, item) {
   const clear = (it) => clears.push({ _id: it.id, "system.equipped": false });
 
   switch (item.type) {
-    case "weapon": {
+    case "weapon":
+    case "shield": {
+      // Weapons and shields share the two hand slots; each hand holds one of either,
+      // so dual-wielding — including a shield in each hand — is allowed. A two-handed
+      // weapon spans both hands, whether it's the incoming item or the one already worn.
       const hand = item.system.hand === "off" ? "off" : "main";
-      for (const it of others) if (it.type === "weapon" && it.system.hand === hand) clear(it);
-      // A two-handed grip occupies both hands → also free the off-hand.
-      if (item.system.grip === "two") {
-        for (const it of others) if (it.type === "shield" || (it.type === "weapon" && it.system.hand === "off")) clear(it);
+      const twoHanded = item.type === "weapon" && item.system.grip === "two";
+      for (const it of others) {
+        if (it.type !== "weapon" && it.type !== "shield") continue;
+        const otherTwoHanded = it.type === "weapon" && it.system.hand === "main" && it.system.grip === "two";
+        if (it.system.hand === hand || twoHanded || otherTwoHanded) clear(it);
       }
       break;
     }
-    case "shield":
-      // Shields equip to the off-hand: clear another off-hand item and a 2H main weapon.
-      for (const it of others) {
-        if (it.type === "shield") clear(it);
-        else if (it.type === "weapon" && it.system.hand === "off") clear(it);
-        else if (it.type === "weapon" && it.system.hand === "main" && it.system.grip === "two") clear(it);
-      }
-      break;
     case "armor":
       for (const it of others) if (it.type === "armor") clear(it);
       break;

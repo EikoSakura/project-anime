@@ -36,7 +36,7 @@ const PAPERDOLL_SLOTS = [
 
 /** Item types each paperdoll slot accepts (keyed by the slot's `base`). */
 const SLOT_ACCEPTS = {
-  mainHand: ["weapon"],
+  mainHand: ["weapon", "shield"],
   offHand: ["weapon", "shield"],
   armor: ["armor"],
   container: ["container"],
@@ -110,9 +110,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
    *  container item id. Drives the WoW-style bag view; survives re-renders. */
   #selectedBag = "";
 
-  /** Skills drawer filter — action-type chip ("all"/"action"/"react"/"passive") and
-   *  the name-search query. Client-side only (no re-render); survives re-renders. */
-  #skillFilter = "all";
+  /** Skills drawer filter — a set of selected action-type chips ("action"/"react"/"passive";
+   *  empty = "all", i.e. show everything) plus the name-search query. Multi-select: chips
+   *  union, so Active + React shows both. Client-side only (no re-render); survives re-renders. */
+  #skillFilters = new Set();
   #skillQuery = "";
 
   /** @override — choose which parts render (handles the limited-permission view). */
@@ -250,7 +251,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     this.#bindSkillFilter();
     if (this.isEditable) {
       this.#bindPaperdoll();
-      this.#bindSkillContext();
+      this.#bindItemContext();
       this.#bindEffectDnD();
     }
   }
@@ -421,8 +422,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
 
   /** Which equipped item currently fills a paperdoll slot (null if empty). */
   #slotOccupant(slotKey, equipped) {
-    if (slotKey === "mainHand") return equipped.find((i) => i.type === "weapon" && i.system.hand === "main") ?? null;
-    if (slotKey === "offHand") return equipped.find((i) => (i.type === "weapon" && i.system.hand === "off") || i.type === "shield") ?? null;
+    if (slotKey === "mainHand") return equipped.find((i) => (i.type === "weapon" || i.type === "shield") && i.system.hand === "main") ?? null;
+    if (slotKey === "offHand") return equipped.find((i) => (i.type === "weapon" || i.type === "shield") && i.system.hand === "off") ?? null;
     if (slotKey === "armor") return equipped.find((i) => i.type === "armor") ?? null;
     if (slotKey === "container") return equipped.find((i) => i.type === "container") ?? null;
     if (slotKey.startsWith("accessory:")) {
@@ -481,7 +482,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   static async #onEditItem(event, target) {
-    ProjectAnimeActorSheet.#getItem.call(this, target)?.sheet.render(true);
+    const item = ProjectAnimeActorSheet.#getItem.call(this, target);
+    if (!item) return;
+    // Editing a Skill opens the full Skill Builder, pre-loaded with its choices; other
+    // item types open their own sheet.
+    if (item.type === "skill") return SkillBuilderApp.open(this.actor, { skillId: item.id });
+    item.sheet.render(true);
   }
 
   static async #onDeleteItem(event, target) {
@@ -552,14 +558,14 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       case "mainHand": {
         const twoHanded = item.system.grip === "two";
         target["system.hand"] = "main";
-        for (const it of equipped) if (it.type === "weapon" && it.system.hand === "main") clear(it);
+        for (const it of equipped) if ((it.type === "weapon" || it.type === "shield") && it.system.hand === "main") clear(it);
         // A two-handed grip occupies both hands → also free the off hand.
-        if (twoHanded) for (const it of equipped) if ((it.type === "weapon" && it.system.hand === "off") || it.type === "shield") clear(it);
+        if (twoHanded) for (const it of equipped) if ((it.type === "weapon" || it.type === "shield") && it.system.hand === "off") clear(it);
         break;
       }
       case "offHand": {
-        if (item.type === "weapon") target["system.hand"] = "off";
-        for (const it of equipped) if ((it.type === "weapon" && it.system.hand === "off") || it.type === "shield") clear(it);
+        target["system.hand"] = "off";
+        for (const it of equipped) if ((it.type === "weapon" || it.type === "shield") && it.system.hand === "off") clear(it);
         // A two-handed weapon in the main hand must give up a hand for this.
         for (const it of equipped) if (it.type === "weapon" && it.system.hand === "main" && it.system.grip === "two") clear(it);
         break;
@@ -757,7 +763,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const acc = sys.accuracy ?? {};
       row(i18n("PROJECTANIME.Field.accuracy"), `⟪${aName(acc.attrA)}⟫ + ⟪${aName(acc.attrB)}⟫${signed(acc.mod)}`);
       if (sys.damage) row(i18n("PROJECTANIME.Roll.damage"), `${elName(sys.damage.type)}${signed(sys.damage.mod)}`.trim());
-      if (item.type === "shield") row(i18n("PROJECTANIME.Field.evasionBonus"), sys.evasionBonus);
+      if (item.type === "shield" && sys.evasionBonus) row(i18n("PROJECTANIME.Field.evasionBonus"), sys.evasionBonus);
+      if (item.type === "shield" && sys.defenseBonus) row(i18n("PROJECTANIME.Field.defenseBonus"), sys.defenseBonus);
       if (cfg.hands?.[sys.hand]) row(i18n("PROJECTANIME.Field.hand"), i18n(cfg.hands[sys.hand]));
       if (sys.equipped) typeLabel += ` · ${i18n("PROJECTANIME.Field.equipped")}`;
     } else if (item.type === "skill") {
@@ -787,18 +794,22 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
 
   /** Skills drawer: action-type chips + name search. Pure client-side show/hide — no
    *  re-render — so it's instant and never fights the drawer-open state. Filter state
-   *  lives in #skillFilter / #skillQuery and is re-applied here after every render. */
+   *  lives in #skillFilters / #skillQuery and is re-applied here after every render. */
   #bindSkillFilter() {
     const drawer = this.element?.querySelector('.section-drawer[data-section="skills"]');
     if (!drawer) return;
     const chips = drawer.querySelectorAll(".skill-chip");
     const search = drawer.querySelector(".skill-search");
+    const sel = this.#skillFilters;
     const apply = () => {
-      const f = this.#skillFilter;
       const q = this.#skillQuery.trim().toLowerCase();
-      for (const chip of chips) chip.classList.toggle("active", chip.dataset.filter === f);
+      // "all" lights up when nothing is selected; each type chip when it's in the set.
+      for (const chip of chips) {
+        const f = chip.dataset.filter;
+        chip.classList.toggle("active", f === "all" ? sel.size === 0 : sel.has(f));
+      }
       for (const group of drawer.querySelectorAll(".skill-group")) {
-        const typeOk = f === "all" || group.dataset.group === f;
+        const typeOk = sel.size === 0 || sel.has(group.dataset.group);
         let shown = 0;
         for (const tile of group.querySelectorAll(".skill-tile")) {
           const match = typeOk && (!q || (tile.dataset.name || "").toLowerCase().includes(q));
@@ -810,7 +821,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     };
     for (const chip of chips) {
       chip.addEventListener("click", () => {
-        this.#skillFilter = chip.dataset.filter;
+        const f = chip.dataset.filter;
+        // "all" clears the selection; type chips toggle (union). Removing the last selected
+        // type falls back to "all".
+        if (f === "all") sel.clear();
+        else if (sel.has(f)) sel.delete(f);
+        else sel.add(f);
         apply();
       });
     }
@@ -824,24 +840,28 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     apply();
   }
 
-  /** Right-click a skill tile (drawer or quick panel) → context menu. Editable views only. */
-  #bindSkillContext() {
+  /** Right-click an item tile — skill (drawer/quick panel), equipped-weapon quick panel, or
+   *  gear bag — opens a context menu. Dispatches by item type. Editable views only. */
+  #bindItemContext() {
     const root = this.element;
     if (!root) return;
-    for (const tile of root.querySelectorAll(".skill-tile, .quick-tile[data-readied-type='skill']")) {
+    for (const tile of root.querySelectorAll(".item-tile")) {
+      const id = tile.dataset.itemId;
+      if (!id) continue;   // skip non-item tiles (e.g. the "add item" tile)
       tile.addEventListener("contextmenu", (ev) => {
         ev.preventDefault();
-        const item = this.actor.items.get(tile.dataset.itemId);
-        if (item) this.#openItemContext(item, ev);
+        const item = this.actor.items.get(id);
+        if (!item) return;
+        if (item.type === "skill") this.#openSkillContext(item, ev);
+        else this.#openGearContext(item, ev);
       });
     }
   }
 
-  /** Build the skill context menu as a popover anchored at the cursor. */
-  #openItemContext(item, ev) {
+  /** An empty context-menu popover anchored at the cursor. Returns an `add(icon, label,
+   *  onClick, cls?)` row helper and a `show()` to display it — shared by the menus below. */
+  #contextMenu(ev) {
     this.element.querySelector(".pd-picker")?.remove();
-    const readied = !!item.getFlag("project-anime", "readied");
-
     const menu = document.createElement("div");
     menu.className = "pd-picker context-menu";
     menu.setAttribute("popover", "auto");
@@ -858,21 +878,56 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       menu.appendChild(row);
     };
 
+    const show = () => {
+      this.element.appendChild(menu);
+      menu.addEventListener("toggle", (e) => {
+        if (e.newState !== "open") { menu.remove(); return; }
+        Object.assign(menu.style, { position: "fixed", inset: "auto", margin: "0", left: `${ev.clientX}px`, top: `${ev.clientY}px`, minWidth: "160px" });
+        const h = menu.offsetHeight, w = menu.offsetWidth;
+        if (ev.clientY + h > window.innerHeight - 4) menu.style.top = `${Math.max(4, ev.clientY - h)}px`;
+        if (ev.clientX + w > window.innerWidth - 4) menu.style.left = `${Math.max(4, ev.clientX - w)}px`;
+      });
+      menu.showPopover();
+    };
+
+    return { add, show };
+  }
+
+  /** Skill context menu: use, pin/unpin, edit, delete. */
+  #openSkillContext(item, ev) {
+    const readied = !!item.getFlag("project-anime", "readied");
+    const { add, show } = this.#contextMenu(ev);
     add("fa-dice-d20", "PROJECTANIME.Action.use", () => item.roll({ event: ev }));
     if (readied) add("fa-xmark", "PROJECTANIME.Quick.remove", () => item.unsetFlag("project-anime", "readied"));
     else add("fa-thumbtack", "PROJECTANIME.Quick.pin", () => item.setFlag("project-anime", "readied", true));
+    add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => SkillBuilderApp.open(this.actor, { skillId: item.id }));
+    add("fa-trash", "PROJECTANIME.Action.delete", () => item.deleteDialog(), "danger");
+    show();
+  }
+
+  /** Gear context menu: post to chat, equip (per-hand for weapons & shields), edit, delete. */
+  #openGearContext(item, ev) {
+    const equipped = !!item.system?.equipped;
+    const { add, show } = this.#contextMenu(ev);
+    add("fa-comment", "PROJECTANIME.Action.toChat", () => item.roll({ event: ev }));
+    if (item.type === "weapon" || item.type === "shield") {
+      add("fa-hand-fist", "PROJECTANIME.Action.equipMainHand", () => this.#equipToSlot(item, "mainHand"));
+      add("fa-shield-halved", "PROJECTANIME.Action.equipOffHand", () => this.#equipToSlot(item, "offHand"));
+      if (equipped) add("fa-xmark", "PROJECTANIME.Action.unequip", () => item.update({ "system.equipped": false }));
+    } else if (EQUIPPABLE.has(item.type)) {
+      const key = equipped ? "PROJECTANIME.Action.unequip" : "PROJECTANIME.Action.equip";
+      add("fa-shield-halved", key, () => item.update({ "system.equipped": !equipped }));
+    }
+    // Weapons flip grip in place (a two-handed grip Steps Up the damage die and, when
+    // equipped, frees the off hand via enforceEquipExclusivity on the resulting update).
+    if (item.type === "weapon") {
+      const twoH = item.system?.grip === "two";
+      add(twoH ? "fa-hand" : "fa-hands", twoH ? "PROJECTANIME.Action.gripOne" : "PROJECTANIME.Action.gripTwo",
+        () => item.update({ "system.grip": twoH ? "one" : "two" }));
+    }
     add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
     add("fa-trash", "PROJECTANIME.Action.delete", () => item.deleteDialog(), "danger");
-
-    this.element.appendChild(menu);
-    menu.addEventListener("toggle", (e) => {
-      if (e.newState !== "open") { menu.remove(); return; }
-      Object.assign(menu.style, { position: "fixed", inset: "auto", margin: "0", left: `${ev.clientX}px`, top: `${ev.clientY}px`, minWidth: "160px" });
-      const h = menu.offsetHeight, w = menu.offsetWidth;
-      if (ev.clientY + h > window.innerHeight - 4) menu.style.top = `${Math.max(4, ev.clientY - h)}px`;
-      if (ev.clientX + w > window.innerWidth - 4) menu.style.left = `${Math.max(4, ev.clientX - w)}px`;
-    });
-    menu.showPopover();
+    show();
   }
 
   /** Native drag-and-drop: drag bag/slot items onto a slot to equip; onto the bag to unequip. */

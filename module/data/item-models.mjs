@@ -186,6 +186,9 @@ export class ProjectAnimeShield extends ProjectAnimeItemBase {
   static defineSchema() {
     const schema = super.defineSchema();
     schema.evasionBonus = new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 });
+    // Heavier shields trade Evasion for damage reduction: a Defense Bonus that adds to the
+    // wearer's Defense (folded in by the actor model, like a piece of armor).
+    schema.defenseBonus = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
     schema.accuracy = accuracyField("might", "agility");
     schema.damage = damageField();
     schema.range = physicalRangeField("melee", 1);

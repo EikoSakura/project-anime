@@ -154,6 +154,7 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
     let defenseFromArmor = 0;
     let evasionPenalty = 0;
     let shieldEvasion = 0;
+    let shieldDefense = 0;
     let containerBonus = 0;
 
     for (const item of this.parent?.items ?? []) {
@@ -170,14 +171,15 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
         defenseFromArmor += Number(data.defenseBonus ?? 0) || 0;
         evasionPenalty += Number(data.evasionPenalty ?? 0) || 0;
       } else if (item.type === "shield") {
-        // With two shields equipped, only the higher Evasion Bonus applies.
+        // With two shields equipped, only the higher bonus of each kind applies.
         shieldEvasion = Math.max(shieldEvasion, Number(data.evasionBonus ?? 0) || 0);
+        shieldDefense = Math.max(shieldDefense, Number(data.defenseBonus ?? 0) || 0);
       }
     }
 
     this.evasion.value = Math.max(0, agility + (this.evasion.bonus ?? 0) - evasionPenalty + shieldEvasion);
     this.movement.value = Math.floor(agility / 2) + 3 + (this.movement.bonus ?? 0);
-    this.defense.value = (this.defense.bonus ?? 0) + defenseFromArmor;
+    this.defense.value = (this.defense.bonus ?? 0) + defenseFromArmor + shieldDefense;
     this.carryingCapacity.max = might + 3 + (this.carryingCapacity.bonus ?? 0) + containerBonus;
     this.carryingCapacity.value = load;
     this.carryingCapacity.overloaded = load > this.carryingCapacity.max;

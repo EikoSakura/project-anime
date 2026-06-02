@@ -34,11 +34,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     super({ ...options, id: `pa-skill-builder-${actor.id}` });
     this.actor = actor;
     // The Character Creator opens this straight into the build wizard.
-    if (options.startMode === "build") {
-      this.#mode = "build";
-      this.#step = 0;
-      this.#draft = this.#blankDraft();
-    }
+    if (options.startMode === "build") this.#beginBuild();
+  }
+
+  /** Open the Skill Builder for `actor`, reusing an already-open window. With `skillId`, jump
+   *  straight into editing that Skill in the full wizard, pre-loaded with its current choices. */
+  static open(actor, { skillId = null } = {}) {
+    const existing = foundry.applications.instances.get(`pa-skill-builder-${actor.id}`);
+    const app = existing ?? new SkillBuilderApp(actor);
+    if (skillId) app.#beginEdit(skillId);
+    if (existing) { app.render(); app.bringToFront(); }
+    else app.render(true);
+    return app;
   }
 
   static DEFAULT_OPTIONS = {
@@ -81,6 +88,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
   #draft = null;
   /** Id of the Skill being improved (advance mode). */
   #advanceId = null;
+  /** Id of the Skill being edited in the build wizard (null = building a new Skill). */
+  #editId = null;
 
   get title() {
     return `${game.i18n.localize("PROJECTANIME.SkillBuilder.title")} — ${this.actor.name}`;
@@ -104,6 +113,51 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       trigger: "",
       modifiers: []
     };
+  }
+
+  /** Enter the build wizard for a brand-new Skill. */
+  #beginBuild() {
+    this.#mode = "build";
+    this.#editId = null;
+    this.#step = 0;
+    this.#draft = this.#blankDraft();
+  }
+
+  /** Enter the wizard to edit an existing Skill: same steps, pre-loaded, commits back to it. */
+  #beginEdit(id) {
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "skill") return;
+    this.#mode = "build";
+    this.#editId = id;
+    this.#step = 0;
+    this.#draft = this.#draftFromSkill(item);
+  }
+
+  /** A build draft seeded from an existing Skill — the inverse of #onFinishBuild's write. */
+  #draftFromSkill(item) {
+    const s = item.system ?? {};
+    return {
+      name: item.name,
+      img: item.img,
+      description: s.description ?? "",
+      actionType: s.actionType ?? "action",
+      rank: s.rank ?? 1,
+      attrA: s.attributes?.attrA ?? "might",
+      attrB: s.attributes?.attrB ?? "spirit",
+      damageAttr: s.damageAttr ?? "attrA",
+      range: { scope: s.range?.scope ?? "near", tiles: s.range?.tiles ?? 0 },
+      effect: s.effect ?? "strike",
+      damageType: s.damageType ?? "",
+      damagePool: s.damagePool ?? "hp",
+      trigger: s.trigger ?? "",
+      modifiers: [...(s.modifiers ?? [])]
+    };
+  }
+
+  /** Total SP logged against a Skill (its base "skill" entry plus any "improve" entries). */
+  #loggedFor(id) {
+    const log = this.actor.system.skillPoints?.log ?? [];
+    return log.filter((e) => e.ref === id).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   }
 
   /* -------------------------------------------- */
@@ -149,6 +203,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const cfg = CONFIG.PROJECTANIME;
     const d = this.#draft;
     const stepKey = STEPS[this.#step];
+    // When editing, the SP already logged against this Skill is returned before its new Rank
+    // cost is charged, so it counts toward the budget (and the cost shown is the net change).
+    const editedLogged = this.#editId ? this.#loggedFor(this.#editId) : 0;
+    const budget = sp + editedLogged;
 
     ctx.draft = d;
     ctx.steps = STEPS.map((k, i) => ({
@@ -206,7 +264,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         energy: v.energy,
         maxModifiers: v.maxModifiers,
         selected: d.rank === rank,
-        affordable: v.sp <= sp
+        affordable: v.sp <= budget
       };
     });
 
@@ -251,7 +309,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       spCost: rank.sp ?? d.rank,
       energyCost: d.actionType === "passive" ? 0 : (rank.energy ?? d.rank * 2)
     };
-    ctx.affordable = (rank.sp ?? d.rank) <= sp;
+    const rankCost = rank.sp ?? d.rank;
+    ctx.affordable = rankCost <= budget;
+    // Edit mode swaps "Learn (cost)" for "Save Changes (net SP)" — the net is the new Rank
+    // cost minus what's already logged (negative = a refund), blank when it nets to zero.
+    ctx.isEditing = !!this.#editId;
+    ctx.finishLabel = game.i18n.localize(this.#editId ? "PROJECTANIME.SkillBuilder.saveChanges" : "PROJECTANIME.SkillBuilder.learn");
+    if (this.#editId) {
+      const net = rankCost - editedLogged;
+      ctx.netCostLabel = net === 0 ? "" : (net > 0 ? `+${net}` : `-${Math.abs(net)}`);
+    } else {
+      ctx.netCostLabel = String(rankCost);
+    }
   }
 
   #prepareAdvance(ctx, sp) {
@@ -413,9 +482,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static #onFormSubmit() { /* navigation & commits are handled via the action buttons */ }
 
   static #onBuildNew() {
-    this.#mode = "build";
-    this.#step = 0;
-    this.#draft = this.#blankDraft();
+    this.#beginBuild();
     this.render();
   }
 
@@ -455,6 +522,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static #onBackToHub() {
     this.#mode = "hub";
     this.#draft = null;
+    this.#editId = null;
     this.render();
   }
 
@@ -528,7 +596,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     return fp.browse();
   }
 
-  /** Commit the build: create the Skill and spend SP = Rank (blocking if short). */
+  /** Commit the wizard: create a new Skill (spending SP = Rank), or save changes back to the
+   *  Skill being edited (reconciling its SP to the new Rank cost). */
   static async #onFinishBuild() {
     this.#sync();
     const d = this.#draft;
@@ -539,36 +608,78 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       ui.notifications.warn(game.i18n.localize("PROJECTANIME.Skill.reactNeedsTrigger"));
       return this.render();
     }
-    const cost = cfg.skillRanks[d.rank]?.sp ?? d.rank;
-    const spNow = this.actor.system.skillPoints?.value ?? 0;
-    if (cost > spNow) {
-      return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost, sp: spNow }));
-    }
-
     const name = (d.name || "").trim() || game.i18n.localize("PROJECTANIME.SkillBuilder.newSkillName");
+    const rankCost = cfg.skillRanks[d.rank]?.sp ?? d.rank;
+    const system = {
+      description: d.description ?? "",
+      rank: d.rank,
+      actionType: d.actionType,
+      attributes: { attrA: d.attrA, attrB: d.attrB },
+      damageAttr: d.damageAttr,
+      range: d.range,
+      effect: d.effect,
+      // Only damage Effects (Strike / Affinity) keep a damage type.
+      damageType: cfg.damageEffects.includes(d.effect) ? (d.damageType ?? "") : "",
+      damagePool: d.damagePool,
+      trigger: d.actionType === "react" ? d.trigger : "",
+      modifiers: [...d.modifiers]
+    };
+    if (this.#editId) await this.#commitEdit(name, system, rankCost);
+    else await this.#commitNew(name, system, rankCost);
+  }
+
+  /** Create the Skill and spend SP = Rank (the rules' "Learning a Skill"), blocking if short. */
+  async #commitNew(name, system, rankCost) {
+    const sp = this.actor.system.skillPoints?.value ?? 0;
+    if (rankCost > sp) {
+      return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: rankCost, sp }));
+    }
     const [created] = await this.actor.createEmbeddedDocuments("Item", [{
-      name,
-      type: "skill",
-      img: d.img || DEFAULT_SKILL_IMG,
-      system: {
-        description: d.description ?? "",
-        rank: d.rank,
-        actionType: d.actionType,
-        attributes: { attrA: d.attrA, attrB: d.attrB },
-        damageAttr: d.damageAttr,
-        range: d.range,
-        effect: d.effect,
-        // Only damage Effects (Strike / Affinity) keep a damage type.
-        damageType: cfg.damageEffects.includes(d.effect) ? (d.damageType ?? "") : "",
-        damagePool: d.damagePool,
-        trigger: d.actionType === "react" ? d.trigger : "",
-        modifiers: [...d.modifiers]
-      }
+      name, type: "skill", img: this.#draft.img || DEFAULT_SKILL_IMG, system
     }]);
-    await this.actor.recordSkillPointSpend({ amount: cost, kind: "skill", ref: created?.id ?? "", label: name });
-    ui.notifications.info(game.i18n.format("PROJECTANIME.SkillBuilder.learned", { name, cost }));
+    await this.actor.recordSkillPointSpend({ amount: rankCost, kind: "skill", ref: created?.id ?? "", label: name });
+    ui.notifications.info(game.i18n.format("PROJECTANIME.SkillBuilder.learned", { name, cost: rankCost }));
     this.#mode = "hub";
     this.#draft = null;
+    this.#editId = null;
+    this.render();
+  }
+
+  /**
+   * Save the wizard back onto the edited Skill and reconcile its Skill Points. A full re-edit
+   * rebuilds the Skill in place: its whole ledger (base "skill" entry + any "improve" entries)
+   * is replaced by one new Rank-cost entry — prior Improve upgrades are refunded, and the
+   * advancement-only fields they bought (Sharpen / Lower Energy / Turn) reset to defaults.
+   * Granted Skills are package-managed and free, so their fields are rewritten without SP changes.
+   */
+  async #commitEdit(name, system, rankCost) {
+    const item = this.actor.items.get(this.#editId);
+    if (!item) { this.#mode = "hub"; this.#draft = null; this.#editId = null; return this.render(); }
+
+    // Rewrite the Skill (flattened so any removed Modifier-growth keys can be deleted cleanly).
+    const update = foundry.utils.flattenObject({
+      name, img: this.#draft.img || DEFAULT_SKILL_IMG,
+      system: { ...system, accuracyMod: 0, energyReduction: 0 }
+    });
+    for (const key of Object.keys(item.system.modifierGrowth ?? {})) update[`system.modifierGrowth.-=${key}`] = null;
+
+    if (!item.getFlag("project-anime", "granted")) {
+      const logged = this.#loggedFor(this.#editId);
+      const value = this.actor.system.skillPoints?.value ?? 0;
+      const newValue = value + logged - rankCost;
+      if (newValue < 0) {
+        return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: rankCost - logged, sp: value }));
+      }
+      const log = (this.actor.system.skillPoints?.log ?? []).filter((e) => e.ref !== this.#editId);
+      log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() });
+      await this.actor.update({ "system.skillPoints.value": newValue, "system.skillPoints.log": log });
+    }
+    await item.update(update);
+
+    ui.notifications.info(game.i18n.format("PROJECTANIME.SkillBuilder.updated", { name }));
+    this.#mode = "hub";
+    this.#draft = null;
+    this.#editId = null;
     this.render();
   }
 

@@ -105,8 +105,14 @@ function enhanceOne(select) {
   };
 
   // Reposition while open is pointless once the page scrolls under it, so just
-  // dismiss on scroll to avoid a detached floating menu.
-  const onScroll = () => { if (menu.matches(":popover-open")) menu.hidePopover(); };
+  // dismiss on scroll to avoid a detached floating menu. Capture-phase catches
+  // scrolls from any element, so ignore ones that originate inside the menu —
+  // that's the user scrolling the option list, not the page moving under it.
+  const onScroll = (ev) => {
+    if (!menu.matches(":popover-open")) return;
+    if (menu.contains(ev.target)) return;
+    menu.hidePopover();
+  };
 
   button.addEventListener("click", () => menu.togglePopover());
   menu.addEventListener("toggle", (ev) => {

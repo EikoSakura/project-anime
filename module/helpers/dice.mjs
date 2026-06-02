@@ -452,6 +452,28 @@ export async function rollAttack(actor, item, { event } = {}) {
   return roll;
 }
 
+/** A "Weapon"-range Skill borrows the equipped weapon's accuracy & damage. Returns that weapon
+ *  (main-hand preferred, else any equipped weapon), or null when the Skill isn't Weapon-ranged or
+ *  nothing is equipped (in which case it falls back to the Skill's own Attributes). */
+function skillWeapon(actor, item) {
+  if (item?.type !== "skill" || item.system?.range?.scope !== "weapon") return null;
+  const weapons = (actor?.items ?? []).filter((i) => i.type === "weapon" && i.system?.equipped);
+  return weapons.find((w) => w.system.hand === "main") ?? weapons[0] ?? null;
+}
+
+/** The accuracy Attributes + flat mod a Skill's Check uses: a Weapon-range Skill borrows the
+ *  equipped weapon's accuracy; otherwise the Skill's own two Attributes (Skills carry no flat
+ *  accuracy mod — their bonus comes from Sharpen). */
+function skillAccuracy(actor, item) {
+  const weapon = skillWeapon(actor, item);
+  if (weapon) {
+    const a = weapon.system.accuracy ?? {};
+    return { attrA: a.attrA ?? "might", attrB: a.attrB ?? "agility", mod: Number(a.mod) || 0 };
+  }
+  const at = item.system?.attributes ?? {};
+  return { attrA: at.attrA ?? "might", attrB: at.attrB ?? "spirit", mod: 0 };
+}
+
 /**
  * Roll the (target-independent) damage/heal amount for a weapon or skill once. Shared by
  * the single-target, area, and chain damage paths — they each apply this raw to their targets.
@@ -460,31 +482,37 @@ export async function rollAttack(actor, item, { event } = {}) {
 async function computeDamageRoll(actor, item, { target = null, charged = false } = {}) {
   const isSkill = item.type === "skill";
   const heal = isSkill && item.system.effect === "mend";
+  // A Weapon-range Skill borrows the equipped weapon's accuracy Attributes & damage (mod, type,
+  // die, grip rules); the Skill's own pool / Pierce / charge still layer on below. `weapon` is
+  // null for ordinary Skills (and for weapons themselves), so they keep their existing behavior.
+  const weapon = skillWeapon(actor, item);
+  const usesWeapon = !!weapon || !isSkill;   // compute damage the weapon way
+  const src = weapon ?? item;
 
   let attrA, attrB, mod, dtype;
-  if (isSkill) {
+  if (usesWeapon) {
+    attrA = src.system.accuracy?.attrA ?? "might";
+    attrB = src.system.accuracy?.attrB ?? "agility";
+    mod = Number(src.system.damage?.mod) || 0;
+    dtype = src.system.damage?.type || "physical";
+  } else {
     attrA = item.system.attributes?.attrA ?? "might";
     attrB = item.system.attributes?.attrB ?? "spirit";
     mod = 0;
     dtype = item.system.damageType || "physical";
-  } else {
-    attrA = item.system.accuracy?.attrA ?? "might";
-    attrB = item.system.accuracy?.attrB ?? "agility";
-    mod = Number(item.system.damage?.mod) || 0;
-    dtype = item.system.damage?.type || "physical";
   }
 
-  // Skills roll the designer-CHOSEN Attribute die (rules: "choose one of its two
-  // Attributes"); weapons roll the larger of the two.
-  const dieAttr = isSkill
-    ? (item.system.attributes?.[item.system.damageAttr] ?? attrA)
-    : largerAttr(actor, attrA, attrB);
-  // Weapon/shield grip rules (p.9-10): a two-handed grip Steps the Damage die UP
-  // one size (or +1 damage if already d12); dual wielding Steps both dice DOWN one.
+  // Weapons (and Weapon-range Skills) roll the larger of the two Attributes; other Skills roll the
+  // designer-CHOSEN Attribute die (rules: "choose one of its two Attributes").
+  const dieAttr = usesWeapon
+    ? largerAttr(actor, attrA, attrB)
+    : (item.system.attributes?.[item.system.damageAttr] ?? attrA);
+  // Weapon/shield grip rules (p.9-10): a two-handed grip Steps the Damage die UP one size (or +1
+  // damage if already d12); dual wielding Steps both dice DOWN one. Applies to borrowed weapons too.
   let dieSize = attrValue(actor, dieAttr);
   const dmgReasons = [];
-  if (!isSkill && !heal) {
-    if (item.system.grip === "two") {
+  if (usesWeapon && !heal) {
+    if (src.system.grip === "two") {
       const up = stepUpValue(dieSize);
       if (up === dieSize) mod += 1; else dieSize = up;
       dmgReasons.push("twoHanded");
@@ -679,12 +707,14 @@ export async function rollSkill(actor, item) {
 
   // 1) Acquire targets (interactive for area Skills) BEFORE spending Energy / clearing the charge.
   let areaTokens = null;     // Token[] for burst/line/mass; null = single-target path
-  let chainPrimary = null;   // primary Token for chain
+  let chainTokens = null;    // ordered player-chosen Tokens for chain (first = primary)
   if (kind === "chain") {
-    const first = [...(game.user?.targets ?? [])][0];
-    if (!first?.actor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
-    if (!casterToken(actor)) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needToken"));
-    chainPrimary = first;
+    const ctoken = casterToken(actor);
+    if (!ctoken) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needToken"));
+    // The chain only travels through the creatures the player TARGETED (never the caster), so it
+    // can't bounce back onto the user or an unintended bystander.
+    chainTokens = [...(game.user?.targets ?? [])].filter((t) => t?.actor && t !== ctoken);
+    if (!chainTokens.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
   } else if (kind) {
     areaTokens = await acquireAreaTargets(actor, item, kind);
     if (areaTokens === null) return null;   // cancelled — no Energy spent / charge kept
@@ -696,7 +726,7 @@ export async function rollSkill(actor, item) {
   else if (!(await spendSkillEnergy(actor, sys))) return null;
 
   // 3) Resolve (a charged release doubles damage/healing).
-  if (chainPrimary) return resolveChain(actor, item, chainPrimary, { charged: releasingCharge });
+  if (chainTokens) return resolveChain(actor, item, chainTokens, { charged: releasingCharge });
   if (kind) {
     setUserTargets(areaTokens);
     return isStrike ? resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge })
@@ -755,8 +785,7 @@ async function acquireAreaTargets(actor, item, kind) {
 /** Single-target Skill resolution (the original behavior; Energy is already spent). */
 async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   const sys = item.system;
-  const attrA = sys.attributes?.attrA ?? "might";
-  const attrB = sys.attributes?.attrB ?? "spirit";
+  const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
   const isStrike = sys.effect === "strike";
   const isMend = sys.effect === "mend";
 
@@ -767,7 +796,7 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   // "Sharpen Accuracy" advancement: a flat bonus baked into the Skill's Check.
   const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
   const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: isStrike });
-  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus));
+  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
   await roll.evaluate();
   const [r1, r2] = dieResults(roll);
   const fumble = isStrike && r1 === 1 && r2 === 1;
@@ -836,14 +865,13 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
  */
 async function resolveAreaStrike(actor, item, targetTokens, { charged = false } = {}) {
   const sys = item.system;
-  const attrA = sys.attributes?.attrA ?? "might";
-  const attrB = sys.attributes?.attrB ?? "spirit";
+  const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
   const primary = targetTokens[0]?.actor ?? null;
 
   const rmods = collectRollModifiers(actor, "attack", { target: primary });
   const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
   const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true });
-  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus));
+  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
   await roll.evaluate();
   const [r1, r2] = dieResults(roll);
   const fumble = r1 === 1 && r2 === 1;
@@ -943,17 +971,19 @@ async function resolveAreaEffect(actor, item, targetTokens, { charged = false } 
 }
 
 /**
- * Chain: hit the primary target, then leap to the nearest unhit token within Near, each leap
- * dealing half the previous damage; the chain stops the moment a leap misses (rules: "must hit
- * each target before the leap can continue"). One combined attack+damage card.
+ * Chain: hit the primary (the player's first target), then leap to the nearest unhit token within
+ * Near that the player ALSO targeted — so the chain only travels through chosen creatures, never
+ * the caster. Each leap deals half the previous damage; the chain stops the moment a leap misses
+ * (rules: "must hit each target before the leap can continue"). One combined attack+damage card.
  */
-async function resolveChain(actor, item, primaryToken, { charged = false } = {}) {
+async function resolveChain(actor, item, chainTokens, { charged = false } = {}) {
   const sys = item.system;
-  const attrA = sys.attributes?.attrA ?? "might";
-  const attrB = sys.attributes?.attrB ?? "spirit";
+  const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
   const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
   const nearTiles = PROJECTANIME.rangeTiles[PROJECTANIME.chainRangeScope] ?? 5;
   const maxTargets = modifierValue(item, "chain") + 1;   // primary + N leaps
+  const chosen = new Set(chainTokens);   // the chain may only travel through targeted creatures
+  const primaryToken = chainTokens[0];
 
   // One damage roll (doubled on a charged release); each successive hit deals half the previous.
   const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor, charged });
@@ -974,7 +1004,7 @@ async function resolveChain(actor, item, primaryToken, { charged = false } = {})
     hitSet.add(current);
     const rmods = collectRollModifiers(actor, "attack", { target: ta });
     const { dieA, dieB } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true });
-    const aroll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus));
+    const aroll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
     await aroll.evaluate();
     rolls.push(aroll);
     const [r1, r2] = dieResults(aroll);
@@ -1003,7 +1033,7 @@ async function resolveChain(actor, item, primaryToken, { charged = false } = {})
     }
     if (!adj.heal) drainTotal += adj.amount;
     prevRaw = raw;
-    current = tokensInRange(current, nearTiles).find((t) => !hitSet.has(t)) ?? null;
+    current = tokensInRange(current, nearTiles).find((t) => chosen.has(t) && !hitSet.has(t)) ?? null;
   }
 
   if (stoppedName) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chainStopped", { name: stoppedName })}</em>`);
@@ -1344,21 +1374,23 @@ async function onApplyAllButton(event) {
 /*  Luck Dice                                   */
 /* -------------------------------------------- */
 
-/** Dialog: pick which die to replace and which stored Luck number to spend. */
+/** Dialog: replace either die, both, or neither with stored Luck numbers — all in one step (up to
+ *  two Luck dice per roll). Each die gets its own picker (Keep / a stored Luck value, by pool
+ *  index). Returns `{ die0, die1 }`, each the chosen pool index or null (= keep that die's roll). */
 async function promptLuck({ d1, d2, pool }) {
-  const dieRow = (idx, val, other) =>
-    `<label class="luck-pick"><input type="radio" name="die" value="${idx}" ${val <= other ? "checked" : ""}/> ${i18n("PROJECTANIME.Roll.die")} ${idx + 1}: <strong>${val}</strong></label>`;
   const luckOpts = pool
     .map((v, i) => ({ v, i }))
     .sort((x, y) => y.v - x.v)
     .map(({ v, i }) => `<option value="${i}">${v}</option>`)
     .join("");
+  const dieRow = (idx, val) => `
+    <div class="form-group">
+      <label>${i18n("PROJECTANIME.Roll.die")} ${idx + 1} <span class="muted">(${val})</span></label>
+      <select name="die${idx}"><option value="" selected>${i18n("PROJECTANIME.Roll.luckKeep")}</option>${luckOpts}</select>
+    </div>`;
   const content = `
     <div class="project-anime roll-dialog luck-dialog">
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.luckReplace")}</label>
-        <div class="luck-dice">${dieRow(0, d1, d2)}${dieRow(1, d2, d1)}</div></div>
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.luckWith")}</label>
-        <select name="luck">${luckOpts}</select></div>
+      ${dieRow(0, d1)}${dieRow(1, d2)}
     </div>`;
   const result = await foundry.applications.api.DialogV2.wait({
     window: { title: i18n("PROJECTANIME.Roll.spendLuck") },
@@ -1370,7 +1402,24 @@ async function promptLuck({ d1, d2, pool }) {
     rejectClose: false
   });
   if (!result || result === "cancel") return null;
-  return { dieIndex: Number(result.die) || 0, luckPos: Number(result.luck) || 0 };
+  return { die0: result.die0 ? Number(result.die0) : null, die1: result.die1 ? Number(result.die1) : null };
+}
+
+/** Resolve a one-shot Luck choice against a roll: validates the two picks are distinct dice,
+ *  computes the new (a, b) pair, and returns the pool with the spent entries removed. Returns
+ *  null when nothing was chosen or the same stored die was picked for both (warns). */
+function applyLuckChoice({ die0, die1, d1, d2, pool }) {
+  if (die0 == null && die1 == null) return null;
+  if (die0 != null && die0 === die1) { ui.notifications.warn(i18n("PROJECTANIME.Roll.luckSameDie")); return null; }
+  const spent = new Set([die0, die1].filter((x) => x != null));
+  return {
+    a: die0 != null ? pool[die0] : d1,
+    b: die1 != null ? pool[die1] : d2,
+    nextPool: pool.filter((_, i) => !spent.has(i)),
+    lines: [die0, die1]
+      .map((p, i) => p == null ? null : i18n("PROJECTANIME.Roll.luckSpent", { die: i + 1, v: pool[p] }))
+      .filter(Boolean)
+  };
 }
 
 /**
@@ -1395,17 +1444,10 @@ async function onSpendLuckButton(event) {
 
   const choice = await promptLuck({ d1, d2, pool });
   if (!choice) return;
-  const luckValue = pool[choice.luckPos];
-  if (luckValue == null) return;
-
-  const a = choice.dieIndex === 0 ? luckValue : d1;
-  const b = choice.dieIndex === 1 ? luckValue : d2;
-  const res = evalPair(a, b, mod, { ct, evasion });
-
-  // Spend the chosen number (remove that single entry from the pool).
-  const nextPool = pool.slice();
-  nextPool.splice(choice.luckPos, 1);
-  await actor.update({ "system.luckDice": nextPool });
+  const spend = applyLuckChoice({ ...choice, d1, d2, pool });
+  if (!spend) return;
+  const res = evalPair(spend.a, spend.b, mod, { ct, evasion });
+  await actor.update({ "system.luckDice": spend.nextPool });
 
   const attackish = kind === "attack" || kind === "skill";
   const badges = [];
@@ -1414,10 +1456,7 @@ async function onSpendLuckButton(event) {
   else if (res.success === true) badges.push({ cls: "success", text: i18n(attackish ? "PROJECTANIME.Roll.hit" : "PROJECTANIME.Roll.success") });
   else if (res.success === false) badges.push({ cls: "failure", text: i18n(attackish ? "PROJECTANIME.Roll.miss" : "PROJECTANIME.Roll.failure") });
 
-  const lines = [
-    i18n("PROJECTANIME.Roll.luckSpent", { die: choice.dieIndex + 1, v: luckValue }),
-    `<strong>${i18n("PROJECTANIME.Roll.total")}: ${res.total}</strong>`
-  ];
+  const lines = [...spend.lines, `<strong>${i18n("PROJECTANIME.Roll.total")}: ${res.total}</strong>`];
   if (res.combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
 
   const buttons = [];
@@ -1458,25 +1497,16 @@ async function onSpendLuckAoeButton(event) {
 
   const choice = await promptLuck({ d1, d2, pool });
   if (!choice) return;
-  const luckValue = pool[choice.luckPos];
-  if (luckValue == null) return;
-
-  const a = choice.dieIndex === 0 ? luckValue : d1;
-  const b = choice.dieIndex === 1 ? luckValue : d2;
-  const res = evalPair(a, b, mod);
-
-  const nextPool = pool.slice();
-  nextPool.splice(choice.luckPos, 1);
-  await actor.update({ "system.luckDice": nextPool });
+  const spend = applyLuckChoice({ ...choice, d1, d2, pool });
+  if (!spend) return;
+  const res = evalPair(spend.a, spend.b, mod);
+  await actor.update({ "system.luckDice": spend.nextPool });
 
   const badges = [];
   if (res.fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
   else if (res.combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
 
-  const lines = [
-    i18n("PROJECTANIME.Roll.luckSpent", { die: choice.dieIndex + 1, v: luckValue }),
-    `<strong>${i18n("PROJECTANIME.Roll.total")}: ${res.total}</strong>`
-  ];
+  const lines = [...spend.lines, `<strong>${i18n("PROJECTANIME.Roll.total")}: ${res.total}</strong>`];
   const hitUuids = [];
   for (const t of targets) {
     const didHit = res.combo || (!res.fumble && (t.ev == null || res.total >= t.ev));
