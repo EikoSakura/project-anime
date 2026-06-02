@@ -225,6 +225,9 @@
     padding: 0.3rem 0.5rem;
     border-radius: 4px;
     background: transparent;
+    /* Override the near-black color from the light-popup fallback above, which
+       would otherwise render as dark text on the dark themed popup. */
+    color: var(--pa-ink);
   }
   .project-anime select option[value=""] { color: var(--pa-ink-soft); }
   .project-anime select option:hover,
@@ -3769,6 +3772,9 @@
 }
 .project-anime.monster-creator .cc-tier-power-val { font-family: var(--pa-font-mono); font-size: 1.2rem; font-weight: 700; color: var(--pa-gold); }
 .project-anime.monster-creator .cc-tier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+/* Odd Tier count: the last card would otherwise sit alone in a half-width cell —
+   let it span the full row so the grid reads as intentional (5 Tiers → 2/2/1). */
+.project-anime.monster-creator .cc-tier-grid > .cc-tier-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .project-anime.monster-creator button.cc-tier-card {
   display: flex; flex-direction: column; gap: 0.45rem; cursor: pointer; text-align: left;
   padding: 0.6rem 0.7rem; border-radius: 9px;

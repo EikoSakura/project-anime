@@ -282,14 +282,15 @@ PROJECTANIME.encounterPowerDefault = 6;
  * a finished balance pass. `icon` / `color` drive the Tier badge on the NPC sheet header.
  */
 PROJECTANIME.monsterTiers = {
-  minion: { label: "PROJECTANIME.Tier.minion", icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,   evasion: 0, defense: 0, spFactor: 0.5 },
-  elite:  { label: "PROJECTANIME.Tier.elite",  icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.5, evasion: 1, defense: 1, spFactor: 1 },
-  boss:   { label: "PROJECTANIME.Tier.boss",   icon: "fa-solid fa-dragon",        color: "#9c6c4f", stepUps: 7,  vitalBase: 2.5, evasion: 2, defense: 2, spFactor: 2 },
-  raid:   { label: "PROJECTANIME.Tier.raid",   icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 10, vitalBase: 4,   evasion: 3, defense: 3, spFactor: 3.5 }
+  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5 },
+  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75 },
+  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.5,  evasion: 1, defense: 1, spFactor: 1 },
+  boss:     { label: "PROJECTANIME.Tier.boss",     icon: "fa-solid fa-dragon",        color: "#9c6c4f", stepUps: 7,  vitalBase: 2.5,  evasion: 2, defense: 2, spFactor: 2 },
+  raid:     { label: "PROJECTANIME.Tier.raid",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 10, vitalBase: 4,    evasion: 3, defense: 3, spFactor: 3.5 }
 };
 
 /** Iteration order for monster Tiers (weakest → strongest). */
-PROJECTANIME.monsterTierKeys = ["minion", "elite", "boss", "raid"];
+PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "boss", "raid"];
 
 /** World-setting key for the Monster Creator's Encounter Power dial. */
 export const ENCOUNTER_POWER_SETTING = "encounterPower";

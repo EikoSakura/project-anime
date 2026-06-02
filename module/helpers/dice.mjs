@@ -457,7 +457,7 @@ export async function rollAttack(actor, item, { event } = {}) {
  * the single-target, area, and chain damage paths — they each apply this raw to their targets.
  * @returns {Promise<{roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods}>}
  */
-async function computeDamageRoll(actor, item, { target = null } = {}) {
+async function computeDamageRoll(actor, item, { target = null, charged = false } = {}) {
   const isSkill = item.type === "skill";
   const heal = isSkill && item.system.effect === "mend";
 
@@ -508,9 +508,10 @@ async function computeDamageRoll(actor, item, { target = null } = {}) {
   if (mod) f += `${mod > 0 ? " + " : " - "}${Math.abs(mod)}`;
   const roll = new Roll(f);
   await roll.evaluate();
-  const raw = Math.max(roll.total, 0);
+  // Charge (a Skill modifier): a charged release resolves at double damage/healing (rules p.13).
+  const raw = Math.max(roll.total, 0) * (charged ? 2 : 1);
 
-  return { roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods };
+  return { roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods, charged };
 }
 
 /**
@@ -571,7 +572,7 @@ function applyAllButton(list) {
  * With `targetUuids` (carried by an area Skill's "Roll Damage" button) it rolls once and
  * applies that raw to every listed target; otherwise it resolves the single primary target.
  */
-export async function rollDamage(actor, item, { targetUuids = null } = {}) {
+export async function rollDamage(actor, item, { targetUuids = null, charged = false } = {}) {
   let targets = [];
   if (targetUuids?.length) {
     targets = (await Promise.all(targetUuids.map((u) => fromUuid(u)))).filter(Boolean);
@@ -579,11 +580,11 @@ export async function rollDamage(actor, item, { targetUuids = null } = {}) {
     const t = firstTargetActor();
     if (t) targets = [t];
   }
-  if (targets.length > 1) return postAoeDamageCard(actor, item, targets);
+  if (targets.length > 1) return postAoeDamageCard(actor, item, targets, { charged });
 
   // Single-target (or no target) — the original card.
   const targetActor = targets[0] ?? null;
-  const dmg = await computeDamageRoll(actor, item, { target: targetActor });
+  const dmg = await computeDamageRoll(actor, item, { target: targetActor, charged });
   const adj = adjustForTarget(dmg.raw, dmg.dtype, targetActor, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal });
 
   const badges = [...adj.badges];
@@ -591,6 +592,8 @@ export async function rollDamage(actor, item, { targetUuids = null } = {}) {
   lines.push(...damageNotes(dmg));
   const buttons = [];
   if (targetActor && (adj.amount > 0 || adj.heal)) buttons.push(applyButton(targetActor, adj.amount, adj.heal, dmg.pool));
+  // Drain HP/Energy: the caster recovers half the damage actually dealt to the target.
+  await applyDrain(actor, item, targetActor && !adj.heal ? adj.amount : 0, lines);
 
   await postCard(actor, cardHTML({
     title: item.name,
@@ -607,6 +610,7 @@ export async function rollDamage(actor, item, { targetUuids = null } = {}) {
 /** The shared "die used / two-handed / pierce / energy / effect-mods" damage notes. */
 function damageNotes(dmg) {
   const lines = [];
+  if (dmg.charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
   if (dmg.isSkill) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.dieUsed", { attr: i18n(PROJECTANIME.attributes[dmg.dieAttr] ?? dmg.dieAttr) })}</em>`);
   if (dmg.dmgReasons.includes("twoHanded")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.twoHanded")}</em>`);
   if (dmg.dmgReasons.includes("dualWield")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.dualWield")}</em>`);
@@ -617,11 +621,12 @@ function damageNotes(dmg) {
 }
 
 /** Multi-target damage card: one roll, applied per target (each with its own affinity/Defense). */
-async function postAoeDamageCard(actor, item, targetActors) {
-  const dmg = await computeDamageRoll(actor, item, { target: targetActors[0] });
+async function postAoeDamageCard(actor, item, targetActors, { charged = false } = {}) {
+  const dmg = await computeDamageRoll(actor, item, { target: targetActors[0], charged });
   const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetActors.length })}</em>`];
   const buttons = [];
   const applyList = [];
+  let drainTotal = 0;
   for (const ta of targetActors) {
     const adj = adjustForTarget(dmg.raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal });
     lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> <span class="muted">${adj.line}</span></span>`);
@@ -629,9 +634,12 @@ async function postAoeDamageCard(actor, item, targetActors) {
       buttons.push(applyButton(ta, adj.amount, adj.heal, dmg.pool));
       applyList.push({ uuid: ta.uuid, amount: adj.amount, heal: adj.heal, pool: adj.heal ? "hp" : dmg.pool });
     }
+    if (!adj.heal) drainTotal += adj.amount;
   }
   lines.push(...damageNotes(dmg));
   if (applyList.length > 1) buttons.push(applyAllButton(applyList));
+  // Drain HP/Energy: the caster recovers half the total damage the area Skill dealt.
+  await applyDrain(actor, item, drainTotal, lines);
 
   await postCard(actor, cardHTML({
     title: item.name,
@@ -656,10 +664,20 @@ export async function rollSkill(actor, item) {
     return ui.notifications.warn(i18n("PROJECTANIME.Roll.exhausted"));
   }
 
+  const mods = sys.modifiers ?? [];
+  // Devour (a Skill modifier): a dedicated flow — copy one Skill the 0-HP target knows. No attack.
+  if (mods.includes("devour")) return resolveDevour(actor, item);
+
+  // Charge (a Skill modifier): the first activation spends a turn focusing; the next activation
+  // (or the card's Release button) resolves it at double power. A miss dissipates the charge.
+  const isChargeSkill = mods.includes("charge");
+  const releasingCharge = isChargeSkill && actor.getFlag("project-anime", "charge") === item.id;
+  if (isChargeSkill && !releasingCharge) return startCharge(actor, item);
+
   const kind = aoeKind(item);
   const isStrike = sys.effect === "strike";
 
-  // 1) Acquire targets (interactive for area Skills) BEFORE spending Energy.
+  // 1) Acquire targets (interactive for area Skills) BEFORE spending Energy / clearing the charge.
   let areaTokens = null;     // Token[] for burst/line/mass; null = single-target path
   let chainPrimary = null;   // primary Token for chain
   if (kind === "chain") {
@@ -669,19 +687,22 @@ export async function rollSkill(actor, item) {
     chainPrimary = first;
   } else if (kind) {
     areaTokens = await acquireAreaTargets(actor, item, kind);
-    if (areaTokens === null) return null;   // cancelled — no Energy spent
+    if (areaTokens === null) return null;   // cancelled — no Energy spent / charge kept
   }
 
-  // 2) Spend Energy (rank×2; Passive = free). Block if unaffordable.
-  if (!(await spendSkillEnergy(actor, sys))) return null;
+  // 2) Spend Energy (rank×2; Passive = free). A charge release already paid on the focus turn,
+  // so releasing is free — but it consumes the charge whether the follow-up hits or misses.
+  if (releasingCharge) await actor.unsetFlag("project-anime", "charge");
+  else if (!(await spendSkillEnergy(actor, sys))) return null;
 
-  // 3) Resolve.
-  if (chainPrimary) return resolveChain(actor, item, chainPrimary);
+  // 3) Resolve (a charged release doubles damage/healing).
+  if (chainPrimary) return resolveChain(actor, item, chainPrimary, { charged: releasingCharge });
   if (kind) {
     setUserTargets(areaTokens);
-    return isStrike ? resolveAreaStrike(actor, item, areaTokens) : resolveAreaEffect(actor, item, areaTokens);
+    return isStrike ? resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge })
+                    : resolveAreaEffect(actor, item, areaTokens, { charged: releasingCharge });
   }
-  return resolveSingleSkill(actor, item);
+  return resolveSingleSkill(actor, item, { charged: releasingCharge });
 }
 
 /** Spend a Skill's Energy (rank×2; Passive = free). Warns + returns false if unaffordable. */
@@ -732,7 +753,7 @@ async function acquireAreaTargets(actor, item, kind) {
 }
 
 /** Single-target Skill resolution (the original behavior; Energy is already spent). */
-async function resolveSingleSkill(actor, item) {
+async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   const sys = item.system;
   const attrA = sys.attributes?.attrA ?? "might";
   const attrB = sys.attributes?.attrB ?? "spirit";
@@ -767,6 +788,8 @@ async function resolveSingleSkill(actor, item) {
   if (accBonus) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.sharpened", { n: accBonus })}</em>`);
   if (isStrike && evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}`);
   if (combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
+  // Charged release: note the double power on a hit, or that the charge dissipated on a miss.
+  if (charged) lines.push(`<em class="muted">${i18n(isStrike && hit === false ? "PROJECTANIME.Roll.chargeDissipated" : "PROJECTANIME.Roll.charged")}</em>`);
 
   if ((isStrike ? hit === true : true) && targetActor) {
     for (const c of collectInflictedConditions(item, targetActor)) {
@@ -785,8 +808,9 @@ async function resolveSingleSkill(actor, item) {
   if ((isStrike && hit !== false) || isMend) {
     // Stamp the resolved target so the follow-up roll lands on who was targeted at cast time.
     const tgt = targetActor ? ` data-target-uuid="${targetActor.uuid}"` : "";
+    const chg = charged ? ` data-charged="true"` : "";
     buttons.push({
-      data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}`,
+      data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${chg}`,
       label: `<i class="fas fa-${isMend ? "heart" : "burst"}"></i> ${i18n(isMend ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`
     });
   }
@@ -810,7 +834,7 @@ async function resolveSingleSkill(actor, item) {
  * against each caught creature's own Evasion (Combo hits all, Fumble misses all). Hit targets
  * are inflicted with any on-hit conditions and flow into the "Roll Damage" button.
  */
-async function resolveAreaStrike(actor, item, targetTokens) {
+async function resolveAreaStrike(actor, item, targetTokens, { charged = false } = {}) {
   const sys = item.system;
   const attrA = sys.attributes?.attrA ?? "might";
   const attrB = sys.attributes?.attrB ?? "spirit";
@@ -854,6 +878,8 @@ async function resolveAreaStrike(actor, item, targetTokens) {
   }
   if (!targetTokens.length) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.aoeNoTargets")}</em>`);
   if (combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
+  // Charged release: note the double power on any hit, or that the charge dissipated on a clean miss.
+  if (charged) lines.push(`<em class="muted">${i18n(hitUuids.length ? "PROJECTANIME.Roll.charged" : "PROJECTANIME.Roll.chargeDissipated")}</em>`);
 
   const buttons = [];
   // Spend Luck re-evaluates the single Accuracy roll against every caught target's Evasion.
@@ -861,7 +887,7 @@ async function resolveAreaStrike(actor, item, targetTokens) {
     d1: r1, d2: r2, mod: rmods.flat + accBonus, targets: luckTargets, actorUuid: actor.uuid, itemId: item.id
   }));
   if (hitUuids.length) buttons.push({
-    data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${hitUuids.join(",")}"`,
+    data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${hitUuids.join(",")}"${charged ? ' data-charged="true"' : ''}`,
     label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
   });
 
@@ -878,7 +904,7 @@ async function resolveAreaStrike(actor, item, targetTokens) {
  * Area non-Strike effect (e.g. Mass Mend): there is no Accuracy Check — the area "affects"
  * every target. Mend offers a "Roll Healing" button for all; on-hit conditions inflict on all.
  */
-async function resolveAreaEffect(actor, item, targetTokens) {
+async function resolveAreaEffect(actor, item, targetTokens, { charged = false } = {}) {
   const sys = item.system;
   const isMend = sys.effect === "mend";
   const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetTokens.length })}</em>`];
@@ -900,9 +926,11 @@ async function resolveAreaEffect(actor, item, targetTokens) {
   // to every caught creature. (Mend's mechanic is the healing button below.)
   if (!isMend) lines.push(...(await applySkillEffects(actor, item, targetTokens.map((t) => t.actor).filter(Boolean))));
 
+  if (isMend && charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
+
   const buttons = [];
   if (isMend && uuids.length) buttons.push({
-    data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${uuids.join(",")}"`,
+    data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${uuids.join(",")}"${charged ? ' data-charged="true"' : ''}`,
     label: `<i class="fas fa-heart"></i> ${i18n("PROJECTANIME.Roll.rollHealing")}`
   });
 
@@ -919,7 +947,7 @@ async function resolveAreaEffect(actor, item, targetTokens) {
  * dealing half the previous damage; the chain stops the moment a leap misses (rules: "must hit
  * each target before the leap can continue"). One combined attack+damage card.
  */
-async function resolveChain(actor, item, primaryToken) {
+async function resolveChain(actor, item, primaryToken, { charged = false } = {}) {
   const sys = item.system;
   const attrA = sys.attributes?.attrA ?? "might";
   const attrB = sys.attributes?.attrB ?? "spirit";
@@ -927,8 +955,8 @@ async function resolveChain(actor, item, primaryToken) {
   const nearTiles = PROJECTANIME.rangeTiles[PROJECTANIME.chainRangeScope] ?? 5;
   const maxTargets = modifierValue(item, "chain") + 1;   // primary + N leaps
 
-  // One damage roll; each successive hit deals half the previous (floored).
-  const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor });
+  // One damage roll (doubled on a charged release); each successive hit deals half the previous.
+  const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor, charged });
 
   const lines = [];
   const buttons = [];
@@ -938,6 +966,7 @@ async function resolveChain(actor, item, primaryToken) {
   let current = primaryToken;
   let prevRaw = dmg.raw;
   let stoppedName = null;
+  let drainTotal = 0;
 
   for (let i = 0; i < maxTargets && current; i++) {
     const ta = current.actor;
@@ -972,6 +1001,7 @@ async function resolveChain(actor, item, primaryToken) {
       buttons.push(applyButton(ta, adj.amount, adj.heal, dmg.pool));
       applyList.push({ uuid: ta.uuid, amount: adj.amount, heal: adj.heal, pool: adj.heal ? "hp" : dmg.pool });
     }
+    if (!adj.heal) drainTotal += adj.amount;
     prevRaw = raw;
     current = tokensInRange(current, nearTiles).find((t) => !hitSet.has(t)) ?? null;
   }
@@ -979,6 +1009,8 @@ async function resolveChain(actor, item, primaryToken) {
   if (stoppedName) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chainStopped", { name: stoppedName })}</em>`);
   lines.push(...damageNotes(dmg));
   if (applyList.length > 1) buttons.push(applyAllButton(applyList));
+  // Drain HP/Energy: the caster recovers half the total damage dealt across the chain.
+  await applyDrain(actor, item, drainTotal, lines);
 
   await postCard(actor, cardHTML({
     title: item.name, subtitle: i18n("PROJECTANIME.Roll.attack"),
@@ -987,6 +1019,81 @@ async function resolveChain(actor, item, primaryToken) {
     description: await enrichDescription(item), lines, buttons
   }), rolls);
   return rolls;
+}
+
+/* -------------------------------------------- */
+/*  Charge & Devour (Skill modifiers)           */
+/* -------------------------------------------- */
+
+/** Begin charging a Charge Skill: pay its Energy now (the focus turn's cost), flag the actor, and
+ *  post a card with a Release button. Re-activating the Skill — or clicking Release — on a later
+ *  turn resolves it at double power (rules p.13). One charge is held at a time per actor. */
+async function startCharge(actor, item) {
+  if (!(await spendSkillEnergy(actor, item.system))) return null;
+  await actor.setFlag("project-anime", "charge", item.id);
+  return postCard(actor, cardHTML({
+    title: item.name,
+    subtitle: i18n("PROJECTANIME.Roll.charge"),
+    icon: item.img,
+    description: await enrichDescription(item),
+    lines: [`<em class="muted">${i18n("PROJECTANIME.Roll.chargeReleases")}</em>`],
+    buttons: [{
+      data: `data-action="releaseCharge" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
+      label: `<i class="fas fa-bolt"></i> ${i18n("PROJECTANIME.Roll.release")}`
+    }]
+  }));
+}
+
+/** Devour (a Heavy Skill modifier): copy one Skill a creature reduced to 0 HP knows. Opens a picker
+ *  of that target's Skills the caster doesn't already have; the chosen Skill is learned (copied onto
+ *  the caster). Energy is spent only once a Skill is actually chosen, so cancelling costs nothing. */
+async function resolveDevour(actor, item) {
+  const target = firstTargetActor();
+  if (!target) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
+  if ((target.system?.hp?.value ?? 0) > 0) return ui.notifications.warn(i18n("PROJECTANIME.Roll.devourNotDefeated"));
+
+  const known = new Set((actor.items ?? []).filter((i) => i.type === "skill").map((i) => i.name));
+  const skills = (target.items ?? []).filter((i) => i.type === "skill" && !known.has(i.name));
+  if (!skills.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.devourNoSkills", { name: target.name }));
+
+  const chosenId = await pickDevourSkill(target, skills);
+  if (!chosenId) return null;   // cancelled — no Energy spent
+  const chosen = skills.find((s) => s.id === chosenId);
+  if (!chosen) return null;
+  if (!(await spendSkillEnergy(actor, item.system))) return null;
+
+  const data = chosen.toObject();
+  delete data._id;
+  await actor.createEmbeddedDocuments("Item", [data]);
+
+  return postCard(actor, cardHTML({
+    title: item.name,
+    subtitle: i18n("PROJECTANIME.Roll.skill"),
+    icon: item.img,
+    description: await enrichDescription(item),
+    lines: [`<em class="muted">${i18n("PROJECTANIME.Roll.devoured", { skill: chosen.name, name: target.name })}</em>`]
+  }));
+}
+
+/** Dialog: choose which Skill to copy from a Devoured creature. Returns the chosen Skill id, or null. */
+async function pickDevourSkill(target, skills) {
+  const opts = skills.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+  const content = `
+    <div class="project-anime roll-dialog devour-dialog">
+      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.devourPick", { name: target.name })}</label>
+        <select name="skill">${opts}</select></div>
+    </div>`;
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title: i18n("PROJECTANIME.Skill.modifier.devour") },
+    content,
+    buttons: [
+      { action: "devour", label: i18n("PROJECTANIME.Roll.devour"), icon: "fas fa-utensils", default: true, callback: (e, b) => readForm(b.form) },
+      { action: "cancel", label: i18n("Cancel"), icon: "fas fa-times" }
+    ],
+    rejectClose: false
+  });
+  if (!result || result === "cancel") return null;
+  return result.skill;
 }
 
 /** Use a consumable: apply its HP/Energy restore (if any), spend one, post a card. */
@@ -1029,6 +1136,7 @@ export function onRenderChatMessage(message, html) {
   html.querySelectorAll("[data-action='rollDamage']").forEach((btn) => { btn.onclick = onRollDamageButton; });
   html.querySelectorAll("[data-action='applyDamage']").forEach((btn) => { btn.onclick = onApplyDamageButton; });
   html.querySelectorAll("[data-action='applyAll']").forEach((btn) => { btn.onclick = onApplyAllButton; });
+  html.querySelectorAll("[data-action='releaseCharge']").forEach((btn) => { btn.onclick = onReleaseChargeButton; });
   html.querySelectorAll("[data-action='spendLuck']").forEach((btn) => { btn.onclick = onSpendLuckButton; });
   html.querySelectorAll("[data-action='spendLuckAoe']").forEach((btn) => { btn.onclick = onSpendLuckAoeButton; });
 }
@@ -1045,7 +1153,18 @@ async function onRollDamageButton(event) {
   const targetUuids = el.dataset.targetUuids
     ? el.dataset.targetUuids.split(",").filter(Boolean)
     : (el.dataset.targetUuid ? [el.dataset.targetUuid] : null);
-  return rollDamage(actor, item, { targetUuids });
+  return rollDamage(actor, item, { targetUuids, charged: el.dataset.charged === "true" });
+}
+
+/** "Release" a charged Skill: re-activate it — rollSkill sees the charge flag and resolves it. */
+async function onReleaseChargeButton(event) {
+  event.preventDefault();
+  const el = event.currentTarget;
+  const actor = await fromUuid(el.dataset.actorUuid);
+  if (!actor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.itemGone"));
+  const item = actor.items.get(el.dataset.itemId);
+  if (!item) return ui.notifications.warn(i18n("PROJECTANIME.Roll.itemGone"));
+  return rollSkill(actor, item);
 }
 
 /**
@@ -1088,6 +1207,27 @@ async function inflictDecay(item, targetActor, lines) {
   if (item?.type !== "skill" || !targetActor || !(item.system.modifiers ?? []).includes("decay")) return;
   await applyStatusEffect(targetActor, "decay");
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: i18n("PROJECTANIME.Status.decay"), name: targetActor.name })}</em>`);
+}
+
+/** Drain (Skill modifiers): the caster recovers half the damage this Skill dealt — HP for
+ *  Drain HP, Energy for Drain Energy (rules p.13). `total` is the post-Defense/affinity damage
+ *  dealt across every target (overkill counts; immune/absorbed hits contribute 0). Recovery is
+ *  clamped to the caster's max by applyDamageTo, and routed through the owner/GM relay so it
+ *  lands no matter who clicks Roll Damage. No-op for non-Skills, Skills without a drain modifier,
+ *  or a 0-damage roll. Mutates `lines` with a chat note per drained pool. */
+async function applyDrain(actor, item, total, lines) {
+  if (item?.type !== "skill" || !(total > 0)) return;
+  const mods = item.system.modifiers ?? [];
+  const half = Math.floor(total / 2);
+  if (half <= 0) return;
+  if (mods.includes("drainHP")) {
+    await routeApply(actor, actor.uuid, half, true, "hp");
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.drainsHP", { n: half })}</em>`);
+  }
+  if (mods.includes("drainEnergy")) {
+    await routeApply(actor, actor.uuid, half, true, "energy");
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.drainsEnergy", { n: half })}</em>`);
+  }
 }
 
 /* -------------------------------------------- */

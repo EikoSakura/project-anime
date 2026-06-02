@@ -4,7 +4,7 @@
  * A guided ApplicationV2 that builds a combat NPC ("monster") on the SAME rules as a
  * Player Character — the five Attributes start at d4 and you spend Step-Ups; HP =
  * ⟪Might⟫×2, Energy = ⟪Spirit⟫×2 — then scales it by an anime power **Tier** (Minion /
- * Elite / Boss / Raid Boss; see PROJECTANIME.monsterTiers). The Tier sets the Step-Up
+ * Standard / Elite / Boss / Raid Boss; see PROJECTANIME.monsterTiers). The Tier sets the Step-Up
  * budget, multiplies HP / Energy, grants flat Evasion / Defense, and hands out Skill
  * Points to build the monster's powers with the in-game Skill Builder.
  *
