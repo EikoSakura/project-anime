@@ -76,6 +76,8 @@
       "failure": "Failure",
       "extraTurn": "Combo — take an extra turn!",
       "sharpened": "Sharpened Accuracy +{n}",
+      "sharpenedDamage": "Sharpened Damage +{n}",
+      "sharpenedHealing": "Sharpened Healing +{n}",
       "dieUsed": "{attr} die",
       "inflicts": "Inflicts {condition} on {name}",
       "effectApplied": "Applies {effect} to {name}",
@@ -178,6 +180,10 @@
       "manageTitle": "Manage Skills",
       "save": "Save"
     },
+    "NaturalAttack": {
+      "name": "Unarmed Strike",
+      "hint": "Natural attack — always available, costs no Energy"
+    },
     "Section": {
       "attack": "Attack",
       "defense": "Defense",
@@ -218,6 +224,7 @@
         "actionType": "Action Type",
         "range": "Range",
         "effect": "Effect",
+        "secondaryEffect": "Secondary Effect",
         "attrA": "Attribute A",
         "attrB": "Attribute B",
         "damageType": "Damage Type",
@@ -228,6 +235,8 @@
         "spCost": "SP Cost",
         "energyCost": "Energy Cost",
         "accuracyMod": "Accuracy Bonus",
+        "damageMod": "Damage Bonus",
+        "healMod": "Healing Bonus",
         "damageDie": "Damage Die",
         "healDie": "Healing Die"
       },
@@ -286,7 +295,8 @@
         "pierce": "Pierce",
         "pull": "Pull",
         "push": "Push",
-        "reflect": "Reflect"
+        "reflect": "Reflect",
+        "secondaryEffect": "Secondary Effect"
       },
       "trigger": {
         "alerted": "Alerted",
@@ -322,7 +332,17 @@
         "pierce": "The Skill ignores the target's Defense.",
         "pull": "The target moves one tile closer to you (Forced Movement).",
         "push": "The target moves one tile away from you (Forced Movement).",
-        "reflect": "Turn an incoming attack into momentum — choose Bounce (redirect at its source) or Counter (immediate strike back)."
+        "reflect": "Turn an incoming attack into momentum — choose Bounce (redirect at its source) or Counter (immediate strike back).",
+        "secondaryEffect": "The Skill resolves a second Effect on use, in addition to its main one."
+      },
+      "auto": {
+        "rules": "Rules",
+        "rulesOverride": "Rules Override",
+        "alwaysActive": "Always active",
+        "accuracy": "Accuracy",
+        "improvements": "Improvements",
+        "effects": "Effects",
+        "energyLowered": "Energy lowered"
       }
     },
     "Range": {
@@ -386,6 +406,7 @@
       "deleteTitle": "Delete Effect",
       "deletePrompt": "Delete \"{name}\"?",
       "type": {
+        "none": "None",
         "attribute": "Attribute",
         "stat": "Stat",
         "resource": "Resource",
@@ -613,10 +634,12 @@
       "atMin": "Min",
       "raiseRank": "Raise Rank",
       "sharpen": "Sharpen Accuracy",
+      "sharpenDamage": "Sharpen Damage",
+      "sharpenHealing": "Sharpen Healing",
       "lowerEnergy": "Lower Energy",
       "raiseRange": "Raise Range",
       "addModifier": "Add a Modifier",
-      "turnModifier": "Turn a Modifier",
+      "turnModifier": "Tune a Modifier",
       "base": "base",
       "step": {
         "concept": "Concept",
@@ -638,6 +661,7 @@
       "confirmTitle": "Refund Skill Points",
       "confirm": "Undo “{label}” and refund {amount} SP?",
       "confirmSkill": "Delete “{label}” and refund {amount} SP?",
+      "confirmAttribute": "Undo “{label}” and every higher raise stacked on it, refunding {amount} SP total?",
       "entry": {
         "attribute": "Raise {attr} ({from} → {to})",
         "hp": "+2 Max HP",
@@ -648,8 +672,10 @@
         "improveRange": "Raise Range — {skill}",
         "improveEnergy": "Lower Energy — {skill}",
         "improveAccuracy": "Sharpen Accuracy — {skill}",
+        "improveDamage": "Sharpen Damage — {skill}",
+        "improveHealing": "Sharpen Healing — {skill}",
         "improveModifier": "Add Modifier ({mod}) — {skill}",
-        "improveGrowth": "Turn Modifier ({mod}) — {skill}"
+        "improveGrowth": "Tune Modifier ({mod}) — {skill}"
       }
     },
     "Creator": {

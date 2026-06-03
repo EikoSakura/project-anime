@@ -85,18 +85,37 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     schema.damageType = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.trigger = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.modifiers = new fields.ArrayField(new fields.StringField({ blank: false }), { initial: [] });
-    // Per-Modifier numeric growth from the "Turn a Modifier" advancement (e.g. Burst radius,
+    // Per-Modifier numeric growth from the "Tune a Modifier" advancement (e.g. Burst radius,
     // Chain target count). Keyed by modifier id; effective value = base + this (see
     // config.mjs modifierValue / PROJECTANIME.growableModifiers).
     schema.modifierGrowth = new fields.TypedObjectField(new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }));
     // A Strike can deal Hit Point or Energy damage; default Hit Points.
     schema.damagePool = new fields.StringField({ required: true, blank: false, initial: "hp", choices: PROJECTANIME.damagePools });
 
+    // "Secondary Effect" Modifier: an optional SECOND Effect the Skill also resolves on use (a
+    // Strike that also Mends, a Mend that also Bolsters, …). Only meaningful while the
+    // `secondaryEffect` Modifier is selected — see config.mjs skillHasSecondary / skillDieSpecs.
+    // It mirrors the primary's die-attribute / pool / damage-type, used when it is a Strike/Mend
+    // (the other six Effects deliver their mechanic through the Skill's Active Effects). Left
+    // blank (no choices constraint) when unset; the Skill Builder validates it against skillEffects.
+    schema.secondaryEffect = new fields.StringField({ required: false, blank: true, initial: "" });
+    schema.secondaryDamageAttr = new fields.StringField({ required: true, blank: false, initial: "attrA", choices: ["attrA", "attrB"] });
+    schema.secondaryDamagePool = new fields.StringField({ required: true, blank: false, initial: "hp", choices: PROJECTANIME.damagePools });
+    schema.secondaryDamageType = new fields.StringField({ required: false, blank: true, initial: "" });
+
     // Advancement-tracked refinements (set via the Skill Builder's Improve mode).
     // Sharpen Accuracy adds a flat bonus (0–3) to the Skill's Accuracy Check.
     schema.accuracyMod = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0, max: 3 });
+    // Sharpen Damage / Sharpen Healing adds a flat bonus (0–3) to the Skill's rolled output —
+    // damage for a Strike, healing for a Mend (one field; the Effect decides which it boosts).
+    schema.damageMod = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0, max: 3 });
     // Lower Energy Cost reduces the Energy spent (floored at half the base cost).
     schema.energyReduction = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+
+    // Optional player-authored rules text that REPLACES the auto-generated rules write-up
+    // (helpers/skill-description.mjs `skillRulesHTML`). Blank = show the live auto rules. The typed
+    // `description` (base model) stays separate FLAVOR text shown alongside the rules.
+    schema.rulesOverride = new fields.HTMLField({ required: false, blank: true, initial: "" });
 
     return schema;
   }

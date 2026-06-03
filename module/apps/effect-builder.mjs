@@ -103,6 +103,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
         const pt = pred.type ?? "always";
         return {
           ...r,
+          isNone: r.type === "none",
           isAttribute: r.type === "attribute",
           isStat: r.type === "stat",
           isResource: r.type === "resource",

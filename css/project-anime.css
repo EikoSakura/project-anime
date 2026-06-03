@@ -1744,6 +1744,8 @@
 }
 .project-anime .tile-qty.energy { color: var(--pa-energy-b); }
 .project-anime .tile-qty.energy i { font-size: 0.5rem; margin-right: 1px; }
+.project-anime .tile-qty.natural { color: var(--pa-gold-soft); }
+.project-anime .tile-qty.natural i { font-size: 0.5rem; }
 .project-anime .tile-name {
   width: 100%;
   font-size: 0.6rem;
@@ -4202,4 +4204,60 @@
   .project-anime.combo-splash .cs-word,
   .project-anime.combo-splash .cs-portrait img,
   .project-anime.combo-splash .cs-name { animation: none; }
+}
+
+/* ------------------------------------------------------------
+   18. Auto-written Skill rules (helpers/skill-description.mjs)
+   A generated, colored rules write-up shown on the Skill sheet's
+   View tab and its chat card. Plain numbers (dice/range/Energy/
+   values) use the accent color; SP-bought improvements use gold —
+   so both stand out of the prose. Renders inside .project-anime
+   (sheet body + the chat-card root), so the tokens resolve.
+   ------------------------------------------------------------ */
+.project-anime .skill-rules { display: flex; flex-direction: column; gap: 0.32rem; line-height: 1.45; }
+.project-anime .skill-rules p { margin: 0; }
+.project-anime .skill-rules .pa-rules-lead {
+  font-family: var(--pa-font-display);
+  font-weight: 700;
+  color: var(--pa-accent-ink);
+}
+.project-anime.theme-dark .skill-rules .pa-rules-lead,
+.theme-dark .project-anime .skill-rules .pa-rules-lead { color: var(--pa-accent-2); }
+.project-anime .skill-rules .pa-rules-specs { color: var(--pa-ink-soft); font-size: 0.92em; }
+.project-anime .skill-rules .pa-rules-group { margin-top: 0.1rem; }
+.project-anime .skill-rules .pa-rules-group ul { margin: 0.1rem 0 0; padding-left: 1.1rem; }
+.project-anime .skill-rules .pa-rules-group li { margin: 0.08rem 0; }
+.project-anime .pa-rules-h {
+  font-family: var(--pa-font-display);
+  font-weight: 700;
+  font-size: 0.8em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pa-gold);
+  border-bottom: 1px solid var(--pa-line);
+  padding-bottom: 0.08rem;
+  margin-bottom: 0.12rem;
+}
+/* The two highlight roles. */
+.project-anime .pa-rules-num { font-family: var(--pa-font-mono); font-weight: 600; color: var(--pa-accent); }
+.project-anime.theme-dark .pa-rules-num,
+.theme-dark .project-anime .pa-rules-num { color: var(--pa-accent-2); }
+.project-anime .pa-rules-improve { font-family: var(--pa-font-mono); font-weight: 700; color: var(--pa-gold); }
+/* View-tab layout: rules block, then the flavor description beneath. */
+.project-anime .skill-flavor { margin-top: 0.6rem; }
+.project-anime .skill-flavor .detail-desc { margin-top: 0.2rem; }
+/* Chat-card flavor sits below the auto rules, set apart. */
+.project-anime .skill-card-flavor {
+  margin-top: 0.4rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--pa-line);
+  font-style: italic;
+  color: var(--pa-ink-soft);
+}
+/* The optional override textarea on the skill Edit tab. */
+.project-anime .rules-override-input {
+  width: 100%;
+  min-height: 4rem;
+  resize: vertical;
+  font-family: var(--pa-font);
 }

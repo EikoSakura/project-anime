@@ -1,6 +1,7 @@
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices, elementLabel } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles } from "../helpers/config.mjs";
+import { rangeLabel, rangeHasTiles, skillEffectKeys } from "../helpers/config.mjs";
+import { skillRulesHTML } from "../helpers/skill-description.mjs";
 import { summarizeRules, grantRefs } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 
@@ -102,6 +103,14 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       relativeTo: this.item,
       secrets: this.item.isOwner
     });
+    // Skills carry an auto-written, colored rules summary (the View tab + chat card). A non-blank
+    // `rulesOverride` replaces it with the player's own text (enriched); blank = the live auto rules.
+    if (this.item.type === "skill") {
+      const override = (this.item.system.rulesOverride ?? "").trim();
+      context.skillRules = override
+        ? await TE.enrichHTML(this.item.system.rulesOverride, { relativeTo: this.item, secrets: this.item.isOwner })
+        : skillRulesHTML(this.item);
+    }
     this.#prepareTypeContext(context);
     context.displayStats = this.#buildDisplayStats(context);
     return context;
@@ -247,13 +256,14 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         const r = cfg.skillRanks[sys.rank] ?? {};
         push("PROJECTANIME.Skill.field.rank", `${r.stars ?? ""} ${L(r.label)}`.trim());
         push("PROJECTANIME.Skill.field.actionType", L(cfg.actionTypes[sys.actionType]));
-        push("PROJECTANIME.Skill.field.effect", L(cfg.skillEffects[sys.effect]));
+        push("PROJECTANIME.Skill.field.effect", skillEffectKeys(sys).map((k) => L(cfg.skillEffects[k])).join(" + "));
         push("PROJECTANIME.Skill.field.range", rangeLabel(sys.range));
         push("PROJECTANIME.Skill.field.attrA", `${L(cfg.attributes[sys.attributes?.attrA])} + ${L(cfg.attributes[sys.attributes?.attrB])}`);
         if (cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie", L(cfg.attributes[sys.attributes?.[sys.damageAttr]]));
         if (sys.energyCost > 0) push("PROJECTANIME.Skill.field.energyCost", sys.energyCost);
         push("PROJECTANIME.Skill.field.spCost", sys.spCost);
         if (sys.accuracyMod) push("PROJECTANIME.Skill.field.accuracyMod", `+${sys.accuracyMod}`);
+        if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod", `+${sys.damageMod}`);
         if (sys.damageType && cfg.damageEffects.includes(sys.effect)) push("PROJECTANIME.Skill.field.damageType", elementLabel(sys.damageType));
         if (sys.actionType === "react" && sys.trigger) push("PROJECTANIME.Skill.field.trigger", L(cfg.triggers[sys.trigger]));
         if (sys.modifiers?.length) push("PROJECTANIME.Skill.field.modifiers", sys.modifiers.map((m) => L(cfg.skillModifiers[m]) || m).join(", "));

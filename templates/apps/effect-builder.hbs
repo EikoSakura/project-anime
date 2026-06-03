@@ -102,7 +102,7 @@
       </div>
       {{/if}}
 
-      {{#unless rule.isGrant}}
+      {{#unless rule.isGrant}}{{#unless rule.isNone}}
       <span class="eb-sep">·</span>
       <select class="rule-pred" name="rules.{{i}}.pred.type">{{selectOptions ../choices.predTypes selected=rule.predType}}</select>
       {{#if rule.predSelf}}<select name="rules.{{i}}.pred.status">{{selectOptions ../choices.conditions selected=rule.predStatus}}</select>{{/if}}
@@ -110,7 +110,7 @@
       {{#if rule.predHp}}<input type="number" class="eb-num" name="rules.{{i}}.pred.pct" value="{{rule.predPct}}" min="1" max="100" /><span class="eb-unit">%</span>{{/if}}
       {{#if rule.predEnergy}}<input type="number" class="eb-num" name="rules.{{i}}.pred.pct" value="{{rule.predPct}}" min="1" max="100" /><span class="eb-unit">%</span>{{/if}}
       {{#if rule.predTargetAff}}<select name="rules.{{i}}.pred.element">{{selectOptions ../choices.elements selected=rule.predElement}}</select><span class="eb-arrow">→</span><select name="rules.{{i}}.pred.level">{{selectOptions ../choices.levels selected=rule.predLevel}}</select>{{/if}}
-      {{/unless}}
+      {{/unless}}{{/unless}}
 
       <a class="eb-del" data-action="deleteRule" data-index="{{i}}" title="{{localize 'PROJECTANIME.Effect.deleteRule'}}">
         <i class="fa-solid fa-trash"></i>

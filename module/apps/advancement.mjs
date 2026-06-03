@@ -47,6 +47,9 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const sys = this.actor.system;
     return {
       sp: sys.skillPoints?.value ?? 0,
+      // Luck Dice are a PC-only resource (NPCs have no `luckDice` field), so the roll action is
+      // hidden for them — attribute raises, stat buys, and Calculate Vitals apply to both.
+      isCharacter: this.actor.type === "character",
       attributes: cfg.attributeKeys.map((k) => {
         const a = sys.attributes[k];
         return {

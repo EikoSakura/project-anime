@@ -37,7 +37,7 @@
     <h3>{{localize "PROJECTANIME.Advancement.setup"}}</h3>
     <div class="adv-buys">
       <button type="button" data-action="calcVitals">{{localize "PROJECTANIME.Advancement.calcVitals"}}</button>
-      <button type="button" data-action="rollLuck">{{localize "PROJECTANIME.Advancement.rollLuck"}}</button>
+      {{#if isCharacter}}<button type="button" data-action="rollLuck">{{localize "PROJECTANIME.Advancement.rollLuck"}}</button>{{/if}}
     </div>
   </section>
 </div>

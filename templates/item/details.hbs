@@ -1,5 +1,15 @@
-{{!-- View tab: read-only display — stat rows + the description, together in one box. --}}
+{{!-- View tab: read-only display. Skills show the auto-written (or overridden) rules summary;
+      every other item type shows its stat-row table. The typed description is FLAVOR shown below. --}}
 <section class="item-details tab-pane{{#if tabView}} active{{/if}}" data-tab-pane="view">
+  {{#if skillRules}}
+  <div class="skill-rules-view">{{{skillRules}}}</div>
+  {{#if enrichedDescription}}
+  <div class="skill-flavor">
+    <div class="pa-rules-h">{{localize "PROJECTANIME.Field.description"}}</div>
+    <div class="detail-desc">{{{enrichedDescription}}}</div>
+  </div>
+  {{/if}}
+  {{else}}
   <dl class="detail-list">
     {{#each displayStats as |row|}}
     <div class="detail-row">
@@ -14,4 +24,5 @@
     </div>
     {{/if}}
   </dl>
+  {{/if}}
 </section>

@@ -1,4 +1,5 @@
 import { applyStructuredRules } from "../helpers/effects.mjs";
+import { attributePeel } from "../helpers/skill-points.mjs";
 
 /**
  * Enforce one equipped item per equipment slot after `item` becomes equipped:
@@ -66,6 +67,43 @@ export function refundSkillOnDelete(item, userId) {
   });
 }
 
+/** Default icon for the innate Natural Attack (an unarmed strike). */
+export const NATURAL_ATTACK_IMG = "icons/svg/combat.svg";
+
+/**
+ * Source data for the innate "Natural Attack" every creature carries — an unarmed strike usable
+ * with no weapon equipped, available alongside (in addition to) any equipped weapons. It's an
+ * ordinary weapon item flagged `natural`, so the sheet always surfaces it in the quick-attack
+ * panel, keeps it out of the carried-gear grid, and protects it from accidental equip/delete. It
+ * rolls through `rollAttack` like any Basic Attack (no Energy), weighs nothing (size 0), and is
+ * fully tunable on its item sheet (Might + Agility melee strike by default).
+ */
+export function naturalAttackData() {
+  return {
+    name: game.i18n.localize("PROJECTANIME.NaturalAttack.name"),
+    type: "weapon",
+    img: NATURAL_ATTACK_IMG,
+    system: {
+      accuracy: { attrA: "might", attrB: "agility", mod: 0 },
+      damage: { mod: 0, type: "physical" },
+      range: { type: "melee", tiles: 1 },
+      size: 0, cost: 0, equipped: false, hand: "main", grip: "one"
+    },
+    flags: { "project-anime": { natural: true } }
+  };
+}
+
+/**
+ * Give a creature its innate Natural Attack if it lacks one. Idempotent (a no-op once present);
+ * Characters and NPCs only — Party actors have no combat stats. Used by the one-time backfill for
+ * actors that predate the feature; new actors get theirs baked in at creation (preCreateActor).
+ */
+export async function ensureNaturalAttack(actor) {
+  if (!actor || (actor.type !== "character" && actor.type !== "npc")) return;
+  if (actor.items.some((i) => i.type === "weapon" && i.getFlag("project-anime", "natural"))) return;
+  return actor.createEmbeddedDocuments("Item", [naturalAttackData()]);
+}
+
 /**
  * Extends the base Actor with Project: Anime behaviour. All stat derivation
  * (including equipped gear and carried load) lives in the type DataModels;
@@ -84,6 +122,24 @@ export class ProjectAnimeActor extends Actor {
     applyStructuredRules(this);
   }
 
+  /**
+   * @override — keep a non-Passive Skill's Active Effect off its carrier. Such an effect is an
+   * on-use TEMPLATE, copied onto recipients only when the Skill is used (dice.mjs
+   * applySkillEffects reads `item.effects`), never a buff on the owner. Foundry transfers it
+   * like any item effect, which would surface a do-nothing token icon + Effects-drawer row —
+   * its rules are already gated dormant by effects.mjs `effectIsLive`. This generator is the
+   * single chokepoint behind `appliedEffects`, `temporaryEffects` (token icons) and the sheet's
+   * effect list, so filtering it here removes that phantom while leaving the effect on the item
+   * for on-use copying. Passive Skills keep transferring so their always-on rules still apply.
+   */
+  *allApplicableEffects() {
+    for (const effect of super.allApplicableEffects()) {
+      const parent = effect.parent;
+      if (parent?.documentName === "Item" && parent.type === "skill" && parent.system?.actionType !== "passive") continue;
+      yield effect;
+    }
+  }
+
   /** @override */
   getRollData() {
     const data = this.system.getRollData?.() ?? { ...this.system };
@@ -96,24 +152,30 @@ export class ProjectAnimeActor extends Actor {
   /* -------------------------------------------- */
 
   /**
-   * Spend Skill Points and record the transaction in the ledger. Deducts `amount` from the
-   * unspent pool and appends a `log` entry describing the purchase so it can be Refunded later.
-   * Any additional document changes for the purchase (the raised attribute, the bought stat)
-   * are passed in `changes` and written in the same atomic update. Callers check affordability.
+   * Spend Skill Points and record the transaction. Deducts `amount` from the unspent pool; an
+   * actor WITH a ledger (a PC) appends a refundable `log` entry describing the purchase, while an
+   * actor WITHOUT one (an NPC) tallies the spend into the legacy `spent` scalar instead — the
+   * derived SP readout (skill-points.mjs) already adds that scalar, so the Total stays balanced
+   * either way. Any additional document changes for the purchase (the raised attribute, the bought
+   * stat) are passed in `changes` and written in the same atomic update. Callers check affordability.
    * @param {{amount:number, label:string, kind:string, ref?:string, data?:object, changes?:object}} entry
    */
   async recordSkillPointSpend({ amount, label, kind, ref = "", data = {}, changes = {} }) {
-    const value = this.system.skillPoints?.value ?? 0;
-    const log = [...(this.system.skillPoints?.log ?? [])];
-    log.push({ id: foundry.utils.randomID(), label, amount, kind, ref, data, time: Date.now() });
-    return this.update({ ...changes, "system.skillPoints.value": Math.max(0, value - amount), "system.skillPoints.log": log });
+    const sp = this.system.skillPoints ?? {};
+    const nextValue = Math.max(0, (sp.value ?? 0) - amount);
+    if (Array.isArray(sp.log)) {
+      const log = [...sp.log];
+      log.push({ id: foundry.utils.randomID(), label, amount, kind, ref, data, time: Date.now() });
+      return this.update({ ...changes, "system.skillPoints.value": nextValue, "system.skillPoints.log": log });
+    }
+    return this.update({ ...changes, "system.skillPoints.value": nextValue, "system.skillPoints.spent": (sp.spent ?? 0) + amount });
   }
 
   /**
    * Refund a single ledger entry: reverse the change it recorded and return its SP to the pool.
    *  • skill     — delete the Skill (the deleteItem hook refunds + prunes every entry for it).
    *  • improve   — undo the refinement on the Skill (rank, accuracy, energy, range, modifier).
-   *  • attribute — step the base attribute back down.
+   *  • attribute — step the base attribute back down, cascading to any higher steps of it.
    *  • stat      — undo the combat-stat purchase.
    * "legacy" (pre-ledger advancement lump) carries nothing to reverse and is not refundable.
    */
@@ -139,8 +201,22 @@ export class ProjectAnimeActor extends Actor {
       return this.update({ "system.skillPoints.value": value + amount, "system.skillPoints.log": without });
     }
 
-    // attribute / stat — reverse on this actor, in the same update as the refund.
-    return this.update({ ...this.#reverseAdvancement(entry), "system.skillPoints.value": value + amount, "system.skillPoints.log": without });
+    if (entry.kind === "attribute") {
+      // Attribute raises stack (d4→d6→d8→…), so refunding one step also refunds every higher
+      // step of the same attribute — otherwise the ledger would claim a die the base no longer
+      // reaches. Drop this step + all higher ones, return their combined SP, and step the base
+      // back down to where this step began.
+      const { entries, refund, base } = attributePeel(log, entry, this.system.attributes?.[entry.ref]?.base);
+      const ids = new Set(entries.map((e) => e.id));
+      return this.update({
+        [`system.attributes.${entry.ref}.base`]: base,
+        "system.skillPoints.value": value + refund,
+        "system.skillPoints.log": log.filter((e) => !ids.has(e.id))
+      });
+    }
+
+    // stat — reverse the combat-stat purchase in the same update as the refund.
+    return this.update({ ...this.#reverseStat(entry), "system.skillPoints.value": value + amount, "system.skillPoints.log": without });
   }
 
   /** Undo one Skill refinement (Improve mode) recorded by an "improve" ledger entry. */
@@ -150,6 +226,7 @@ export class ProjectAnimeActor extends Actor {
     switch (entry.data?.op) {
       case "rank": return item.update({ "system.rank": Math.max(1, (sys.rank ?? 1) - 1) });
       case "accuracy": return item.update({ "system.accuracyMod": Math.max(0, (sys.accuracyMod ?? 0) - 1) });
+      case "damage": return item.update({ "system.damageMod": Math.max(0, (sys.damageMod ?? 0) - 1) });
       case "energy": return item.update({ "system.energyReduction": Math.max(0, (sys.energyReduction ?? 0) - 1) });
       case "range": return item.update({ "system.range.tiles": Math.max(0, (sys.range?.tiles ?? 0) - 1) });
       case "modifier": {
@@ -162,14 +239,9 @@ export class ProjectAnimeActor extends Actor {
     }
   }
 
-  /** Build the actor-update that reverses an "attribute" or "stat" advancement entry. */
-  #reverseAdvancement(entry) {
+  /** Build the actor-update that reverses a "stat" advancement entry (a combat-stat buy). */
+  #reverseStat(entry) {
     const sys = this.system;
-    if (entry.kind === "attribute") {
-      const base = sys.attributes?.[entry.ref]?.base ?? 4;
-      const from = Number(entry.data?.from);
-      return { [`system.attributes.${entry.ref}.base`]: Math.max(4, Number.isFinite(from) ? from : base - 2) };
-    }
     switch (entry.ref) {
       case "hp": { const max = Math.max(0, (sys.hp?.max ?? 0) - 2); return { "system.hp.max": max, "system.hp.value": Math.min(sys.hp?.value ?? 0, max) }; }
       case "energy": { const max = Math.max(0, (sys.energy?.max ?? 0) - 2); return { "system.energy.max": max, "system.energy.value": Math.min(sys.energy?.value ?? 0, max) }; }

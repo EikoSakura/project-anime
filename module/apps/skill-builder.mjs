@@ -71,6 +71,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       raiseRange: SkillBuilderApp.#onRaiseRange,
       lowerEnergy: SkillBuilderApp.#onLowerEnergy,
       sharpenAccuracy: SkillBuilderApp.#onSharpenAccuracy,
+      sharpenDamage: SkillBuilderApp.#onSharpenDamage,
       addModifier: SkillBuilderApp.#onAddModifier,
       turnModifier: SkillBuilderApp.#onTurnModifier
     }
@@ -110,6 +111,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       effect: "strike",
       damageType: "",
       damagePool: "hp",
+      secondaryEffect: "strike",
+      secondaryDamageAttr: "attrA",
+      secondaryDamagePool: "hp",
+      secondaryDamageType: "",
       trigger: "",
       modifiers: []
     };
@@ -149,6 +154,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       effect: s.effect ?? "strike",
       damageType: s.damageType ?? "",
       damagePool: s.damagePool ?? "hp",
+      // Secondary Effect defaults to a real Effect (only used while its Modifier is selected).
+      secondaryEffect: s.secondaryEffect || "strike",
+      secondaryDamageAttr: s.secondaryDamageAttr ?? "attrA",
+      secondaryDamagePool: s.secondaryDamagePool ?? "hp",
+      secondaryDamageType: s.secondaryDamageType ?? "",
       trigger: s.trigger ?? "",
       modifiers: [...(s.modifiers ?? [])]
     };
@@ -289,6 +299,20 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       };
     });
 
+    // "Secondary Effect" Modifier — when selected, the Modifiers step shows a second Effect picker
+    // (mirroring the primary's die/type/pool extras). The draft defaults the secondary to a real
+    // Effect, so it always resolves once the Modifier is on.
+    const secActive = d.modifiers.includes("secondaryEffect");
+    const secEffect = d.secondaryEffect || "strike";
+    ctx.secondaryActive = secActive;
+    ctx.secondaryEffectDesc = game.i18n.localize(`PROJECTANIME.Skill.effectDesc.${secEffect}`);
+    ctx.showSecondaryDie = cfg.dieEffects.includes(secEffect);
+    ctx.showSecondaryType = cfg.damageEffects.includes(secEffect);
+    ctx.showSecondaryPool = cfg.poolEffects.includes(secEffect);
+    ctx.showSecondaryExtras = ctx.showSecondaryDie || ctx.showSecondaryType || ctx.showSecondaryPool;
+    ctx.secondaryDieLabel = secEffect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie";
+    ctx.secondaryPoolLabel = secEffect === "sustain" ? "PROJECTANIME.Skill.field.regenPool" : "PROJECTANIME.Skill.field.damagePool";
+
     const rank = cfg.skillRanks[d.rank] ?? {};
     const dtLabels = elementChoices();
     ctx.review = {
@@ -301,6 +325,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       attrB: game.i18n.localize(cfg.attributes[d.attrB] ?? ""),
       range: rangeLabel(d.range),
       effect: game.i18n.localize(cfg.skillEffects[d.effect] ?? ""),
+      secondaryEffect: secActive ? game.i18n.localize(cfg.skillEffects[secEffect] ?? "") : "",
       damageDie: ctx.showDamageDie ? game.i18n.localize(cfg.attributes[d[d.damageAttr]] ?? "") : "",
       damageType: (ctx.showDamageType && d.damageType) ? (dtLabels[d.damageType] ?? d.damageType) : "",
       damagePool: ctx.showDamagePool ? game.i18n.localize(cfg.damagePools[d.damagePool] ?? "") : "",
@@ -331,6 +356,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const used = sys.modifiersUsed ?? 0;
     const max = sys.maxModifiers ?? 0;
     const accuracy = sys.accuracyMod ?? 0;
+    const damage = sys.damageMod ?? 0;
     const energy = sys.energyCost ?? 0;
     const minEnergy = sys.minEnergy ?? Math.ceil((rank.energy ?? 2) / 2);
     const scope = sys.range?.scope ?? "near";
@@ -372,6 +398,17 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         atMax: accuracy >= 3,
         disabled: accuracy >= 3 || !canAfford
       },
+      // Sharpen Damage / Sharpen Healing — only for Skills that roll an output (Strike / Mend);
+      // the label flips to "Healing" for a Mend.
+      sharpenDamage: {
+        cost: 1,
+        cur: damage,
+        next: damage + 1,
+        atMax: damage >= 3,
+        applies: cfg.dieEffects.includes(sys.effect),
+        isHeal: sys.effect === "mend",
+        disabled: damage >= 3 || !canAfford
+      },
       lowerEnergy: {
         cost: 1,
         cur: energy,
@@ -406,7 +443,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         };
       });
 
-    // "Turn a Modifier" (rules): grow the numeric value of a Modifier the Skill already has
+    // "Tune a Modifier" (rules): grow the numeric value of a Modifier the Skill already has
     // (Burst radius, Chain targets). 1 SP each. Only Modifiers in growableModifiers qualify.
     const growable = cfg.growableModifiers ?? {};
     ctx.growableMods = (sys.modifiers ?? [])
@@ -439,7 +476,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     enhanceSelects(this.element);
     // Re-render when a select that drives dependent fields changes (action type
     // reveals the React Trigger; effect changes its description / damage fields).
-    for (const sel of this.element.querySelectorAll('select[name="actionType"], select[name="effect"], select[name="rangeScope"]')) {
+    for (const sel of this.element.querySelectorAll('select[name="actionType"], select[name="effect"], select[name="secondaryEffect"], select[name="rangeScope"]')) {
       sel.addEventListener("change", () => { this.#sync(); this.render(); });
     }
   }
@@ -472,6 +509,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (data.damageAttr) d.damageAttr = data.damageAttr;
     if (data.damagePool) d.damagePool = data.damagePool;
     if ("damageType" in data) d.damageType = data.damageType ?? "";
+    // Secondary Effect fields (only present on the Modifiers step while the Modifier is selected).
+    if (data.secondaryEffect) d.secondaryEffect = data.secondaryEffect;
+    if (data.secondaryDamageAttr) d.secondaryDamageAttr = data.secondaryDamageAttr;
+    if (data.secondaryDamagePool) d.secondaryDamagePool = data.secondaryDamagePool;
+    if ("secondaryDamageType" in data) d.secondaryDamageType = data.secondaryDamageType ?? "";
     if ("trigger" in data) d.trigger = data.trigger ?? "";
   }
 
@@ -610,6 +652,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const name = (d.name || "").trim() || game.i18n.localize("PROJECTANIME.SkillBuilder.newSkillName");
     const rankCost = cfg.skillRanks[d.rank]?.sp ?? d.rank;
+    // The Secondary Effect persists only while its Modifier is selected; otherwise it's cleared.
+    const hasSecondary = d.modifiers.includes("secondaryEffect");
     const system = {
       description: d.description ?? "",
       rank: d.rank,
@@ -621,6 +665,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       // Only damage Effects (Strike / Affinity) keep a damage type.
       damageType: cfg.damageEffects.includes(d.effect) ? (d.damageType ?? "") : "",
       damagePool: d.damagePool,
+      secondaryEffect: hasSecondary ? (d.secondaryEffect || "") : "",
+      secondaryDamageAttr: d.secondaryDamageAttr,
+      secondaryDamagePool: d.secondaryDamagePool,
+      secondaryDamageType: hasSecondary && cfg.damageEffects.includes(d.secondaryEffect) ? (d.secondaryDamageType ?? "") : "",
       trigger: d.actionType === "react" ? d.trigger : "",
       modifiers: [...d.modifiers]
     };
@@ -659,7 +707,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Rewrite the Skill (flattened so any removed Modifier-growth keys can be deleted cleanly).
     const update = foundry.utils.flattenObject({
       name, img: this.#draft.img || DEFAULT_SKILL_IMG,
-      system: { ...system, accuracyMod: 0, energyReduction: 0 }
+      system: { ...system, accuracyMod: 0, damageMod: 0, energyReduction: 0 }
     });
     for (const key of Object.keys(item.system.modifierGrowth ?? {})) update[`system.modifierGrowth.-=${key}`] = null;
 
@@ -708,7 +756,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Ledger metadata for an Improve-mode purchase on `item` (op drives how Refund reverses it). */
   #improveMeta(item, op, key = "") {
     const cfg = CONFIG.PROJECTANIME;
-    const labelKey = { rank: "improveRank", range: "improveRange", energy: "improveEnergy", accuracy: "improveAccuracy", modifier: "improveModifier", growth: "improveGrowth" }[op];
+    let labelKey = { rank: "improveRank", range: "improveRange", energy: "improveEnergy", accuracy: "improveAccuracy", modifier: "improveModifier", growth: "improveGrowth" }[op];
+    // Sharpen Damage and Sharpen Healing share the `damage` op (one field); the log names the
+    // one that fits the Effect.
+    if (op === "damage") labelKey = item.system.effect === "mend" ? "improveHealing" : "improveDamage";
     return {
       kind: "improve", ref: item.id, data: { op, key },
       label: game.i18n.format(`PROJECTANIME.SkillLog.entry.${labelKey}`, { skill: item.name, mod: key ? game.i18n.localize(cfg.skillModifiers[key] ?? key) : "" })
@@ -741,6 +792,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#spend(1, () => item.update({ "system.accuracyMod": (item.system.accuracyMod ?? 0) + 1 }), this.#improveMeta(item, "accuracy"));
   }
 
+  /** "Sharpen Damage" / "Sharpen Healing": +1 to the Skill's rolled output, max +3 (1 SP). */
+  static async #onSharpenDamage() {
+    const item = this.#advanceSkill();
+    if (!item || (item.system.damageMod ?? 0) >= 3) return;
+    await this.#spend(1, () => item.update({ "system.damageMod": (item.system.damageMod ?? 0) + 1 }), this.#improveMeta(item, "damage"));
+  }
+
   static async #onAddModifier(event, target) {
     const item = this.#advanceSkill();
     if (!item) return;
@@ -756,7 +814,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#spend(1, () => item.update({ "system.modifiers": [...mods, key] }), this.#improveMeta(item, "modifier", key));
   }
 
-  /** "Turn a Modifier": grow a numeric Modifier's value by 1 (1 SP). */
+  /** "Tune a Modifier": grow a numeric Modifier's value by 1 (1 SP). */
   static async #onTurnModifier(event, target) {
     const item = this.#advanceSkill();
     if (!item) return;

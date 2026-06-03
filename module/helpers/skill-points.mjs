@@ -35,7 +35,6 @@ export function skillPointLedger(actor) {
   let spent;
   if (ledger) {
     spent = ledger.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const attrs = sys.attributes ?? {};
     spLog = ledger
       .map((e) => ({
         id: e.id,
@@ -44,9 +43,9 @@ export function skillPointLedger(actor) {
         kind: e.kind,
         icon: KIND_ICONS[e.kind] ?? "fa-star",
         time: e.time ?? 0,
-        // Refundable unless it's the legacy lump, or a non-top attribute step (refund the
-        // most-recent raise first — its `to` still matches the attribute's current base).
-        refundable: e.kind !== "legacy" && (e.kind !== "attribute" || attrs[e.ref]?.base === e.data?.to)
+        // Everything is refundable except the legacy lump (it carries nothing to reverse).
+        // Attribute steps stack, so refunding one cascades to its higher steps — see attributePeel().
+        refundable: e.kind !== "legacy"
       }))
       // Newest first; backfilled entries (time 0) sit at the bottom in insertion order.
       .sort((a, b) => b.time - a.time);
@@ -60,4 +59,28 @@ export function skillPointLedger(actor) {
     spInfo: { available: value, spent, granted: grantedSP, total: value + spent + grantedSP },
     spLog
   };
+}
+
+/**
+ * The ledger steps a refund of one attribute entry reverses. Attribute raises stack
+ * (d4→d6→d8→…), so refunding a step must also refund every HIGHER step of the same attribute —
+ * otherwise the ledger would claim a die the base no longer reaches and `Spent` would drift.
+ * Returns the affected entries, their combined SP, and the base the attribute steps back to (this
+ * entry's `from`). Shared by the actor's refund and the Skill-Point Log's confirm prompt so both
+ * agree on what a click will undo.
+ * @param {Array}  log           The actor's full ledger (`system.skillPoints.log`).
+ * @param {object} entry         The clicked attribute entry.
+ * @param {number} [currentBase] Current base die; used only for the defensive no-`from` fallback.
+ * @returns {{entries:Array, refund:number, base:number}}
+ */
+export function attributePeel(log, entry, currentBase) {
+  const from = Number(entry?.data?.from);
+  const hasFrom = Number.isFinite(from);
+  const entries = (Array.isArray(log) ? log : []).filter(
+    (e) => e.kind === "attribute" && e.ref === entry.ref &&
+      (hasFrom ? Number(e.data?.from) >= from : e.id === entry.id)
+  );
+  const refund = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const base = Math.max(4, hasFrom ? from : (Number(currentBase) || 6) - 2);
+  return { entries, refund, base };
 }

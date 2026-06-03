@@ -91,4 +91,10 @@
       {{/each}}
     </ul>
   </div>
+
+  {{!-- Optional override: when non-blank, replaces the auto-written rules on the View tab + card. --}}
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Skill.auto.rulesOverride"}}</h4>
+    <textarea name="system.rulesOverride" class="rules-override-input" rows="3">{{system.rulesOverride}}</textarea>
+  </div>
 </section>

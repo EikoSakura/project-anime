@@ -45,8 +45,8 @@
       <div class="qs-head"><h3>{{localize "PROJECTANIME.Quick.weapons"}}</h3></div>
       <div class="item-grid quick-grid">
         {{#each quickWeapons as |w|}}
-        <div class="item-tile quick-tile" data-item-id="{{w.id}}" data-readied-type="weapon">
-          <div class="tile-icon" data-action="rollItem"><img src="{{w.img}}" alt="{{w.name}}" /></div>
+        <div class="item-tile quick-tile{{#if w.natural}} natural{{/if}}" data-item-id="{{w.id}}" data-readied-type="weapon">
+          <div class="tile-icon" data-action="rollItem"><img src="{{w.img}}" alt="{{w.name}}" />{{#if w.natural}}<span class="tile-qty natural" title="{{localize 'PROJECTANIME.NaturalAttack.hint'}}"><i class="fas fa-hand-fist"></i></span>{{/if}}</div>
           <span class="tile-name">{{w.name}}</span>
         </div>
         {{else}}

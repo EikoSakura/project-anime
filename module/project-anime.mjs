@@ -2,7 +2,7 @@
  * Project: Anime — system entry point for Foundry VTT V13.
  */
 import * as models from "./data/_module.mjs";
-import { ProjectAnimeActor, enforceEquipExclusivity, refundSkillOnDelete } from "./documents/actor.mjs";
+import { ProjectAnimeActor, enforceEquipExclusivity, refundSkillOnDelete, naturalAttackData, ensureNaturalAttack } from "./documents/actor.mjs";
 import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
@@ -491,6 +491,14 @@ Hooks.on("preCreateActor", (actor, data) => {
       disposition: isChar ? DISP.FRIENDLY : (dispMap[data?.system?.disposition] ?? DISP.NEUTRAL)
     }
   });
+  // Innate Natural Attack: bake an unarmed strike into every new creature unless it already
+  // carries one (a duplicated or imported actor). Flag it provisioned so the one-time backfill
+  // skips it and a later deletion isn't undone on reload.
+  const items = actor._source.items ?? [];
+  const hasNatural = items.some((i) => foundry.utils.getProperty(i, "flags.project-anime.natural"));
+  const update = { "flags.project-anime.naturalProvisioned": true };
+  if (!hasNatural) update.items = [...items, naturalAttackData()];
+  actor.updateSource(update);
 });
 
 /* -------------------------------------------- */
@@ -588,6 +596,26 @@ async function backfillSkillPointLog() {
 }
 
 /* -------------------------------------------- */
+/*  Natural Attack backfill (one-time)          */
+/* -------------------------------------------- */
+
+// Give every existing Character / NPC made before the feature its innate Natural Attack (an
+// unarmed strike, usable alongside equipped weapons). GM-side, once per actor (flagged
+// "naturalProvisioned" so an intentional deletion isn't undone on the next world load). New
+// actors get theirs at creation via preCreateActor.
+async function backfillNaturalAttacks() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  const flagged = [];
+  for (const actor of game.actors) {
+    if (actor.type !== "character" && actor.type !== "npc") continue;
+    if (actor.getFlag("project-anime", "naturalProvisioned")) continue;
+    await ensureNaturalAttack(actor);
+    flagged.push({ _id: actor.id, "flags.project-anime.naturalProvisioned": true });
+  }
+  if (flagged.length) await Actor.updateDocuments(flagged);
+}
+
+/* -------------------------------------------- */
 /*  Ready                                       */
 /* -------------------------------------------- */
 
@@ -596,6 +624,9 @@ Hooks.once("ready", function () {
 
   // One-time: seed the Skill-Point ledger from existing skills + past advancement.
   backfillSkillPointLog();
+
+  // One-time: give pre-existing creatures their innate Natural Attack.
+  backfillNaturalAttacks();
 
   // One-time: back each existing Party with a real Folder (migrating any legacy system.members).
   if (paIsActiveGM()) ensureAllPartyFolders();

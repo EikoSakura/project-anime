@@ -172,6 +172,37 @@
         </li>
         {{/each}}
       </ul>
+      {{#if secondaryActive}}
+      <div class="sb-secondary-effect">
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.secondaryEffect"}}</span>
+          <select name="secondaryEffect">{{selectOptions effectChoices selected=draft.secondaryEffect localize=true}}</select>
+        </label>
+        <p class="sb-effect-desc">{{secondaryEffectDesc}}</p>
+        {{#if showSecondaryExtras}}
+        <div class="sb-field-grid">
+          {{#if showSecondaryDie}}
+          <label class="sb-field">
+            <span class="sb-label">{{localize secondaryDieLabel}}</span>
+            <select name="secondaryDamageAttr">{{selectOptions damageDieChoices selected=draft.secondaryDamageAttr}}</select>
+          </label>
+          {{/if}}
+          {{#if showSecondaryType}}
+          <label class="sb-field">
+            <span class="sb-label">{{localize "PROJECTANIME.Skill.field.damageType"}}</span>
+            <select name="secondaryDamageType">{{selectOptions damageTypeChoices selected=draft.secondaryDamageType blank=""}}</select>
+          </label>
+          {{/if}}
+          {{#if showSecondaryPool}}
+          <label class="sb-field">
+            <span class="sb-label">{{localize secondaryPoolLabel}}</span>
+            <select name="secondaryDamagePool">{{selectOptions damagePoolChoices selected=draft.secondaryDamagePool localize=true}}</select>
+          </label>
+          {{/if}}
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
     </section>
     {{/if}}
 
@@ -186,6 +217,7 @@
       </div>
       <dl class="sb-review-list">
         <div><dt>{{localize "PROJECTANIME.Skill.field.effect"}}</dt><dd>{{review.effect}}</dd></div>
+        {{#if review.secondaryEffect}}<div><dt>{{localize "PROJECTANIME.Skill.field.secondaryEffect"}}</dt><dd>{{review.secondaryEffect}}</dd></div>{{/if}}
         <div><dt>{{localize "PROJECTANIME.SkillBuilder.attributes"}}</dt><dd>{{review.attrA}} + {{review.attrB}}</dd></div>
         {{#if review.damageDie}}<div><dt>{{localize damageDieLabel}}</dt><dd>{{review.damageDie}}</dd></div>{{/if}}
         <div><dt>{{localize "PROJECTANIME.Skill.field.range"}}</dt><dd>{{review.range}}</dd></div>
@@ -248,6 +280,13 @@
         <span class="sb-imp-detail">{{#if improvements.sharpenAccuracy.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}+{{improvements.sharpenAccuracy.cur}} → +{{improvements.sharpenAccuracy.next}}{{/if}}</span>
         <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.sharpenAccuracy.cost}}</span>
       </button>
+      {{#if improvements.sharpenDamage.applies}}
+      <button type="button" class="sb-imp" data-action="sharpenDamage" {{#if improvements.sharpenDamage.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{#if improvements.sharpenDamage.isHeal}}{{localize "PROJECTANIME.SkillBuilder.sharpenHealing"}}{{else}}{{localize "PROJECTANIME.SkillBuilder.sharpenDamage"}}{{/if}}</span>
+        <span class="sb-imp-detail">{{#if improvements.sharpenDamage.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}+{{improvements.sharpenDamage.cur}} → +{{improvements.sharpenDamage.next}}{{/if}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.sharpenDamage.cost}}</span>
+      </button>
+      {{/if}}
       {{#unless skill.passive}}
       <button type="button" class="sb-imp" data-action="lowerEnergy" {{#if improvements.lowerEnergy.disabled}}disabled{{/if}}>
         <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.lowerEnergy"}}</span>

@@ -127,7 +127,8 @@ PROJECTANIME.skillModifiers = {
   pierce: "PROJECTANIME.Skill.modifier.pierce",
   pull: "PROJECTANIME.Skill.modifier.pull",
   push: "PROJECTANIME.Skill.modifier.push",
-  reflect: "PROJECTANIME.Skill.modifier.reflect"
+  reflect: "PROJECTANIME.Skill.modifier.reflect",
+  secondaryEffect: "PROJECTANIME.Skill.modifier.secondaryEffect"
 };
 
 /** Modifiers flagged "Heavy" count as two Modifiers. */
@@ -136,12 +137,15 @@ PROJECTANIME.heavyModifiers = ["devour", "mass"];
 /** Area-of-effect modifiers and how each shapes targeting (see helpers/templates.mjs). */
 PROJECTANIME.areaModifiers = ["burst", "line", "mass", "chain"];
 
-/** Modifiers with a numeric value the "Turn a Modifier" advancement grows (+1 per SP).
+/** Modifiers with a numeric value the "Tune a Modifier" advancement grows (+1 per SP).
  *  `base` is the value before any growth; per-skill growth is stored in system.modifierGrowth.
- *  Burst = the circle radius in tiles; Chain = extra targets it leaps to after the first hit. */
+ *  Burst = the circle radius in tiles; Chain = extra targets it leaps to after the first hit;
+ *  Push / Pull = how many tiles of Forced Movement the target is shoved (rules base: one tile). */
 PROJECTANIME.growableModifiers = {
   burst: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  chain: { base: 2, unit: "PROJECTANIME.Skill.growUnit.targets" }
+  chain: { base: 2, unit: "PROJECTANIME.Skill.growUnit.targets" },
+  push: { base: 1, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  pull: { base: 1, unit: "PROJECTANIME.Skill.growUnit.tiles" }
 };
 
 /** The Range scope a Chain may leap within between targets ("within Near"). */
@@ -152,6 +156,51 @@ export function modifierValue(item, key) {
   const g = PROJECTANIME.growableModifiers?.[key];
   if (!g) return 0;
   return (g.base ?? 0) + (item?.system?.modifierGrowth?.[key] ?? 0);
+}
+
+/* -------------------------------------------- */
+/*  Secondary Effect ("Secondary Effect" mod)   */
+/* -------------------------------------------- */
+/* The "Secondary Effect" Modifier lets a Skill resolve a SECOND Effect on use (a Strike that
+ * also Mends, a Mend that also Bolsters, …). Six of the eight Effects are delivered through the
+ * Skill's Active Effects (only Strike/Mend roll dice), so "both Effects" means: one shared
+ * Accuracy Check; a damage roll if EITHER slot is a Strike and a heal roll if EITHER is a Mend;
+ * and the Skill's Active Effects apply whenever any slot is a non-die Effect. These three pure
+ * readers are the single source of truth for "what Effect(s) does this Skill have", shared by the
+ * dice resolver, the sheets, and the chat card. */
+
+/** True if a Skill carries the "Secondary Effect" Modifier AND has a valid second Effect set. */
+export function skillHasSecondary(sys) {
+  if (!sys || !(sys.modifiers ?? []).includes("secondaryEffect")) return false;
+  return !!sys.secondaryEffect && sys.secondaryEffect in PROJECTANIME.skillEffects;
+}
+
+/** The Skill's Effect keys in order: [primary] plus the secondary (when active and distinct). */
+export function skillEffectKeys(sys) {
+  const keys = sys?.effect ? [sys.effect] : [];
+  if (skillHasSecondary(sys) && sys.secondaryEffect !== sys.effect) keys.push(sys.secondaryEffect);
+  return keys;
+}
+
+/**
+ * The die-Effect (Strike / Mend) roll specs a Skill should offer, deduped by Effect (at most one
+ * damage + one heal). Each spec carries which slot's attribute die / pool / damage-type to roll,
+ * so a Skill with both a Strike and a Mend offers a damage AND a healing button. `primary` marks
+ * the main slot — its button reads the Skill's base fields and needs no override.
+ * @returns {{effect:string, damageAttr:string, damagePool:string, damageType:string, primary:boolean}[]}
+ */
+export function skillDieSpecs(sys) {
+  const out = [];
+  const add = (effect, damageAttr, damagePool, damageType, primary) => {
+    if (effect !== "strike" && effect !== "mend") return;
+    if (out.some((s) => s.effect === effect)) return; // one button per die-Effect
+    out.push({ effect, damageAttr, damagePool, damageType, primary });
+  };
+  add(sys?.effect, sys?.damageAttr, sys?.damagePool, sys?.damageType, true);
+  if (skillHasSecondary(sys)) {
+    add(sys.secondaryEffect, sys.secondaryDamageAttr, sys.secondaryDamagePool, sys.secondaryDamageType, false);
+  }
+  return out;
 }
 
 /** Triggers — required for every React Skill. */

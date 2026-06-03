@@ -1,6 +1,6 @@
 import { rollCheck, rollInitiative } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { rangeLabel } from "../helpers/config.mjs";
+import { rangeLabel, skillEffectKeys } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, collectToggles, applyEffectCopy } from "../helpers/effects.mjs";
@@ -354,12 +354,14 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       .sort(bySort)
       .map((p) => ({ id: p.id, name: p.name, img: p.img, category: p.system?.category ?? "" }));
 
-    // Quick-action panel on the Stats main view: equipped weapons (attack from
-    // here) + skills the player has pinned (via a `readied` flag). Two blocks.
+    // Quick-action panel on the Stats main view: equipped weapons + the innate Natural Attack
+    // (always available, in addition to equipment) + skills the player has pinned (`readied`).
+    // Equipped weapons lead; the Natural Attack trails as the unarmed fallback.
+    const isNatural = (i) => !!i.getFlag("project-anime", "natural");
     context.quickWeapons = groups.weapon
-      .filter((i) => i.system?.equipped)
-      .sort(bySort)
-      .map((i) => ({ id: i.id, name: i.name, img: i.img }));
+      .filter((i) => i.system?.equipped || isNatural(i))
+      .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || bySort(a, b))
+      .map((i) => ({ id: i.id, name: i.name, img: i.img, natural: isNatural(i) }));
     const readied = skills.filter((i) => i.getFlag("project-anime", "readied"));
     const mapSkill = (i) => ({ id: i.id, name: i.name, img: i.img, energyCost: i.system?.energyCost ?? 0 });
     // Pinned skills, split into the three action-type groups (empty groups drop out).
@@ -381,7 +383,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const c = i.system?.container || "";
       return c && containerIds.has(c) ? c : "";
     };
-    const containable = GEAR_GROUPS.flatMap((k) => groups[k]);
+    // The innate Natural Attack is surfaced in the quick panel, not the carried-gear grid — keep
+    // it out of the bags (and their counts) so it never reads as droppable/loose equipment.
+    const containable = GEAR_GROUPS.flatMap((k) => groups[k]).filter((i) => !i.getFlag("project-anime", "natural"));
     const countIn = (id) => containable.reduce((n, i) => n + (bagOf(i) === id ? 1 : 0), 0);
 
     context.selectedBag = sel;
@@ -773,9 +777,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       rowHTML(i18n("PROJECTANIME.Skill.field.rank"), `<span class='pa-tt-stars'>${rank.stars ?? ""}</span> ${esc(i18n(rank.label ?? ""))}`);
       if (sys.energyCost > 0) row(i18n("PROJECTANIME.Skill.field.energyCost"), `${sys.energyCost} EN`);
       row(i18n("PROJECTANIME.Skill.field.range"), rangeLabel(sys.range));
-      row(i18n("PROJECTANIME.Skill.field.effect"), i18n(cfg.skillEffects[sys.effect] ?? ""));
+      row(i18n("PROJECTANIME.Skill.field.effect"), skillEffectKeys(sys).map((k) => i18n(cfg.skillEffects[k] ?? "")).join(" + "));
       if (cfg.dieEffects.includes(sys.effect)) row(i18n(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie"), aName(sys.attributes?.[sys.damageAttr]));
       if (sys.accuracyMod) row(i18n("PROJECTANIME.Skill.field.accuracyMod"), `+${sys.accuracyMod}`);
+      if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) row(i18n(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod"), `+${sys.damageMod}`);
       if (sys.actionType === "react" && sys.trigger) row(i18n("PROJECTANIME.Skill.field.trigger"), i18n(cfg.triggers[sys.trigger] ?? sys.trigger));
       if (sys.damageType && cfg.damageEffects.includes(sys.effect)) row(i18n("PROJECTANIME.Skill.field.damageType"), elName(sys.damageType));
     } else if (item.type === "armor") {
@@ -910,6 +915,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const equipped = !!item.system?.equipped;
     const { add, show } = this.#contextMenu(ev);
     add("fa-comment", "PROJECTANIME.Action.toChat", () => item.roll({ event: ev }));
+    // The innate Natural Attack isn't carried gear — offer only chat + tuning (no equip / delete).
+    if (item.getFlag("project-anime", "natural")) {
+      add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
+      show();
+      return;
+    }
     if (item.type === "weapon" || item.type === "shield") {
       add("fa-hand-fist", "PROJECTANIME.Action.equipMainHand", () => this.#equipToSlot(item, "mainHand"));
       add("fa-shield-halved", "PROJECTANIME.Action.equipOffHand", () => this.#equipToSlot(item, "offHand"));

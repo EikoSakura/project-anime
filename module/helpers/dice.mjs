@@ -1,4 +1,5 @@
-import { PROJECTANIME, modifierValue } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs } from "./config.mjs";
+import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
 import { collectRollModifiers, collectInflictedConditions, effectRules, effectCopyData } from "./effects.mjs";
 import {
@@ -216,20 +217,31 @@ function cardHTML({ title, subtitle = "", icon = "", meta = [], badges = [], rol
   </div>`;
 }
 
-/** Enrich an item's own description for display on its chat card (empty string if none). */
+/**
+ * The card body for an item. Non-Skills → just the enriched flavor description (unchanged). Skills
+ * → the player's rules OVERRIDE if set, else the auto-written colored rules summary, with the typed
+ * flavor description shown beneath it. (Single chokepoint — every skill card site calls this.)
+ */
 async function enrichDescription(item) {
-  const raw = item?.system?.description ?? "";
-  if (!raw || !String(raw).trim()) return "";
   const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-  return TE.enrichHTML(String(raw), { secrets: false, rollData: item.getRollData?.() ?? {} });
+  const enrich = (raw) => (raw && String(raw).trim())
+    ? TE.enrichHTML(String(raw), { secrets: false, rollData: item.getRollData?.() ?? {} })
+    : "";
+  const flavor = await enrich(item?.system?.description);
+  if (item?.type !== "skill") return flavor;
+  const override = (item.system?.rulesOverride ?? "").trim();
+  const rules = override ? await enrich(item.system.rulesOverride) : skillRulesHTML(item);
+  if (!rules) return flavor;
+  return flavor ? `${rules}<div class="skill-card-flavor">${flavor}</div>` : rules;
 }
 
-/** Compact stat chips for a Skill card: rank stars · effect type · Energy cost. */
+/** Compact stat chips for a Skill card: rank stars · effect type(s) · Energy cost. */
 function skillMeta(sys) {
   const rank = PROJECTANIME.skillRanks[sys.rank] ?? {};
   const chips = [];
   if (rank.stars) chips.push(`<span class="meta-stars">${rank.stars}</span>`);
-  const effectLabel = i18n(PROJECTANIME.skillEffects[sys.effect] ?? "");
+  // Effect(s): a Skill carrying the "Secondary Effect" Modifier shows both, joined with " + ".
+  const effectLabel = skillEffectKeys(sys).map((k) => i18n(PROJECTANIME.skillEffects[k] ?? "")).filter(Boolean).join(" + ");
   if (effectLabel) chips.push(effectLabel);
   if (sys.actionType !== "passive" && Number(sys.energyCost) > 0) {
     chips.push(`<i class="fas fa-bolt"></i> ${sys.energyCost}`);
@@ -479,9 +491,16 @@ function skillAccuracy(actor, item) {
  * the single-target, area, and chain damage paths — they each apply this raw to their targets.
  * @returns {Promise<{roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods}>}
  */
-async function computeDamageRoll(actor, item, { target = null, charged = false } = {}) {
+async function computeDamageRoll(actor, item, { target = null, charged = false, spec = null } = {}) {
   const isSkill = item.type === "skill";
-  const heal = isSkill && item.system.effect === "mend";
+  // A secondary Effect's "Roll Damage/Healing" button carries its own slot spec (which Effect,
+  // attribute die, pool, damage type); the primary button — and every weapon attack — passes
+  // none and reads the item's base fields, so existing behaviour is unchanged.
+  const effect = spec?.effect ?? item.system?.effect;
+  const slotAttr = spec?.damageAttr ?? item.system?.damageAttr;
+  const slotPool = spec?.damagePool ?? item.system?.damagePool;
+  const slotType = spec?.damageType ?? item.system?.damageType;
+  const heal = isSkill && effect === "mend";
   // A Weapon-range Skill borrows the equipped weapon's accuracy Attributes & damage (mod, type,
   // die, grip rules); the Skill's own pool / Pierce / charge still layer on below. `weapon` is
   // null for ordinary Skills (and for weapons themselves), so they keep their existing behavior.
@@ -499,14 +518,14 @@ async function computeDamageRoll(actor, item, { target = null, charged = false }
     attrA = item.system.attributes?.attrA ?? "might";
     attrB = item.system.attributes?.attrB ?? "spirit";
     mod = 0;
-    dtype = item.system.damageType || "physical";
+    dtype = slotType || "physical";
   }
 
   // Weapons (and Weapon-range Skills) roll the larger of the two Attributes; other Skills roll the
   // designer-CHOSEN Attribute die (rules: "choose one of its two Attributes").
   const dieAttr = usesWeapon
     ? largerAttr(actor, attrA, attrB)
-    : (item.system.attributes?.[item.system.damageAttr] ?? attrA);
+    : (item.system.attributes?.[slotAttr] ?? attrA);
   // Weapon/shield grip rules (p.9-10): a two-handed grip Steps the Damage die UP one size (or +1
   // damage if already d12); dual wielding Steps both dice DOWN one. Applies to borrowed weapons too.
   let dieSize = attrValue(actor, dieAttr);
@@ -525,13 +544,17 @@ async function computeDamageRoll(actor, item, { target = null, charged = false }
   // Pierce (a Skill modifier) and Energy damage both bypass Defense: per the rules,
   // Defense reduces only Hit Point damage, so damage dealt to the Energy pool ignores
   // it. ("Energy damage" = damage to the Energy stat — NOT an element/damage type.)
-  const isStrike = isSkill && item.system.effect === "strike";
-  const pool = (isStrike && item.system.damagePool === "energy") ? "energy" : "hp";
+  const isStrike = isSkill && effect === "strike";
+  const pool = (isStrike && slotPool === "energy") ? "energy" : "hp";
   const pierces = isSkill && (item.system.modifiers ?? []).includes("pierce");
   const ignoresDefense = pierces || pool === "energy";
 
   const rmods = collectRollModifiers(actor, "damage", { target });
   mod += rmods.flat;
+  // "Sharpen Damage" / "Sharpen Healing" advancement: a flat bonus (0–3) baked into a Skill's
+  // rolled output — Strike damage or Mend healing (the same field, named for the Effect).
+  const sharpen = isSkill ? Math.max(0, Number(item.system.damageMod) || 0) : 0;
+  mod += sharpen;
   let f = `1d${dieSize}`;
   if (mod) f += `${mod > 0 ? " + " : " - "}${Math.abs(mod)}`;
   const roll = new Roll(f);
@@ -539,7 +562,7 @@ async function computeDamageRoll(actor, item, { target = null, charged = false }
   // Charge (a Skill modifier): a charged release resolves at double damage/healing (rules p.13).
   const raw = Math.max(roll.total, 0) * (charged ? 2 : 1);
 
-  return { roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods, charged };
+  return { roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods, charged, sharpen };
 }
 
 /**
@@ -600,7 +623,7 @@ function applyAllButton(list) {
  * With `targetUuids` (carried by an area Skill's "Roll Damage" button) it rolls once and
  * applies that raw to every listed target; otherwise it resolves the single primary target.
  */
-export async function rollDamage(actor, item, { targetUuids = null, charged = false } = {}) {
+export async function rollDamage(actor, item, { targetUuids = null, charged = false, spec = null } = {}) {
   let targets = [];
   if (targetUuids?.length) {
     targets = (await Promise.all(targetUuids.map((u) => fromUuid(u)))).filter(Boolean);
@@ -608,11 +631,11 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
     const t = firstTargetActor();
     if (t) targets = [t];
   }
-  if (targets.length > 1) return postAoeDamageCard(actor, item, targets, { charged });
+  if (targets.length > 1) return postAoeDamageCard(actor, item, targets, { charged, spec });
 
   // Single-target (or no target) — the original card.
   const targetActor = targets[0] ?? null;
-  const dmg = await computeDamageRoll(actor, item, { target: targetActor, charged });
+  const dmg = await computeDamageRoll(actor, item, { target: targetActor, charged, spec });
   const adj = adjustForTarget(dmg.raw, dmg.dtype, targetActor, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal });
 
   const badges = [...adj.badges];
@@ -639,6 +662,7 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
 function damageNotes(dmg) {
   const lines = [];
   if (dmg.charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
+  if (dmg.sharpen) lines.push(`<em class="muted">${i18n(dmg.heal ? "PROJECTANIME.Roll.sharpenedHealing" : "PROJECTANIME.Roll.sharpenedDamage", { n: dmg.sharpen })}</em>`);
   if (dmg.isSkill) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.dieUsed", { attr: i18n(PROJECTANIME.attributes[dmg.dieAttr] ?? dmg.dieAttr) })}</em>`);
   if (dmg.dmgReasons.includes("twoHanded")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.twoHanded")}</em>`);
   if (dmg.dmgReasons.includes("dualWield")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.dualWield")}</em>`);
@@ -649,8 +673,8 @@ function damageNotes(dmg) {
 }
 
 /** Multi-target damage card: one roll, applied per target (each with its own affinity/Defense). */
-async function postAoeDamageCard(actor, item, targetActors, { charged = false } = {}) {
-  const dmg = await computeDamageRoll(actor, item, { target: targetActors[0], charged });
+async function postAoeDamageCard(actor, item, targetActors, { charged = false, spec = null } = {}) {
+  const dmg = await computeDamageRoll(actor, item, { target: targetActors[0], charged, spec });
   const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetActors.length })}</em>`];
   const buttons = [];
   const applyList = [];
@@ -786,25 +810,28 @@ async function acquireAreaTargets(actor, item, kind) {
 async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   const sys = item.system;
   const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
-  const isStrike = sys.effect === "strike";
-  const isMend = sys.effect === "mend";
+  // A Skill may carry a second Effect (the "Secondary Effect" Modifier). It makes ONE Accuracy
+  // Check — an attack iff EITHER slot is a Strike — then resolves every Effect it holds.
+  const effects = skillEffectKeys(sys);
+  const hasStrike = effects.includes("strike");
+  const hasOther = effects.some((e) => e !== "strike" && e !== "mend");
 
   const targetActor = firstTargetActor();
   const evasion = targetActor?.system?.evasion?.value ?? null;
 
-  const rmods = collectRollModifiers(actor, isStrike ? "attack" : "check", { target: targetActor });
+  const rmods = collectRollModifiers(actor, hasStrike ? "attack" : "check", { target: targetActor });
   // "Sharpen Accuracy" advancement: a flat bonus baked into the Skill's Check.
   const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
-  const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: isStrike });
+  const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: hasStrike });
   const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
   await roll.evaluate();
   const [r1, r2] = dieResults(roll);
-  const fumble = isStrike && r1 === 1 && r2 === 1;
-  const combo = isStrike && r1 === r2 && r1 >= 6;
+  const fumble = hasStrike && r1 === 1 && r2 === 1;
+  const combo = hasStrike && r1 === r2 && r1 >= 6;
 
   const badges = [];
   let hit = null;
-  if (isStrike) {
+  if (hasStrike) {
     if (fumble) { badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") }); hit = false; }
     else if (combo) { badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") }); hit = true; }
     else if (evasion != null) hit = roll.total >= evasion;
@@ -815,12 +842,12 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   const lines = [...stepNotes(reasons)];
   const skillModLine = rollModLine(rmods); if (skillModLine) lines.push(skillModLine);
   if (accBonus) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.sharpened", { n: accBonus })}</em>`);
-  if (isStrike && evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}`);
+  if (hasStrike && evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}`);
   if (combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
   // Charged release: note the double power on a hit, or that the charge dissipated on a miss.
-  if (charged) lines.push(`<em class="muted">${i18n(isStrike && hit === false ? "PROJECTANIME.Roll.chargeDissipated" : "PROJECTANIME.Roll.charged")}</em>`);
+  if (charged) lines.push(`<em class="muted">${i18n(hasStrike && hit === false ? "PROJECTANIME.Roll.chargeDissipated" : "PROJECTANIME.Roll.charged")}</em>`);
 
-  if ((isStrike ? hit === true : true) && targetActor) {
+  if ((hasStrike ? hit === true : true) && targetActor) {
     for (const c of collectInflictedConditions(item, targetActor)) {
       await applyStatusEffect(targetActor, c.id);
       lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: c.label, name: targetActor.name })}</em>`);
@@ -828,20 +855,30 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
     await inflictDecay(item, targetActor, lines);
   }
 
-  // Non-Strike / non-Mend Skills (Bolster / Hinder / Affinity / Sustain / Move / Sense) grant
-  // their own Active Effect(s) to the targeted tokens — or the caster if none are targeted.
-  if (!isStrike && !isMend) lines.push(...(await applySkillEffects(actor, item)));
+  // A Skill applies its Active Effect(s) whenever it carries any non-die Effect (Bolster / Hinder /
+  // Affinity / Sustain / Move / Sense) in EITHER slot — to the targeted tokens, or the caster if
+  // none are targeted. (Pure Strike/Mend Skills deliver through the rolls below, not here.)
+  if (hasOther) lines.push(...(await applySkillEffects(actor, item)));
 
   const buttons = [];
-  if (isStrike) buttons.push(luckButton({ d1: r1, d2: r2, mod: 0, evasion, kind: "skill", actorUuid: actor.uuid, itemId: item.id, targetUuid: targetActor?.uuid ?? "" }));
-  if ((isStrike && hit !== false) || isMend) {
+  if (hasStrike) buttons.push(luckButton({ d1: r1, d2: r2, mod: 0, evasion, kind: "skill", actorUuid: actor.uuid, itemId: item.id, targetUuid: targetActor?.uuid ?? "" }));
+  // The Skill "lands" if it isn't an attack, or its attack didn't miss — then offer one roll per
+  // die-Effect it holds (Strike → damage, Mend → healing; a Strike+Mend Skill offers both).
+  if (!hasStrike || hit !== false) {
     // Stamp the resolved target so the follow-up roll lands on who was targeted at cast time.
     const tgt = targetActor ? ` data-target-uuid="${targetActor.uuid}"` : "";
     const chg = charged ? ` data-charged="true"` : "";
-    buttons.push({
-      data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${chg}`,
-      label: `<i class="fas fa-${isMend ? "heart" : "burst"}"></i> ${i18n(isMend ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`
-    });
+    for (const ds of skillDieSpecs(sys)) {
+      const heal = ds.effect === "mend";
+      // The secondary slot carries its own Effect/attr/pool/type so its roll uses that slot's
+      // values; the primary slot needs no override (computeDamageRoll reads the Skill's base fields).
+      const sp = ds.primary ? ""
+        : ` data-effect="${ds.effect}" data-damage-attr="${ds.damageAttr}" data-damage-pool="${ds.damagePool ?? ""}" data-damage-type="${ds.damageType ?? ""}"`;
+      buttons.push({
+        data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${chg}${sp}`,
+        label: `<i class="fas fa-${heal ? "heart" : "burst"}"></i> ${i18n(heal ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`
+      });
+    }
   }
 
   await postCard(actor, cardHTML({
@@ -887,6 +924,7 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetTokens.length })}</em>`);
 
   const hitUuids = [];
+  const hitActors = [];
   const luckTargets = [];
   for (const tok of targetTokens) {
     const ta = tok.actor; if (!ta) continue;
@@ -897,6 +935,7 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
     lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evText}</span>`);
     if (didHit) {
       hitUuids.push(ta.uuid);
+      hitActors.push(ta);
       for (const c of collectInflictedConditions(item, ta)) {
         await applyStatusEffect(ta, c.id);
         lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: c.label, name: ta.name })}</em>`);
@@ -908,6 +947,12 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   if (combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
   // Charged release: note the double power on any hit, or that the charge dissipated on a clean miss.
   if (charged) lines.push(`<em class="muted">${i18n(hitUuids.length ? "PROJECTANIME.Roll.charged" : "PROJECTANIME.Roll.chargeDissipated")}</em>`);
+
+  // A secondary non-die Effect (e.g. an area Strike that also Bolsters) grants its Active Effect(s)
+  // to the creatures it hit. (A secondary damage/heal ROLL on an area Skill resolves single-target only.)
+  if (skillEffectKeys(sys).some((e) => e !== "strike" && e !== "mend") && hitActors.length) {
+    lines.push(...(await applySkillEffects(actor, item, hitActors)));
+  }
 
   const buttons = [];
   // Spend Luck re-evaluates the single Accuracy roll against every caught target's Evasion.
@@ -950,9 +995,12 @@ async function resolveAreaEffect(actor, item, targetTokens, { charged = false } 
   }
   if (!targetTokens.length) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.aoeNoTargets")}</em>`);
 
-  // Non-Mend area effects (Mass Bolster / Hinder / Affinity …) grant the Skill's Active Effect(s)
-  // to every caught creature. (Mend's mechanic is the healing button below.)
-  if (!isMend) lines.push(...(await applySkillEffects(actor, item, targetTokens.map((t) => t.actor).filter(Boolean))));
+  // Any non-die Effect (Mass Bolster / Hinder / Affinity …) — including a secondary one riding a
+  // Mass Mend — grants the Skill's Active Effect(s) to every caught creature. (Mend's own mechanic
+  // is the healing button below.)
+  if (skillEffectKeys(sys).some((e) => e !== "strike" && e !== "mend")) {
+    lines.push(...(await applySkillEffects(actor, item, targetTokens.map((t) => t.actor).filter(Boolean))));
+  }
 
   if (isMend && charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
 
@@ -1183,7 +1231,11 @@ async function onRollDamageButton(event) {
   const targetUuids = el.dataset.targetUuids
     ? el.dataset.targetUuids.split(",").filter(Boolean)
     : (el.dataset.targetUuid ? [el.dataset.targetUuid] : null);
-  return rollDamage(actor, item, { targetUuids, charged: el.dataset.charged === "true" });
+  // A secondary-Effect button carries its slot's Effect/attr/pool/type; the primary button doesn't.
+  const spec = el.dataset.effect
+    ? { effect: el.dataset.effect, damageAttr: el.dataset.damageAttr, damagePool: el.dataset.damagePool, damageType: el.dataset.damageType }
+    : null;
+  return rollDamage(actor, item, { targetUuids, charged: el.dataset.charged === "true", spec });
 }
 
 /** "Release" a charged Skill: re-activate it — rollSkill sees the charge flag and resolves it. */

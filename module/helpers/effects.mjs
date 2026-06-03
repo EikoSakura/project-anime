@@ -40,6 +40,10 @@ const EQUIP_GATED = new Set(["weapon", "armor", "shield", "accessory"]);
 
 /** The rule "verbs" a player/GM can pick. Values are localization keys. */
 export const RULE_TYPES = {
+  // Inert: a marker rule that applies nothing on its own. Lets an effect exist purely as a
+  // named/icon'd (optionally timed) carrier — e.g. the visible duration rider for a Skill
+  // modifier — without forcing a stat change. See normalizeRule / the engine's type guards.
+  none: "PROJECTANIME.Effect.type.none",
   attribute: "PROJECTANIME.Effect.type.attribute",
   stat: "PROJECTANIME.Effect.type.stat",
   resource: "PROJECTANIME.Effect.type.resource",
@@ -151,6 +155,8 @@ export function normalizeRule(raw) {
   if (!raw || !raw.type) return null;
   let rule = null;
   switch (raw.type) {
+    case "none":
+      return { type: "none" }; // inert marker — no fields, no predicate
     case "attribute":
       rule = {
         type: "attribute",
@@ -680,7 +686,7 @@ function sortChoices(obj, pinned = []) {
 export function ruleChoices() {
   const map = (obj) => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, L(v)]));
   return {
-    types: sortChoices(map(RULE_TYPES)),
+    types: sortChoices(map(RULE_TYPES), ["none"]),
     modes: sortChoices(map(ATTRIBUTE_MODES)),
     attributes: map(PROJECTANIME.attributes), // canonical order — NOT alphabetized
     stats: sortChoices(map(STAT_TARGETS)),

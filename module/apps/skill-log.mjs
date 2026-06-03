@@ -8,7 +8,7 @@
  * updates both this dialog and the sheet's summary). Keeping the log in its own dialog keeps the
  * drawer tidy as the ledger grows over a long campaign.
  */
-import { skillPointLedger } from "../helpers/skill-points.mjs";
+import { skillPointLedger, attributePeel } from "../helpers/skill-points.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -54,12 +54,24 @@ export class SkillLogApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onRefundSp(event, target) {
     const id = target.closest("[data-entry-id]")?.dataset.entryId;
     if (!id) return;
-    const entry = (this.actor.system.skillPoints?.log ?? []).find((e) => e.id === id);
+    const log = this.actor.system.skillPoints?.log ?? [];
+    const entry = log.find((e) => e.id === id);
     if (!entry || entry.kind === "legacy") return;
-    const promptKey = entry.kind === "skill" ? "PROJECTANIME.SkillLog.confirmSkill" : "PROJECTANIME.SkillLog.confirm";
+
+    // Default: undo this one entry for its own SP (Skills phrase it as a delete). Attribute
+    // raises stack, so refunding one cascades to its higher steps — show the full SP coming
+    // back, and a clearer prompt when more than the clicked step is being undone.
+    let promptKey = entry.kind === "skill" ? "PROJECTANIME.SkillLog.confirmSkill" : "PROJECTANIME.SkillLog.confirm";
+    let amount = Number(entry.amount) || 0;
+    if (entry.kind === "attribute") {
+      const peel = attributePeel(log, entry, this.actor.system.attributes?.[entry.ref]?.base);
+      amount = peel.refund;
+      if (peel.entries.length > 1) promptKey = "PROJECTANIME.SkillLog.confirmAttribute";
+    }
+
     const ok = await foundry.applications.api.DialogV2.confirm({
       window: { title: game.i18n.localize("PROJECTANIME.SkillLog.confirmTitle") },
-      content: `<p>${game.i18n.format(promptKey, { label: entry.label, amount: entry.amount })}</p>`
+      content: `<p>${game.i18n.format(promptKey, { label: entry.label, amount })}</p>`
     });
     if (ok) await this.actor.refundSkillPointEntry(id);
   }
