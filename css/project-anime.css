@@ -4214,19 +4214,11 @@
    so both stand out of the prose. Renders inside .project-anime
    (sheet body + the chat-card root), so the tokens resolve.
    ------------------------------------------------------------ */
-.project-anime .skill-rules { display: flex; flex-direction: column; gap: 0.32rem; line-height: 1.45; }
-.project-anime .skill-rules p { margin: 0; }
-.project-anime .skill-rules .pa-rules-lead {
-  font-family: var(--pa-font-display);
-  font-weight: 700;
-  color: var(--pa-accent-ink);
-}
-.project-anime.theme-dark .skill-rules .pa-rules-lead,
-.theme-dark .project-anime .skill-rules .pa-rules-lead { color: var(--pa-accent-2); }
-.project-anime .skill-rules .pa-rules-specs { color: var(--pa-ink-soft); font-size: 0.92em; }
-.project-anime .skill-rules .pa-rules-group { margin-top: 0.1rem; }
-.project-anime .skill-rules .pa-rules-group ul { margin: 0.1rem 0 0; padding-left: 1.1rem; }
-.project-anime .skill-rules .pa-rules-group li { margin: 0.08rem 0; }
+/* The rules read as flowing prose paragraphs. */
+.project-anime .skill-rules { line-height: 1.5; }
+.project-anime .skill-rules p { margin: 0 0 0.4rem; }
+.project-anime .skill-rules p:last-child { margin-bottom: 0; }
+.project-anime .pa-rules-improve-line { font-size: 0.92em; color: var(--pa-ink-soft); }
 .project-anime .pa-rules-h {
   font-family: var(--pa-font-display);
   font-weight: 700;

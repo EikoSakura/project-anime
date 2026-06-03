@@ -670,6 +670,46 @@ export function summarizeRules(effect) {
   return effectRules(effect).map(summarizeRule).filter(Boolean);
 }
 
+/**
+ * A NATURAL-LANGUAGE clause for one rule — verb-led, no subject, numbers left PLAIN (the Skill
+ * auto-description colorizes them). Powers the flowing prose write-up in skill-description.mjs,
+ * e.g. "raises Might by 1 step", "grants +2 Evasion", "grants Resist to Fire". Returns "" when a
+ * rule has no phrasing. `condition` rules return "" — the caller frames self vs target statuses.
+ */
+export function narrateRule(rule) {
+  switch (rule?.type) {
+    case "attribute": {
+      const a = L(PROJECTANIME.attributes[rule.key]) || rule.key;
+      const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
+      return `${rule.mode === "hinder" ? "lowers" : "raises"} ${a} by ${steps} ${steps > 1 ? "steps" : "step"}`;
+    }
+    case "stat":
+      return `grants ${signed(rule.value)} ${L(STAT_TARGETS[rule.key]) || rule.key}`;
+    case "resource":
+      return `grants ${signed(rule.value)} ${L(RESOURCE_TARGETS[rule.target]) || rule.target}`;
+    case "affinity":
+      return rule.level && rule.level !== "none"
+        ? `grants ${L(PROJECTANIME.affinityLevels[rule.level]) || rule.level} to ${elementLabel(rule.element) || rule.element}`
+        : "";
+    case "roll":
+      return `grants ${signed(rule.value)} to ${L(ROLL_SELECTORS[rule.selector]) || rule.selector} rolls`;
+    case "luck": {
+      const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
+      return steps > 1 ? `steps up the Luck die by ${steps}` : "steps up the Luck die";
+    }
+    case "trade":
+      return `shifts the ${L(TRADE_TARGETS[rule.target === "buy" ? "buy" : "sell"])} rate by ${signed(rule.pct)}%`;
+    case "reveal":
+      return `reveals ${L(REVEAL_CATEGORIES[rule.category]) || rule.category}`;
+    case "grant": {
+      const names = (Array.isArray(rule.items) ? rule.items : []).map((i) => i?.name).filter(Boolean);
+      return names.length ? `grants ${names.join(", ")}` : "";
+    }
+    default:
+      return "";
+  }
+}
+
 /** Order a {value:label} map alphabetically by label, with optional keys pinned first. */
 function sortChoices(obj, pinned = []) {
   const pins = pinned.filter((k) => k in obj);
