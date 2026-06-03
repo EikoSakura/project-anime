@@ -1,4 +1,4 @@
-import { rollAttack, rollSkill, useConsumable } from "../helpers/dice.mjs";
+import { rollAttack, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
 
 /**
  * Extends the base Item with Project: Anime behaviour: roll data and a
@@ -21,7 +21,7 @@ export class ProjectAnimeItem extends Item {
     if (this.actor) {
       if (this.type === "weapon" || this.type === "shield") return rollAttack(this.actor, this, options);
       if (this.type === "skill") return rollSkill(this.actor, this, options);
-      if (this.type === "consumable") return useConsumable(this.actor, this);
+      if (this.type === "consumable") return postConsumableCard(this.actor, this);
     }
     return this.#postDescriptionCard();
   }

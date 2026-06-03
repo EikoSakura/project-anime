@@ -7,6 +7,7 @@
     {{#if item}}
     <img class="pd-icon" src="{{item.img}}" alt="{{item.name}}" data-item-id="{{item.id}}"{{#if @root.editable}} draggable="true"{{/if}} />
     {{#if @root.editable}}<a class="pd-unequip" data-action="unequipSlot" data-slot="{{key}}" title="{{localize 'PROJECTANIME.Action.unequip'}}"><i class="fas fa-xmark"></i></a>{{/if}}
+    {{#if item.shield}}{{#if @root.editable}}<a class="pd-mode" data-action="cycleShieldUse" data-item-id="{{item.id}}" title="{{#if item.dualWield}}{{localize 'PROJECTANIME.Action.useShieldOnly'}}{{else}}{{localize 'PROJECTANIME.Action.useDualWield'}}{{/if}}"><i class="fas {{#if item.dualWield}}fa-hand-fist{{else}}fa-shield-halved{{/if}}"></i></a>{{/if}}{{/if}}
     {{else}}
     <i class="pd-placeholder fas {{icon}}"></i>
     {{/if}}

@@ -80,11 +80,16 @@
       "sharpenedHealing": "Sharpened Healing +{n}",
       "dieUsed": "{attr} die",
       "inflicts": "Inflicts {condition} on {name}",
+      "reflectWard": "Reflect wards {name} — the next attack rebounds on its attacker, then shatters",
       "effectApplied": "Applies {effect} to {name}",
       "rollDamage": "Roll Damage",
       "rollHealing": "Roll Healing",
       "apply": "Apply",
       "applied": "Applied {n} {what} to {name}.",
+      "damageApplied": "Damage Applied",
+      "undo": "Undo",
+      "undone": "Undone",
+      "reverted": "Reverted {n} {unit} on {name}.",
       "healsFor": "Heals {n} HP",
       "drainsHP": "Drains {n} HP",
       "drainsEnergy": "Drains {n} Energy",
@@ -114,6 +119,7 @@
       "total": "Total",
       "twoHanded": "Two-handed grip — Damage die Stepped Up",
       "dualWield": "Dual wielding — Damage die Stepped Down",
+      "shieldOnly": "Shield only — Damage die Stepped Down",
       "pierce": "Pierce — ignores Defense",
       "energyDamage": "Energy damage",
       "itemGone": "That item no longer exists.",
@@ -164,6 +170,8 @@
       "unequip": "Unequip",
       "gripOne": "Grip — One-Handed",
       "gripTwo": "Grip — Two-Handed",
+      "useDualWield": "Switch to Dual Wield",
+      "useShieldOnly": "Switch to Shield Only",
       "edit": "Edit",
       "delete": "Delete",
       "use": "Use"
@@ -171,9 +179,12 @@
     "Quick": {
       "weapons": "Weapons",
       "skills": "Skills",
+      "items": "Items",
       "addSkill": "Pin a Skill",
       "pin": "Pin to Skills",
       "remove": "Remove from Skills",
+      "pinItem": "Pin to Main Screen",
+      "unpinItem": "Unpin from Main Screen",
       "active": "Active",
       "react": "React",
       "passive": "Passive",
@@ -216,7 +227,8 @@
       "rangeTiles": "Range (tiles)",
       "range": "Range",
       "hand": "Hand",
-      "grip": "Grip"
+      "grip": "Grip",
+      "shieldUse": "Wield As"
     },
     "Skill": {
       "field": {
@@ -227,6 +239,7 @@
         "secondaryEffect": "Secondary Effect",
         "attrA": "Attribute A",
         "attrB": "Attribute B",
+        "attrC": "Third Attribute",
         "damageType": "Damage Type",
         "damagePool": "Damage Pool",
         "regenPool": "Regen Pool",
@@ -238,7 +251,9 @@
         "damageMod": "Damage Bonus",
         "healMod": "Healing Bonus",
         "damageDie": "Damage Die",
-        "healDie": "Healing Die"
+        "healDie": "Healing Die",
+        "effectDuration": "Duration (rounds)",
+        "durationScene": "Scene"
       },
       "tiles": "tiles",
       "growUnit": {
@@ -332,7 +347,7 @@
         "pierce": "The Skill ignores the target's Defense.",
         "pull": "The target moves one tile closer to you (Forced Movement).",
         "push": "The target moves one tile away from you (Forced Movement).",
-        "reflect": "Turn an incoming attack into momentum — choose Bounce (redirect at its source) or Counter (immediate strike back).",
+        "reflect": "The Skill turns an incoming attack against the user. The incoming Attack/Skill is redirected at its source and resolved with the attacker's own Accuracy and Damage. The Reflect then shatters.",
         "secondaryEffect": "The Skill resolves a second Effect on use, in addition to its main one."
       },
       "auto": {
@@ -368,7 +383,7 @@
         "decay": "Afterward, the target takes {dmg} damage at the end of each of their next {turns} turns.",
         "cleanse": "It removes a Status Effect from the target.",
         "charge": "You first spend a turn focusing; on your next turn it resolves at double power.",
-        "reflect": "It reflects an incoming attack back at its source, or counters it instead.",
+        "reflect": "It reflects an incoming attack back at its source, resolved with the attacker's own Accuracy and Damage, then shatters.",
         "alsoEffects": "It also {effects}.",
         "onHit": "On a hit, the target gains {status}.",
         "applyTarget": "The target gains {status}.",
@@ -420,6 +435,11 @@
       "title": "Effects",
       "builderTitle": "Effect Builder",
       "newEffect": "New Effect",
+      "applyFromCard": "Apply as Effect",
+      "applyNoTarget": "Select a token (or assign a character) to apply the effect to.",
+      "appliedFromCard": "Applied {name} to {n} token(s).",
+      "removeFromItem": "{name} comes from {item} — unequip or remove that item to clear it.",
+      "removeNoPermission": "You don't have permission to remove that effect.",
       "addEffect": "Add Effect",
       "addRule": "Add Rule",
       "deleteRule": "Remove Rule",
@@ -735,6 +755,7 @@
       "noStepsLeft": "No Step-Ups left.",
       "recalc": "Recalculate from attributes",
       "rollLuck": "Roll Luck",
+      "luckLocked": "Locked in",
       "openSkillBuilder": "Open Skill Builder",
       "removeSkill": "Remove (refund SP)",
       "noSkills": "No Skills yet.",
@@ -828,7 +849,15 @@
       "noMembers": "No party members.",
       "notEnoughGold": "Not enough gold to split.",
       "splitDone": "Split {each} gold to each of {n}.",
-      "collectDone": "Collected {gold} gold into the treasury."
+      "collectDone": "Collected {gold} gold into the treasury.",
+      "openSheet": "Open Party Sheet",
+      "none": "No party found to open."
+    },
+    "Keybindings": {
+      "openParty": {
+        "name": "Open Party Sheet",
+        "hint": "Open your party's sheet — the party whose folder holds a character you own, or the first party."
+      }
     },
     "Encounter": {
       "difficulty": {
@@ -846,7 +875,8 @@
       "exhausted": "Exhausted",
       "prone": "Prone",
       "slowed": "Slowed",
-      "stunned": "Stunned"
+      "stunned": "Stunned",
+      "reflect": "Reflect"
     },
     "Hand": {
       "main": "Main Hand",
@@ -856,6 +886,10 @@
     "Grip": {
       "one": "One-Handed",
       "two": "Two-Handed"
+    },
+    "ShieldUse": {
+      "dual": "Dual Wield",
+      "shield": "Shield Only"
     },
     "Disposition": {
       "friendly": "Friendly",

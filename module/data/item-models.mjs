@@ -66,7 +66,9 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     });
     schema.attributes = new fields.SchemaField({
       attrA: attrChoice("might"),
-      attrB: attrChoice("spirit")
+      attrB: attrChoice("spirit"),
+      // Optional third Attribute — only used by a ⭐⭐⭐⭐⭐ Bolster/Hinder (which affects 3). Blank otherwise.
+      attrC: new fields.StringField({ required: false, blank: true, initial: "" })
     });
     // For damage/heal Effects (Strike / Mend): which of the two Attributes' die to
     // roll for the amount (rules: "choose one of its two Attributes").
@@ -91,6 +93,9 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     schema.modifierGrowth = new fields.TypedObjectField(new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }));
     // A Strike can deal Hit Point or Energy damage; default Hit Points.
     schema.damagePool = new fields.StringField({ required: true, blank: false, initial: "hp", choices: PROJECTANIME.damagePools });
+    // How long an ACTIVE Bolster/Hinder effect lasts, in combat rounds. Null/blank = "the scene"
+    // (auto-expires when combat ends). Ignored by Passive Skills — their effect is always-on.
+    schema.effectDuration = new fields.NumberField({ required: false, nullable: true, integer: true, min: 1, initial: null });
 
     // "Secondary Effect" Modifier: an optional SECOND Effect the Skill also resolves on use (a
     // Strike that also Mends, a Mend that also Bolsters, …). Only meaningful while the
@@ -215,6 +220,9 @@ export class ProjectAnimeShield extends ProjectAnimeItemBase {
     schema.cost = costField();
     schema.equipped = equippedField();
     schema.hand = new fields.StringField({ required: true, blank: false, initial: "off", choices: PROJECTANIME.hands });
+    // Dual-wield the shield as an off-hand weapon, or carry it for defense only — see
+    // PROJECTANIME.shieldUses. Drives Dual Wielding detection + the bash Damage die (dice.mjs).
+    schema.use = new fields.StringField({ required: true, blank: false, initial: "dual", choices: PROJECTANIME.shieldUses });
     schema.container = containerField();
     return schema;
   }

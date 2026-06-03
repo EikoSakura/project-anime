@@ -154,6 +154,22 @@
         {{/if}}
       </div>
       {{/if}}
+      {{#if isBolsterHinder}}
+      <div class="sb-field-grid">
+        {{#if showAttrC}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.attrC"}}</span>
+          <select name="attrC">{{selectOptions attributeChoices selected=draft.attrC localize=true blank=""}}</select>
+        </label>
+        {{/if}}
+        {{#if showEffectDuration}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.effectDuration"}}</span>
+          <input type="number" name="effectDuration" value="{{draft.effectDuration}}" min="1" placeholder="{{localize 'PROJECTANIME.Skill.field.durationScene'}}" />
+        </label>
+        {{/if}}
+      </div>
+      {{/if}}
     </section>
     {{/if}}
 
@@ -275,11 +291,13 @@
         <span class="sb-imp-detail">{{#if improvements.raiseRank.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}{{skill.stars}} → {{improvements.raiseRank.next}}{{/if}}</span>
         <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.raiseRank.cost}}</span>
       </button>
+      {{#if improvements.sharpenAccuracy.applies}}
       <button type="button" class="sb-imp" data-action="sharpenAccuracy" {{#if improvements.sharpenAccuracy.disabled}}disabled{{/if}}>
         <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.sharpen"}}</span>
         <span class="sb-imp-detail">{{#if improvements.sharpenAccuracy.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}+{{improvements.sharpenAccuracy.cur}} → +{{improvements.sharpenAccuracy.next}}{{/if}}</span>
         <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.sharpenAccuracy.cost}}</span>
       </button>
+      {{/if}}
       {{#if improvements.sharpenDamage.applies}}
       <button type="button" class="sb-imp" data-action="sharpenDamage" {{#if improvements.sharpenDamage.disabled}}disabled{{/if}}>
         <span class="sb-imp-name">{{#if improvements.sharpenDamage.isHeal}}{{localize "PROJECTANIME.SkillBuilder.sharpenHealing"}}{{else}}{{localize "PROJECTANIME.SkillBuilder.sharpenDamage"}}{{/if}}</span>

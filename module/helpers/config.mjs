@@ -203,6 +203,43 @@ export function skillDieSpecs(sys) {
   return out;
 }
 
+/** Effects that ALWAYS target an enemy — a Skill carrying one (in either slot) makes an Accuracy
+ *  Check vs Evasion, even against an ally (friendly fire is dodgeable). You can dodge a Strike or
+ *  shrug off a Hinder; every supportive Effect (Bolster/Mend/Sustain/Affinity/Sense) takes effect
+ *  with no roll — you can't "evade" a heal or a buff. */
+PROJECTANIME.offensiveEffects = ["strike", "hinder"];
+
+/** Modifiers that on their own land something hostile (a condition / damage-over-time), so a Skill
+ *  carrying one makes an Accuracy Check even when its Effect is otherwise neutral. */
+PROJECTANIME.offensiveModifiers = ["inflict", "decay"];
+
+/** Forced-movement Effect/Modifiers: shoving a creature is resisted (rolls vs Evasion) ONLY when
+ *  it's an enemy — moving yourself or a willing ally is free. So Move / Push / Pull need an Accuracy
+ *  Check only against a hostile target (see skillNeedsAccuracy's `enemyTarget`). */
+PROJECTANIME.movementEffects = ["move"];
+PROJECTANIME.movementModifiers = ["push", "pull"];
+
+/**
+ * True if a Skill makes an Accuracy Check vs Evasion — i.e. it targets an enemy. The single source
+ * of truth for "is this an attack", shared by the dice resolver, the auto-description and the Skill
+ * Builder. Always true for an offensive Effect (Strike / Hinder, primary or Secondary) or an
+ * offensive Modifier (inflict / decay). Forced movement (Move / Push / Pull) is conditional: it
+ * rolls only against an enemy — pass `enemyTarget` from the resolved target's disposition. With no
+ * target context (UI: the Builder, the auto-description) `enemyTarget` is undefined and movement
+ * counts as potentially-offensive, so e.g. "Sharpen Accuracy" stays offered on a Move Skill.
+ */
+export function skillNeedsAccuracy(sys, { enemyTarget } = {}) {
+  if (!sys) return false;
+  const effects = skillEffectKeys(sys);
+  if (effects.some((e) => PROJECTANIME.offensiveEffects.includes(e))) return true;
+  const mods = sys.modifiers ?? [];
+  if (PROJECTANIME.offensiveModifiers.some((m) => mods.includes(m))) return true;
+  const hasMovement = effects.some((e) => PROJECTANIME.movementEffects.includes(e))
+    || PROJECTANIME.movementModifiers.some((m) => mods.includes(m));
+  if (hasMovement) return enemyTarget !== false;
+  return false;
+}
+
 /** Triggers — required for every React Skill. */
 PROJECTANIME.triggers = {
   alerted: "PROJECTANIME.Skill.trigger.alerted",
@@ -263,7 +300,12 @@ PROJECTANIME.statusConditions = [
   { id: "exhausted", name: "PROJECTANIME.Status.exhausted", img: "icons/svg/downgrade.svg" },
   { id: "prone", name: "PROJECTANIME.Status.prone", img: "icons/svg/falling.svg" },
   { id: "slowed", name: "PROJECTANIME.Status.slowed", img: "icons/svg/daze.svg" },
-  { id: "stunned", name: "PROJECTANIME.Status.stunned", img: "icons/svg/paralysis.svg" }
+  { id: "stunned", name: "PROJECTANIME.Status.stunned", img: "icons/svg/paralysis.svg" },
+  // Reflect ward — applied by the Reflect Skill Modifier (see dice.mjs applyReflectMark). A
+  // removable marker: the next attack against a warded creature rebounds on its attacker, then it
+  // shatters (GM-adjudicated). Deliberately NOT in `conditionKeys` — it's a marker, not a stored
+  // debuff with derived effects, so it stays out of the actor model + Effect-Builder condition pickers.
+  { id: "reflect", name: "PROJECTANIME.Status.reflect", img: "icons/svg/mage-shield.svg" }
 ];
 
 /* -------------------------------------------- */
@@ -293,6 +335,15 @@ PROJECTANIME.hands = {
 PROJECTANIME.grips = {
   one: "PROJECTANIME.Grip.one",
   two: "PROJECTANIME.Grip.two"
+};
+
+/** How a shield is wielded. "Dual Wielding" treats it as an off-hand weapon — it counts toward
+ *  Dual Wielding, so both Damage dice Step Down (rules p.10). "Just for Shields" carries it for
+ *  defense only: your main-hand weapon keeps its full Damage die, but a bash with the shield Steps
+ *  its OWN Damage die Down (it isn't a committed weapon). See dice.mjs isDualWielding / computeDamageRoll. */
+PROJECTANIME.shieldUses = {
+  dual: "PROJECTANIME.ShieldUse.dual",
+  shield: "PROJECTANIME.ShieldUse.shield"
 };
 
 /** NPC disposition toward the party. */

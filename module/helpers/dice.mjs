@@ -1,7 +1,7 @@
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectInflictedConditions, effectRules, effectCopyData } from "./effects.mjs";
+import { collectRollModifiers, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect } from "./effects.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets
 } from "./templates.mjs";
@@ -43,6 +43,9 @@ function isDualWielding(actor) {
   for (const it of actor?.items ?? []) {
     if ((it.type !== "weapon" && it.type !== "shield") || !it.system?.equipped) continue;
     if (it.system.grip === "two") continue; // a two-handed weapon leaves no off-hand
+    // A shield set to "Just for Shields" is carried for defense, not wielded as a weapon, so it
+    // doesn't make you a dual-wielder — your main-hand weapon keeps its full Damage die.
+    if (it.type === "shield" && it.system.use !== "dual") continue;
     if (it.system.hand === "main") main = true;
     else if (it.system.hand === "off") off = true;
   }
@@ -103,10 +106,26 @@ function dieResults(roll) {
   return [roll.dice[0]?.total ?? 0, roll.dice[1]?.total ?? 0];
 }
 
+/** The first targeted token (the placeable, so callers can read its disposition), else null. */
+function firstTargetToken() {
+  return [...(game.user?.targets ?? [])][0] ?? null;
+}
+
 /** The first targeted token's actor, if any. */
 function firstTargetActor() {
-  const token = [...(game.user?.targets ?? [])][0];
-  return token?.actor ?? null;
+  return firstTargetToken()?.actor ?? null;
+}
+
+/** True if two tokens are on opposing sides (one Friendly, one Hostile) — i.e. enemies. Forced
+ *  movement (Move / Push / Pull) makes an Accuracy Check only against an enemy: you shove a foe
+ *  (who resists with Evasion) but reposition yourself or a willing ally for free. Unknown / neutral
+ *  dispositions (and self-targeting) read as "not an enemy", so movement on them is free. */
+function tokensAreEnemies(aToken, bToken) {
+  const D = CONST.TOKEN_DISPOSITIONS;
+  const a = aToken?.document?.disposition;
+  const b = bToken?.document?.disposition;
+  if (a == null || b == null || aToken === bToken) return false;
+  return (a === D.FRIENDLY && b === D.HOSTILE) || (a === D.HOSTILE && b === D.FRIENDLY);
 }
 
 /* -------------------------------------------- */
@@ -185,7 +204,7 @@ async function promptRoll({ title, actor, attrA, attrB, showAttrs = true, showCT
  * @param {string[]} [o.lines]       Mechanical breakdown lines (vs Evasion, mods, target rows…).
  * @param {object[]} [o.buttons]     Action buttons `{data, label}` (data carries the data-action attrs).
  */
-function cardHTML({ title, subtitle = "", icon = "", meta = [], badges = [], rollHTML = "", description = "", lines = [], buttons = [] }) {
+function cardHTML({ title, subtitle = "", icon = "", meta = [], badges = [], rollHTML = "", description = "", lines = [], buttons = [], rows = [] }) {
   const iconHTML = icon ? `<img class="card-icon" src="${icon}" alt="" />` : "";
   const metaHTML = meta.length
     ? `<div class="card-meta">${meta.map((m) => `<span class="meta-chip">${m}</span>`).join("")}</div>`
@@ -200,6 +219,9 @@ function cardHTML({ title, subtitle = "", icon = "", meta = [], badges = [], rol
   const btnHTML = buttons.length
     ? `<div class="card-buttons">${buttons.map((b) => `<button type="button" class="card-btn" ${b.data}>${b.label}</button>`).join("")}</div>`
     : "";
+  // Per-target damage rows (auto-applied, each with an undo arrow). Re-rendered from the message flag
+  // on every draw — see onRenderChatMessage — so this initial fill is just the first paint / fallback.
+  const rowsHTML = rows.length ? `<div class="dmg-rows">${damageRowsHTML(rows)}</div>` : "";
   return `<div class="project-anime chat-card">
     <header class="card-header">
       ${iconHTML}
@@ -211,6 +233,7 @@ function cardHTML({ title, subtitle = "", icon = "", meta = [], badges = [], rol
     ${metaHTML}
     ${badgeHTML}
     ${rollHTML}
+    ${rowsHTML}
     ${descHTML}
     ${lineHTML}
     ${btnHTML}
@@ -249,7 +272,7 @@ function skillMeta(sys) {
   return chips;
 }
 
-async function postCard(actor, content, rolls, { combo = false } = {}) {
+async function postCard(actor, content, rolls, { combo = false, flags = null } = {}) {
   const arr = Array.isArray(rolls) ? rolls.filter(Boolean) : (rolls ? [rolls] : []);
   const data = {
     speaker: ChatMessage.getSpeaker({ actor }),
@@ -257,10 +280,13 @@ async function postCard(actor, content, rolls, { combo = false } = {}) {
     rolls: arr,
     sound: arr.length ? CONFIG.sounds.dice : undefined
   };
-  // A scored Combo rides along as a flag on the (broadcast) card; every client's
-  // createChatMessage hook reads it to flash the Combo Splash. Carries the roller's
-  // name + portrait so the splash can show who landed it.
-  if (combo) data.flags = { "project-anime": { combo: { name: actor?.name ?? "", img: actor?.img ?? "" } } };
+  // Project-anime flags ride along on the (broadcast) card. A scored Combo → every client's
+  // createChatMessage hook flashes the Combo Splash (carries the roller's name + portrait). A
+  // damageCard → the per-target rows + undo state (see onRenderChatMessage / onUndoDamageButton).
+  const pa = {};
+  if (combo) pa.combo = { name: actor?.name ?? "", img: actor?.img ?? "" };
+  if (flags?.["project-anime"]) Object.assign(pa, flags["project-anime"]);
+  if (Object.keys(pa).length) data.flags = { "project-anime": pa };
   return ChatMessage.create(data);
 }
 
@@ -527,14 +553,20 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
     ? largerAttr(actor, attrA, attrB)
     : (item.system.attributes?.[slotAttr] ?? attrA);
   // Weapon/shield grip rules (p.9-10): a two-handed grip Steps the Damage die UP one size (or +1
-  // damage if already d12); dual wielding Steps both dice DOWN one. Applies to borrowed weapons too.
+  // damage if already d12); dual wielding Steps both dice DOWN one. A shield set to "Just for
+  // Shields" isn't a committed weapon, so bashing with it Steps its OWN Damage die DOWN (and it
+  // doesn't make you a dual-wielder — handled in isDualWielding). Applies to borrowed weapons too.
   let dieSize = attrValue(actor, dieAttr);
   const dmgReasons = [];
   if (usesWeapon && !heal) {
+    const shieldOnly = src.type === "shield" && src.system.use !== "dual";
     if (src.system.grip === "two") {
       const up = stepUpValue(dieSize);
       if (up === dieSize) mod += 1; else dieSize = up;
       dmgReasons.push("twoHanded");
+    } else if (shieldOnly) {
+      dieSize = stepDownValue(dieSize);
+      dmgReasons.push("shieldOnly");
     } else if (isDualWielding(actor)) {
       dieSize = stepDownValue(dieSize);
       dmgReasons.push("dualWield");
@@ -599,23 +631,41 @@ function adjustForTarget(raw, dtype, targetActor, { ignoresDefense = false, heal
   return { amount, heal: appliesHeal, badges, line: parts };
 }
 
-/** An "Apply (n) → Target" chat-card button (HP / Energy / heal). */
-function applyButton(targetActor, amount, heal, pool) {
-  const applyPool = heal ? "hp" : pool;
-  const icon = heal ? "heart" : (pool === "energy" ? "bolt" : "tint");
-  return {
-    data: `data-action="applyDamage" data-target-uuid="${targetActor.uuid}" data-amount="${amount}" data-heal="${heal}" data-pool="${applyPool}"`,
-    label: `<i class="fas fa-${icon}"></i> ${i18n("PROJECTANIME.Roll.apply")} (${amount}) → ${targetActor.name}`
-  };
+/* -------------------------------------------- */
+/*  Damage card rows (auto-applied + undo)      */
+/* -------------------------------------------- */
+
+/** One creature's row on a damage card: portrait, name, a signed HP/EN amount, the calculation that
+ *  produced it (so the maths is visible inline), and a small undo arrow that reverses just this
+ *  creature's hit. Once reverted the row is struck through with an "undone" tag (no arrow to
+ *  re-click). The arrow's `data-row` indexes back into the message's damageCard flag — the source of
+ *  truth, re-rendered on every draw so the undone state is consistent for everyone. */
+function damageAppliedRow(row, i) {
+  const energy = row.pool === "energy";
+  const unit = energy ? "EN" : "HP";
+  const cls = row.heal ? "heal" : (energy ? "energy" : "dmg");
+  const sign = row.heal ? "+" : "−";
+  const portrait = row.img
+    ? `<img class="dmg-portrait" src="${row.img}" alt="" />`
+    : `<span class="dmg-portrait"><i class="fas fa-user"></i></span>`;
+  const calc = row.calc ? `<div class="dmg-calc">${row.calc}</div>` : "";
+  const action = row.undone
+    ? `<span class="dmg-undone"><i class="fas fa-check"></i> ${i18n("PROJECTANIME.Roll.undone")}</span>`
+    : `<button type="button" class="dmg-undo" data-action="undoDamage" data-row="${i}" data-tooltip="${i18n("PROJECTANIME.Roll.undo")}"><i class="fas fa-rotate-left"></i></button>`;
+  return `<div class="dmg-row${row.undone ? " is-undone" : ""}">
+    ${portrait}
+    <div class="dmg-body">
+      <div class="dmg-head"><span class="dmg-name">${row.name}</span><span class="dmg-amount ${cls}">${sign}${row.amount} ${unit}</span></div>
+      ${calc}
+    </div>
+    ${action}
+  </div>`;
 }
 
-/** An "Apply to All" button carrying a URL-safe JSON list of {uuid, amount, heal, pool}. */
-function applyAllButton(list) {
-  const payload = encodeURIComponent(JSON.stringify(list));
-  return {
-    data: `data-action="applyAll" data-apply-all="${payload}"`,
-    label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.applyAll")}`
-  };
+/** Render the rows block of a damage card from its stored rows (used at post time and re-injected on
+ *  every render so the undo state always reflects the flag). */
+function damageRowsHTML(rows) {
+  return rows.map((row, i) => damageAppliedRow(row, i)).join("");
 }
 
 /**
@@ -633,18 +683,24 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
   }
   if (targets.length > 1) return postAoeDamageCard(actor, item, targets, { charged, spec });
 
-  // Single-target (or no target) — the original card.
+  // Single-target (or no target).
   const targetActor = targets[0] ?? null;
   const dmg = await computeDamageRoll(actor, item, { target: targetActor, charged, spec });
   const adj = adjustForTarget(dmg.raw, dmg.dtype, targetActor, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal });
 
   const badges = [...adj.badges];
-  const lines = [adj.line];
-  lines.push(...damageNotes(dmg));
-  const buttons = [];
-  if (targetActor && (adj.amount > 0 || adj.heal)) buttons.push(applyButton(targetActor, adj.amount, adj.heal, dmg.pool));
+  const notes = damageNotes(dmg);
+  // Apply the damage/healing immediately and record an undo row carrying the calculation. With no
+  // target (or a no-op hit) there's nothing to apply — fall back to showing the rolled figure.
+  const rows = [];
+  if (targetActor && (adj.amount > 0 || adj.heal)) {
+    const pool = adj.heal ? "hp" : dmg.pool;
+    await routeApply(targetActor, targetActor.uuid, adj.amount, adj.heal, pool);
+    rows.push({ uuid: targetActor.uuid, name: targetActor.name, img: targetActor.img, amount: adj.amount, heal: adj.heal, pool, calc: adj.line, undone: false });
+  }
   // Drain HP/Energy: the caster recovers half the damage actually dealt to the target.
-  await applyDrain(actor, item, targetActor && !adj.heal ? adj.amount : 0, lines);
+  await applyDrain(actor, item, targetActor && !adj.heal ? adj.amount : 0, notes);
+  const lines = rows.length ? notes : [adj.line, ...notes];
 
   await postCard(actor, cardHTML({
     title: item.name,
@@ -652,9 +708,9 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
     icon: item.img,
     badges,
     rollHTML: await dmg.roll.render(),
-    lines,
-    buttons
-  }), dmg.roll);
+    rows,
+    lines
+  }), dmg.roll, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
   return dmg.roll;
 }
 
@@ -665,6 +721,7 @@ function damageNotes(dmg) {
   if (dmg.sharpen) lines.push(`<em class="muted">${i18n(dmg.heal ? "PROJECTANIME.Roll.sharpenedHealing" : "PROJECTANIME.Roll.sharpenedDamage", { n: dmg.sharpen })}</em>`);
   if (dmg.isSkill) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.dieUsed", { attr: i18n(PROJECTANIME.attributes[dmg.dieAttr] ?? dmg.dieAttr) })}</em>`);
   if (dmg.dmgReasons.includes("twoHanded")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.twoHanded")}</em>`);
+  if (dmg.dmgReasons.includes("shieldOnly")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.shieldOnly")}</em>`);
   if (dmg.dmgReasons.includes("dualWield")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.dualWield")}</em>`);
   if (dmg.pierces) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.pierce")}</em>`);
   if (dmg.pool === "energy") lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.energyDamage")}</em>`);
@@ -676,20 +733,22 @@ function damageNotes(dmg) {
 async function postAoeDamageCard(actor, item, targetActors, { charged = false, spec = null } = {}) {
   const dmg = await computeDamageRoll(actor, item, { target: targetActors[0], charged, spec });
   const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetActors.length })}</em>`];
-  const buttons = [];
-  const applyList = [];
+  const rows = [];
   let drainTotal = 0;
   for (const ta of targetActors) {
     const adj = adjustForTarget(dmg.raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal });
-    lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> <span class="muted">${adj.line}</span></span>`);
     if (adj.amount > 0 || adj.heal) {
-      buttons.push(applyButton(ta, adj.amount, adj.heal, dmg.pool));
-      applyList.push({ uuid: ta.uuid, amount: adj.amount, heal: adj.heal, pool: adj.heal ? "hp" : dmg.pool });
+      // Apply immediately; the per-target undo row carries the calculation.
+      const pool = adj.heal ? "hp" : dmg.pool;
+      await routeApply(ta, ta.uuid, adj.amount, adj.heal, pool);
+      rows.push({ uuid: ta.uuid, name: ta.name, img: ta.img, amount: adj.amount, heal: adj.heal, pool, calc: adj.line, undone: false });
+    } else {
+      // Nothing dealt (e.g. immune) — note it, but there's nothing to apply or undo.
+      lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> <span class="muted">${adj.line}</span></span>`);
     }
     if (!adj.heal) drainTotal += adj.amount;
   }
   lines.push(...damageNotes(dmg));
-  if (applyList.length > 1) buttons.push(applyAllButton(applyList));
   // Drain HP/Energy: the caster recovers half the total damage the area Skill dealt.
   await applyDrain(actor, item, drainTotal, lines);
 
@@ -698,9 +757,9 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
     subtitle: dmg.heal ? i18n("PROJECTANIME.Roll.healing") : i18n("PROJECTANIME.Roll.damage"),
     icon: item.img,
     rollHTML: await dmg.roll.render(),
-    lines,
-    buttons
-  }), dmg.roll);
+    rows,
+    lines
+  }), dmg.roll, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
   return dmg.roll;
 }
 
@@ -727,7 +786,6 @@ export async function rollSkill(actor, item) {
   if (isChargeSkill && !releasingCharge) return startCharge(actor, item);
 
   const kind = aoeKind(item);
-  const isStrike = sys.effect === "strike";
 
   // 1) Acquire targets (interactive for area Skills) BEFORE spending Energy / clearing the charge.
   let areaTokens = null;     // Token[] for burst/line/mass; null = single-target path
@@ -753,8 +811,14 @@ export async function rollSkill(actor, item) {
   if (chainTokens) return resolveChain(actor, item, chainTokens, { charged: releasingCharge });
   if (kind) {
     setUserTargets(areaTokens);
-    return isStrike ? resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge })
-                    : resolveAreaEffect(actor, item, areaTokens, { charged: releasingCharge });
+    // Route the area: an offensive area (Mass Strike / Hinder) — or forced movement (Move / Push /
+    // Pull) that caught a hostile creature — rolls Accuracy per caught creature; a supportive area
+    // (Mass Mend / Bolster) affects everyone with no roll.
+    const ctok = casterToken(actor);
+    const enemyInArea = areaTokens.some((t) => tokensAreEnemies(ctok, t));
+    return skillNeedsAccuracy(sys, { enemyTarget: enemyInArea })
+      ? resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge })
+      : resolveAreaEffect(actor, item, areaTokens, { charged: releasingCharge });
   }
   return resolveSingleSkill(actor, item, { charged: releasingCharge });
 }
@@ -809,76 +873,82 @@ async function acquireAreaTargets(actor, item, kind) {
 /** Single-target Skill resolution (the original behavior; Energy is already spent). */
 async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   const sys = item.system;
-  const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
-  // A Skill may carry a second Effect (the "Secondary Effect" Modifier). It makes ONE Accuracy
-  // Check — an attack iff EITHER slot is a Strike — then resolves every Effect it holds.
   const effects = skillEffectKeys(sys);
   const hasStrike = effects.includes("strike");
   const hasOther = effects.some((e) => e !== "strike" && e !== "mend");
-
-  const targetActor = firstTargetActor();
+  const targetToken = firstTargetToken();
+  const targetActor = targetToken?.actor ?? null;
   const evasion = targetActor?.system?.evasion?.value ?? null;
+  // An Accuracy Check (vs Evasion) is made ONLY when the Skill targets an enemy — a Strike or Hinder
+  // (always), an inflict/decay Modifier (always), or forced movement (Move / Push / Pull) aimed at a
+  // HOSTILE target. Self/ally Skills (Bolster, Mend, Sustain…) and friendly repositioning just take
+  // effect — you can't "evade" a heal, a buff, or a willing shove. One shared Check covers every Effect.
+  const needsAccuracy = skillNeedsAccuracy(sys, { enemyTarget: tokensAreEnemies(casterToken(actor), targetToken) });
 
-  const rmods = collectRollModifiers(actor, hasStrike ? "attack" : "check", { target: targetActor });
-  // "Sharpen Accuracy" advancement: a flat bonus baked into the Skill's Check.
-  const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
-  const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: hasStrike });
-  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
-  await roll.evaluate();
-  const [r1, r2] = dieResults(roll);
-  const fumble = hasStrike && r1 === 1 && r2 === 1;
-  const combo = hasStrike && r1 === r2 && r1 >= 6;
-
+  const lines = [];
   const badges = [];
-  let hit = null;
-  if (hasStrike) {
+  let roll = null, r1 = null, r2 = null, fumble = false, combo = false, hit = null;
+
+  if (needsAccuracy) {
+    const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
+    const rmods = collectRollModifiers(actor, hasStrike ? "attack" : "check", { target: targetActor });
+    // "Sharpen Accuracy" advancement: a flat bonus baked into the Skill's Check.
+    const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
+    const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true });
+    roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
+    await roll.evaluate();
+    [r1, r2] = dieResults(roll);
+    fumble = r1 === 1 && r2 === 1;
+    combo = r1 === r2 && r1 >= 6;
     if (fumble) { badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") }); hit = false; }
     else if (combo) { badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") }); hit = true; }
     else if (evasion != null) hit = roll.total >= evasion;
     if (hit === true && !combo) badges.push({ cls: "success", text: i18n("PROJECTANIME.Roll.hit") });
     else if (hit === false && !fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.miss") });
+
+    lines.push(...stepNotes(reasons));
+    const skillModLine = rollModLine(rmods); if (skillModLine) lines.push(skillModLine);
+    if (accBonus) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.sharpened", { n: accBonus })}</em>`);
+    if (evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}`);
+    if (combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
   }
 
-  const lines = [...stepNotes(reasons)];
-  const skillModLine = rollModLine(rmods); if (skillModLine) lines.push(skillModLine);
-  if (accBonus) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.sharpened", { n: accBonus })}</em>`);
-  if (hasStrike && evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}`);
-  if (combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
-  // Charged release: note the double power on a hit, or that the charge dissipated on a miss.
-  if (charged) lines.push(`<em class="muted">${i18n(hasStrike && hit === false ? "PROJECTANIME.Roll.chargeDissipated" : "PROJECTANIME.Roll.charged")}</em>`);
+  // The Skill "lands" if it makes no Accuracy Check, or its Check didn't explicitly miss.
+  const landed = !needsAccuracy || hit !== false;
+  // Charged release: note the double power when it lands, or that the charge dissipated on a miss.
+  if (charged) lines.push(`<em class="muted">${i18n(landed ? "PROJECTANIME.Roll.charged" : "PROJECTANIME.Roll.chargeDissipated")}</em>`);
 
-  if ((hasStrike ? hit === true : true) && targetActor) {
-    for (const c of collectInflictedConditions(item, targetActor)) {
-      await applyStatusEffect(targetActor, c.id);
-      lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: c.label, name: targetActor.name })}</em>`);
-    }
-    await inflictDecay(item, targetActor, lines);
-  }
+  // On-hit (enemy) riders land only when the Skill landed: inflicted conditions + Decay.
+  if (landed) await applyOnHitConditions(item, targetActor, lines);
 
   // A Skill applies its Active Effect(s) whenever it carries any non-die Effect (Bolster / Hinder /
   // Affinity / Sustain / Move / Sense) in EITHER slot — to the targeted tokens, or the caster if
-  // none are targeted. (Pure Strike/Mend Skills deliver through the rolls below, not here.)
-  if (hasOther) lines.push(...(await applySkillEffects(actor, item)));
+  // none are targeted. Supportive effects always apply; an auto-Hinder lands only on a hit (`landed`).
+  if (hasOther) lines.push(...(await applySkillEffects(actor, item, null, { landed })));
+  // Reflect (Skill Modifier): ward the targeted creature(s) — or the caster if none targeted —
+  // with the Reflect status. A removable marker; the next attack against a warded creature
+  // rebounds on its attacker, then the Reflect shatters (GM-adjudicated). Applied on use.
+  lines.push(...(await applyReflectMark(actor, item)));
 
   const buttons = [];
-  if (hasStrike) buttons.push(luckButton({ d1: r1, d2: r2, mod: 0, evasion, kind: "skill", actorUuid: actor.uuid, itemId: item.id, targetUuid: targetActor?.uuid ?? "" }));
-  // The Skill "lands" if it isn't an attack, or its attack didn't miss — then offer one roll per
-  // die-Effect it holds (Strike → damage, Mend → healing; a Strike+Mend Skill offers both).
-  if (!hasStrike || hit !== false) {
-    // Stamp the resolved target so the follow-up roll lands on who was targeted at cast time.
-    const tgt = targetActor ? ` data-target-uuid="${targetActor.uuid}"` : "";
-    const chg = charged ? ` data-charged="true"` : "";
-    for (const ds of skillDieSpecs(sys)) {
-      const heal = ds.effect === "mend";
-      // The secondary slot carries its own Effect/attr/pool/type so its roll uses that slot's
-      // values; the primary slot needs no override (computeDamageRoll reads the Skill's base fields).
-      const sp = ds.primary ? ""
-        : ` data-effect="${ds.effect}" data-damage-attr="${ds.damageAttr}" data-damage-pool="${ds.damagePool ?? ""}" data-damage-type="${ds.damageType ?? ""}"`;
-      buttons.push({
-        data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${chg}${sp}`,
-        label: `<i class="fas fa-${heal ? "heart" : "burst"}"></i> ${i18n(heal ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`
-      });
-    }
+  // Spend Luck re-rolls the Accuracy Check — offered for ANY enemy-targeting Skill (Strike, Hinder,
+  // forced movement), not just damage. The follow-up card re-evaluates the hit and applies what lands.
+  if (needsAccuracy) buttons.push(luckButton({ d1: r1, d2: r2, mod: 0, evasion, kind: "skill", actorUuid: actor.uuid, itemId: item.id, targetUuid: targetActor?.uuid ?? "" }));
+  // Die-Effect follow-ups: a Strike offers Roll Damage (only on a landed hit — you missed, no
+  // damage); a Mend offers Roll Healing regardless (self/ally healing isn't gated by an Accuracy
+  // Check). The secondary slot stamps its own Effect/attr/pool/type so its roll uses that slot's
+  // values; the primary slot needs no override (computeDamageRoll reads the Skill's base fields).
+  const tgt = targetActor ? ` data-target-uuid="${targetActor.uuid}"` : "";
+  const chg = charged ? ` data-charged="true"` : "";
+  for (const ds of skillDieSpecs(sys)) {
+    const heal = ds.effect === "mend";
+    if (!heal && !landed) continue;
+    const sp = ds.primary ? ""
+      : ` data-effect="${ds.effect}" data-damage-attr="${ds.damageAttr}" data-damage-pool="${ds.damagePool ?? ""}" data-damage-type="${ds.damageType ?? ""}"`;
+    buttons.push({
+      data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${chg}${sp}`,
+      label: `<i class="fas fa-${heal ? "heart" : "burst"}"></i> ${i18n(heal ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`
+    });
   }
 
   await postCard(actor, cardHTML({
@@ -887,7 +957,7 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
     icon: item.img,
     meta: skillMeta(sys),
     badges,
-    rollHTML: await roll.render(),
+    rollHTML: roll ? await roll.render() : "",
     description: await enrichDescription(item),
     lines,
     buttons
@@ -896,13 +966,17 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
 }
 
 /**
- * Area Strike (Burst / Line / Mass): roll the Accuracy Check ONCE, then compare that total
- * against each caught creature's own Evasion (Combo hits all, Fumble misses all). Hit targets
- * are inflicted with any on-hit conditions and flow into the "Roll Damage" button.
+ * Area attack (Burst / Line / Mass) — any area Skill that targets enemies (a Strike, or a Hinder /
+ * debuff): roll the Accuracy Check ONCE, then compare that total against each caught creature's own
+ * Evasion (Combo hits all, Fumble misses all). Hit targets are inflicted with any on-hit conditions,
+ * receive the Skill's Active Effect(s), and — for a Strike — flow into the "Roll Damage" button.
  */
 async function resolveAreaStrike(actor, item, targetTokens, { charged = false } = {}) {
   const sys = item.system;
   const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
+  // A Strike rolls damage; a non-Strike area attack (e.g. Mass Hinder) lands its Effect on the
+  // creatures it hit but offers no damage roll.
+  const hasStrike = skillEffectKeys(sys).includes("strike");
   const primary = targetTokens[0]?.actor ?? null;
 
   const rmods = collectRollModifiers(actor, "attack", { target: primary });
@@ -955,17 +1029,19 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   }
 
   const buttons = [];
-  // Spend Luck re-evaluates the single Accuracy roll against every caught target's Evasion.
+  // Spend Luck re-evaluates the single Accuracy roll against every caught target's Evasion — offered
+  // for ANY area attack (Strike or Mass Hinder); the follow-up applies what newly landed and, for a
+  // Strike, re-offers Roll Damage.
   if (luckTargets.length) buttons.push(aoeLuckButton({
     d1: r1, d2: r2, mod: rmods.flat + accBonus, targets: luckTargets, actorUuid: actor.uuid, itemId: item.id
   }));
-  if (hitUuids.length) buttons.push({
+  if (hasStrike && hitUuids.length) buttons.push({
     data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${hitUuids.join(",")}"${charged ? ' data-charged="true"' : ''}`,
     label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
   });
 
   await postCard(actor, cardHTML({
-    title: item.name, subtitle: i18n("PROJECTANIME.Roll.attack"),
+    title: item.name, subtitle: i18n(hasStrike ? "PROJECTANIME.Roll.attack" : "PROJECTANIME.Roll.skill"),
     icon: item.img, meta: skillMeta(sys),
     badges, rollHTML: await roll.render(),
     description: await enrichDescription(item), lines, buttons
@@ -1037,8 +1113,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor, charged });
 
   const lines = [];
-  const buttons = [];
-  const applyList = [];
+  const rows = [];
   const rolls = [dmg.roll];
   const hitSet = new Set();
   let current = primaryToken;
@@ -1069,15 +1144,18 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     if (!didHit) { stoppedName = ta.name; break; }   // must hit before the leap continues
 
     const adj = adjustForTarget(raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal });
-    lines.push(`<span class="card-target-row"><span class="muted">${adj.line}</span></span>`);
     for (const c of collectInflictedConditions(item, ta)) {
       await applyStatusEffect(ta, c.id);
       lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: c.label, name: ta.name })}</em>`);
     }
     await inflictDecay(item, ta, lines);
     if (adj.amount > 0 || adj.heal) {
-      buttons.push(applyButton(ta, adj.amount, adj.heal, dmg.pool));
-      applyList.push({ uuid: ta.uuid, amount: adj.amount, heal: adj.heal, pool: adj.heal ? "hp" : dmg.pool });
+      // Apply immediately; the per-target undo row carries the calculation.
+      const pool = adj.heal ? "hp" : dmg.pool;
+      await routeApply(ta, ta.uuid, adj.amount, adj.heal, pool);
+      rows.push({ uuid: ta.uuid, name: ta.name, img: ta.img, amount: adj.amount, heal: adj.heal, pool, calc: adj.line, undone: false });
+    } else {
+      lines.push(`<span class="card-target-row"><span class="muted">${adj.line}</span></span>`);
     }
     if (!adj.heal) drainTotal += adj.amount;
     prevRaw = raw;
@@ -1086,7 +1164,6 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
 
   if (stoppedName) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chainStopped", { name: stoppedName })}</em>`);
   lines.push(...damageNotes(dmg));
-  if (applyList.length > 1) buttons.push(applyAllButton(applyList));
   // Drain HP/Energy: the caster recovers half the total damage dealt across the chain.
   await applyDrain(actor, item, drainTotal, lines);
 
@@ -1094,8 +1171,8 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     title: item.name, subtitle: i18n("PROJECTANIME.Roll.attack"),
     icon: item.img, meta: skillMeta(sys),
     rollHTML: await dmg.roll.render(),
-    description: await enrichDescription(item), lines, buttons
-  }), rolls);
+    description: await enrichDescription(item), rows, lines
+  }), rolls, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
   return rolls;
 }
 
@@ -1174,7 +1251,11 @@ async function pickDevourSkill(target, skills) {
   return result.skill;
 }
 
-/** Use a consumable: apply its HP/Energy restore (if any), spend one, post a card. */
+/**
+ * Use a consumable: apply its HP/Energy restore (if any), spend one, and post a "Used" card.
+ * A used-up consumable just leaves the inventory — when the last one is spent the item is
+ * deleted outright, so no quantity-0 ghost lingers in the bags.
+ */
 export async function useConsumable(actor, item) {
   const sys = item.system;
   const qty = Number(sys.quantity ?? 0) || 0;
@@ -1191,15 +1272,56 @@ export async function useConsumable(actor, item) {
     lines.push(`<strong>+${next - pool.value}</strong> ${i18n(`PROJECTANIME.Stat.${type}`)}`);
   }
 
-  await item.update({ "system.quantity": Math.max(0, qty - 1) });
-  lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.remaining", { n: Math.max(0, qty - 1) })}</em>`);
+  const remaining = Math.max(0, qty - 1);
+  lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.remaining", { n: remaining })}</em>`);
 
-  return postCard(actor, cardHTML({
+  // Capture the card bits before the item may be deleted (its in-memory data survives a delete,
+  // but enrich the description while the document is unquestionably live).
+  const card = {
     title: item.name,
     subtitle: i18n("PROJECTANIME.Roll.used"),
     icon: item.img,
     description: await enrichDescription(item),
     lines
+  };
+
+  // Spend one; when the stack runs out the consumable just leaves the inventory.
+  if (remaining > 0) await item.update({ "system.quantity": remaining });
+  else await item.delete();
+
+  return postCard(actor, cardHTML(card));
+}
+
+/**
+ * Post a consumable to chat as an actionable card — its identity + description and a preview of
+ * what it restores — carrying a ▶ Use button that consumes it (see useConsumable). Posting never
+ * consumes: this is what a consumable's roll() / "Post to Chat" does, so the player decides when to
+ * actually drink it from the card (or one-click via the sheet's context-menu "Use").
+ */
+export async function postConsumableCard(actor, item) {
+  const sys = item.system ?? {};
+  const qty = Number(sys.quantity ?? 0) || 0;
+  const type = sys.restoreType ?? "none";
+  const amount = Number(sys.restoreAmount ?? 0) || 0;
+  const lines = [];
+  if ((type === "hp" || type === "energy") && amount > 0) {
+    lines.push(`<strong>+${amount}</strong> ${i18n(`PROJECTANIME.Stat.${type}`)}`);
+  }
+  lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.remaining", { n: qty })}</em>`);
+
+  // Out of stock → no button (nothing to use); the card still posts as a record.
+  const buttons = qty > 0 ? [{
+    data: `data-action="useConsumable" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
+    label: `<i class="fas fa-play"></i> ${i18n("PROJECTANIME.Action.use")}`
+  }] : [];
+
+  return postCard(actor, cardHTML({
+    title: item.name,
+    subtitle: i18n("TYPES.Item.consumable"),
+    icon: item.img,
+    description: await enrichDescription(item),
+    lines,
+    buttons
   }));
 }
 
@@ -1209,14 +1331,82 @@ export async function useConsumable(actor, item) {
 
 /** Bind interactive buttons on rendered chat cards. Registered on renderChatMessageHTML. */
 export function onRenderChatMessage(message, html) {
+  // A damage card draws its per-target rows from its stored flag (the source of truth for the undo
+  // state), so re-render them here on every draw — this keeps the struck-through "undone" state
+  // consistent for everyone and after a reload, regardless of the baked-in initial content.
+  const card = message?.flags?.["project-anime"]?.damageCard;
+  if (card?.rows?.length) {
+    const container = html.querySelector(".dmg-rows");
+    if (container) container.innerHTML = damageRowsHTML(card.rows);
+  }
   // Assign via `.onclick` (not addEventListener) so re-rendering the same card
-  // can't stack duplicate handlers — a stacked Apply button would apply twice.
+  // can't stack duplicate handlers — a stacked button would fire twice.
   html.querySelectorAll("[data-action='rollDamage']").forEach((btn) => { btn.onclick = onRollDamageButton; });
-  html.querySelectorAll("[data-action='applyDamage']").forEach((btn) => { btn.onclick = onApplyDamageButton; });
-  html.querySelectorAll("[data-action='applyAll']").forEach((btn) => { btn.onclick = onApplyAllButton; });
+  // Undo arrows need the message (to read the stored rows + persist the undone state), so close over it.
+  html.querySelectorAll("[data-action='undoDamage']").forEach((btn) => { btn.onclick = (e) => onUndoDamageButton(e, message); });
   html.querySelectorAll("[data-action='releaseCharge']").forEach((btn) => { btn.onclick = onReleaseChargeButton; });
+  html.querySelectorAll("[data-action='useConsumable']").forEach((btn) => { btn.onclick = onUseConsumableButton; });
   html.querySelectorAll("[data-action='spendLuck']").forEach((btn) => { btn.onclick = onSpendLuckButton; });
   html.querySelectorAll("[data-action='spendLuckAoe']").forEach((btn) => { btn.onclick = onSpendLuckAoeButton; });
+}
+
+/* -------------------------------------------- */
+/*  Ad-hoc effect from a chat card              */
+/* -------------------------------------------- */
+
+/** Pull the display bits out of a Project: Anime chat card's rendered content — the title, icon,
+ *  and description shown on the card. Returns null for any non-card message, so the context-menu
+ *  option only appears on our cards. */
+function parseCardData(message) {
+  if (!message?.content) return null;
+  const div = document.createElement("div");
+  div.innerHTML = message.content;
+  const card = div.querySelector(".project-anime.chat-card");
+  if (!card) return null;
+  const name = card.querySelector(".card-title")?.textContent?.trim()
+    || message.alias || i18n("PROJECTANIME.Effect.newEffect");
+  const img = card.querySelector(".card-icon")?.getAttribute("src") || "icons/svg/aura.svg";
+  const description = card.querySelector(".card-desc")?.innerHTML?.trim() || "";
+  return { name, img, description };
+}
+
+/** Turn a chat card into a tracked ad-hoc Active Effect — its icon + description — on the selected
+ *  creature(s): a manual reminder for things the rules engine can't fully automate (PF2e-style). It
+ *  carries no rules; it just shows up (icon + description) in the Effects panel / sheet so you
+ *  remember it's applied. Targets the controlled token(s), else the assigned character; unowned
+ *  targets route through the GM relay. */
+async function applyEffectFromCard(message) {
+  const data = parseCardData(message);
+  if (!data) return;
+  const actors = (canvas?.tokens?.controlled ?? []).map((t) => t.actor).filter(Boolean);
+  if (!actors.length && game.user?.character) actors.push(game.user.character);
+  if (!actors.length) return ui.notifications.warn(i18n("PROJECTANIME.Effect.applyNoTarget"));
+
+  const effectData = {
+    name: data.name,
+    img: data.img,
+    description: data.description,
+    flags: { "project-anime": { adhoc: true, fromCard: message.uuid } }
+  };
+  let applied = 0;
+  const seen = new Set();
+  for (const actor of actors) {
+    if (!actor || seen.has(actor.id)) continue;
+    seen.add(actor.id);
+    if (await routeEffectApply(actor, effectData)) applied++;
+  }
+  if (applied) ui.notifications.info(i18n("PROJECTANIME.Effect.appliedFromCard", { name: data.name, n: applied }));
+}
+
+/** Chat context-menu entry (V13 `getChatMessageContextOptions`): "Apply as Effect", shown only on
+ *  Project: Anime cards. `li` is the message's DOM element (`li.dataset.messageId`). */
+export function cardEffectMenuOption() {
+  return {
+    name: "PROJECTANIME.Effect.applyFromCard",
+    icon: '<i class="fas fa-wand-magic-sparkles"></i>',
+    condition: (li) => !!parseCardData(game.messages.get(li?.dataset?.messageId)),
+    callback: (li) => applyEffectFromCard(game.messages.get(li?.dataset?.messageId))
+  };
 }
 
 async function onRollDamageButton(event) {
@@ -1247,6 +1437,16 @@ async function onReleaseChargeButton(event) {
   const item = actor.items.get(el.dataset.itemId);
   if (!item) return ui.notifications.warn(i18n("PROJECTANIME.Roll.itemGone"));
   return rollSkill(actor, item);
+}
+
+/** ▶ Use button on a consumable's chat card — consume one (restore + leave inventory). */
+async function onUseConsumableButton(event) {
+  event.preventDefault();
+  const el = event.currentTarget;
+  const actor = await fromUuid(el.dataset.actorUuid);
+  const item = actor?.items.get(el.dataset.itemId);
+  if (!item) return ui.notifications.warn(i18n("PROJECTANIME.Roll.itemGone"));
+  return useConsumable(actor, item);
 }
 
 /**
@@ -1291,6 +1491,91 @@ async function inflictDecay(item, targetActor, lines) {
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: i18n("PROJECTANIME.Status.decay"), name: targetActor.name })}</em>`);
 }
 
+/** Apply a Skill's on-hit conditions (target-scope) + Decay to a struck target. Mutates `lines`.
+ *  No-op without a target. Idempotent (status toggles), so safe to re-run on a Luck flip-to-hit. */
+async function applyOnHitConditions(item, targetActor, lines) {
+  if (!targetActor) return;
+  for (const c of collectInflictedConditions(item, targetActor)) {
+    await applyStatusEffect(targetActor, c.id);
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: c.label, name: targetActor.name })}</em>`);
+  }
+  await inflictDecay(item, targetActor, lines);
+}
+
+/** The full on-hit (enemy) payload of a Skill landing on one target: inflicted conditions, Decay,
+ *  and the Skill's Active Effect(s) (auto-Hinder + authored / Bolster). Idempotent — auto-effects
+ *  refresh by `autoKey` and status toggles no-op if already set — so Spend Luck can call it when a
+ *  re-roll turns a miss into a hit without double-applying. Returns chat-card lines. */
+async function applySkillOnHit(actor, item, targetActor) {
+  const lines = [];
+  await applyOnHitConditions(item, targetActor, lines);
+  if (skillEffectKeys(item.system).some((e) => e !== "strike" && e !== "mend")) {
+    lines.push(...(await applySkillEffects(actor, item, targetActor ? [targetActor] : null, { landed: true })));
+  }
+  return lines;
+}
+
+/** A Skill carrying the Reflect Modifier wards its recipients (the targeted tokens, else the
+ *  caster) with the `reflect` status — a removable marker meaning the next attack against that
+ *  creature rebounds on its attacker (the Reflect then shatters; GM-adjudicated). Mirrors
+ *  applySkillEffects' targeted-else-self recipients. No-op for non-Skills / Skills without it.
+ *  @returns {Promise<string[]>} chat-card lines naming who was warded. */
+async function applyReflectMark(actor, item, recipients = null) {
+  if (item?.type !== "skill" || !(item.system.modifiers ?? []).includes("reflect")) return [];
+  const targets = skillEffectTargets(actor, item, recipients);
+  const lines = [];
+  const seen = new Set();
+  for (const ta of targets) {
+    if (!ta || seen.has(ta.id)) continue;
+    seen.add(ta.id);
+    await applyStatusEffect(ta, "reflect");
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.reflectWard", { name: ta.name })}</em>`);
+  }
+  return lines;
+}
+
+/** The actors a Skill's on-use effects land on: an explicit list (area Skills), else — for a
+ *  Self-range Skill — always the caster (even if a creature is targeted), else the targeted
+ *  creatures, else the caster. */
+function skillEffectTargets(actor, item, recipients = null) {
+  if (recipients) return recipients;
+  if (item?.system?.range?.scope === "self") return [actor];
+  const targeted = [...(game.user?.targets ?? [])].map((t) => t.actor).filter(Boolean);
+  return targeted.length ? targeted : [actor];
+}
+
+/** Auto-built Bolster/Hinder effects for a Skill — one ActiveEffect per Bolster/Hinder Effect it
+ *  carries (primary AND the Secondary-Effect slot), so the designer needn't author one. Each raises
+ *  (Bolster) / lowers (Hinder) the Skill's Attributes by Rank (see bolsterHinderRules). ACTIVE Skills
+ *  get a duration — a number of combat rounds, or "scene" (no timer; cleared when combat ends) when
+ *  `effectDuration` is blank. Passive Skills are handled in-memory by the effects engine, not here.
+ *  Returns [] when none apply, the Skill is Passive, or the designer authored their own attr effect.
+ *  Each carries `autoKey` (`<skillId>:<mode>`) so re-casting REFRESHES rather than stacks. */
+function autoBolsterHinderEffects(item) {
+  if (item?.type !== "skill" || item.system?.actionType === "passive") return [];
+  if (hasAuthoredAttributeEffect(item)) return [];
+  const dur = item.system?.effectDuration;
+  const scene = dur == null;                       // blank → lasts the scene (cleared at combat end)
+  const out = [];
+  for (const mode of skillEffectKeys(item.system)) {
+    const list = bolsterHinderRules(item, mode);
+    if (!list.length) continue;
+    const duration = {};
+    if (!scene) {
+      duration.rounds = dur;
+      duration.startTime = game.time?.worldTime ?? 0;
+      if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
+    }
+    out.push({
+      name: item.name,
+      img: item.img,
+      duration,
+      flags: { "project-anime": { rules: { version: 1, list }, autoEffect: mode, autoKey: `${item.id}:${mode}`, scene } }
+    });
+  }
+  return out;
+}
+
 /** Drain (Skill modifiers): the caster recovers half the damage this Skill dealt — HP for
  *  Drain HP, Energy for Drain Energy (rules p.13). `total` is the post-Defense/affinity damage
  *  dealt across every target (overkill counts; immune/absorbed hits contribute 0). Recovery is
@@ -1319,9 +1604,15 @@ async function applyDrain(actor, item, total, lines) {
 /** Create an effect copy on a target actor. Exported for the GM-side socket relay. */
 export async function applyEffectTo(targetUuid, effectData) {
   const target = await fromUuid(targetUuid);
-  if (target?.documentName === "Actor" && effectData) {
-    await target.createEmbeddedDocuments("ActiveEffect", [effectData]);
+  if (target?.documentName !== "Actor" || !effectData) return;
+  // Refresh, don't stack: an auto Bolster/Hinder from a given Skill+Effect (its `autoKey`) replaces
+  // any prior copy of itself on the target, so re-casting re-applies rather than piling up.
+  const key = effectData.flags?.["project-anime"]?.autoKey;
+  if (key) {
+    const dupes = target.effects.filter((e) => e.flags?.["project-anime"]?.autoKey === key).map((e) => e.id);
+    if (dupes.length) await target.deleteEmbeddedDocuments("ActiveEffect", dupes);
   }
+  await target.createEmbeddedDocuments("ActiveEffect", [effectData]);
 }
 
 /** Route an effect copy to a target: create it directly if owned, else relay to the active GM. */
@@ -1342,19 +1633,25 @@ async function routeEffectApply(target, effectData) {
  * them. (Target-scope conditions stay the on-hit rider handled by collectInflictedConditions.)
  * Owned recipients are updated directly; others go through the GM relay.
  * @param {Actor[]|null} recipients  Explicit recipients (area Skills), or null → targeted-else-self.
+ * @param {object}  [opts]
+ * @param {boolean} [opts.landed=true]  Did the Skill's Accuracy Check land? An auto-Hinder is
+ *   offensive and only applies on a hit; supportive auto/authored effects apply regardless.
  * @returns {Promise<string[]>} chat-card lines naming who received which effect(s).
  */
-async function applySkillEffects(actor, item, recipients = null) {
+async function applySkillEffects(actor, item, recipients = null, { landed = true } = {}) {
   // Passive Skills apply their effect always-on (the effects.mjs gate) — never as an on-use
   // copy, so clicking a Passive in the quick panel can't double up the buff.
   if (item.system?.actionType === "passive") return [];
   const enabled = (item.effects ?? []).filter((e) => !e.disabled && effectRules(e).length);
-  if (!enabled.length) return [];
-  let targets = recipients;
-  if (!targets) {
-    const targeted = [...(game.user?.targets ?? [])].map((t) => t.actor).filter(Boolean);
-    targets = targeted.length ? targeted : [actor];
-  }
+  // Bolster/Hinder Skills auto-build their attribute effect(s), so the designer needn't author one.
+  // A Hinder is offensive — it lands only when the Accuracy Check hit; a Bolster (self/ally) always applies.
+  const autoEffects = autoBolsterHinderEffects(item)
+    .filter((a) => landed || a.flags?.["project-anime"]?.autoEffect !== "hinder");
+  if (!enabled.length && !autoEffects.length) return [];
+  // Applied effects wear the icon of "what was used": the borrowed weapon for a Weapon-range Skill,
+  // else the Skill itself. effectCopyData only swaps it in when the effect has no custom icon.
+  const sourceImg = skillWeapon(actor, item)?.img || item.img;
+  const targets = skillEffectTargets(actor, item, recipients);
   const seen = new Set();
   const lines = [];
   for (const ta of targets) {
@@ -1362,10 +1659,13 @@ async function applySkillEffects(actor, item, recipients = null) {
     seen.add(ta.id);
     const names = [];
     for (const effect of enabled) {
-      if (await routeEffectApply(ta, effectCopyData(effect))) names.push(effect.name);
+      if (await routeEffectApply(ta, effectCopyData(effect, sourceImg))) names.push(effect.name);
+    }
+    for (const auto of autoEffects) {
+      if (await routeEffectApply(ta, foundry.utils.deepClone(auto))) names.push(auto.name);
     }
     if (names.length) {
-      lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.effectApplied", { effect: names.join(", "), name: ta.name })}</em>`);
+      lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.effectApplied", { effect: [...new Set(names)].join(", "), name: ta.name })}</em>`);
     }
   }
   return lines;
@@ -1384,42 +1684,43 @@ async function routeApply(target, targetUuid, amount, heal, pool) {
   return false;
 }
 
-async function onApplyDamageButton(event) {
+/** Undo one row of a damage card: reverse that creature's HP/EN change, then strike the row through.
+ *  The reversal routes through the same owner/GM relay as the auto-apply and is clamped to max by
+ *  applyDamageTo. The undone state is persisted on the message flag (its author — whoever rolled — or
+ *  a GM can update it), and the render hook redraws the rows from that flag, so the strike-through
+ *  shows for everyone and survives a reload. If the clicker can't update the message, the HP is still
+ *  reverted and the row is greyed out locally. */
+async function onUndoDamageButton(event, message) {
   event.preventDefault();
   const el = event.currentTarget;
-  const targetUuid = el.dataset.targetUuid;
-  const target = await fromUuid(targetUuid);
-  if (!target) return ui.notifications.warn(i18n("PROJECTANIME.Roll.targetGone"));
-  const amount = Number(el.dataset.amount) || 0;
-  const heal = el.dataset.heal === "true";
-  const pool = el.dataset.pool || "hp";
+  if (el.disabled) return;
+  const card = message?.flags?.["project-anime"]?.damageCard;
+  const i = Number(el.dataset.row);
+  const row = card?.rows?.[i];
+  if (!row || row.undone) return;
+  el.disabled = true;   // guard against a double-click landing twice during the async reversal
+  const target = await fromUuid(row.uuid);
+  if (!target) { el.disabled = false; return ui.notifications.warn(i18n("PROJECTANIME.Roll.targetGone")); }
 
-  if (!(await routeApply(target, targetUuid, amount, heal, pool))) {
+  // Reverse: undo damage → heal the amount back; undo healing → remove it. Same pool.
+  if (!(await routeApply(target, row.uuid, row.amount, !row.heal, row.pool))) {
+    el.disabled = false;
     return ui.notifications.warn(i18n("PROJECTANIME.Roll.noGM"));
   }
-  ui.notifications.info(i18n("PROJECTANIME.Roll.applied", {
-    n: amount, name: target.name, what: i18n(heal ? "PROJECTANIME.Roll.healing" : "PROJECTANIME.Roll.damage")
-  }));
-}
 
-/** "Apply to All": apply each entry of the encoded {uuid, amount, heal, pool} list. */
-async function onApplyAllButton(event) {
-  event.preventDefault();
-  const el = event.currentTarget;
-  let list = [];
-  try { list = JSON.parse(decodeURIComponent(el.dataset.applyAll || "")); } catch (_e) { list = []; }
-  if (!Array.isArray(list) || !list.length) return;
-
-  let applied = 0;
-  let noGM = false;
-  for (const t of list) {
-    const target = await fromUuid(t.uuid);
-    if (!target) continue;
-    if (await routeApply(target, t.uuid, Number(t.amount) || 0, !!t.heal, t.pool || "hp")) applied++;
-    else { noGM = true; break; }
+  const rows = card.rows.map((r, idx) => (idx === i ? { ...r, undone: true } : r));
+  if (message.canUserModify(game.user, "update")) {
+    await message.update({ "flags.project-anime.damageCard.rows": rows });   // render hook redraws the rows
+  } else {
+    const rowEl = el.closest(".dmg-row");
+    if (rowEl) {
+      rowEl.classList.add("is-undone");
+      el.outerHTML = `<span class="dmg-undone"><i class="fas fa-check"></i> ${i18n("PROJECTANIME.Roll.undone")}</span>`;
+    }
   }
-  if (noGM) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noGM"));
-  if (applied) ui.notifications.info(i18n("PROJECTANIME.Roll.appliedAll", { n: applied }));
+  ui.notifications.info(i18n("PROJECTANIME.Roll.reverted", {
+    n: row.amount, unit: row.pool === "energy" ? "EN" : "HP", name: target.name
+  }));
 }
 
 /* -------------------------------------------- */
@@ -1513,11 +1814,22 @@ async function onSpendLuckButton(event) {
 
   const buttons = [];
   if (attackish && res.success !== false && el.dataset.itemId && el.dataset.actorUuid) {
-    const tgt = el.dataset.targetUuid ? ` data-target-uuid="${el.dataset.targetUuid}"` : "";
-    buttons.push({
-      data: `data-action="rollDamage" data-actor-uuid="${el.dataset.actorUuid}" data-item-id="${el.dataset.itemId}"${tgt}`,
-      label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
-    });
+    // Resolve the original caster + item so a flip-to-hit applies what newly landed and offers a
+    // damage roll only when there's damage. (For an enemy Skill, the source actor owns the item.)
+    const srcActor = await fromUuid(el.dataset.actorUuid);
+    const item = srcActor?.items?.get?.(el.dataset.itemId) ?? null;
+    const targetActor = el.dataset.targetUuid ? await fromUuid(el.dataset.targetUuid) : null;
+    // A Skill's on-hit payload (conditions / Decay / Hinder) lands now that the re-roll hit.
+    if (item?.type === "skill") lines.push(...(await applySkillOnHit(srcActor, item, targetActor)));
+    // Roll Damage: weapon attacks always deal damage; a Skill only if it Strikes.
+    const dealsDamage = kind === "attack" || (item?.type === "skill" && skillEffectKeys(item.system).includes("strike"));
+    if (dealsDamage) {
+      const tgt = el.dataset.targetUuid ? ` data-target-uuid="${el.dataset.targetUuid}"` : "";
+      buttons.push({
+        data: `data-action="rollDamage" data-actor-uuid="${el.dataset.actorUuid}" data-item-id="${el.dataset.itemId}"${tgt}`,
+        label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
+      });
+    }
   }
 
   return postCard(actor, cardHTML({
@@ -1558,18 +1870,30 @@ async function onSpendLuckAoeButton(event) {
   if (res.fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
   else if (res.combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
 
+  // Resolve the original caster + item so a flip can apply newly-landed effects and gate Roll Damage.
+  const srcActor = actorUuid ? await fromUuid(actorUuid) : null;
+  const item = srcActor?.items?.get?.(itemId) ?? null;
+  const hasStrike = item?.type === "skill" && skillEffectKeys(item.system).includes("strike");
+
   const lines = [...spend.lines, `<strong>${i18n("PROJECTANIME.Roll.total")}: ${res.total}</strong>`];
   const hitUuids = [];
   for (const t of targets) {
     const didHit = res.combo || (!res.fumble && (t.ev == null || res.total >= t.ev));
     const evText = t.ev != null ? ` <span class="muted">(${i18n("PROJECTANIME.Stat.evasion")} ${t.ev})</span>` : "";
     lines.push(`<span class="card-target-row"><strong>${t.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evText}</span>`);
-    if (didHit) hitUuids.push(t.uuid);
+    if (!didHit) continue;
+    hitUuids.push(t.uuid);
+    // Apply the Skill's on-hit payload (conditions / Decay / Hinder) to each creature the re-roll hits.
+    if (item?.type === "skill") {
+      const ta = await fromUuid(t.uuid);
+      if (ta) lines.push(...(await applySkillOnHit(srcActor, item, ta)));
+    }
   }
   if (res.combo) lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`);
 
   const buttons = [];
-  if (hitUuids.length && itemId && actorUuid) buttons.push({
+  // Roll Damage only when the Skill actually Strikes (a Mass Hinder already applied its Effect above).
+  if (hasStrike && hitUuids.length && itemId && actorUuid) buttons.push({
     data: `data-action="rollDamage" data-actor-uuid="${actorUuid}" data-item-id="${itemId}" data-target-uuids="${hitUuids.join(",")}"`,
     label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
   });

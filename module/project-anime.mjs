@@ -19,10 +19,13 @@ import { TokenInfoPanel, TOKEN_INFO_SETTING, TOKEN_INFO_CLIENT_SETTING } from ".
 import { TokenDossier } from "./apps/token-dossier.mjs";
 import { RangeLine, RANGE_LINE_SETTING, RANGE_LINE_CLIENT_SETTING } from "./apps/range-line.mjs";
 import { ComboSplash, COMBO_SPLASH_SETTING, COMBO_SPLASH_CLIENT_SETTING } from "./apps/combo-splash.mjs";
-import { ensurePartyFolder, ensureAllPartyFolders, syncPartyFolderName, deletePartyFolder } from "./helpers/party-folder.mjs";
+import { ensurePartyFolder, ensureAllPartyFolders, syncPartyFolderName, deletePartyFolder, partyMembers } from "./helpers/party-folder.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
 const { ActorSheet, ItemSheet } = foundry.appv1.sheets;
+
+// Hidden world flag — set once after the bottom-stacked HP/Energy bars migrate existing tokens.
+const BARS_BACKFILLED_SETTING = "barsBackfilled";
 
 /* -------------------------------------------- */
 /*  Init                                        */
@@ -89,6 +92,16 @@ Hooks.once("init", function () {
     type: Boolean,
     default: true,
     onChange: (value) => { if (!value) projectanime.tokenInfo?.hide(); }
+  });
+
+  // One-shot guard: switch pre-existing creatures' tokens to always-on resource bars (the new
+  // bottom-stacked HP/Energy overlay) exactly once per world, so a GM's later manual change to a
+  // token's bar display isn't re-forced on every load. Hidden (not a player-facing setting).
+  game.settings.register("project-anime", BARS_BACKFILLED_SETTING, {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
   });
 
   // Hover Range Line: a measured line from your selected token to the hovered token, with a
@@ -163,6 +176,15 @@ Hooks.once("init", function () {
     TokenClass.prototype._paDossierPatched = true;
   }
 
+  // Custom HP / Energy token bars. Replace Foundry's default top-and-bottom, edge-to-edge bars
+  // with two slim bars stacked at the BOTTOM of the token — HP on top, Energy directly beneath —
+  // both inset from the edges so nothing hangs off. Fills reuse the sheet's crimson→coral (HP) and
+  // indigo→violet (Energy) gradients (baked into a cached texture) and carry a "value / max" label.
+  if (TokenClass && !TokenClass.prototype._paBarsPatched) {
+    TokenClass.prototype._drawBar = paDrawBar;
+    TokenClass.prototype._paBarsPatched = true;
+  }
+
   // Register the system's status conditions (token HUD icons + Active Effects).
   CONFIG.statusEffects = PROJECTANIME.statusConditions.map((c) => ({ ...c }));
 
@@ -217,6 +239,16 @@ Hooks.once("init", function () {
     makeDefault: true,
     label: "PROJECTANIME.SheetLabels.Item"
   });
+
+  // Press "P" to open the Party sheet (rebindable in Configure Controls). Keybindings MUST be
+  // registered during `init`. Not restricted — players with party access can use it too.
+  game.keybindings.register("project-anime", "openParty", {
+    name: "PROJECTANIME.Keybindings.openParty.name",
+    hint: "PROJECTANIME.Keybindings.openParty.hint",
+    editable: [{ key: "KeyP" }],
+    restricted: false,
+    onDown: () => { openPartySheetForUser(); return true; }
+  });
 });
 
 /* -------------------------------------------- */
@@ -224,6 +256,13 @@ Hooks.once("init", function () {
 /* -------------------------------------------- */
 
 Hooks.on("renderChatMessageHTML", (message, html) => dice.onRenderChatMessage(message, html));
+
+// Right-click a Project: Anime chat card → "Apply as Effect": stamp its icon + description onto the
+// selected creature(s) as a tracked reminder, for anything the rules engine can't fully automate.
+Hooks.on("getChatMessageContextOptions", (...args) => {
+  const options = args.find((a) => Array.isArray(a));
+  if (options) options.push(dice.cardEffectMenuOption());
+});
 
 // A scored Combo flashes the cinematic Combo Splash. The dice engine flags the Combo's chat
 // card; that card broadcasts to every client, so each one fires its own splash here (gated by
@@ -395,6 +434,21 @@ async function recoverDefeatedOnCombatEnd(combat) {
 }
 Hooks.on("deleteCombat", recoverDefeatedOnCombatEnd);
 
+/** End of combat: clear "scene"-duration auto-effects (e.g. an active Bolster/Hinder left blank =
+ *  lasts the scene) from every combatant — they expire when the fight ends. GM-side only. */
+async function expireSceneEffectsOnCombatEnd(combat) {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  const seen = new Set();
+  for (const c of combat.combatants ?? []) {
+    const actor = c.actor;
+    if (!actor || seen.has(actor.uuid)) continue;
+    seen.add(actor.uuid);
+    const scene = actor.effects.filter((e) => e.flags?.["project-anime"]?.scene).map((e) => e.id);
+    if (scene.length) await actor.deleteEmbeddedDocuments("ActiveEffect", scene);
+  }
+}
+Hooks.on("deleteCombat", expireSceneEffectsOnCombatEnd);
+
 /** Foundry only steps over Defeated combatants on turn advancement when the world's "Skip
  *  Defeated" combat-tracker option is enabled, and it ships off. The rules (p.14) make skipping
  *  the Defeated mandatory, so the active GM turns it on at startup. Idempotent (writes only when
@@ -470,12 +524,125 @@ Hooks.on("updateItem", (item, change, options, userId) => {
 });
 
 /* -------------------------------------------- */
+/*  Token resource bars (HP / Energy overlay)   */
+/* -------------------------------------------- */
+
+// Two slim bars stacked at the BOTTOM of every token — HP above Energy — replacing Foundry's
+// default top-and-bottom edge-to-edge bars (patched onto Token#_drawBar in `init`). Matches the
+// character sheet: the same crimson→coral→gold (HP) and indigo→periwinkle→violet (Energy) gradient,
+// a baked vertical gloss, a bright leading edge, and a "value / max" label. The animated shimmer is
+// kept sheet-only — redrawing it on every token each frame is needless canvas load.
+
+// Horizontal-ramp stops (dark-theme variants, vivid on the canvas) mirroring css/project-anime.css.
+const PA_BAR_STOPS = {
+  hp:     [[0, "#c34155"], [0.5, "#ef8a6e"], [1, "#ffc36b"]],
+  energy: [[0, "#4f6ad0"], [0.5, "#97a6f2"], [1, "#c58cff"]]
+};
+// Each ramp baked into a texture once and reused by every token / redraw.
+const paBarTextures = {};
+function paBarTexture(kind) {
+  if (paBarTextures[kind]) return paBarTextures[kind];
+  const w = 256, h = 32;
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  const ramp = ctx.createLinearGradient(0, 0, w, 0);
+  for (const [stop, col] of PA_BAR_STOPS[kind]) ramp.addColorStop(stop, col);
+  ctx.fillStyle = ramp;
+  ctx.fillRect(0, 0, w, h);
+  const gloss = ctx.createLinearGradient(0, 0, 0, h);   // bright top → dark base, baked in
+  gloss.addColorStop(0, "rgba(255,255,255,0.5)");
+  gloss.addColorStop(0.45, "rgba(255,255,255,0)");
+  gloss.addColorStop(1, "rgba(0,0,0,0.22)");
+  ctx.fillStyle = gloss;
+  ctx.fillRect(0, 0, w, h);
+  return (paBarTextures[kind] = PIXI.Texture.from(cv));
+}
+
+// Centred "value / max" label on a bar: rendered at a high font size then scaled down so it stays
+// crisp at token resolution. Cached as a child of the bar Graphics (survives bar.clear()).
+function paBarLabel(bar, text, innerW, bh) {
+  let label = bar.paLabel;
+  if (!label) {
+    const TextCls = foundry.canvas?.containers?.PreciseText ?? globalThis.PreciseText ?? PIXI.Text;
+    const style = new PIXI.TextStyle({
+      fontFamily: "Signika, sans-serif", fontSize: 28, fontWeight: "700",
+      fill: "#ffffff", stroke: "#100c18", strokeThickness: 6,
+      dropShadow: true, dropShadowColor: "#000000", dropShadowBlur: 3, dropShadowDistance: 0
+    });
+    label = bar.paLabel = bar.addChild(new TextCls(text, style));
+    label.anchor.set(0.5, 0.5);
+  } else if (label.text !== text) {
+    label.text = text;
+  }
+  label.scale.set(1, 1);
+  const lw = label.width, lh = label.height;
+  if (lw > 0 && lh > 0) {
+    const fit = Math.min((bh * 0.82) / lh, (innerW * 0.9) / lw);
+    label.scale.set(fit, fit);
+  }
+  label.position.set(innerW / 2, bh / 2);
+}
+
+// Override of Token#_drawBar (see the `init` patch). `number` 0 = bar1 (HP), 1 = bar2 (Energy) —
+// the system maps both via system.json's primary/secondaryTokenAttribute. Both bars are placed at
+// the bottom, inset, with HP stacked directly above Energy.
+function paDrawBar(number, bar, data) {
+  const doc = this.document;
+  const max = Number(data.max) || 0;
+  const pct = max > 0 ? Math.clamp(Number(data.value), 0, max) / max : 0;
+
+  const { width, height } = doc.getSize();
+  const s = canvas.dimensions.uiScale;
+  const mx = width * 0.06;                              // side inset — never touches the edge
+  const mb = height * 0.06;                             // bottom inset
+  const bh = 8 * (doc.height >= 2 ? 1.5 : 1) * s;       // bar height (core's sizing)
+  const gap = Math.max(2 * s, height * 0.025);          // gap between the two bars
+  const innerW = Math.max(1, width - (2 * mx));
+  const fw = pct * innerW;
+  const r = Math.min(3 * s, bh / 2);
+
+  // Stack at the bottom: Energy on the lower row, HP directly above it.
+  const enY = height - mb - bh;
+  const hpY = enY - gap - bh;
+  bar.position.set(mx, number === 0 ? hpY : enY);
+
+  // Track — translucent dark fill with a hairline border.
+  bar.clear();
+  bar.lineStyle(Math.max(1, s), 0x16131c, 0.9);
+  bar.beginFill(0x000000, 0.5);
+  bar.drawRoundedRect(0, 0, innerW, bh, r);
+  bar.endFill();
+  bar.lineStyle(0);
+
+  // Fill — reveal the left `pct` of the full-width hue ramp.
+  if (fw > 0.5) {
+    const kind = data.attribute === "energy" ? "energy"
+      : (data.attribute === "hp" ? "hp" : (number === 0 ? "hp" : "energy"));
+    const tex = paBarTexture(kind);
+    const matrix = new PIXI.Matrix().scale(innerW / tex.width, bh / tex.height);
+    bar.beginTextureFill({ texture: tex, matrix });
+    bar.drawRoundedRect(0, 0, fw, bh, r);
+    bar.endFill();
+    if (pct < 0.999) {                                  // bright leading edge, like the sheet's tip
+      const ew = Math.max(1, 1.5 * s);
+      bar.beginFill(0xffffff, 0.85);
+      bar.drawRect(Math.max(0, fw - ew), 0, ew, bh);
+      bar.endFill();
+    }
+  }
+
+  paBarLabel(bar, `${data.value} / ${data.max}`, innerW, bh);
+  return true;
+}
+
+/* -------------------------------------------- */
 /*  Token defaults                              */
 /* -------------------------------------------- */
 
-// Sensible prototype-token defaults at creation: link PCs and give them vision,
-// show HP/Energy bars + the name on owner-hover, and map an NPC's disposition to
-// the token's disposition. (Bars read hp/energy via the manifest token attributes.)
+// Sensible prototype-token defaults at creation: link PCs and give them vision, always show the
+// HP/Energy bars (the bottom-stacked overlay), show the name on owner-hover, and map an NPC's
+// disposition to the token's disposition. (Bars read hp/energy via the manifest token attributes.)
 Hooks.on("preCreateActor", (actor, data) => {
   // The Party planner has no token / combat stats — leave its prototype token at core defaults.
   if (actor.type === "party") return;
@@ -486,7 +653,7 @@ Hooks.on("preCreateActor", (actor, data) => {
     prototypeToken: {
       actorLink: isChar,
       sight: { enabled: isChar },
-      displayBars: CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER,
+      displayBars: CONST.TOKEN_DISPLAY_MODES.ALWAYS,
       displayName: CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER,
       disposition: isChar ? DISP.FRIENDLY : (dispMap[data?.system?.disposition] ?? DISP.NEUTRAL)
     }
@@ -498,6 +665,10 @@ Hooks.on("preCreateActor", (actor, data) => {
   const hasNatural = items.some((i) => foundry.utils.getProperty(i, "flags.project-anime.natural"));
   const update = { "flags.project-anime.naturalProvisioned": true };
   if (!hasNatural) update.items = [...items, naturalAttackData()];
+  // Player Characters default to LIMITED ownership for everyone, so all players can at least see
+  // each PC at a glance. (updateSource merges, so the creating user's OWNER entry is preserved;
+  // NPCs stay GM-only.) The GM can still raise a specific player to Owner of their own PC.
+  if (isChar) update["ownership.default"] = CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;
   actor.updateSource(update);
 });
 
@@ -512,6 +683,58 @@ const paIsActiveGM = () => game.users.activeGM?.id === game.user.id;
 Hooks.on("createActor", (actor) => { if (actor.type === "party" && paIsActiveGM()) ensurePartyFolder(actor); });
 Hooks.on("updateActor", (actor, changes) => { if (actor.type === "party" && "name" in changes && paIsActiveGM()) syncPartyFolderName(actor); });
 Hooks.on("deleteActor", (actor) => { if (actor.type === "party" && paIsActiveGM()) deletePartyFolder(actor); });
+
+// A party's roster IS its folder's Characters, so adding/removing a member mutates the CHARACTER
+// (its `folder`) — never the party Document — and the open party sheet won't refresh on its own.
+// Re-render any open party sheet whenever folder membership could have shifted: a character's
+// folder changes, or one is created / deleted. Debounced so the burst of updates ensurePartyFolder
+// fires (party + legacy members in one go) collapses into a single render. Pure local refresh —
+// runs for every user with a party sheet open (players included), no GM gate.
+const refreshOpenPartySheets = foundry.utils.debounce(() => {
+  for (const app of foundry.applications.instances.values())
+    if (app instanceof ProjectAnimePartySheet) app.render(false);
+}, 50);
+Hooks.on("updateActor", (actor, changes) => { if (actor.type === "character" && "folder" in changes) refreshOpenPartySheets(); });
+Hooks.on("createActor", (actor) => { if (actor.type === "character") refreshOpenPartySheets(); });
+Hooks.on("deleteActor", (actor) => { if (actor.type === "character") refreshOpenPartySheets(); });
+
+// Open the Party sheet most relevant to this user: for a player, the party whose folder holds a
+// character they own; otherwise (and for the GM) the first party they can view. Backs both the
+// "P" keybinding and the folder icon below.
+function openPartySheetForUser() {
+  const parties = game.actors.filter((a) => a.type === "party" && a.testUserPermission(game.user, "LIMITED"));
+  if (!parties.length) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.none"));
+  const mine = !game.user.isGM && parties.find((p) => partyMembers(p).some((m) => m.isOwner));
+  (mine || parties[0]).sheet.render(true);
+}
+
+// Make each Party folder behave like PF2e's party in the Actors sidebar:
+//   • PIN it to the TOP of its list — no matter the directory's sort mode (the `sort: -100000`
+//     set at creation only bites in MANUAL mode; under alphabetical sorting it's ignored, so the
+//     folder would otherwise drift). Re-applied on every render, so it can't drift.
+//   • Drop a one-click "open the party sheet" icon on the folder header (for users who can view
+//     it). The folder's Characters already ARE the roster, so this is the party's home.
+// Pure DOM, so it runs for everyone (the pin has no GM gate; the icon is permission-gated).
+Hooks.on("renderActorDirectory", (app, element) => {
+  const root = element instanceof HTMLElement ? element : element?.[0];
+  if (!root) return;
+  // Reversed so that after each prepend the directory's first party ends up topmost.
+  for (const party of game.actors.filter((a) => a.type === "party").reverse()) {
+    const id = party.getFlag("project-anime", "folderId");
+    const li = id ? root.querySelector(`li[data-folder-id="${id}"]`) : null;
+    if (!li) continue;
+    li.parentElement?.prepend(li);                                  // pin to the top of its list
+    if (!party.testUserPermission(game.user, "LIMITED")) continue;  // icon only if viewable
+    const header = li.querySelector("header") ?? li;                // the folder's header row
+    if (header.querySelector(".pa-party-open")) continue;           // inject the open icon once
+    const open = document.createElement("a");
+    open.className = "pa-party-open";
+    open.dataset.tooltip = game.i18n.localize("PROJECTANIME.Party.openSheet");
+    open.innerHTML = '<i class="fas fa-users"></i>';
+    open.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); party.sheet.render(true); });
+    header.appendChild(open);
+  }
+});
 
 /* -------------------------------------------- */
 /*  Token Info: per-user scene-control toggle   */
@@ -616,6 +839,40 @@ async function backfillNaturalAttacks() {
 }
 
 /* -------------------------------------------- */
+/*  Always-on token bars backfill (one-time)    */
+/* -------------------------------------------- */
+
+// Switch creatures made before the bottom-stacked HP/Energy overlay to always-visible bars, so the
+// readout matches the new design everywhere. GM-side, once per world (the BARS_BACKFILLED flag),
+// covering both every actor's prototype token and every token already placed in a scene. Guarded so
+// a GM who later hides a specific token's bars isn't overridden on the next load. New tokens inherit
+// ALWAYS from the prototype defaults set in preCreateActor.
+async function backfillAlwaysBars() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", BARS_BACKFILLED_SETTING)) return;
+  const ALWAYS = CONST.TOKEN_DISPLAY_MODES.ALWAYS;
+
+  const actorUpdates = [];
+  for (const actor of game.actors) {
+    if (actor.type === "party") continue;               // the planner has no token
+    if (actor.prototypeToken?.displayBars !== ALWAYS)
+      actorUpdates.push({ _id: actor.id, "prototypeToken.displayBars": ALWAYS });
+  }
+  if (actorUpdates.length) await Actor.updateDocuments(actorUpdates);
+
+  for (const scene of game.scenes) {
+    const tokenUpdates = [];
+    for (const token of scene.tokens) {
+      if (token.actor?.type === "party") continue;
+      if (token.displayBars !== ALWAYS) tokenUpdates.push({ _id: token.id, displayBars: ALWAYS });
+    }
+    if (tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates);
+  }
+
+  await game.settings.set("project-anime", BARS_BACKFILLED_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Ready                                       */
 /* -------------------------------------------- */
 
@@ -627,6 +884,9 @@ Hooks.once("ready", function () {
 
   // One-time: give pre-existing creatures their innate Natural Attack.
   backfillNaturalAttacks();
+
+  // One-time: switch existing tokens to always-on HP/Energy bars (the bottom-stacked overlay).
+  backfillAlwaysBars();
 
   // One-time: back each existing Party with a real Folder (migrating any legacy system.members).
   if (paIsActiveGM()) ensureAllPartyFolders();

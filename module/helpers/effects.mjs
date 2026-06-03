@@ -25,7 +25,7 @@
  * PURE in-memory transform — never call update()/setFlag() from here (infinite loop).
  */
 
-import { PROJECTANIME } from "./config.mjs";
+import { PROJECTANIME, skillEffectKeys } from "./config.mjs";
 import { elementChoices, elementLabel } from "./elements.mjs";
 
 const FLAG_SCOPE = "project-anime";
@@ -229,6 +229,24 @@ export function effectRules(effect) {
   return Array.isArray(data.list) ? data.list : [];
 }
 
+/** The attribute rules a Bolster/Hinder Skill applies: raise (Bolster) / lower (Hinder) its chosen
+ *  Attributes (attrA, attrB, attrC) by one die step each — as many as the Rank allows (⭐ 1, ⭐⭐⭐ 2,
+ *  ⭐⭐⭐⭐⭐ 3), capped by the distinct Attributes defined. `mode` is the effect key. [] if not Bolster/Hinder. */
+export function bolsterHinderRules(item, mode) {
+  if (mode !== "bolster" && mode !== "hinder") return [];
+  const rank = Number(item?.system?.rank) || 1;
+  const count = rank >= 5 ? 3 : rank >= 3 ? 2 : 1;
+  const at = item?.system?.attributes ?? {};
+  const keys = [...new Set([at.attrA, at.attrB, at.attrC].filter(Boolean))].slice(0, count);
+  return keys.map((key) => ({ type: "attribute", mode, key, steps: 1 }));
+}
+
+/** True if the Skill carries a hand-authored attribute-rule effect — so the auto Bolster/Hinder
+ *  isn't generated (it would double the designer's own). */
+export function hasAuthoredAttributeEffect(item) {
+  return (item?.effects ?? []).some((e) => !e.disabled && effectRules(e).some((r) => r.type === "attribute"));
+}
+
 /** Localized display name of a status-condition id (e.g. "slowed" → "Slowed"). */
 function conditionLabelOf(id) {
   const c = (PROJECTANIME.statusConditions ?? []).find((x) => x.id === id);
@@ -294,15 +312,27 @@ export function liveEffects(actor) {
   return effects.filter((effect) => effectGateOpen(actor, effect));
 }
 
+/** Icons that count as "no real icon chosen" — an effect wearing one of these inherits the icon of
+ *  whatever applied it. `aura.svg` is the default new-effect icon; `upgrade.svg` is the default Skill
+ *  icon (DEFAULT_SKILL_IMG in skill-builder.mjs). */
+const GENERIC_EFFECT_ICONS = new Set(["", "icons/svg/aura.svg", "icons/svg/upgrade.svg"]);
+
 /**
  * Build a duration-stamped copy object of an effect: its `_id` stripped and any duration
  * restarted from now (world-time + combat round/turn) so it counts down from application.
  * Shared by drag-on (applyEffectCopy) and the on-use Skill-effect application in dice.mjs
- * (which may relay the object to the GM to create on an unowned target).
+ * (which may relay the object to the GM to create on an unowned target). `sourceImg` is the
+ * icon of whatever applied it (Skill/weapon), stamped on when the effect has no custom icon.
  */
-export function effectCopyData(effect) {
+export function effectCopyData(effect, sourceImg = null) {
   const obj = effect.toObject();
   delete obj._id;
+  // Effects wear the icon of whatever applied them: if the copy still has a generic icon (the
+  // default new-effect aura, the default Skill arrow `upgrade.svg`, or none), stamp it with the
+  // source item's icon — the Skill, or the borrowed weapon for a Weapon-range Skill. A
+  // deliberately-chosen custom icon (anything else) is preserved untouched.
+  const src = sourceImg || effect.parent?.img || "";
+  if (src && GENERIC_EFFECT_ICONS.has(obj.img ?? "")) obj.img = src;
   const d = obj.duration;
   if (d && (d.rounds || d.turns || d.seconds)) {
     d.startTime = game.time?.worldTime ?? 0;
@@ -391,6 +421,16 @@ export function applyStructuredRules(actor) {
       } else {
         applyPassiveRule(system, rule);
       }
+    }
+  }
+  // PASSIVE Bolster/Hinder Skills bake their attribute change into the owner always-on — they don't
+  // go through the on-use copy path (applySkillEffects skips Passives). Applied in-memory (no AE doc),
+  // like any other passive rule. Skipped if the Skill authored its own attribute effect.
+  for (const item of actor.items ?? []) {
+    if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
+    if (hasAuthoredAttributeEffect(item)) continue;
+    for (const mode of skillEffectKeys(item.system)) {
+      for (const rule of bolsterHinderRules(item, mode)) applyPassiveRule(system, rule);
     }
   }
 }

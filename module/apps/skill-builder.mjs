@@ -18,7 +18,7 @@
  */
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles } from "../helpers/config.mjs";
+import { rangeLabel, rangeHasTiles, skillNeedsAccuracy } from "../helpers/config.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -106,11 +106,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       rank: 1,
       attrA: "might",
       attrB: "spirit",
+      attrC: "",
       damageAttr: "attrA",
       range: { scope: "near", tiles: CONFIG.PROJECTANIME.rangeTiles.near ?? 5 },
       effect: "strike",
       damageType: "",
       damagePool: "hp",
+      effectDuration: null,
       secondaryEffect: "strike",
       secondaryDamageAttr: "attrA",
       secondaryDamagePool: "hp",
@@ -149,11 +151,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       rank: s.rank ?? 1,
       attrA: s.attributes?.attrA ?? "might",
       attrB: s.attributes?.attrB ?? "spirit",
+      attrC: s.attributes?.attrC ?? "",
       damageAttr: s.damageAttr ?? "attrA",
       range: { scope: s.range?.scope ?? "near", tiles: s.range?.tiles ?? 0 },
       effect: s.effect ?? "strike",
       damageType: s.damageType ?? "",
       damagePool: s.damagePool ?? "hp",
+      effectDuration: s.effectDuration ?? null,
       // Secondary Effect defaults to a real Effect (only used while its Modifier is selected).
       secondaryEffect: s.secondaryEffect || "strike",
       secondaryDamageAttr: s.secondaryDamageAttr ?? "attrA",
@@ -255,6 +259,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showDamagePool = cfg.poolEffects.includes(d.effect);
     ctx.poolLabel = d.effect === "sustain" ? "PROJECTANIME.Skill.field.regenPool" : "PROJECTANIME.Skill.field.damagePool";
     ctx.showEffectExtras = ctx.showDamageDie || ctx.showDamageType || ctx.showDamagePool;
+    // Bolster/Hinder auto-apply: show a 3rd Attribute at ⭐⭐⭐⭐⭐ (3 affected) + a Duration for ACTIVE
+    // Skills (blank = the scene, cleared after combat; Passives stay on, so no duration field).
+    ctx.isBolsterHinder = d.effect === "bolster" || d.effect === "hinder";
+    ctx.showAttrC = ctx.isBolsterHinder && Number(d.rank) >= 5;
+    ctx.showEffectDuration = ctx.isBolsterHinder && d.actionType !== "passive";
     ctx.damageDieChoices = {
       attrA: game.i18n.localize(cfg.attributes[d.attrA] ?? d.attrA),
       attrB: game.i18n.localize(cfg.attributes[d.attrB] ?? d.attrB)
@@ -396,6 +405,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         cur: accuracy,
         next: accuracy + 1,
         atMax: accuracy >= 3,
+        // Only Skills that make an Accuracy Check (target an enemy) can Sharpen it.
+        applies: skillNeedsAccuracy(sys),
         disabled: accuracy >= 3 || !canAfford
       },
       // Sharpen Damage / Sharpen Healing — only for Skills that roll an output (Strike / Mend);
@@ -509,6 +520,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (data.damageAttr) d.damageAttr = data.damageAttr;
     if (data.damagePool) d.damagePool = data.damagePool;
     if ("damageType" in data) d.damageType = data.damageType ?? "";
+    if ("attrC" in data) d.attrC = data.attrC ?? "";
+    if ("effectDuration" in data) {
+      const n = Math.round(Number(data.effectDuration));
+      d.effectDuration = Number.isFinite(n) && n >= 1 ? n : null; // blank/invalid → null = scene
+    }
     // Secondary Effect fields (only present on the Modifiers step while the Modifier is selected).
     if (data.secondaryEffect) d.secondaryEffect = data.secondaryEffect;
     if (data.secondaryDamageAttr) d.secondaryDamageAttr = data.secondaryDamageAttr;
@@ -658,13 +674,14 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       description: d.description ?? "",
       rank: d.rank,
       actionType: d.actionType,
-      attributes: { attrA: d.attrA, attrB: d.attrB },
+      attributes: { attrA: d.attrA, attrB: d.attrB, attrC: d.attrC ?? "" },
       damageAttr: d.damageAttr,
       range: d.range,
       effect: d.effect,
       // Only damage Effects (Strike / Affinity) keep a damage type.
       damageType: cfg.damageEffects.includes(d.effect) ? (d.damageType ?? "") : "",
       damagePool: d.damagePool,
+      effectDuration: d.effectDuration ?? null,
       secondaryEffect: hasSecondary ? (d.secondaryEffect || "") : "",
       secondaryDamageAttr: d.secondaryDamageAttr,
       secondaryDamagePool: d.secondaryDamagePool,

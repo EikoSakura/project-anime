@@ -77,6 +77,21 @@
       </div>
       {{/each}}
     </section>
+
+    {{#if quickItems.length}}
+    <section class="quick-block items">
+      <div class="qs-head"><h3>{{localize "PROJECTANIME.Quick.items"}}</h3></div>
+      <div class="item-grid quick-grid">
+        {{#each quickItems as |it|}}
+        <div class="item-tile quick-tile" data-item-id="{{it.id}}" data-readied-type="item">
+          <div class="tile-icon" data-action="rollItem"><img src="{{it.img}}" alt="{{it.name}}" />{{#if it.qty}}<span class="tile-qty">{{it.qty}}</span>{{/if}}</div>
+          <span class="tile-name">{{it.name}}</span>
+          {{#if @root.editable}}<a class="tile-unready" data-action="unreadySkill" title="{{localize 'PROJECTANIME.Quick.unpinItem'}}"><i class="fas fa-xmark"></i></a>{{/if}}
+        </div>
+        {{/each}}
+      </div>
+    </section>
+    {{/if}}
   </div>
 
 </section>

@@ -10,7 +10,7 @@
  * auto text. Pure + synchronous — safe during render. Sentence templates live under
  * `PROJECTANIME.Skill.narr.*`; per-effect-rule clauses come from effects.mjs `narrateRule`.
  */
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, rangeLabel } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, rangeLabel, skillNeedsAccuracy } from "./config.mjs";
 import { narrateRule, effectRules } from "./effects.mjs";
 import { elementLabel } from "./elements.mjs";
 
@@ -116,7 +116,9 @@ export function skillRulesHTML(item) {
   if (has("inflict") && !targetStatuses.length) targetStatuses.push(N("aStatus"));
 
   if (effectClauses.length) sentences.push(N("alsoEffects", { effects: joinClauses(effectClauses) }));
-  if (targetStatuses.length) sentences.push(N(hasStrike ? "onHit" : "applyTarget", { status: boldList(targetStatuses) }));
+  // "On a hit…" whenever the Skill rolls an Accuracy Check (Strike or an enemy debuff like Hinder);
+  // a self/ally Skill simply "applies …" with no roll.
+  if (targetStatuses.length) sentences.push(N(skillNeedsAccuracy(sys) ? "onHit" : "applyTarget", { status: boldList(targetStatuses) }));
   if (selfStatuses.length) sentences.push(N("youGain", { status: boldList(selfStatuses) }));
 
   // ---- Stand-alone modifier sentences. ----

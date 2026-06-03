@@ -127,11 +127,15 @@
     <div class="cc-luck">
       <div class="cc-luck-head">
         <span class="cc-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
+        {{#if luckRolled}}
+        <span class="cc-luck-lock"><i class="fas fa-lock"></i> {{localize "PROJECTANIME.Creator.luckLocked"}}</span>
+        {{else}}
         <button type="button" class="cc-mini-btn" data-action="rollLuck">
           <i class="fas fa-dice"></i> {{localize "PROJECTANIME.Creator.rollLuck"}} (3{{charmDie}})
         </button>
+        {{/if}}
       </div>
-      <div class="cc-luck-dice">
+      <div class="cc-luck-dice {{#if luckRolled}}locked{{/if}}">
         {{#each luckDice as |d|}}<span class="cc-luck-die">{{d}}</span>{{else}}<em class="muted">—</em>{{/each}}
       </div>
     </div>

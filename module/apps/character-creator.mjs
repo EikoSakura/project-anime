@@ -181,6 +181,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     };
     ctx.vitalsStale = sys.hp.max !== might * 2 || sys.energy.max !== spirit * 2;
     ctx.luckDice = sys.luckDice ?? [];
+    ctx.luckRolled = !!this.actor.getFlag("project-anime", "luckRolled");
     ctx.charmDie = `d${sys.attributes.charm.base}`;
 
     // Skills — the starting 6 SP and what's been built.
@@ -406,12 +407,17 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
   }
 
   static async #onRollLuck() {
+    // Luck Dice are rolled exactly once during creation and then locked in — no
+    // re-rolling until you get the spread you want. (A GM can clear the
+    // `luckRolled` flag to allow another roll.)
+    if (this.actor.getFlag("project-anime", "luckRolled")) return;
     // A Lucky Pendant (or any "luck" effect) Steps Up the Charm die for this roll.
     const steps = collectLuckSteps(this.actor);
     const die = stepUpDie(this.actor.system.attributes.charm.value, steps);
     const roll = await new Roll(`3d${die}`).evaluate();
     const values = roll.dice[0].results.map((r) => r.result);
     await this.actor.update({ "system.luckDice": values });
+    await this.actor.setFlag("project-anime", "luckRolled", true);
     const lines = [`${game.i18n.localize("PROJECTANIME.Stat.luckDice")}: <strong>${values.join(", ")}</strong>`];
     if (steps > 0) lines.push(`<em class="muted">${game.i18n.localize("PROJECTANIME.Effect.luckStepUp")}</em>`);
     await postRollCard(this.actor, {

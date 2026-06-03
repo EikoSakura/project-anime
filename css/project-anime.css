@@ -1552,6 +1552,28 @@
 }
 .project-anime .pd-slot:hover .pd-unequip { opacity: 1; }
 .project-anime .pd-unequip:hover { color: #fff; filter: brightness(1.15); }
+/* Shield-only inline toggle (Dual Wield ↔ Shield Only): top-left badge, mirrors .pd-unequip. The
+   icon reflects the CURRENT mode (fist = wielded as a weapon, shield = defensive); click flips it. */
+.project-anime .pd-mode {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--pa-accent);
+  color: #fff;
+  font-size: 0.5rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.project-anime .pd-slot:hover .pd-mode { opacity: 1; }
+.project-anime .pd-mode:hover { color: #fff; filter: brightness(1.15); }
 
 /* Slot equip picker (a top-layer popover, so it escapes the drawer's clipping). */
 .project-anime .pd-picker {
@@ -2774,6 +2796,106 @@
   background: color-mix(in srgb, var(--pa-gold) 45%, transparent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 40%, transparent);
 }
+
+/* "Damage Applied" card — one row per creature that took damage / healing, each with an undo arrow
+   (↻) that reverts just that creature's HP/EN. Undone rows are struck through with an "undone" tag. */
+.project-anime.chat-card .dmg-rows {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+.project-anime.chat-card .dmg-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.22rem 0.3rem;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--pa-accent) 7%, transparent);
+  border: 1px solid var(--pa-line);
+}
+.project-anime.chat-card .dmg-portrait {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
+  background: var(--pa-field);
+  display: grid;
+  place-items: center;
+  color: var(--pa-ink-soft);
+}
+.project-anime.chat-card .dmg-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+.project-anime.chat-card .dmg-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.project-anime.chat-card .dmg-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-anime.chat-card .dmg-calc {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--pa-ink-soft);
+}
+.project-anime.chat-card .dmg-calc strong { color: var(--pa-ink); font-weight: 700; }
+.project-anime.chat-card .dmg-amount {
+  flex: 0 0 auto;
+  font-family: var(--pa-font-mono);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.06rem 0.45rem;
+  border-radius: 999px;
+  color: #fff;
+}
+.project-anime.chat-card .dmg-amount.dmg { background: color-mix(in srgb, var(--pa-hp-a) 88%, #000); }
+.project-anime.chat-card .dmg-amount.heal { background: #2e7d32; }
+.project-anime.chat-card .dmg-amount.energy { background: color-mix(in srgb, var(--pa-energy-a) 90%, #000); }
+.project-anime.chat-card .dmg-undo {
+  flex: 0 0 auto;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 5px;
+  color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-gold) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line));
+  font-size: 0.8rem;
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.project-anime.chat-card .dmg-undo:hover {
+  background: color-mix(in srgb, var(--pa-gold) 32%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 38%, transparent);
+}
+.project-anime.chat-card .dmg-row.is-undone { opacity: 0.5; }
+.project-anime.chat-card .dmg-row.is-undone .dmg-name,
+.project-anime.chat-card .dmg-row.is-undone .dmg-amount { text-decoration: line-through; }
+.project-anime.chat-card .dmg-undone {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  height: 27px;
+  padding: 0 0.45rem;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pa-ink-soft);
+}
 /* Mass "Choose Targets" dialog. */
 .project-anime.roll-dialog.mass-pick {
   display: flex;
@@ -3671,6 +3793,9 @@
   background: var(--pa-field); border: 1px solid color-mix(in srgb, var(--pa-gold) 40%, var(--pa-line));
   font-family: var(--pa-font-mono); font-size: 1.05rem; font-weight: 700; color: var(--pa-gold);
 }
+.project-anime.character-creator .cc-luck-lock { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--pa-ink-soft); }
+.project-anime.character-creator .cc-luck-lock i { color: var(--pa-gold); }
+.project-anime.character-creator .cc-luck-dice.locked .cc-luck-die { border-color: var(--pa-gold); box-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 30%, transparent); }
 
 /* Skills */
 .project-anime.character-creator .cc-sp { display: flex; align-items: center; gap: 0.45rem; }
@@ -3832,6 +3957,11 @@
 /* -------------------------------------------------------------------------- */
 /*  14d. Party sheet (encounter-budget planner)                               */
 /* -------------------------------------------------------------------------- */
+/* The "open party sheet" icon injected onto each Party folder header in the Actors sidebar
+   (lives outside the .project-anime scope, so --pa-accent falls back to the brand purple). */
+.pa-party-open { flex: 0 0 auto; margin-left: 4px; color: var(--pa-accent, #6c4f9c); cursor: pointer; }
+.pa-party-open:hover { color: var(--color-text-hyperlink, #ff6400); }
+
 .project-anime.party-sheet .window-content { display: flex; flex-direction: column; gap: 0.6rem; }
 .project-anime.party-sheet .party-topbar { display: flex; align-items: center; gap: 0.7rem; }
 .project-anime.party-sheet .party-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; }

@@ -61,10 +61,18 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     else (document.getElementById("ui-right") ?? document.body).appendChild(element);
   }
 
-  /** @override — hide the whole panel when there's nothing to show. */
+  /** @override — hide the whole panel when there's nothing to show + bind right-click removal. */
   async _onRender(context, options) {
     await super._onRender(context, options);
     this.element.classList.toggle("empty", !context.hasEffects);
+    // Right-click an icon to remove that effect (left-click still opens its source). The entries
+    // are rebuilt each render, so binding here can't stack duplicate handlers.
+    for (const li of this.element.querySelectorAll(".ep-effect[data-effect-uuid]")) {
+      li.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        EffectsPanel.#onRemoveEffect(li.dataset.effectUuid);
+      });
+    }
   }
 
   /** Map an actor's live effects to icon rows, baking name + remaining duration + rule
@@ -99,5 +107,20 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     } else {
       effect.parent?.sheet?.render(true);
     }
+  }
+
+  /** Right-click an entry → remove that effect from the actor. Only effects that live ON the actor
+   *  (ad-hoc reminders, applied Skill effects, status conditions) can be cleared here; an effect
+   *  borne by an item is tied to that item — unequip/remove the item instead. */
+  static async #onRemoveEffect(uuid) {
+    const effect = uuid ? await fromUuid(uuid) : null;
+    if (!effect) return;
+    if (effect.parent?.documentName !== "Actor") {
+      return ui.notifications.info(game.i18n.format("PROJECTANIME.Effect.removeFromItem",
+        { name: effect.name, item: effect.parent?.name ?? "" }));
+    }
+    if (!effect.isOwner) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Effect.removeNoPermission"));
+    game.tooltip?.deactivate?.();
+    await effect.delete();
   }
 }

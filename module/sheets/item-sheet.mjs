@@ -223,6 +223,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         push("PROJECTANIME.Field.damage", damage());
         push("PROJECTANIME.Field.range", phRange());
         push("PROJECTANIME.Field.hand", L(cfg.hands[sys.hand]));
+        push("PROJECTANIME.Field.shieldUse", L(cfg.shieldUses[sys.use]));
         push("PROJECTANIME.Field.size", sys.size);
         push("PROJECTANIME.Field.cost", sys.cost);
         push("PROJECTANIME.Field.equipped", onoff(sys.equipped));

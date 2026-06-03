@@ -1,4 +1,4 @@
-import { rollCheck, rollInitiative } from "../helpers/dice.mjs";
+import { rollCheck, rollInitiative, useConsumable } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
 import { rangeLabel, skillEffectKeys } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
@@ -73,6 +73,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       toggleEquip: ProjectAnimeActorSheet.#onToggleEquip,
       pickSlot: ProjectAnimeActorSheet.#onPickSlot,
       unequipSlot: ProjectAnimeActorSheet.#onUnequipSlot,
+      cycleShieldUse: ProjectAnimeActorSheet.#onCycleShieldUse,
       selectBag: ProjectAnimeActorSheet.#onSelectBag,
       toggleCondition: ProjectAnimeActorSheet.#onToggleCondition,
       toggleEffectEnabled: ProjectAnimeActorSheet.#onToggleEffectEnabled,
@@ -373,6 +374,19 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       .map((g) => ({ ...g, skills: readied.filter((i) => (i.system?.actionType || "action") === g.key).map(mapSkill) }))
       .filter((g) => g.skills.length);
 
+    // Pinned NON-skill gear (consumables + other items) → the "Items" quick block on the Stats
+    // view. Same `readied` flag as skills, set from the gear context menu; clicking a tile runs the
+    // item's roll() (a consumable posts its Use card, a weapon attacks, other gear posts a
+    // description). The innate Natural Attack lives in the Weapons block, never here.
+    context.quickItems = GEAR_GROUPS
+      .flatMap((k) => groups[k])
+      .filter((i) => i.getFlag("project-anime", "readied") && !isNatural(i))
+      .sort(bySort)
+      .map((i) => {
+        const q = Number(i.system?.quantity);
+        return { id: i.id, name: i.name, img: i.img, qty: q > 1 ? q : null };
+      });
+
     // Containers (WoW-style bags): a bar of [Backpack] + one tab per container item.
     // The inventory grids below are scoped to whichever bag is selected.
     const containerIds = new Set(containers.map((c) => c.id));
@@ -419,7 +433,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         key: def.key,
         icon: def.icon,
         label,
-        item: it ? { id: it.id, name: it.name, img: it.img } : null
+        // Shields carry their Wield-As mode so the slot can show an inline toggle (Dual Wield ↔
+        // Shield Only) — see the `pdSlot` partial + #onCycleShieldUse.
+        item: it ? {
+          id: it.id, name: it.name, img: it.img,
+          shield: it.type === "shield",
+          dualWield: it.type === "shield" && it.system.use === "dual"
+        } : null
       };
     });
   }
@@ -541,6 +561,14 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /** Click a slot's ✕ → unequip whatever fills it. */
   static async #onUnequipSlot(event, target) {
     await this.#clearSlot(target.dataset.slot);
+  }
+
+  /** Paperdoll: flip a shield between Dual Wield and Shield Only in place (mirrors the gear
+   *  context-menu toggle). Dual Wield counts toward dual-wielding; Shield Only steps its bash die. */
+  static async #onCycleShieldUse(event, target) {
+    const item = ProjectAnimeActorSheet.#getItem.call(this, target);
+    if (!item || item.type !== "shield") return;
+    await item.update({ "system.use": item.system.use === "dual" ? "shield" : "dual" });
   }
 
   /* -------------------------------------------- */
@@ -770,6 +798,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       if (item.type === "shield" && sys.evasionBonus) row(i18n("PROJECTANIME.Field.evasionBonus"), sys.evasionBonus);
       if (item.type === "shield" && sys.defenseBonus) row(i18n("PROJECTANIME.Field.defenseBonus"), sys.defenseBonus);
       if (cfg.hands?.[sys.hand]) row(i18n("PROJECTANIME.Field.hand"), i18n(cfg.hands[sys.hand]));
+      if (item.type === "shield" && cfg.shieldUses?.[sys.use]) row(i18n("PROJECTANIME.Field.shieldUse"), i18n(cfg.shieldUses[sys.use]));
       if (sys.equipped) typeLabel += ` · ${i18n("PROJECTANIME.Field.equipped")}`;
     } else if (item.type === "skill") {
       const rank = cfg.skillRanks[sys.rank] ?? {};
@@ -910,10 +939,14 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     show();
   }
 
-  /** Gear context menu: post to chat, equip (per-hand for weapons & shields), edit, delete. */
+  /** Gear context menu: use (consumables), post to chat, equip, pin to main screen, edit, delete. */
   #openGearContext(item, ev) {
     const equipped = !!item.system?.equipped;
+    const pinned = !!item.getFlag("project-anime", "readied");
     const { add, show } = this.#contextMenu(ev);
+    // Consumables get a one-click Use (consume now) above "Post to Chat" — the posted card carries
+    // its own ▶ Use button, so both routes run the same restore-then-leave-inventory action.
+    if (item.type === "consumable") add("fa-play", "PROJECTANIME.Action.use", () => useConsumable(this.actor, item));
     add("fa-comment", "PROJECTANIME.Action.toChat", () => item.roll({ event: ev }));
     // The innate Natural Attack isn't carried gear — offer only chat + tuning (no equip / delete).
     if (item.getFlag("project-anime", "natural")) {
@@ -936,6 +969,16 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       add(twoH ? "fa-hand" : "fa-hands", twoH ? "PROJECTANIME.Action.gripOne" : "PROJECTANIME.Action.gripTwo",
         () => item.update({ "system.grip": twoH ? "one" : "two" }));
     }
+    // Shields flip Use in place: dual-wield (counts as a weapon, both dice Step Down) vs just-a-
+    // shield (defensive; a bash Steps the shield's own die Down). Mirrors the weapon grip toggle.
+    if (item.type === "shield") {
+      const dual = item.system?.use === "dual";
+      add(dual ? "fa-shield-halved" : "fa-hand-fist", dual ? "PROJECTANIME.Action.useShieldOnly" : "PROJECTANIME.Action.useDualWield",
+        () => item.update({ "system.use": dual ? "shield" : "dual" }));
+    }
+    // Pin / unpin to the main-screen "Items" quick block (Skills pin via their own menu).
+    if (pinned) add("fa-xmark", "PROJECTANIME.Quick.unpinItem", () => item.unsetFlag("project-anime", "readied"));
+    else add("fa-thumbtack", "PROJECTANIME.Quick.pinItem", () => item.setFlag("project-anime", "readied", true));
     add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
     add("fa-trash", "PROJECTANIME.Action.delete", () => item.deleteDialog(), "danger");
     show();
