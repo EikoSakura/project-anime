@@ -28,15 +28,11 @@
           <input type="number" name="system.skillPoints.value" value="{{system.skillPoints.value}}" min="0" />
         </label>
         {{#if @root.editable}}
-        {{#if @root.isCharacter}}
+        {{!-- Both PCs and NPCs build skills through the Skill Builder (same SP-gated wizard); the
+              actor's SP just routes differently on commit (ledger for PCs, `spent` scalar for NPCs). --}}
         <a class="item-create" data-action="buildSkill" title="{{localize 'PROJECTANIME.SkillBuilder.title'}}">
           <i class="fas fa-plus"></i> {{localize "PROJECTANIME.SkillBuilder.title"}}
         </a>
-        {{else}}
-        <a class="item-create" data-action="createItem" data-type="skill" title="{{localize 'PROJECTANIME.Action.addItem'}}">
-          <i class="fas fa-plus"></i> {{localize "PROJECTANIME.Action.addItem"}}
-        </a>
-        {{/if}}
         {{/if}}
       </div>
 

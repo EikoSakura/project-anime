@@ -90,12 +90,9 @@ export function skillRulesHTML(item) {
   if (has("push")) riders.push(N("push", { n: mv("push") }));
   if (has("pull")) riders.push(N("pull", { n: mv("pull") }));
   if (has("chain")) riders.push(N("chain", { n: mv("chain") }));
-  if (has("move")) {
-    // The Move Modifier repositions the target up to half the Skill die (yourself: your Movement);
-    // Tune a Modifier adds bonus tiles on top.
-    const extra = modifierValue(item, "move");
-    riders.push(extra ? N("moveModGrown", { n: numSpan(`+${extra}`) }) : N("moveMod"));
-  }
+  // The Move Modifier repositions the target up to the Skill's Rank in tiles (grown by Tune a
+  // Modifier), in a direction the user chooses — its value reads like Push/Pull's.
+  if (has("move")) riders.push(N("moveMod", { n: mv("move") }));
 
   // ---- Lead sentence: subject + the core predicate + any inline riders, joined naturally
   // ("This attack deals d8 fire damage to a target within Near and pushes the target 2 spaces away.")

@@ -240,6 +240,19 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
       if (!source.modifiers.includes("inflict")) source.modifiers.push("inflict");
       if (!source.inflictStatus) source.inflictStatus = "reflect";
     }
+    // The Move EFFECT was removed (movement is now the Move / Push / Pull MODIFIERS only). Fold a
+    // legacy Move-effect Skill into a Custom effect carrying the Move Modifier so it still
+    // repositions; a Move secondary just vacates (the Move Modifier covers the movement once).
+    if (source && (source.effect === "move" || source.secondaryEffect === "move")) {
+      if (!Array.isArray(source.modifiers)) source.modifiers = [];
+      if (!source.modifiers.includes("move")) source.modifiers.push("move");
+      if (source.effect === "move") source.effect = "custom";
+      if (source.secondaryEffect === "move") {
+        source.secondaryEffect = "";
+        // The Secondary Effect Modifier now hosts nothing — drop it so it stops eating budget.
+        source.modifiers = source.modifiers.filter((m) => m !== "secondaryEffect");
+      }
+    }
     if (source && source.duration === undefined && source.effect !== undefined) {
       source.duration = source.effectDuration != null ? "standard" : "scene";
     }

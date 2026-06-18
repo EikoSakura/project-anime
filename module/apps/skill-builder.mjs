@@ -42,7 +42,7 @@ const EFFECT_TARGET_DEFAULTS = {
   transform: "self", passive: "self", sustain: "self", vanish: "self", conjure: "self", companion: "self"
 };
 const EFFECT_DURATION_DEFAULTS = {
-  strike: "instant", mend: "instant", move: "instant", custom: "instant",
+  strike: "instant", mend: "instant", custom: "instant",
   steal: "instant", elementalControl: "instant", animate: "instant", companion: "instant"
 };
 
@@ -325,10 +325,14 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const cfg = CONFIG.PROJECTANIME;
     const d = this.#draft;
     const stepKey = STEPS[this.#step];
-    // When editing, the SP already logged against this Skill is returned before its new Rank
-    // cost is charged, so it counts toward the budget (and the cost shown is the net change).
-    // A standalone item has no SP economy — every Rank is open (costs show as info only).
-    const editedLogged = this.#editId ? this.#loggedFor(this.#editId) : 0;
+    // When editing, the SP already spent on this Skill is returned before its new Rank cost is
+    // charged, so it counts toward the budget (and the cost shown is the net change). A PC reads
+    // that from the ledger; an NPC (no ledger) credits the Skill's current Rank cost — mirroring
+    // #commitEdit. A standalone item has no SP economy — every Rank is open (costs show as info only).
+    const editItem = this.#editId ? this.actor?.items.get(this.#editId) : null;
+    const editedLogged = !this.#editId ? 0
+      : Array.isArray(this.actor?.system.skillPoints?.log) ? this.#loggedFor(this.#editId)
+        : (Number(editItem?.system.spCost) || 0);
     const budget = this.item ? Infinity : sp + editedLogged;
 
     ctx.draft = d;
@@ -1317,15 +1321,34 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // SP reconciliation is an actor concern — a standalone (world/compendium) Skill has no
     // ledger, and granted Skills are package-managed and free.
     if (this.actor && !item.getFlag("project-anime", "granted")) {
-      const logged = this.#loggedFor(this.#editId);
-      const value = this.actor.system.skillPoints?.value ?? 0;
-      const newValue = value + logged - rankCost;
-      if (newValue < 0) {
-        return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: rankCost - logged, sp: value }));
+      const sp = this.actor.system.skillPoints ?? {};
+      const value = sp.value ?? 0;
+      if (Array.isArray(sp.log)) {
+        // PC: log-based reconciliation — refund this Skill's prior entries (base + Improves), charge
+        // the new Rank cost, and replace its entries with one fresh base-cost entry.
+        const logged = this.#loggedFor(this.#editId);
+        const newValue = value + logged - rankCost;
+        if (newValue < 0) {
+          return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: rankCost - logged, sp: value }));
+        }
+        const log = sp.log.filter((e) => e.ref !== this.#editId);
+        log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() });
+        await this.actor.update({ "system.skillPoints.value": newValue, "system.skillPoints.log": log });
+      } else {
+        // NPC: no per-Skill ledger — reconcile by the Rank-cost DELTA (refund the Skill's current
+        // cost, charge the new) and mirror it into the `spent` scalar. A rebuild also resets the
+        // Skill's Improve fields; NPC Improve spends aren't separately refundable (no ledger).
+        const oldCost = Number(item.system.spCost) || 0;
+        const delta = rankCost - oldCost;
+        const newValue = value - delta;
+        if (newValue < 0) {
+          return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: delta, sp: value }));
+        }
+        await this.actor.update({
+          "system.skillPoints.value": newValue,
+          "system.skillPoints.spent": Math.max(0, (sp.spent ?? 0) + delta)
+        });
       }
-      const log = (this.actor.system.skillPoints?.log ?? []).filter((e) => e.ref !== this.#editId);
-      log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() });
-      await this.actor.update({ "system.skillPoints.value": newValue, "system.skillPoints.log": log });
     }
     await item.update(update);
 

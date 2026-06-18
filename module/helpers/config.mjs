@@ -141,7 +141,6 @@ PROJECTANIME.skillEffects = {
   hinder: "PROJECTANIME.Skill.effect.hinder",
   illusion: "PROJECTANIME.Skill.effect.illusion",
   mend: "PROJECTANIME.Skill.effect.mend",
-  move: "PROJECTANIME.Skill.effect.move",
   passive: "PROJECTANIME.Skill.effect.passive",
   sense: "PROJECTANIME.Skill.effect.sense",
   steal: "PROJECTANIME.Skill.effect.steal",
@@ -154,12 +153,12 @@ PROJECTANIME.skillEffects = {
 
 /** Each Effect's Base Rank — the minimum Rank a Skill must be to take it (rules v0.01: Effects
  *  have a Base Rank). Doc values for the Effects the doc defines; the system-side Effects
- *  (Affinity / Custom / Move / Sustain) stay open at ⭐. Skills created before the gate are
+ *  (Affinity / Custom / Sustain) stay open at ⭐. Skills created before the gate are
  *  grandfathered: the Builder blocks NEW picks below the Base Rank, stored ones keep working. */
 PROJECTANIME.effectBaseRanks = {
   affinity: 1, animate: 2, bolster: 3, companion: 2, conjure: 1, custom: 1,
   disguise: 1, elementalControl: 1, gate: 1, hinder: 1, illusion: 2, mend: 1,
-  move: 1, passive: 1, sense: 2, steal: 1, strike: 1, sustain: 1,
+  passive: 1, sense: 2, steal: 1, strike: 1, sustain: 1,
   telepathy: 2, transform: 2, vanish: 1
 };
 
@@ -545,10 +544,9 @@ PROJECTANIME.infuseKinds = {
   status: "PROJECTANIME.Skill.infuseKind.status"
 };
 
-/** Forced-movement Effect/Modifiers: shoving a creature is resisted (rolls vs Evasion) ONLY when
- *  it's an enemy — moving yourself or a willing ally is free. So Move / Push / Pull need an Accuracy
- *  Check only against a hostile target (see skillNeedsAccuracy's `enemyTarget`). */
-PROJECTANIME.movementEffects = ["move"];
+/** Forced-movement Modifiers: shoving a creature is resisted (rolls vs Evasion) ONLY when it's an
+ *  enemy — moving yourself or a willing ally is free. So the Move / Push / Pull Modifiers need an
+ *  Accuracy Check only against a hostile target (see skillNeedsAccuracy's `enemyTarget`). */
 PROJECTANIME.movementModifiers = ["push", "pull", "move"];
 
 /**
@@ -576,8 +574,7 @@ export function skillNeedsAccuracy(sys, { enemyTarget } = {}) {
   if (effects.some((e) => PROJECTANIME.offensiveEffects.includes(e))) return true;
   const mods = sys.modifiers ?? [];
   if (PROJECTANIME.offensiveModifiers.some((m) => mods.includes(m))) return true;
-  const hasMovement = effects.some((e) => PROJECTANIME.movementEffects.includes(e))
-    || PROJECTANIME.movementModifiers.some((m) => mods.includes(m));
+  const hasMovement = PROJECTANIME.movementModifiers.some((m) => mods.includes(m));
   if (hasMovement) return enemyTarget !== false;
   return false;
 }
