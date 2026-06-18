@@ -1,7 +1,7 @@
 import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectSkillModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules } from "./effects.mjs";
+import { collectRollModifiers, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
@@ -567,6 +567,10 @@ export async function rollAttack(actor, item, { event } = {}) {
 
   const rmods = collectRollModifiers(actor, "attack", { target: targetActor });
   mod += rmods.flat;
+  // Weapon Adjustments (`weaponMod`): a flat Attack (accuracy) bump scoped to any weapon, the
+  // Unarmed strike, or this weapon's Type — surfaced on the card alongside the roll modifiers.
+  const wmods = collectWeaponModBonuses(actor, item, { src: item, target: targetActor });
+  if (wmods.attack) { mod += wmods.attack; rmods.sources.push(...wmods.attackSources); }
   const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true, target: targetActor });
   const roll = new Roll(checkFormula(dieA, dieB, mod));
   await roll.evaluate();
@@ -721,8 +725,13 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
   // carrying a chosen Modifier (Burst, …), any Skill/weapon attack, or the Unarmed strike — e.g. a
   // brawler bond raising the Natural Attack's penalty toward 0, or "Burst Skills deal +1". Surfaced
   // on the card via rmods.sources alongside the roll modifiers.
-  const smods = collectSkillModBonuses(actor, item, { src, target });
+  const smods = collectSkillModBonuses(actor, item, { target });
   if (smods.damage) { mod += smods.damage; rmods.sources.push(...smods.sources); }
+  // Weapon Adjustments (a Trait/Bond/gear `weaponMod` rule): a flat damage bump on any weapon
+  // attack, the Unarmed strike, or a chosen weapon Type — e.g. "+1 damage with Swords". `src` is
+  // the rolled weapon (borrowed for Weapon-range Skills), so type/unarmed scopes resolve correctly.
+  const wmods = collectWeaponModBonuses(actor, item, { src, target });
+  if (wmods.damage) { mod += wmods.damage; rmods.sources.push(...wmods.damageSources); }
   // "Sharpen Damage" / "Sharpen Healing" advancement: a flat bonus (0–3) baked into a Skill's
   // rolled output — Strike damage or Mend healing (the same field, named for the Effect).
   const sharpen = isSkill ? Math.max(0, Number(item.system.damageMod) || 0) : 0;
@@ -865,6 +874,8 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
   // attack (weapon/shield) additionally feeds any PASSIVE drain Skill the attacker carries.
   await applyDrain(actor, item, dealt, notes);
   await applyPassiveDrains(actor, item, dealt, notes);
+  // Retaliation: a warded target punishes the attacker for the damage it just took.
+  if (targetActor && dealt > 0) await applyRetaliation(actor, [{ actor: targetActor, amount: dealt }], notes);
   const lines = rows.length ? notes : [adj.line, ...notes];
 
   await postCard(actor, cardHTML({
@@ -903,6 +914,7 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
   const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetActors.length })}</em>`];
   const rows = [];
   const killed = [];
+  const hits = [];
   let drainTotal = 0;
   for (const ta of targetActors) {
     const adj = adjustForTarget(dmg.raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool });
@@ -925,10 +937,13 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
     }
     // Barrier-absorbed damage never touched the creature, so it feeds no drain.
     if (!adj.heal) drainTotal += through;
+    if (!adj.heal && through > 0) hits.push({ actor: ta, amount: through });
   }
   lines.push(...damageNotes(dmg));
   // Drain HP/Energy: the caster recovers half the total damage the area Skill dealt.
   await applyDrain(actor, item, drainTotal, lines);
+  // Retaliation: each warded target in the area punishes the attacker for its own hit.
+  await applyRetaliation(actor, hits, lines);
 
   await postCard(actor, cardHTML({
     title: item.name,
@@ -1199,8 +1214,13 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
     const rmods = collectRollModifiers(actor, hasStrike ? "attack" : "check", { target: targetActor });
     // "Sharpen Accuracy" advancement: a flat bonus baked into the Skill's Check.
     const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
+    // A Weapon-range Skill borrows a weapon, so Weapon Adjustments (`weaponMod`) scoped to it (any /
+    // Unarmed / its Type) bump this Check's Attack too. Non-weapon Skills borrow nothing → no bump.
+    const wsrc = skillWeapon(actor, item);
+    const wmods = wsrc ? collectWeaponModBonuses(actor, item, { src: wsrc, target: targetActor }) : { attack: 0, attackSources: [] };
+    if (wmods.attack) rmods.sources.push(...wmods.attackSources);
     const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true, target: targetActor });
-    roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
+    roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod + wmods.attack));
     await roll.evaluate();
     [r1, r2] = dieResults(roll);
     fumble = r1 === 1 && r2 === 1;
@@ -1312,8 +1332,13 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
 
   const rmods = collectRollModifiers(actor, "attack", { target: primary });
   const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
+  // A Weapon-range area Strike borrows a weapon, so Weapon Adjustments (`weaponMod`) bump its
+  // Attack too — matching the single-target path. Non-weapon area Skills borrow nothing → no bump.
+  const wsrc = skillWeapon(actor, item);
+  const wmods = wsrc ? collectWeaponModBonuses(actor, item, { src: wsrc, target: primary }) : { attack: 0, attackSources: [] };
+  if (wmods.attack) rmods.sources.push(...wmods.attackSources);
   const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true });
-  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod));
+  const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod + wmods.attack));
   await roll.evaluate();
   const [r1, r2] = dieResults(roll);
   const fumble = r1 === 1 && r2 === 1;
@@ -1371,7 +1396,7 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   // for ANY area attack (Strike or Mass Hinder); the follow-up applies what newly landed and, for a
   // Strike, re-offers Roll Damage. A Fumble/Combo is locked, so no Luck is offered on one.
   if (luckTargets.length && !fumble && !combo) buttons.push(aoeLuckButton({
-    d1: r1, d2: r2, mod: rmods.flat + accBonus, targets: luckTargets, actorUuid: actor.uuid, itemId: item.id
+    d1: r1, d2: r2, mod: rmods.flat + accBonus + wmods.attack, targets: luckTargets, actorUuid: actor.uuid, itemId: item.id
   }));
   if (hasStrike && hitUuids.length) buttons.push({
     data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${hitUuids.join(",")}"${charged ? ' data-charged="true"' : ''}`,
@@ -1462,6 +1487,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   let stoppedName = null;
   let drainTotal = 0;
   const killed = [];
+  const hits = [];
 
   for (let i = 0; i < maxTargets && current; i++) {
     const ta = current.actor;
@@ -1509,6 +1535,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     }
     // Barrier-absorbed damage never touched the creature, so it feeds no drain.
     if (!adj.heal) drainTotal += through;
+    if (!adj.heal && through > 0) hits.push({ actor: ta, amount: through });
     prevRaw = raw;
     current = tokensInRange(current, nearTiles).find((t) => chosen.has(t) && !hitSet.has(t)) ?? null;
   }
@@ -1519,6 +1546,8 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   lines.push(...damageNotes(dmg));
   // Drain HP/Energy: the caster recovers half the total damage dealt across the chain.
   await applyDrain(actor, item, drainTotal, lines);
+  // Retaliation: each warded creature the chain hit punishes the attacker for its own hit.
+  await applyRetaliation(actor, hits, lines);
 
   await postCard(actor, cardHTML({
     title: item.name, subtitle: i18n("PROJECTANIME.Roll.attack"),
@@ -2837,6 +2866,32 @@ async function applyDrain(actor, item, total, lines) {
     else {
       await routeApply(actor, actor.uuid, half, true, "energy");
       lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.drainsEnergy", { n: half })}</em>`);
+    }
+  }
+}
+
+/** Retaliation (Skill modifier): a creature warded by a live Retaliation effect punishes a FOE
+ *  that damages it — the attacker takes the warded value of a chosen Damage Type (affinity-adjusted
+ *  against the attacker, Defense ignored, like the Lingering tick). Fired from every damage path
+ *  after the hit lands, mirroring applyDrain but keyed off the TARGET's ward, not the attacker's
+ *  Skill — so a basic weapon blow triggers it too. Only enemies retaliate (tokensAreEnemies), so a
+ *  creature hurting itself or an ally never sets it off; multiple wards on one target stack. The
+ *  bounce routes through the owner/GM relay and is clamped to the attacker's max (an Absorb affinity
+ *  on the attacker heals them instead). `hits` = [{actor, amount}] of the creatures this attack
+ *  actually damaged (amount > 0; non-healing only). Mutates `lines` with a chat note per ward fired. */
+async function applyRetaliation(attacker, hits, lines) {
+  if (!attacker || !hits?.length) return;
+  const aToken = casterToken(attacker);
+  for (const { actor: warded, amount } of hits) {
+    if (!warded || !(amount > 0) || warded === attacker) continue;
+    const wards = collectRetaliation(warded);
+    if (!wards.length) continue;
+    if (!tokensAreEnemies(aToken, casterToken(warded))) continue;   // only FOES are punished
+    for (const w of wards) {
+      const adj = adjustForTarget(w.value, w.element, attacker, { ignoresDefense: true });
+      if (adj.heal) await routeApply(attacker, attacker.uuid, adj.amount, true, "hp");
+      else if (adj.amount > 0) await routeApply(attacker, attacker.uuid, adj.amount, false, "hp");
+      lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.retaliation", { name: warded.name })}: ${adj.line}</em>`);
     }
   }
 }

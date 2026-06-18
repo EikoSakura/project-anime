@@ -68,19 +68,29 @@ export const RULE_TYPES = {
   reveal: "PROJECTANIME.Effect.type.reveal",
   grant: "PROJECTANIME.Effect.type.grant",
   // Modifier-scoped Skill adjustment: while live, the bearer's Skills that carry a chosen Modifier
-  // (or any Skill, any weapon attack, or their Unarmed strike) deal a flat ±damage and cost ±Energy.
-  // NOT a passive prepare rule — read at use time (collectSkillModBonuses, folded into dice.mjs).
-  skillMod: "PROJECTANIME.Effect.type.skillMod"
+  // (or any Skill) deal a flat ±damage and cost ±Energy. NOT a passive prepare rule — read at use
+  // time (collectSkillModBonuses, folded into dice.mjs).
+  skillMod: "PROJECTANIME.Effect.type.skillMod",
+  // The weapon-side sibling of skillMod: while live, the bearer's WEAPON attacks (any weapon, their
+  // Unarmed strike, or a chosen weapon TYPE like "Sword") gain a flat ±Attack (accuracy) and
+  // ±Damage. Read at use time (collectWeaponModBonuses, folded into dice.mjs).
+  weaponMod: "PROJECTANIME.Effect.type.weaponMod"
 };
 
-/** The "scope" a `skillMod` rule keys off: a Skill Modifier key (Burst, Pierce, …) OR one of these
- *  pseudo-scopes. `unarmed` matches the Natural-Attack weapon (the "fighting with your hands" case);
- *  `weapon` any weapon/shield attack; `skill` any Skill. Merged with PROJECTANIME.skillModifiers in
- *  the builder menu (special scopes pinned first). */
+/** The "scope" a `skillMod` rule keys off: a Skill Modifier key (Burst, Pierce, …) OR `skill` (any
+ *  Skill). Merged with PROJECTANIME.skillModifiers in the builder menu (`skill` pinned first). The
+ *  weapon/unarmed scopes moved to `weaponMod` (WEAPONMOD_SCOPES). */
 export const SKILLMOD_SCOPES = {
-  skill: "PROJECTANIME.Effect.modScope.skill",
-  weapon: "PROJECTANIME.Effect.modScope.weapon",
-  unarmed: "PROJECTANIME.Effect.modScope.unarmed"
+  skill: "PROJECTANIME.Effect.modScope.skill"
+};
+
+/** The "scope" a `weaponMod` rule keys off — which weapon attacks it boosts. `any` = every
+ *  weapon/shield attack; `unarmed` = the Natural-Attack ("fighting with your hands"); `type` =
+ *  weapons whose base Type (system.weaponType) matches the rule's `typeName` (case-insensitive). */
+export const WEAPONMOD_SCOPES = {
+  any: "PROJECTANIME.Effect.modScope.weapon",
+  unarmed: "PROJECTANIME.Effect.modScope.unarmed",
+  type: "PROJECTANIME.Effect.weaponModScope.type"
 };
 
 /** Which roll a "roll" rule modifies. "check" applies to any 2-die Check (incl. attacks). */
@@ -269,12 +279,35 @@ export function normalizeRule(raw) {
       break;
     }
     case "skillMod": {
+      // Legacy: the weapon/unarmed scopes used to live on skillMod — fold them into the new
+      // weaponMod rule (preserving the damage bump; weapons never carried an Energy delta).
+      if (raw.scope === "weapon" || raw.scope === "unarmed") {
+        rule = {
+          type: "weaponMod",
+          scope: raw.scope === "weapon" ? "any" : "unarmed",
+          typeName: "",
+          attack: 0,
+          damage: Math.round(Number(raw.damage) || 0)
+        };
+        break;
+      }
       const scope = (raw.scope in SKILLMOD_SCOPES || raw.scope in PROJECTANIME.skillModifiers) ? raw.scope : "burst";
       rule = {
         type: "skillMod",
         scope,
         damage: Math.round(Number(raw.damage) || 0),
         energy: Math.round(Number(raw.energy) || 0)
+      };
+      break;
+    }
+    case "weaponMod": {
+      const scope = raw.scope in WEAPONMOD_SCOPES ? raw.scope : "any";
+      rule = {
+        type: "weaponMod",
+        scope,
+        typeName: scope === "type" ? String(raw.typeName ?? "").trim() : "",
+        attack: Math.round(Number(raw.attack) || 0),
+        damage: Math.round(Number(raw.damage) || 0)
       };
       break;
     }
@@ -297,6 +330,7 @@ export function scaleRuleByTier(rule, tier) {
     case "attribute": case "talent": case "luck": r.steps = Math.max(1, Math.round((Number(r.steps) || 1) * t)); break;
     case "stat": case "resource": case "roll": case "hq": case "sustain": case "gather": r.value = Math.round((Number(r.value) || 0) * t); break;
     case "trade": r.pct = Math.round((Number(r.pct) || 0) * t); break;
+    // skillMod / weaponMod are NOT tier-scaled (a flat ± stays flat across facility tiers) — same as before.
   }
   return r;
 }
@@ -368,17 +402,19 @@ export function hasAuthoredSustainEffect(item) {
 
 /** The rules a Skill's MODIFIERS contribute automatically (like bolsterHinderRules, but driven by
  *  the Modifier list instead of the Effect): Protection grants the target(s) +1 Defense (more if
- *  Tuned — config.mjs modifierValue); Affinity
- *  (Damage) grants its chosen Element Affinity at the Rank-gated level. Used by all three delivery
- *  paths — the passive in-memory engine (below), the on-use copy (dice.mjs), and the aura
- *  projection (helpers/aura.mjs) — so every path grants the identical thing. [] for non-Skills or
- *  Skills carrying neither Modifier. */
+ *  Tuned — config.mjs modifierValue); Retaliation wards the target so a foe that damages it takes
+ *  the warded value of a chosen Element (read reactively by collectRetaliation, NOT a passive stat
+ *  change — applyPassiveRule ignores it); Affinity (Damage) grants its chosen Element Affinity at
+ *  the Rank-gated level. Used by all three delivery paths — the passive in-memory engine (below),
+ *  the on-use copy (dice.mjs), and the aura projection (helpers/aura.mjs) — so every path grants
+ *  the identical thing. [] for non-Skills or Skills carrying none of these Modifiers. */
 export function skillModifierRules(item) {
   if (item?.type !== "skill") return [];
   const sys = item.system ?? {};
   const mods = sys.modifiers ?? [];
   const out = [];
   if (mods.includes("protection")) out.push({ type: "stat", key: "defense", value: modifierValue(item, "protection") });
+  if (mods.includes("retaliation")) out.push({ type: "retaliation", value: modifierValue(item, "retaliation"), element: sys.retaliationType ?? "" });
   if (mods.includes("affinityDamage")) {
     // Multi-take: one affinity rule per take, each level clamped to what the Rank allows.
     const allowed = { resist: 1, immune: 3, absorb: 5 };
@@ -637,27 +673,41 @@ export function collectRollModifiers(actor, selector, { target = null } = {}) {
   return out;
 }
 
-/** Does a `skillMod` rule's scope apply to THIS attack/cast? `item` is the Skill/weapon used; `src`
- *  is the weapon actually rolled (weapon ?? item — a borrowed weapon for Weapon-range Skills). A
- *  Modifier-key scope reads the SKILL's own modifier list; the pseudo-scopes read the weapon. */
-function skillModScopeApplies(scope, item, src) {
-  const s = src ?? item;
+/** Does a `skillMod` rule's scope apply to THIS cast? `item` is the Skill being used. `skill` =
+ *  any Skill; a Modifier-key scope reads the SKILL's own modifier list. (Weapon/unarmed scopes are
+ *  now `weaponMod` — see weaponModScopeApplies.) */
+function skillModScopeApplies(scope, item) {
   if (scope === "skill") return item?.type === "skill";
-  if (scope === "weapon") return s?.type === "weapon" || s?.type === "shield";
-  if (scope === "unarmed") return !!s?.getFlag?.(FLAG_SCOPE, "natural");
   // A Skill Modifier key (burst, pierce, …): the acting Skill must carry it.
   return item?.type === "skill" && (item.system?.modifiers ?? []).includes(scope);
 }
 
+/** Does a `weaponMod` rule apply to THIS attack? `src` is the weapon actually rolled (the borrowed
+ *  weapon for a Weapon-range Skill, else the item itself). `any` = any weapon/shield attack;
+ *  `unarmed` = the Natural-Attack weapon; `type` = a weapon whose base Type matches `typeName`
+ *  (case-insensitive, trimmed). */
+function weaponModScopeApplies(scope, typeName, src) {
+  const isWeapon = src?.type === "weapon" || src?.type === "shield";
+  if (scope === "any") return isWeapon || !!src?.getFlag?.(FLAG_SCOPE, "natural");
+  if (scope === "unarmed") return !!src?.getFlag?.(FLAG_SCOPE, "natural");
+  if (scope === "type") {
+    const want = String(typeName ?? "").trim().toLowerCase();
+    if (!want || !isWeapon) return false;
+    return String(src.system?.weaponType ?? "").trim().toLowerCase() === want;
+  }
+  return false;
+}
+
 /**
  * Sum the Modifier-scoped Skill adjustments (`skillMod` rules) the actor's live effects grant to ONE
- * attack/cast: a flat ±damage baked into the rolled output and a ±delta to the Energy cost (signed —
- * −1 = cheaper). `item` is the Skill/weapon being used; pass `src` (the rolled weapon) so the
- * unarmed / weapon scopes resolve correctly. Equip-/toggle-/predicate-gated like the sibling
- * collectors. Read at use time from dice.mjs (computeDamageRoll + spendSkillEnergy).
+ * cast: a flat ±damage baked into the rolled output and a ±delta to the Energy cost (signed —
+ * −1 = cheaper). `item` is the Skill being used. Equip-/toggle-/predicate-gated like the sibling
+ * collectors. Read at use time from dice.mjs (computeDamageRoll + spendSkillEnergy). Weapon/unarmed
+ * adjustments are NOW `weaponMod` (collectWeaponModBonuses) — legacy weapon-scoped skillMod rules
+ * are skipped here (skillModScopeApplies rejects them) and honoured there instead.
  * @returns {{damage:number, energy:number, sources:{name:string, value:number}[]}}
  */
-export function collectSkillModBonuses(actor, item, { src = null, target = null } = {}) {
+export function collectSkillModBonuses(actor, item, { target = null } = {}) {
   const out = { damage: 0, energy: 0, sources: [] };
   if (!actor || !item) return out;
   let effects;
@@ -665,7 +715,7 @@ export function collectSkillModBonuses(actor, item, { src = null, target = null 
   for (const effect of effects) {
     if (!effectGateOpen(actor, effect)) continue;
     for (const rule of effectRules(effect)) {
-      if (rule?.type !== "skillMod" || !skillModScopeApplies(rule.scope, item, src)) continue;
+      if (rule?.type !== "skillMod" || !skillModScopeApplies(rule.scope, item)) continue;
       if (!predicatePasses(rule.pred, actor, target)) continue;
       const d = Math.round(Number(rule.damage) || 0);
       const e = Math.round(Number(rule.energy) || 0);
@@ -673,6 +723,48 @@ export function collectSkillModBonuses(actor, item, { src = null, target = null 
       out.damage += d;
       out.energy += e;
       if (d) out.sources.push({ name: effect.name, value: d });
+    }
+  }
+  return out;
+}
+
+/**
+ * Sum the Weapon Adjustments (`weaponMod` rules) the actor's live effects grant to ONE weapon
+ * attack: a flat ±Attack (accuracy) and ±Damage. `item` is the Skill/weapon used; `src` is the
+ * weapon actually rolled (the borrowed weapon for a Weapon-range Skill, else `item`) and is what
+ * scope matching reads. Equip-/toggle-/predicate-gated like the sibling collectors. Read at use
+ * time from dice.mjs (rollAttack + the Skill accuracy path for Attack; computeDamageRoll for
+ * Damage). Also honours LEGACY weapon/unarmed-scoped `skillMod` rules (damage only) so pre-split
+ * stored effects keep working until re-saved.
+ * @returns {{attack:number, damage:number, attackSources:{name,value}[], damageSources:{name,value}[]}}
+ */
+export function collectWeaponModBonuses(actor, item, { src = null, target = null } = {}) {
+  const out = { attack: 0, damage: 0, attackSources: [], damageSources: [] };
+  if (!actor) return out;
+  const weapon = src ?? item;
+  if (!weapon) return out;
+  let effects;
+  try { effects = actor.appliedEffects ?? []; } catch (_) { return out; }
+  for (const effect of effects) {
+    if (!effectGateOpen(actor, effect)) continue;
+    for (const rule of effectRules(effect)) {
+      let scope, typeName, atk, dmg;
+      if (rule?.type === "weaponMod") {
+        scope = rule.scope; typeName = rule.typeName;
+        atk = Math.round(Number(rule.attack) || 0);
+        dmg = Math.round(Number(rule.damage) || 0);
+      } else if (rule?.type === "skillMod" && (rule.scope === "weapon" || rule.scope === "unarmed")) {
+        // Legacy un-migrated skillMod: weapon/unarmed scope, damage only.
+        scope = rule.scope === "weapon" ? "any" : "unarmed"; typeName = "";
+        atk = 0; dmg = Math.round(Number(rule.damage) || 0);
+      } else continue;
+      if (!weaponModScopeApplies(scope, typeName, weapon)) continue;
+      if (!predicatePasses(rule.pred, actor, target)) continue;
+      if (!atk && !dmg) continue;
+      out.attack += atk;
+      out.damage += dmg;
+      if (atk) out.attackSources.push({ name: effect.name, value: atk });
+      if (dmg) out.damageSources.push({ name: effect.name, value: dmg });
     }
   }
   return out;
@@ -747,6 +839,41 @@ export function collectSustain(actor) {
     for (const pool of ["hp", "energy"]) add({ pool, value: Number(regen[pool]) || 0 });
   }
   return gains;
+}
+
+/**
+ * The Retaliation wards currently live on a creature — read reactively when a foe damages it
+ * (dice.mjs applyRetaliation) so the foe takes the warded value of the chosen Element. Mirrors
+ * collectSustain: an active/aura Retaliation rides an applied effect copy carrying its rule (the
+ * `skillModifierRules` bundle), while a PASSIVE Retaliation Skill protects its bearer always-on
+ * (no copy is made — the in-memory engine ignores the rule, so its ward is read straight off the
+ * bearer's own passive Skill here). Equip-/toggle-/predicate-gated like the other collectors.
+ * @returns {{value:number, element:string}[]} one entry per live ward (they stack).
+ */
+export function collectRetaliation(actor) {
+  const out = [];
+  const add = (rule) => {
+    const value = Math.max(0, Math.round(Number(rule.value) || 0));
+    if (value > 0) out.push({ value, element: rule.element ?? "" });
+  };
+  let effects;
+  try { effects = actor?.appliedEffects ?? []; } catch (_) { effects = []; }
+  for (const effect of effects) {
+    if (!effectGateOpen(actor, effect)) continue;
+    for (const rule of effectRules(effect)) {
+      if (rule?.type !== "retaliation" || !predicatePasses(rule.pred, actor, null)) continue;
+      add(rule);
+    }
+  }
+  // A passive Retaliation-modifier Skill wards its bearer (the in-memory path grants no copy).
+  for (const item of actor?.items ?? []) {
+    if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
+    if (isEnemyAura(item)) continue;             // an enemy aura's ward projects onto enemies, not the bearer
+    for (const rule of skillModifierRules(item)) {
+      if (rule.type === "retaliation") add(rule);
+    }
+  }
+  return out;
 }
 
 /**
@@ -970,10 +1097,18 @@ export async function removeGrants(actor, carrierId) {
 const L = (k) => (k ? game.i18n.localize(k) : "");
 const signed = (n) => { const v = Math.round(Number(n) || 0); return v >= 0 ? `+${v}` : `${v}`; };
 
-/** Localized label for a `skillMod` rule's scope (a pseudo-scope or a Skill Modifier key). */
+/** Localized label for a `skillMod` rule's scope (`skill` or a Skill Modifier key). Tolerates the
+ *  legacy weapon/unarmed scopes (still reachable on un-migrated stored rules) via the shared keys. */
 function skillModScopeLabel(scope) {
   if (scope in SKILLMOD_SCOPES) return L(SKILLMOD_SCOPES[scope]);
+  if (scope === "weapon" || scope === "unarmed") return L(`PROJECTANIME.Effect.modScope.${scope}`);
   return L(PROJECTANIME.skillModifiers[scope]) || scope;
+}
+
+/** Localized label for a `weaponMod` rule's scope — the typed weapon Type when scoped "By type". */
+function weaponModScopeLabel(scope, typeName) {
+  if (scope === "type") return String(typeName ?? "").trim() || L(WEAPONMOD_SCOPES.type);
+  return L(WEAPONMOD_SCOPES[scope]) || scope;
 }
 
 /** A short, localized one-line summary of a single rule (for chips on the sheets). */
@@ -993,6 +1128,12 @@ export function summarizeRule(rule) {
     }
     case "stat":
       return `${signed(rule.value)} ${L(STAT_TARGETS[rule.key]) || rule.key}`;
+    case "retaliation": {
+      const n = Math.max(0, Math.round(Number(rule.value) || 0));
+      const el = rule.element ? (elementLabel(rule.element) || rule.element) : "";
+      const head = L("PROJECTANIME.Skill.modifier.retaliation");
+      return el ? `${head} ${n} ${el}` : `${head} ${n}`;
+    }
     case "hq":
       return `${signed(rule.value)} ${L(PROJECTANIME.hqOutputs[rule.target]) || rule.target}`;
     case "gather":
@@ -1031,6 +1172,13 @@ export function summarizeRule(rule) {
       const label = skillModScopeLabel(rule.scope);
       return parts.length ? `${label}: ${parts.join(" · ")}` : label;
     }
+    case "weaponMod": {
+      const parts = [];
+      if (rule.attack) parts.push(`${signed(rule.attack)} ${L("PROJECTANIME.Effect.weaponModAtk")}`);
+      if (rule.damage) parts.push(`${signed(rule.damage)} ${L("PROJECTANIME.Effect.weaponModDmg")}`);
+      const label = weaponModScopeLabel(rule.scope, rule.typeName);
+      return parts.length ? `${label}: ${parts.join(" · ")}` : label;
+    }
     default:
       return "";
   }
@@ -1061,6 +1209,13 @@ export function narrateRule(rule) {
     }
     case "stat":
       return `grants ${signed(rule.value)} ${L(STAT_TARGETS[rule.key]) || rule.key}`;
+    case "retaliation": {
+      const n = Math.max(0, Math.round(Number(rule.value) || 0));
+      const el = rule.element ? (elementLabel(rule.element) || rule.element) : "";
+      return el
+        ? `makes foes that damage the target take ${n} ${el} damage`
+        : `makes foes that damage the target take ${n} damage`;
+    }
     case "hq":
       return `grants ${signed(rule.value)} ${L(PROJECTANIME.hqOutputs[rule.target]) || rule.target}`;
     case "gather":
@@ -1092,6 +1247,16 @@ export function narrateRule(rule) {
       if (rule.damage) bits.push(`${signed(rule.damage)} damage`);
       if (rule.energy) bits.push(`${signed(rule.energy)} Energy cost`);
       return bits.length ? `gives ${skillModScopeLabel(rule.scope)} Skills ${bits.join(" and ")}` : "";
+    }
+    case "weaponMod": {
+      const bits = [];
+      if (rule.attack) bits.push(`${signed(rule.attack)} Attack`);
+      if (rule.damage) bits.push(`${signed(rule.damage)} damage`);
+      if (!bits.length) return "";
+      const subject = rule.scope === "unarmed" ? "the Unarmed strike"
+        : rule.scope === "type" ? `${String(rule.typeName ?? "").trim() || "typed"} weapons`
+        : "weapon attacks";
+      return `gives ${subject} ${bits.join(" and ")}`;
     }
     default:
       return "";
@@ -1127,8 +1292,10 @@ export function ruleChoices() {
     elements: elementChoices(), // already sorted by label at its source
     levels: sortChoices(map(PROJECTANIME.affinityLevels), ["none"]),
     rollSelectors: sortChoices(map(ROLL_SELECTORS)),
-    // Skill-adjustment scopes: the three pseudo-scopes pinned first, then every Skill Modifier (sorted).
+    // Skill-adjustment scopes: "Any Skill" pinned first, then every Skill Modifier (sorted).
     modScopes: { ...map(SKILLMOD_SCOPES), ...sortChoices(map(PROJECTANIME.skillModifiers)) },
+    // Weapon-adjustment scopes: Any weapon / Unarmed / By type (canonical order, not alphabetized).
+    weaponModScopes: map(WEAPONMOD_SCOPES),
     conditionScopes: sortChoices(map(CONDITION_SCOPES)),
     conditions: sortChoices(Object.fromEntries((PROJECTANIME.statusConditions ?? []).map((c) => [c.id, L(c.name)]))),
     revealCategories: sortChoices(map(REVEAL_CATEGORIES)),

@@ -326,6 +326,7 @@ PROJECTANIME.skillModifiers = {
   pull: "PROJECTANIME.Skill.modifier.pull",
   push: "PROJECTANIME.Skill.modifier.push",
   reequip: "PROJECTANIME.Skill.modifier.reequip",
+  retaliation: "PROJECTANIME.Skill.modifier.retaliation",
   scene: "PROJECTANIME.Skill.modifier.scene",
   secondaryEffect: "PROJECTANIME.Skill.modifier.secondaryEffect"
 };
@@ -420,14 +421,16 @@ export function auraAudience(sys) {
  *    • Burst      — the circle radius in tiles (base = the Skill's Rank).
  *    • Chain      — extra targets it leaps to after the first hit (base = the Skill's Rank).
  *    • Move       — bonus tiles on top of the Modifier's half-Skill-die movement (base = the Skill's Rank).
- *    • Protection — the Defense the Skill grants its target(s) (fixed base 1).
- *    • Push/Pull  — tiles of forced movement (base = the Skill's Rank). */
+ *    • Protection  — the Defense the Skill grants its target(s) (fixed base 1).
+ *    • Retaliation — the damage dealt back to a foe that strikes the target (fixed base 2).
+ *    • Push/Pull   — tiles of forced movement (base = the Skill's Rank). */
 PROJECTANIME.growableModifiers = {
   aura: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
   burst: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
   chain: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.targets" },
   move: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
   protection: { base: 1, unit: "PROJECTANIME.Skill.growUnit.defense" },
+  retaliation: { base: 2, unit: "PROJECTANIME.Skill.growUnit.damage" },
   push: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
   pull: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" }
 };
@@ -737,6 +740,15 @@ PROJECTANIME.grips = {
   one: "PROJECTANIME.Grip.one",
   two: "PROJECTANIME.Grip.two"
 };
+
+/** A weapon's base TYPE — its category ("Sword", "Bow", …), distinct from its given name (a
+ *  "Katana" IS a Sword). Free text per weapon (system.weaponType); these are just the datalist
+ *  suggestions offered on the weapon sheet, and what a "Weapon Adjustment" effect matches against
+ *  when scoped "By weapon type". Not an exhaustive list — GMs may type anything. */
+PROJECTANIME.weaponTypeSuggestions = [
+  "Sword", "Axe", "Spear", "Polearm", "Dagger", "Mace", "Hammer",
+  "Club", "Flail", "Staff", "Whip", "Bow", "Crossbow", "Gun", "Thrown", "Fist", "Shield"
+];
 
 /** How a shield is wielded. "Dual Wielding" treats it as an off-hand weapon — it counts toward
  *  Dual Wielding, so both Damage dice Step Down (rules p.10). "Just for Shields" carries it for

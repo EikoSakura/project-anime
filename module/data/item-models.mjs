@@ -166,6 +166,10 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // Lingering element — the damage type of an inflicted Lingering's end-of-turn tick, chosen
     // from the game's Elements. Blank = untyped. Only meaningful while Inflict carries Lingering.
     schema.decayType = new fields.StringField({ required: false, blank: true, initial: "" });
+    // Retaliation element — the damage type a Retaliation ward deals back to a foe that strikes the
+    // target. Chosen from the game's Elements at creation; blank = untyped. Only meaningful while
+    // the `retaliation` Modifier is selected (see helpers/effects.mjs skillModifierRules).
+    schema.retaliationType = new fields.StringField({ required: false, blank: true, initial: "" });
 
     // Analyze Modifier — which category a successful hit reveals (chosen at creation).
     schema.analyzeCategory = new fields.StringField({ required: true, blank: false, initial: "vitals", choices: PROJECTANIME.analyzeCategories });
@@ -325,6 +329,10 @@ export class ProjectAnimeWeapon extends ProjectAnimeItemBase {
     const schema = super.defineSchema();
     schema.accuracy = accuracyField("might", "agility");
     schema.damage = damageField();
+    // The weapon's base TYPE / category ("Sword", "Bow", …) — its name is just flavour (a "Katana"
+    // IS a Sword). Free text; a "Weapon Adjustment" effect scoped "By weapon type" matches it
+    // (case-insensitive). Blank = uncategorized (only "Any weapon" / "Unarmed" adjustments catch it).
+    schema.weaponType = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.range = physicalRangeField("melee", 1);
     schema.size = sizeField(1);
     schema.cost = costField();
@@ -384,6 +392,10 @@ export class ProjectAnimeShield extends ProjectAnimeItemBase {
     schema.defenseBonus = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
     schema.accuracy = accuracyField("might", "agility");
     schema.damage = damageField();
+    // Base TYPE / category of the bash ("Shield", "Buckler", …) — lets a "Weapon Adjustment" scoped
+    // "By weapon type" match a shield (its bash is a weapon attack; weaponModScopeApplies already
+    // treats shields as weapons). Free text; blank = only "Any weapon" / "Unarmed" adjustments catch it.
+    schema.weaponType = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.range = physicalRangeField("melee", 1);
     schema.size = sizeField(2);
     schema.cost = costField();

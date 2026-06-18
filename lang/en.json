@@ -536,6 +536,7 @@
       "min1": "min 1",
       "drainsHP": "Drains {n} HP",
       "drainsEnergy": "Drains {n} Energy",
+      "retaliation": "Retaliation ({name})",
       "charge": "Charge",
       "chargeReleases": "Releases at double power on your next turn.",
       "release": "Release",
@@ -822,7 +823,9 @@
       "hand": "Hand",
       "grip": "Grip",
       "twoHandedOnly": "Two-Handed Only",
-      "shieldUse": "Wield As"
+      "shieldUse": "Wield As",
+      "weaponType": "Type",
+      "weaponTypePlaceholder": "e.g. Sword"
     },
     "Skill": {
       "field": {
@@ -836,6 +839,7 @@
         "attrC": "Third Attribute",
         "damageType": "Damage Type",
         "decayType": "Lingering Element",
+        "retaliationType": "Retaliation Element",
         "inflictStatus": "Inflicted Status",
         "affinityType": "Affinity Element",
         "affinityLevel": "Affinity Level",
@@ -870,7 +874,8 @@
       "growUnit": {
         "tiles": "tiles",
         "targets": "targets",
-        "defense": "Defense"
+        "defense": "Defense",
+        "damage": "damage"
       },
       "damagePool": {
         "hp": "Hit Points",
@@ -957,6 +962,7 @@
         "pull": "Pull",
         "push": "Push",
         "reequip": "Re-equip",
+        "retaliation": "Retaliation",
         "scene": "Scene",
         "secondaryEffect": "Secondary Effect",
         "custom": "Custom"
@@ -1032,6 +1038,7 @@
         "pull": "The target moves a number of tiles closer to you equal to the Skill's Rank (Forced Movement).",
         "push": "The target moves a number of tiles away from you equal to the Skill's Rank (Forced Movement).",
         "reequip": "Before or after activating this Skill, swap one or two weapons, an armor, or one accessory. Heavy: swap your entire loadout.",
+        "retaliation": "While this Skill is active, foes that deal damage to the target take 2 points of damage. The damage type is chosen during Skill creation.",
         "scene": "The Skill remains active for the current Scene. If the Scene switches, you may immediately repay its cost to keep it active.",
         "secondaryEffect": "Heavy. The Skill resolves a second Effect on use, in addition to its main one.",
         "custom": "This Skill has a custom effect that was determined by the Player and the Storyteller. This modifier may also have the Heavy trait."
@@ -1077,6 +1084,8 @@
         "charge": "You first spend a turn focusing; on your next turn it resolves at double power.",
         "moveMod": "moves the target up to {n} tiles in a direction of your choice",
         "protection": "It grants {n} Defense to the target.",
+        "retaliation": "While active, foes that damage the target take {dmg} damage.",
+        "retaliationTyped": "While active, foes that damage the target take {dmg} {element} damage.",
         "affinityGrant": "The target gains {level} to {thing}.",
         "analyze": "On a hit, you learn the target's {category}.",
         "banish": "On a hit, the target is sent to its native plane of existence (it may use Spirit to evade).",
@@ -1203,15 +1212,21 @@
         "trade": "Trade",
         "reveal": "Reveal",
         "grant": "Grant Item",
-        "skillMod": "Skill Adjustment"
+        "skillMod": "Skill Adjustment",
+        "weaponMod": "Weapon Adjustment"
       },
       "modScope": {
         "skill": "Any Skill",
         "weapon": "Any weapon attack",
         "unarmed": "Unarmed (Natural Attack)"
       },
+      "weaponModScope": {
+        "type": "By weapon type"
+      },
       "skillModDmg": "dmg",
       "skillModEnergy": "EP cost",
+      "weaponModAtk": "atk",
+      "weaponModDmg": "dmg",
       "reveal": {
         "skillPoints": "Skill Points",
         "attributes": "Attributes",

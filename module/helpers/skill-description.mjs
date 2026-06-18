@@ -227,6 +227,13 @@ export function skillRulesHTML(item) {
   if (has("cleanse")) sentences.push(N("cleanse"));
   if (has("charge")) sentences.push(N("charge"));
   if (has("protection")) sentences.push(N("protection", { n: numSpan("+" + modifierValue(item, "protection")) }));
+  if (has("retaliation")) {
+    const n = numSpan(modifierValue(item, "retaliation"));
+    const el = sys.retaliationType ? elementLabel(sys.retaliationType) : "";
+    sentences.push(el
+      ? N("retaliationTyped", { dmg: n, element: `<strong>${el}</strong>` })
+      : N("retaliation", { dmg: n }));
+  }
   // The Affinity Modifiers are multi-take — one granted-affinity sentence per take.
   if (has("affinityDamage")) {
     for (const t of sys.affinityDamages ?? []) {

@@ -272,6 +272,12 @@
             </label>
             {{/if}}
             {{/if}}
+            {{#if mod.showRetaliation}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.retaliationType"}}</span>
+              <select name="retaliationType">{{selectOptions ../damageTypeChoices selected=../draft.retaliationType blank=""}}</select>
+            </label>
+            {{/if}}
             {{#if mod.showAffinityDamage}}
             {{#each mod.affinityDamageTakes as |t|}}
             <div class="sb-take">
@@ -391,6 +397,7 @@
         {{#if review.affinityDamage}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.affinityDamage"}}</dt><dd>{{review.affinityDamage}}</dd></div>{{/if}}
         {{#if review.affinityStatus}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.affinityStatus"}}</dt><dd>{{review.affinityStatus}}</dd></div>{{/if}}
         {{#if review.inflict}}<div><dt>{{localize "PROJECTANIME.Skill.field.inflictStatus"}}</dt><dd>{{review.inflict}}</dd></div>{{/if}}
+        {{#if review.retaliation}}<div><dt>{{localize "PROJECTANIME.Skill.field.retaliationType"}}</dt><dd>{{review.retaliation}}</dd></div>{{/if}}
         {{#if review.analyze}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.analyze"}}</dt><dd>{{review.analyze}}</dd></div>{{/if}}
         {{#if review.infuse}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.infuse"}}</dt><dd>{{review.infuse}}</dd></div>{{/if}}
         <div><dt>{{localize "PROJECTANIME.SkillBuilder.attributes"}}</dt><dd>{{review.attrA}} + {{review.attrB}}</dd></div>

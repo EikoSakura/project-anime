@@ -3405,6 +3405,7 @@
 .project-anime.effect-builder .eb-rule select { flex: 0 1 auto; min-width: 6rem; }
 .project-anime.effect-builder .eb-rule .rule-type { font-weight: 600; }
 .project-anime.effect-builder .eb-num { width: 3.4rem; text-align: center; }
+.project-anime.effect-builder .eb-text { width: 7rem; }
 .project-anime.effect-builder .eb-unit { font-size: 0.78rem; color: var(--pa-ink-soft); }
 .project-anime.effect-builder .eb-arrow { color: var(--pa-gold); font-weight: 700; }
 .project-anime.effect-builder .eb-sep { color: var(--pa-ink-soft); opacity: 0.55; padding: 0 0.1rem; }

@@ -14,6 +14,20 @@ import { isImageIcon } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+/** Migrate a stored rule into its current editable shape as it's seeded into the builder, so a
+ *  re-save can't silently corrupt it. A legacy "Skill Adjustment" (skillMod) scoped to a weapon or
+ *  unarmed attack is now a "Weapon Adjustment" (weaponMod) — render it in the weaponMod row (those
+ *  scope options were removed from skillMod, so it would otherwise default to "Any Skill" on Save).
+ *  Everything else is shallow-copied unchanged. */
+function seedRule(r) {
+  if (r?.type === "skillMod" && (r.scope === "weapon" || r.scope === "unarmed")) {
+    const migrated = { type: "weaponMod", scope: r.scope === "weapon" ? "any" : "unarmed", typeName: "", attack: 0, damage: Math.round(Number(r.damage) || 0) };
+    if (r.pred) migrated.pred = r.pred;
+    return migrated;
+  }
+  return { ...r };
+}
+
 /** Derive {unit, value} from a core ActiveEffect duration object (for the builder). */
 function readDuration(dur) {
   if (dur?.rounds) return { unit: "rounds", value: dur.rounds };
@@ -103,7 +117,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
       this.#toggle = false;
       this.#durUnit = "none";
       this.#durValue = 0;
-      this.#rules = (this.#data.rules ?? []).map((r) => ({ ...r }));
+      this.#rules = (this.#data.rules ?? []).map(seedRule);
       this.#desc = this.#data.desc ?? "";
       return;
     }
@@ -114,7 +128,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     const d = readDuration(this.#effect.duration);
     this.#durUnit = d.unit;
     this.#durValue = d.value;
-    this.#rules = effectRules(this.#effect).map((r) => ({ ...r }));
+    this.#rules = effectRules(this.#effect).map(seedRule);
   }
 
   /** @override */
@@ -136,6 +150,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
       durUnit: this.#durUnit,
       durValue: this.#durValue,
       choices,
+      weaponTypes: CONFIG.PROJECTANIME?.weaponTypeSuggestions ?? [],
       rules: this.#rules.map((r) => {
         const pred = r.pred ?? {};
         const pt = pred.type ?? "always";
@@ -157,6 +172,8 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
           isReveal: r.type === "reveal",
           isGrant: r.type === "grant",
           isSkillMod: r.type === "skillMod",
+          isWeaponMod: r.type === "weaponMod",
+          wScopeType: r.type === "weaponMod" && r.scope === "type",
           items: r.items ?? [],
           predType: pt,
           predStatus: pred.status ?? "",
@@ -177,7 +194,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
    *  and make Grant rules accept dropped Items (drag a Skill/Package onto the drop zone). */
   async _onRender(context, options) {
     await super._onRender(context, options);
-    for (const sel of this.element.querySelectorAll(".rule-type, .rule-pred")) {
+    for (const sel of this.element.querySelectorAll(".rule-type, .rule-pred, .rule-wscope")) {
       sel.addEventListener("change", () => { this.#sync(); this.render(); });
     }
     for (const zone of this.element.querySelectorAll(".eb-grant-drop")) {

@@ -2,6 +2,8 @@
       dropdown-built "sentence" row; type-specific fields show per rule.type. --}}
 <div class="eb-body">
 
+  <datalist id="pa-eb-weapon-types">{{#each weaponTypes}}<option value="{{this}}"></option>{{/each}}</datalist>
+
   <div class="eb-head">
     <div class="eb-pick" data-action="pickIcon" title="{{localize 'PROJECTANIME.Effect.icon'}}">
       {{#if iconImg}}<img src="{{img}}" alt="" />{{else}}<i class="{{img}}"></i>{{/if}}
@@ -131,6 +133,17 @@
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.skillModDmg"}}</span>
       <input type="number" class="eb-num" name="rules.{{i}}.energy" value="{{rule.energy}}" step="1" />
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.skillModEnergy"}}</span>
+      {{/if}}
+
+      {{#if rule.isWeaponMod}}
+      <select class="rule-wscope" name="rules.{{i}}.scope">{{selectOptions ../choices.weaponModScopes selected=rule.scope}}</select>
+      {{#if rule.wScopeType}}
+      <input type="text" class="eb-text" name="rules.{{i}}.typeName" value="{{rule.typeName}}" list="pa-eb-weapon-types" placeholder="{{localize 'PROJECTANIME.Field.weaponTypePlaceholder'}}" />
+      {{/if}}
+      <input type="number" class="eb-num" name="rules.{{i}}.attack" value="{{rule.attack}}" step="1" />
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.weaponModAtk"}}</span>
+      <input type="number" class="eb-num" name="rules.{{i}}.damage" value="{{rule.damage}}" step="1" />
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.weaponModDmg"}}</span>
       {{/if}}
 
       {{#if rule.isGrant}}

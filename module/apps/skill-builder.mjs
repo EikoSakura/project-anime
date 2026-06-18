@@ -169,6 +169,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictStatus: "",
       decayType: "",
       inflictPool: "hp",
+      // Retaliation Modifier — the damage type dealt back to a foe that strikes the target.
+      retaliationType: "",
       // Affinity Modifiers — the Element (Rank-gated level) / the Status (always Immune).
       // Affinity Modifier takes — one entry per take (the doc lets both be selected more
       // than once); each take is an Element+level / a Status pick.
@@ -249,6 +251,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictStatus: s.inflictStatus ?? "",
       decayType: s.decayType ?? "",
       inflictPool: s.inflictPool ?? "hp",
+      retaliationType: s.retaliationType ?? "",
       affinityDamages: (s.affinityDamages ?? []).map((t) => ({ type: t?.type ?? "", level: t?.level ?? "resist" })),
       affinityStatusIds: [...(s.affinityStatusIds ?? [])],
       analyzeCategory: s.analyzeCategory ?? "vitals",
@@ -497,11 +500,12 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         // A choose-able Modifier configures INSIDE its row once selected — its pickers (status /
         // element / category / kind) render right in the box; clicks there don't toggle the row.
         showInflict: selected && key === "inflict",
+        showRetaliation: selected && key === "retaliation",
         showAffinityDamage: selected && key === "affinityDamage",
         showAffinityStatus: selected && key === "affinityStatus",
         showAnalyze: selected && key === "analyze",
         showInfuse: selected && key === "infuse",
-        hasConfig: selected && ["inflict", "affinityDamage", "affinityStatus", "analyze", "infuse"].includes(key),
+        hasConfig: selected && ["inflict", "retaliation", "affinityDamage", "affinityStatus", "analyze", "infuse"].includes(key),
         // Multi-take Modifiers (rules: "can be selected more than once") render one pick row per
         // take plus a ＋ chip; each take weighs the Modifier's cost again. ✕ drops a single take
         // (never the last — un-tick the row for that).
@@ -620,6 +624,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
             .map((id) => `${ctx.conditionChoices[id] ?? id} — ${game.i18n.localize("PROJECTANIME.Affinity.immune")}`).join(" · ") : "",
       inflict: (ctx.inflictActive && d.inflictStatus)
         ? `${ctx.conditionChoices[d.inflictStatus] ?? d.inflictStatus}${ctx.inflictLingering && d.decayType ? ` · ${dtLabels[d.decayType] ?? d.decayType}` : ""}${ctx.inflictHasPool ? ` · ${game.i18n.localize(cfg.damagePools[d.inflictPool === "energy" ? "energy" : "hp"])}` : ""}` : "",
+      retaliation: (d.modifiers.includes("retaliation") && d.retaliationType) ? (dtLabels[d.retaliationType] ?? d.retaliationType) : "",
       analyze: ctx.analyzeActive ? (ctx.analyzeChoices[d.analyzeCategory] ?? "") : "",
       infuse: ctx.infuseActive
         ? (ctx.infuseIsStatus
@@ -882,6 +887,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if ("secondaryDamageType" in data) d.secondaryDamageType = data.secondaryDamageType ?? "";
     if ("inflictStatus" in data) d.inflictStatus = data.inflictStatus ?? "";
     if ("decayType" in data) d.decayType = data.decayType ?? "";
+    if ("retaliationType" in data) d.retaliationType = data.retaliationType ?? "";
     if (data.inflictPool) d.inflictPool = data.inflictPool;
     // Affinity Modifier takes (affinityType0..N / affinityStatusId0..N — one pick row per take,
     // rendered only inside the selected row's config; mirrors the effectAttr0..N pattern).
@@ -1258,6 +1264,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       // pool choice only while a valued Status (Barrier / Regen) is chosen.
       inflictStatus: d.modifiers.includes("inflict") && (cfg.conditionKeys ?? []).includes(d.inflictStatus) ? d.inflictStatus : "",
       decayType: (d.modifiers.includes("inflict") && d.inflictStatus === "decay") ? (d.decayType ?? "") : "",
+      // Retaliation's damage type persists only while its Modifier is selected.
+      retaliationType: d.modifiers.includes("retaliation") ? (d.retaliationType ?? "") : "",
       inflictPool: d.inflictPool === "energy" ? "energy" : "hp",
       // Affinity takes persist only while their Modifier is selected; blank takes drop, and each
       // Damage take's level clamps to the Rank (the Status flavor is always Immune — no level).
