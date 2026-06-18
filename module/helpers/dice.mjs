@@ -1,10 +1,10 @@
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules } from "./effects.mjs";
+import { collectRollModifiers, collectSkillModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
-  aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets
+  aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
 } from "./templates.mjs";
 
 /**
@@ -717,6 +717,12 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
 
   const rmods = collectRollModifiers(actor, "damage", { target });
   mod += rmods.flat;
+  // Modifier-scoped Skill adjustments (a Bond/Trait/gear `skillMod` rule): a flat damage bump on Skills
+  // carrying a chosen Modifier (Burst, …), any Skill/weapon attack, or the Unarmed strike — e.g. a
+  // brawler bond raising the Natural Attack's penalty toward 0, or "Burst Skills deal +1". Surfaced
+  // on the card via rmods.sources alongside the roll modifiers.
+  const smods = collectSkillModBonuses(actor, item, { src, target });
+  if (smods.damage) { mod += smods.damage; rmods.sources.push(...smods.sources); }
   // "Sharpen Damage" / "Sharpen Healing" advancement: a flat bonus (0–3) baked into a Skill's
   // rolled output — Strike damage or Mend healing (the same field, named for the Effect).
   const sharpen = isSkill ? Math.max(0, Number(item.system.damageMod) || 0) : 0;
@@ -1000,7 +1006,7 @@ export async function rollSkill(actor, item) {
   // 2) Spend Energy (rank×2; Passive = free). A charge release already paid on the focus turn,
   // so releasing is free — but it consumes the charge whether the follow-up hits or misses.
   if (releasingCharge) await actor.unsetFlag("project-anime", "charge");
-  else if (!(await spendSkillEnergy(actor, sys))) return null;
+  else if (!(await spendSkillEnergy(actor, sys, item))) return null;
 
   // 2b) Channeled (Duration Modifier): using the Skill opens its channel — the marker upkeeps
   // 1 EP at the start of the caster's turns and every effect copy applied below rides its key.
@@ -1034,13 +1040,13 @@ export async function rollSkill(actor, item) {
 async function resolveAura(actor, item) {
   const sys = item.system;
   const passive = sys.actionType === "passive";
-  if (!passive && !(await spendSkillEnergy(actor, sys))) return null;
+  if (!passive && !(await spendSkillEnergy(actor, sys, item))) return null;
 
   // The field's audience follows the Skill's Target (config.mjs auraAudience): Ally → you and
   // allies; Foe → enemies only (never the caster); Any → every creature in the field.
   const audience = auraAudience(sys);
   const lineKey = audience === "foe" ? "auraAffectsEnemy" : audience === "any" ? "auraAffectsAny" : "auraAffectsAlly";
-  const lines = [`<em class="muted">${i18n(`PROJECTANIME.Roll.${lineKey}`, { n: PROJECTANIME.auraTiles ?? 2 })}</em>`];
+  const lines = [`<em class="muted">${i18n(`PROJECTANIME.Roll.${lineKey}`, { n: modifierValue(item, "aura") })}</em>`];
 
   if (passive) {
     lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.auraAlwaysOn")}</em>`);
@@ -1079,8 +1085,13 @@ async function resolveAura(actor, item) {
 }
 
 /** Spend a Skill's Energy (rank×2; Passive = free). Warns + returns false if unaffordable. */
-export async function spendSkillEnergy(actor, sys) {
-  const energyCost = sys.actionType === "passive" ? 0 : (Number(sys.energyCost) || 0);
+export async function spendSkillEnergy(actor, sys, item = null) {
+  let energyCost = sys.actionType === "passive" ? 0 : (Number(sys.energyCost) || 0);
+  // A `skillMod` rule (Bond/Trait/gear) can discount the cost of Skills carrying its Modifier — e.g.
+  // a Megumin bond making Burst Skills cost −1 Energy. `energy` is a signed delta (−1 = cheaper).
+  if (energyCost > 0 && item) {
+    energyCost = Math.max(0, energyCost + collectSkillModBonuses(actor, item).energy);
+  }
   if (energyCost > 0) {
     const current = actor.system.energy?.value ?? 0;
     if (current < energyCost) { ui.notifications.warn(i18n("PROJECTANIME.Roll.noEnergy", { n: energyCost })); return false; }
@@ -1108,6 +1119,12 @@ async function acquireAreaTargets(actor, item, kind) {
   const ctoken = casterToken(actor);
 
   if (kind === "burst") {
+    // Self-centered (emanation): a Burst whose Range is Self explodes from the caster's token — no
+    // placement, just catch everyone within the radius around you (the Target then filters who's hit).
+    if (isSelfCenteredArea(sys)) {
+      if (!ctoken) { ui.notifications.warn(i18n("PROJECTANIME.Roll.needToken")); return null; }
+      return emanateBurst(ctoken, modifierValue(item, "burst"));
+    }
     // Tuck the sheet out of the way so the canvas is clear to place the template (restored after).
     const restore = minimizeSheetForPlacement(actor);
     try {
@@ -1522,7 +1539,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
  *  post a card with a Release button. Re-activating the Skill — or clicking Release — on a later
  *  turn resolves it at double power (rules p.13). One charge is held at a time per actor. */
 async function startCharge(actor, item) {
-  if (!(await spendSkillEnergy(actor, item.system))) return null;
+  if (!(await spendSkillEnergy(actor, item.system, item))) return null;
   await actor.setFlag("project-anime", "charge", item.id);
   return postCard(actor, cardHTML({
     title: item.name,
@@ -1598,7 +1615,7 @@ async function devourFromTarget(actor, item, target, { spendEnergy = true, silen
   if (!chosenId) return null;   // cancelled — no Energy spent
   const chosen = skills.find((s) => s.id === chosenId);
   if (!chosen) return null;
-  if (spendEnergy && !(await spendSkillEnergy(actor, item.system))) return null;
+  if (spendEnergy && !(await spendSkillEnergy(actor, item.system, item))) return null;
 
   const data = chosen.toObject();
   delete data._id;
@@ -1872,7 +1889,7 @@ async function resolveConjure(actor, item) {
   if (!recipient) return ui.notifications.warn(i18n("PROJECTANIME.Roll.allyNotSelf"));
   const choice = await pickConjureDialog();
   if (!choice) return null;
-  if (!(await spendSkillEnergy(actor, sys))) return null;
+  if (!(await spendSkillEnergy(actor, sys, item))) return null;
   if (sys.actionType !== "passive" && skillDuration(sys) === "channeled") await ensureChannelMarker(actor, item);
 
   let data;
@@ -1962,7 +1979,7 @@ async function resolveGate(actor, item) {
   // The targeting templates were only pickers — clean them up regardless of outcome.
   for (const res of [a, b]) { if (res?.doc) await res.doc.delete().catch(() => {}); }
   if (!a || !b) return null;
-  if (!(await spendSkillEnergy(actor, sys))) return null;
+  if (!(await spendSkillEnergy(actor, sys, item))) return null;
   if (sys.actionType !== "passive" && skillDuration(sys) === "channeled") await ensureChannelMarker(actor, item);
 
   const gateKey = `${item.id}:${foundry.utils.randomID(8)}`;

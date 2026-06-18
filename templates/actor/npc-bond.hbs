@@ -32,29 +32,6 @@
         {{/if}}
 
         <div class="nb-sec">
-          <h4>{{localize "PROJECTANIME.Covenant.dossier"}}</h4>
-          <div class="vitals">
-            {{#each vitals}}
-              {{#if @root.editable}}
-              <div class="vital edit">
-                <input data-npcbond-vital="{{id}}" data-npcbond-vital-field="k" value="{{k}}">
-                <input data-npcbond-vital="{{id}}" data-npcbond-vital-field="v" value="{{v}}">
-                <span class="vital-x" data-action="removeNpcVital" data-npcbond-vital="{{id}}">✕</span>
-              </div>
-              {{else}}{{#if v}}<div class="vital"><span class="vk">{{k}}</span><span class="vv">{{v}}</span></div>{{/if}}{{/if}}
-            {{/each}}
-            {{#if @root.editable}}<button type="button" class="add-line" data-action="addNpcVital">＋ {{localize "PROJECTANIME.Covenant.addVital"}}</button>{{/if}}
-          </div>
-          {{#if @root.editable}}
-          <textarea class="nb-dossier-edit" data-npcbond-field="dossier" rows="4">{{dossier}}</textarea>
-          <input class="nb-quote-edit" data-npcbond-field="quote" value="{{quote}}">
-          {{else}}
-          {{#if dossier}}<div class="dossier">{{dossier}}</div>{{/if}}
-          {{#if quote}}<div class="quote"><p>{{quote}}</p></div>{{/if}}
-          {{/if}}
-        </div>
-
-        <div class="nb-sec">
           <h4>{{localize "PROJECTANIME.NpcBond.ranks"}}</h4>
           <div class="nb-ranks">
             {{#each ranks}}
@@ -68,6 +45,15 @@
                 {{#if abilityName}}<div class="an">{{abilityName}}</div>{{/if}}
                 {{#if abilityDesc}}<div class="ad">{{abilityDesc}}</div>{{/if}}
                 {{/if}}
+
+                <div class="nb-fx">
+                  {{#if @root.editable}}
+                  <button type="button" class="add-line nb-fx-edit" data-action="editBondRankEffect" data-rank="{{rank}}">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.NpcBond.editEffect"}}
+                  </button>
+                  {{/if}}
+                  {{#if rulesHTML}}<div class="nb-fx-sum">{{{rulesHTML}}}</div>{{/if}}
+                </div>
 
                 <div class="nb-rewards">
                   <div class="nb-rew-line">

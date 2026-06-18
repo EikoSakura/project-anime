@@ -151,9 +151,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       clearBondActor: ProjectAnimeActorSheet.#onClearBondActor,
       toggleRole: ProjectAnimeActorSheet.#onToggleRole,
       toggleStatblock: ProjectAnimeActorSheet.#onToggleStatblock,
-      addNpcVital: ProjectAnimeActorSheet.#onAddNpcVital,
-      removeNpcVital: ProjectAnimeActorSheet.#onRemoveNpcVital,
       removeRewardItem: ProjectAnimeActorSheet.#onRemoveRewardItem,
+      editBondRankEffect: ProjectAnimeActorSheet.#onEditBondRankEffect,
       pickNpcBondBanner: ProjectAnimeActorSheet.#onPickNpcBondBanner,
       dismissServant: ProjectAnimeActorSheet.#onDismissServant
     }
@@ -401,6 +400,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       this.#bindHudDrag();
       this.#bindBondsDrawer();
       this.#bindNpcBond();
+      this.#bindEnergyMax();
     }
     // A queued Deepen flourish fires once, after the data re-render that raised the rank.
     if (this.#bondGala != null) {
@@ -1447,6 +1447,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
           descRaw: a.desc ?? "",
           name: a.name || F("PROJECTANIME.Covenant.abilityUnnamed", { rank: a.rank }),
           desc: on ? (a.desc || "") : F("PROJECTANIME.Covenant.abilityLocked", { rank: a.rank }),
+          // Auto-summary of the rank's mechanical Effect (Grants / buffs / Skill adjustments), shown read-only
+          // once the rank is unlocked — players see what the bond actually does (the GM authors it).
+          rulesHTML: on ? traitCardDescHTML(a.rules, "") : "",
           on,
           reqLabel: on ? L("PROJECTANIME.Covenant.unlocked") : F("PROJECTANIME.Covenant.rankN", { rank: a.rank })
         };
@@ -1484,14 +1487,31 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     return out;
   }
 
-  /** Mutate one bond on this actor and persist the whole list (mirrors the Covenant pattern). */
-  async #mutateBond(id, fn) {
+  /** Mutate one bond on this actor and persist the whole list (mirrors the Covenant pattern). Pass
+   *  `{ render: false }` for an inline field edit so the Bonds drawer keeps its scroll position. */
+  async #mutateBond(id, fn, { render = true } = {}) {
     if (!this.isEditable) return;
     const bonds = getBonds(this.actor);
     const b = bonds.find((x) => x.id === id);
     if (!b) return;
     fn(b);
-    await saveBonds(this.actor, bonds);
+    await saveBonds(this.actor, bonds, { render });
+  }
+
+  /** The header Max-Energy input shows the EFFECTIVE maximum (authored − passive/servant tax) and is
+   *  edited directly. It carries `data-energy-max` and NO `name`, so the form's submitOnChange never
+   *  collects it — otherwise the derived/taxed value would be written back and re-taxed every prepare
+   *  (the original "Current edit lowers Max" bug). We persist the AUTHORED max — the entered effective
+   *  value PLUS the current tax — so the tax is re-derived next prepare instead of baked into storage. */
+  #bindEnergyMax() {
+    const input = this.element?.querySelector?.("input[data-energy-max]");
+    if (!input) return;
+    input.addEventListener("change", async (event) => {
+      const sys = this.actor.system;
+      const tax = (sys.energy?.passiveTax ?? 0) + (sys.energy?.servantTax ?? 0);
+      const entered = Math.max(0, Math.round(Number(event.currentTarget.value) || 0));
+      await this.actor.update({ "system.energy.max": entered + tax });
+    });
   }
 
   /** Commit an inline bond edit (a field, a vital, or an ability). The inputs carry data-* (never
@@ -1499,22 +1519,24 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   async #onBondFieldChange(event) {
     const el = event.currentTarget;
     const id = el.dataset.bond;
+    // No re-render on an inline edit (keeps the Bonds drawer's scroll position).
+    const quiet = { render: false };
     if (!id) return;
     const val = el.type === "checkbox" ? el.checked : el.value;
     if (el.dataset.bvital !== undefined) {
       return this.#mutateBond(id, (b) => {
         const v = (b.vitals ?? []).find((x) => x.id === el.dataset.bvital);
         if (v) v[el.dataset.bvitalField] = val;
-      });
+      }, quiet);
     }
     if (el.dataset.babil !== undefined) {
       return this.#mutateBond(id, (b) => {
         const a = (b.abilities ?? []).find((x) => x.rank === Number(el.dataset.babil));
         if (a) a[el.dataset.babilField] = val;
-      });
+      }, quiet);
     }
     const field = el.dataset.bondField;
-    if (field) return this.#mutateBond(id, (b) => { b[field] = val; });
+    if (field) return this.#mutateBond(id, (b) => { b[field] = val; }, quiet);
   }
 
   /** Bind the Bonds drawer's inline-edit listeners + actor-link drop zones (owner only). */
@@ -1787,9 +1809,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       accent,
       banner: def.banner ?? "",
       bannerStyle: def.banner ? `background-image:url('${def.banner}')` : `background:${bondHeroGrad(accent)}`,
-      dossier: def.dossier ?? "",
-      quote: def.quote ?? "",
-      vitals: (def.vitals ?? []).map((v) => ({ id: v.id, k: v.k, v: v.v })),
       npcName: this.actor.name,
       npcImg: this.actor.img,
       ranks: npcBondRanks(this.actor).map((r) => ({
@@ -1799,14 +1818,19 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         abilityDesc: r.abilityDesc,
         rewardGold: r.rewardGold,
         rewardSP: r.rewardSP,
-        rewardItems: r.rewardItems.map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" }))
+        rewardItems: r.rewardItems.map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" })),
+        // The rank's mechanical Effect, auto-summarized (Grants / buffs / Skill adjustments) — same colored
+        // rules line as the Signature Trait cards; "" when the rank has no Effect authored yet.
+        rulesHTML: traitCardDescHTML(r.rules, ""),
+        hasRules: (r.rules ?? []).length > 0
       }))
     };
   }
 
   /** Read this NPC's bond offer as a fully-normalized mutable object (scalars + vitals + the five
-   *  rank rows), apply `fn`, and persist the whole `system.bond`. */
-  async #mutateNpcBond(fn) {
+   *  rank rows), apply `fn`, and persist the whole `system.bond`. Pass `{ render: false }` for an
+   *  inline field edit so the drawer doesn't re-render and lose its scroll position. */
+  async #mutateNpcBond(fn, { render = true } = {}) {
     if (!this.isEditable) return;
     const sys = this.actor.system.bond ?? {};
     const bond = {
@@ -1816,20 +1840,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       ranks: npcBondRanks(this.actor)
     };
     fn(bond);
-    await this.actor.update({ "system.bond": bond });
+    await this.actor.update({ "system.bond": bond }, { render });
   }
 
-  /** Commit an inline edit to the NPC's bond offer (a scalar field, a vital, or a rank's
-   *  ability text / reward number). data-* attributes only → never collected by the actor form. */
+  /** Commit an inline edit to the NPC's bond offer (a scalar field or a rank's ability text /
+   *  reward number). data-* attributes only → never collected by the actor form. */
   async #onNpcBondFieldChange(event) {
     const el = event.currentTarget;
     const val = el.value;
-    if (el.dataset.npcbondVitalField !== undefined) {
-      return this.#mutateNpcBond((b) => {
-        const v = b.vitals.find((x) => x.id === el.dataset.npcbondVital);
-        if (v) v[el.dataset.npcbondVitalField] = val;
-      });
-    }
+    // No re-render: the edited input already shows its value, and nothing derived needs rebuilding —
+    // so the Bond drawer keeps its scroll position instead of snapping to the top on every field.
+    const quiet = { render: false };
     if (el.dataset.npcbondRankField !== undefined) {
       const rank = Number(el.dataset.npcbondRank);
       const field = el.dataset.npcbondRankField;
@@ -1837,17 +1858,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       return this.#mutateNpcBond((b) => {
         const r = b.ranks.find((x) => x.rank === rank);
         if (r) r[field] = num ? Math.max(0, Math.round(Number(val) || 0)) : val;
-      });
+      }, quiet);
     }
     const field = el.dataset.npcbondField;
-    if (field) return this.#mutateNpcBond((b) => { b[field] = val; });
+    if (field) return this.#mutateNpcBond((b) => { b[field] = val; }, quiet);
   }
 
   /** Bind the Bond-offer editor's inline listeners + reward-item drop zones (owner only). */
   #bindNpcBond() {
     const drawer = this.element?.querySelector?.('.section-drawer[data-section="npcbond"]');
     if (!drawer) return;
-    for (const el of drawer.querySelectorAll("[data-npcbond-field], [data-npcbond-vital-field], [data-npcbond-rank-field]"))
+    for (const el of drawer.querySelectorAll("[data-npcbond-field], [data-npcbond-rank-field]"))
       el.addEventListener("change", this.#onNpcBondFieldChange.bind(this));
     for (const zone of drawer.querySelectorAll("[data-reward-drop]")) {
       zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
@@ -1895,15 +1916,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     this.element?.querySelector?.(".statblock.foldable")?.classList.toggle("open", this.#statblockOpen);
   }
 
-  static async #onAddNpcVital() {
-    await this.#mutateNpcBond((b) => b.vitals.push({ id: foundry.utils.randomID(), k: "", v: "" }));
-  }
-
-  static async #onRemoveNpcVital(event, target) {
-    const id = target.dataset.npcbondVital;
-    await this.#mutateNpcBond((b) => { b.vitals = b.vitals.filter((x) => x.id !== id); });
-  }
-
   static async #onRemoveRewardItem(event, target) {
     const rank = Number(target.dataset.npcbondRank);
     const idx = Number(target.dataset.rewardItem);
@@ -1911,6 +1923,32 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const r = b.ranks.find((x) => x.rank === rank);
       if (r && Array.isArray(r.rewardItems)) r.rewardItems.splice(idx, 1);
     });
+  }
+
+  /** Author a bond RANK's mechanical Effect in the shared Effect Builder (data mode) — Grant
+   *  Items/Skills + buffs + Skill adjustments. Saves the rules (and the rank's ability name) back to
+   *  `system.bond`; the player's bond copies them on forge and reconcileBonds projects/delivers
+   *  them as the bond deepens (helpers/bond-effect.mjs). */
+  static async #onEditBondRankEffect(event, target) {
+    if (!this.isEditable) return;
+    const rank = Number(target.dataset.rank ?? target.closest("[data-rank]")?.dataset.rank);
+    if (!(rank >= 1)) return;
+    const actor = this.actor;
+    const row = npcBondRanks(actor).find((r) => r.rank === rank) ?? {};
+    const id = `bondrank-${actor.id}-${rank}`;
+    const existing = foundry.applications.instances.get(`pa-effect-builder-${id}`);
+    if (existing) return existing.bringToFront();
+    EffectBuilder.forData({
+      id,
+      title: game.i18n.format("PROJECTANIME.NpcBond.effectTitle", { rank }),
+      name: row.abilityName || "",
+      img: actor.img || DEFAULT_TRAIT_IMG,
+      rules: row.rules ?? [],
+      onSave: ({ name, rules }) => this.#mutateNpcBond((b) => {
+        const r = b.ranks.find((x) => x.rank === rank);
+        if (r) { r.abilityName = name; r.rules = rules; }
+      })
+    }).render(true);
   }
 
   static async #onPickNpcBondBanner() {

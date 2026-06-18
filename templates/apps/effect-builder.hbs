@@ -125,6 +125,14 @@
       <select name="rules.{{i}}.category">{{selectOptions ../choices.revealCategories selected=rule.category}}</select>
       {{/if}}
 
+      {{#if rule.isSkillMod}}
+      <select name="rules.{{i}}.scope">{{selectOptions ../choices.modScopes selected=rule.scope}}</select>
+      <input type="number" class="eb-num" name="rules.{{i}}.damage" value="{{rule.damage}}" step="1" />
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.skillModDmg"}}</span>
+      <input type="number" class="eb-num" name="rules.{{i}}.energy" value="{{rule.energy}}" step="1" />
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.skillModEnergy"}}</span>
+      {{/if}}
+
       {{#if rule.isGrant}}
       <div class="eb-grant-drop" data-index="{{i}}">
         {{#each rule.items as |it j|}}

@@ -7353,3 +7353,11 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-npcbond .rew-item span { font-size: 11px; font-weight: 600; color: var(--pa-ink); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pa-npcbond .rew-item .rew-x { cursor: pointer; color: var(--pa-ink-soft); font-size: 9px; padding-left: 2px; }
 .pa-npcbond .rew-item .rew-x:hover { color: var(--pa-danger); }
+/* A bond rank's mechanical Effect: the no-code "Edit Effect" button + its auto-summary (Grants /
+   buffs / Skill adjustments), shown on the NPC offer and (read-only) on the player's bond card. */
+.pa-npcbond .nb-fx { display: flex; flex-direction: column; gap: 6px; }
+.pa-npcbond .nb-fx-edit { align-self: flex-start; }
+.pa-npcbond .nb-fx-sum, .pa-bonds .ab-fx { font-size: 11px; line-height: 1.45; color: var(--pa-ink-soft); }
+.pa-bonds .ab-fx { margin-top: 4px; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--pa-line) 70%, transparent); }
+.pa-npcbond .nb-fx-sum .nd-rules, .pa-bonds .ab-fx .nd-rules { color: var(--pa-ink); }
+.pa-npcbond .nb-fx-sum .nd-num, .pa-bonds .ab-fx .nd-num { color: var(--pa-gold-soft); font-family: var(--pa-font-mono); }

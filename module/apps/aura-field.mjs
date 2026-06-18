@@ -5,8 +5,8 @@
  * style — fills that ring with a translucent highlight while the token is hovered, so you can read
  * the field's reach at a glance. Purely cosmetic and per-client: it mirrors the same live-aura set
  * the reconcile uses (helpers/aura.mjs `liveAuraSkills`) and the same circular catchment radius
- * (`PROJECTANIME.auraTiles`, measured from the token centre), so the ring bounds exactly who the
- * aura affects.
+ * (each Skill's Aura radius — base = the Skill's Rank plus any Tune growth; the ring shows the
+ * widest active field), so the ring bounds exactly who the aura affects.
  *
  * Drawn on `canvas.controls` (the world-space overlay above tokens), mirroring the hover Range Line.
  * Rings follow their token live — the `refreshToken` hook repositions them each animation frame —
@@ -14,7 +14,7 @@
  * same triggers that drive the reconcile).
  */
 
-import { PROJECTANIME } from "../helpers/config.mjs";
+import { PROJECTANIME, modifierValue } from "../helpers/config.mjs";
 import { liveAuraSkills } from "../helpers/aura.mjs";
 import { tokenHalfExtentTiles } from "../helpers/templates.mjs";
 
@@ -43,12 +43,17 @@ export class AuraField {
     return true;
   }
 
-  /** The aura circle's pixel radius: `auraTiles` measured from the token's EDGE — i.e. auraTiles plus
-   *  the token's half-extent, from its centre — so the field reads as a full N tiles beyond the body
-   *  and grows with a larger creature's footprint. Matches the reconcile's edge-to-edge catchment,
-   *  so the ring bounds exactly who's affected. */
+  /** The aura circle's pixel radius, measured from the token's EDGE — the largest active Aura radius
+   *  on the token (its base + any "Tune a Modifier" growth, per-skill) plus the token's half-extent,
+   *  from its centre — so the field reads as a full N tiles beyond the body and grows with a larger
+   *  creature's footprint. A token with several auras shows its widest field's bound. Matches the
+   *  reconcile's edge-to-edge catchment, so the ring bounds exactly who's affected. */
   #radiusPx(token) {
-    const tiles = (PROJECTANIME.auraTiles ?? 2) + tokenHalfExtentTiles(token);
+    const skills = liveAuraSkills(token);
+    const auraTiles = skills.length
+      ? Math.max(...skills.map((s) => modifierValue(s, "aura")))
+      : (PROJECTANIME.auraTiles ?? 2);
+    const tiles = auraTiles + tokenHalfExtentTiles(token);
     return tiles * (canvas.dimensions?.size ?? 100);
   }
 

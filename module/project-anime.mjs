@@ -35,6 +35,7 @@ import { FACTIONS_SETTING, HQ_SETTING, DEATH_STRIKES_SETTING, CRAFT_REQUIRE_SETT
 import { ARCHIVE_SETTING } from "./helpers/archive.mjs";
 import { reconcileHQBoons } from "./helpers/hq-boons.mjs";
 import { reconcileTraits } from "./helpers/trait-effect.mjs";
+import { reconcileBonds } from "./helpers/bond-effect.mjs";
 import { registerPartySettings } from "./apps/party-config.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
@@ -1235,6 +1236,15 @@ Hooks.on("updateActor", (actor, changes) => {
 });
 Hooks.on("createActor", (actor) => reconcileTraits(actor));
 
+// BOND rank effects: project each UNLOCKED bond rank's no-code Effect as an always-on AE and deliver
+// its Grant Items/Skills (helpers/bond-effect.mjs) whenever a character's bonds change (deepen/lessen/
+// forge) or an actor is created. GM-gated + idempotent, like the trait projection above; the ready
+// hook does the initial pass. Runs GM-side so a player can't self-grant by editing their own bond.
+Hooks.on("updateActor", (actor, changes) => {
+  if (foundry.utils.hasProperty(changes, "system.bonds")) reconcileBonds(actor);
+});
+Hooks.on("createActor", (actor) => reconcileBonds(actor));
+
 // Open the Party sheet most relevant to this user: for a player, the party whose folder holds a
 // character they own; otherwise (and for the GM) the first party they can view. Backs both the
 // "P" keybinding and the folder icon below.
@@ -1556,6 +1566,9 @@ Hooks.once("ready", function () {
   // Initial self-healing pass for every actor's Signature Trait + Traits (the onChange hooks don't fire
   // on load). Each call is GM-gated + idempotent, so it's a cheap no-op for actors with no trait cards.
   if (paIsActiveGM()) for (const a of game.actors ?? []) reconcileTraits(a);
+
+  // Initial pass for bond-rank effects too (same GM-gated, idempotent no-op for bondless actors).
+  if (paIsActiveGM()) for (const a of game.actors ?? []) reconcileBonds(a);
 
   // Enforce the rules' "skip the Defeated" turn order (p.14) — defeated enemies/PCs at 0 HP
   // are stepped over in the encounter tracker.

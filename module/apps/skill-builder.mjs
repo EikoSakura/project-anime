@@ -23,7 +23,7 @@
  */
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, effectAttrCount, effectBaseRank, effectModifierCap, affinityModifierLevels, clampAffinityLevel, skillEvasionKeys, skillEvasionLabel } from "../helpers/config.mjs";
+import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, effectAttrCount, effectBaseRank, effectModifierCap, affinityModifierLevels, clampAffinityLevel, skillEvasionKeys, skillEvasionLabel, isSelfCenteredArea } from "../helpers/config.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -413,10 +413,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // (blank = the default 2).
     ctx.isPassiveCarrier = d.effect === "passive";
     const auraOn = d.modifiers.includes("aura");
-    ctx.targetChoices = auraOn
+    // A self-centered Burst (Self Range + Burst) emanates from you and needs a real audience — like
+    // an Aura, its Target (Foe/Ally/Any) stays free and Self isn't offered (it would hit only you).
+    const selfArea = isSelfCenteredArea(d);
+    ctx.targetChoices = (auraOn || selfArea)
       ? Object.fromEntries(Object.entries(cfg.skillTargets).filter(([k]) => k !== "self"))
       : cfg.skillTargets;
-    ctx.targetLocked = !auraOn && (d.range.scope === "self" || ctx.isPassiveCarrier);
+    ctx.targetLocked = !auraOn && !selfArea && (d.range.scope === "self" || ctx.isPassiveCarrier);
     // A passive Skill is always-on (no Duration) — but a passive AURA still needs its Target (the
     // field's audience), so the grid stays and only the Duration select hides.
     ctx.showDurationField = d.actionType !== "passive" && !ctx.isPassiveCarrier;
@@ -761,15 +764,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         };
       });
 
-    // "Tune a Modifier" (rules): grow the numeric value of a Modifier the Skill already has
-    // (Burst radius, Chain targets, Push/Pull tiles, Move's bonus tiles). 1 SP each. Only
-    // Modifiers in growableModifiers qualify; a rank-based one (Push/Pull) starts at the Rank.
+    // "Tune a Modifier" (rules): grow the numeric value of ANY Modifier the Skill already has that
+    // carries a number (Aura/Burst radius, Chain targets, Push/Pull/Move tiles, Protection's
+    // Defense…). 1 SP each, growth capped at +3 (config.mjs modifierGrowthMax). Only Modifiers in
+    // growableModifiers qualify; a rank-based one (Push/Pull) starts at the Rank.
     const growable = cfg.growableModifiers ?? {};
+    const growMax = cfg.modifierGrowthMax ?? 3;
     ctx.growableMods = (sys.modifiers ?? [])
       .filter((key) => growable[key])
       .map((key) => {
         const base = growable[key].rankBased ? (sys.rank ?? 1) : (growable[key].base ?? 0);
-        const growth = sys.modifierGrowth?.[key] ?? 0;
+        const growth = Math.min(growMax, sys.modifierGrowth?.[key] ?? 0);
+        const atMax = growth >= growMax;
         return {
           key,
           label: game.i18n.localize(cfg.skillModifiers[key] ?? key),
@@ -778,7 +784,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
           growth,
           current: base + growth,
           next: base + growth + 1,
-          disabled: !canAfford
+          atMax,
+          disabled: atMax || !canAfford
         };
       });
   }
@@ -904,8 +911,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // v0.01: the Passive Effect cannot take it) and the Duration Modifiers (no duration to alter).
     if (d.effect === "passive") d.actionType = "passive";
     const auraOn = (d.modifiers ?? []).includes("aura");
-    if (!auraOn && (d.range.scope === "self" || d.effect === "passive")) d.target = "self";
+    // A self-centered Burst (Self Range + Burst) emanates from you, so Self Range doesn't pin its
+    // Target to Self — only a passive carrier still does (its effect rides the bearer). A leftover
+    // Self target on such a Burst (it would hit only the caster) collapses to Any, like an Aura's.
+    const selfArea = isSelfCenteredArea(d);
+    if (!auraOn && ((d.range.scope === "self" && !selfArea) || d.effect === "passive")) d.target = "self";
     if (auraOn && d.target === "self") d.target = "ally";
+    if (selfArea && d.effect !== "passive" && d.target === "self") d.target = "any";
     if (d.actionType === "passive") {
       d.modifiers = (d.modifiers ?? []).filter((m) => !["secondaryEffect", "channeled", "scene"].includes(m));
     }
@@ -1209,13 +1221,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       damageAttr: d.damageAttr,
       range: d.range,
       effect: d.effect,
-      // Target (rules v0.01): an Aura keeps a real audience (Ally/Foe/Any — Self collapses to
-      // Ally); otherwise a Self-Range Skill, the Passive carrier, or a plain passive Skill
-      // normalizes to Self (a passive's effect rides the bearer, it targets no one).
+      // Target (rules v0.01): an Aura — or a self-centered Burst (Self Range + Burst) — keeps a real
+      // audience (Ally/Foe/Any; Self collapses to a sensible default since it would hit only the
+      // caster). A passive carrier / plain passive normalizes to Self FIRST (its effect rides the
+      // bearer, ahead of any area read); otherwise a non-area Self-Range Skill is Self too.
       target: d.modifiers.includes("aura")
         ? (d.target in cfg.skillTargets && d.target !== "self" ? d.target : "ally")
-        : ((d.range.scope === "self" || d.effect === "passive" || d.actionType === "passive") ? "self"
-          : (d.target in cfg.skillTargets ? d.target : "any")),
+        : (d.effect === "passive" || d.actionType === "passive")
+          ? "self"
+          : isSelfCenteredArea(d)
+            ? (d.target in cfg.skillTargets && d.target !== "self" ? d.target : "any")
+            : (d.range.scope === "self" ? "self"
+              : (d.target in cfg.skillTargets ? d.target : "any")),
       // Duration (rules v0.01): a Duration Modifier (Channeled/Scene) wins; otherwise the
       // intrinsic Instant/Standard choice. Standard's turn count stays in effectDuration.
       duration: d.modifiers.includes("channeled") ? "channeled"
@@ -1422,7 +1439,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#spend(1, () => item.update(update), this.#improveMeta(item, "modifier", key));
   }
 
-  /** "Tune a Modifier": grow a numeric Modifier's value by 1 (1 SP). */
+  /** "Tune a Modifier": grow a numeric Modifier's value by 1 (1 SP), capped at +3. */
   static async #onTurnModifier(event, target) {
     const item = this.#advanceSkill();
     if (!item) return;
@@ -1430,6 +1447,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!key || !CONFIG.PROJECTANIME.growableModifiers?.[key]) return;
     if (!(item.system.modifiers ?? []).includes(key)) return;
     const cur = item.system.modifierGrowth?.[key] ?? 0;
+    if (cur >= (CONFIG.PROJECTANIME.modifierGrowthMax ?? 3)) return;
     await this.#spend(1, () => item.update({ [`system.modifierGrowth.${key}`]: cur + 1 }), this.#improveMeta(item, "growth", key));
   }
 }

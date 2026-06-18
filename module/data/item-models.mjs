@@ -115,10 +115,11 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     schema.controlElement = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.trigger = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.modifiers = new fields.ArrayField(new fields.StringField({ blank: false }), { initial: [] });
-    // Per-Modifier numeric growth from the "Tune a Modifier" advancement (e.g. Burst radius,
-    // Chain target count). Keyed by modifier id; effective value = base + this (see
-    // config.mjs modifierValue / PROJECTANIME.growableModifiers).
-    schema.modifierGrowth = new fields.TypedObjectField(new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }));
+    // Per-Modifier numeric growth from the "Tune a Modifier" advancement (Aura/Burst radius, Chain
+    // target count, Move/Push/Pull tiles, Protection's Defense…). Keyed by modifier id; effective
+    // value = base + this (see config.mjs modifierValue / PROJECTANIME.growableModifiers). Capped at
+    // the +3 Tune ceiling (PROJECTANIME.modifierGrowthMax); legacy over-cap data is clamped in migrateData.
+    schema.modifierGrowth = new fields.TypedObjectField(new fields.NumberField({ ...requiredInteger, initial: 0, min: 0, max: PROJECTANIME.modifierGrowthMax }));
     // The free-form "Custom" Modifier can be flagged Heavy per-skill (the Builder checkbox), making
     // it count as two Modifiers toward the Rank budget. Meaningless unless "custom" is selected.
     schema.customModifierHeavy = new fields.BooleanField({ initial: false });
@@ -265,6 +266,14 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     }
     if (source && source.target === undefined && Array.isArray(source.modifiers) && source.modifiers.includes("aura")) {
       source.target = source.auraTarget === "enemy" ? "foe" : "ally";
+    }
+    // The +3 Tune cap is new — clamp any Modifier growth bought before it existed back into range
+    // (and drop bad/negative values) so it validates and never over-reads.
+    if (source?.modifierGrowth && typeof source.modifierGrowth === "object") {
+      const cap = PROJECTANIME.modifierGrowthMax ?? 3;
+      for (const k of Object.keys(source.modifierGrowth)) {
+        source.modifierGrowth[k] = Math.min(cap, Math.max(0, Math.round(Number(source.modifierGrowth[k]) || 0)));
+      }
     }
     return super.migrateData(source);
   }

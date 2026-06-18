@@ -521,7 +521,7 @@
       <li class="sb-add-mod-row" data-modifier="{{g.key}}">
         <div class="sb-add-mod-text">
           <span class="sb-mod-name">{{g.label}}</span>
-          <span class="sb-mod-desc">{{g.current}} → {{g.next}} {{g.unit}}{{#if g.growth}} ({{localize "PROJECTANIME.SkillBuilder.base"}} {{g.base}} +{{g.growth}}){{/if}}</span>
+          <span class="sb-mod-desc">{{#if g.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}} ({{g.current}} {{g.unit}}){{else}}{{g.current}} → {{g.next}} {{g.unit}}{{/if}}{{#if g.growth}} ({{localize "PROJECTANIME.SkillBuilder.base"}} {{g.base}} +{{g.growth}}){{/if}}</span>
         </div>
         <button type="button" class="sb-add-mod" data-action="turnModifier" title="{{localize 'PROJECTANIME.SkillBuilder.turnModifier'}}" {{#if g.disabled}}disabled{{/if}}>
           <i class="fas fa-plus"></i>

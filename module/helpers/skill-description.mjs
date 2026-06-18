@@ -10,7 +10,7 @@
  * auto text. Pure + synchronous — safe during render. Sentence templates live under
  * `PROJECTANIME.Skill.narr.*`; per-effect-rule clauses come from effects.mjs `narrateRule`.
  */
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, rangeLabel, skillNeedsAccuracy, skillTarget, skillDuration, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, auraAudience } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, rangeLabel, skillNeedsAccuracy, skillTarget, skillDuration, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, auraAudience, isSelfCenteredArea } from "./config.mjs";
 import { narrateRule, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect, hinderStatusIds } from "./effects.mjs";
 import { elementLabel } from "./elements.mjs";
 
@@ -62,7 +62,7 @@ export function skillRulesHTML(item) {
   const scope = sys.range?.scope;
   const tgt = skillTarget(sys);
   let target;
-  if (has("burst")) target = N("everyone", { n: mv("burst") });
+  if (has("burst")) target = N(isSelfCenteredArea(sys) ? "everyoneSelf" : "everyone", { n: mv("burst") });
   else if (has("line")) target = N("line");
   else if (has("mass")) target = N("mass");
   else if (scope === "self" || tgt === "self") target = N("targetSelf");
@@ -229,7 +229,7 @@ export function skillRulesHTML(item) {
   }
   if (has("cleanse")) sentences.push(N("cleanse"));
   if (has("charge")) sentences.push(N("charge"));
-  if (has("protection")) sentences.push(N("protection", { n: numSpan("+1") }));
+  if (has("protection")) sentences.push(N("protection", { n: numSpan("+" + modifierValue(item, "protection")) }));
   // The Affinity Modifiers are multi-take — one granted-affinity sentence per take.
   if (has("affinityDamage")) {
     for (const t of sys.affinityDamages ?? []) {
@@ -284,7 +284,7 @@ export function skillRulesHTML(item) {
   if (has("aura")) {
     const audience = auraAudience(sys);
     const key = audience === "foe" ? "auraLineEnemy" : audience === "any" ? "auraLineAny" : "auraLineAlly";
-    sentences.push(N(key, { n: numSpan(cfg.auraTiles ?? 2) }));
+    sentences.push(N(key, { n: numSpan(modifierValue(item, "aura")) }));
   }
   if (sys.actionType === "react" && sys.trigger) sentences.push(N("reactLine", { trigger: `<strong>${loc(cfg.triggers[sys.trigger])}</strong>` }));
 

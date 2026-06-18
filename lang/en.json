@@ -252,7 +252,9 @@
       "rewards": "Rewards",
       "dropItem": "Drag an item here to add it as a reward",
       "author": "Author bond",
-      "combatStats": "Combat stats"
+      "combatStats": "Combat stats",
+      "editEffect": "Edit Effect",
+      "effectTitle": "Rank {rank} — Ability Effect"
     },
     "Bond": {
       "gold": "Gold",
@@ -867,7 +869,8 @@
       "turns": "turns",
       "growUnit": {
         "tiles": "tiles",
-        "targets": "targets"
+        "targets": "targets",
+        "defense": "Defense"
       },
       "damagePool": {
         "hp": "Hit Points",
@@ -1058,6 +1061,7 @@
         "targetFoe": "an enemy within {range}",
         "targetAlly": "an ally (not yourself) within {range}",
         "everyone": "everything within {n} tiles of a chosen point",
+        "everyoneSelf": "everything within {n} tiles of you",
         "line": "everything in a straight line",
         "mass": "all valid targets in range",
         "yourDie": "your {attr} die",
@@ -1201,8 +1205,16 @@
         "luck": "Luck",
         "trade": "Trade",
         "reveal": "Reveal",
-        "grant": "Grant Item"
+        "grant": "Grant Item",
+        "skillMod": "Skill Adjustment"
       },
+      "modScope": {
+        "skill": "Any Skill",
+        "weapon": "Any weapon attack",
+        "unarmed": "Unarmed (Natural Attack)"
+      },
+      "skillModDmg": "dmg",
+      "skillModEnergy": "EP cost",
       "reveal": {
         "skillPoints": "Skill Points",
         "attributes": "Attributes",

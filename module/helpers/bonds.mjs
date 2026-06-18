@@ -27,9 +27,11 @@ export function getBonds(actor) {
   return Array.isArray(raw) ? foundry.utils.deepClone(raw) : [];
 }
 
-/** Persist an actor's full bond list (requires permission to update the actor). */
-export async function saveBonds(actor, bonds) {
-  return actor.update({ "system.bonds": bonds });
+/** Persist an actor's full bond list (requires permission to update the actor). `options` pass
+ *  through to actor.update — e.g. `{ render: false }` so an inline edit doesn't re-render the sheet
+ *  (and reset the drawer's scroll). */
+export async function saveBonds(actor, bonds, options = {}) {
+  return actor.update({ "system.bonds": bonds }, options);
 }
 
 export function bondById(id, bonds) {
@@ -58,7 +60,7 @@ export function blankBond(overrides = {}) {
     vitals: [], // { id, k, v }
     dossier: "", // rich write-up (HTML)
     quote: "",
-    abilities: Array.from({ length: BOND_MAX_RANK }, (_v, i) => ({ rank: i + 1, name: "", desc: "" })),
+    abilities: Array.from({ length: BOND_MAX_RANK }, (_v, i) => ({ rank: i + 1, name: "", desc: "", rules: [] })),
     ...overrides
   };
 }
@@ -86,7 +88,8 @@ export function npcBondRanks(npc) {
       abilityDesc: r.abilityDesc ?? "",
       rewardGold: Number(r.rewardGold) || 0,
       rewardSP: Number(r.rewardSP) || 0,
-      rewardItems: Array.isArray(r.rewardItems) ? r.rewardItems : []
+      rewardItems: Array.isArray(r.rewardItems) ? r.rewardItems : [],
+      rules: Array.isArray(r.rules) ? r.rules : []
     };
   });
 }
@@ -96,7 +99,12 @@ export function npcBondRanks(npc) {
  *  `existing` is given. */
 function bondFromNpc(npc, existing = null) {
   const def = npc.system.bond ?? {};
-  const abilities = npcBondRanks(npc).map((r) => ({ rank: r.rank, name: r.abilityName, desc: r.abilityDesc }));
+  const abilities = npcBondRanks(npc).map((r) => ({
+    rank: r.rank,
+    name: r.abilityName,
+    desc: r.abilityDesc,
+    rules: foundry.utils.deepClone(r.rules ?? [])   // the rank's mechanical Effect rides onto the PC bond
+  }));
   const base = existing ? { ...existing } : blankBond();
   base.name = npc.name;
   base.img = npc.img || base.img;

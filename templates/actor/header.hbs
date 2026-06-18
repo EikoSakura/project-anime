@@ -78,7 +78,13 @@
         <span class="resource-vals">
           <input type="number" name="system.energy.value" value="{{system.energy.value}}" min="0" />
           <span class="sep">/</span>
-          <input type="number" name="system.energy.max" value="{{system.energy.max}}" min="0" />
+          {{!-- The Max field shows the EFFECTIVE maximum (authored − passive/servant tax) so it visibly
+                drops as passives are added. It carries data-energy-max and NO `name`, so the sheet's
+                submitOnChange never collects it — otherwise editing Current would write this taxed
+                number back into storage and the next prepare would re-tax it (compounding). Edits are
+                persisted by #bindEnergyMax, which stores the AUTHORED max (entered + current tax) so the
+                tax is re-derived rather than baked in. --}}
+          <input type="number" data-energy-max value="{{system.energy.max}}" min="0" />
         </span>
       </div>
       <div class="bar"><div class="fill energy-fill" style="width: {{energyPct}}%"></div></div>

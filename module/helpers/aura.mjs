@@ -2,7 +2,8 @@
  * Project: Anime — Aura Skill Modifier (continuous area field).
  *
  * A Skill carrying "Aura" becomes a field: it continuously grants its Effect(s) to its AUDIENCE
- * within `PROJECTANIME.auraTiles` tiles of the bearer's token. The audience derives from the
+ * within its Aura radius (base = the Skill's Rank, grown per-skill by the "Tune a Modifier"
+ * advancement — config.mjs modifierValue) of the bearer's token. The audience derives from the
  * Skill's explicit Target (config.mjs auraAudience — rules v0.01: area Modifiers affect "the type
  * the Skill can already affect"): Ally → same-side creatures plus the bearer; Foe → opposing
  * creatures only, never the bearer; Any → every creature in the field including the bearer. A
@@ -21,7 +22,7 @@
  * the tokens on the GM's currently-viewed scene.
  */
 
-import { PROJECTANIME, skillEffectKeys, auraAudience } from "./config.mjs";
+import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
 import {
   effectCopyData, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect, sustainRules, hasAuthoredSustainEffect,
   skillModifierRules
@@ -233,7 +234,6 @@ export async function syncAuras() {
 /** One reconcile pass over the canvas (see syncAuras). */
 async function reconcileCanvas() {
   const tokens = canvas.tokens?.placeables ?? [];
-  const tiles = PROJECTANIME.auraTiles ?? 2;
 
   // desired: Map<Actor, Map<auraKey, {sig, dataList}>>
   const desired = new Map();
@@ -250,13 +250,15 @@ async function reconcileCanvas() {
     const skills = liveAuraSkills(src);
     if (!skills.length) continue;
 
-    // A footprint-aware CIRCLE (euclidean, edge-to-edge) — the round field reaches `tiles` out from
-    // the source's BODY, and a larger source or target counts its size, matching the ring drawn on
-    // canvas (apps/aura-field.mjs). Other area reach (Mass/Chain) keeps the grid measurement.
-    const inRange = tokensInRange(src, tiles, { euclidean: true }).filter((r) => r.actor && !r.document.hidden && r.actor !== actor);
     for (const skill of skills) {
       const built = auraEffectDataFor(skill, src);
       if (!built) continue;
+      // A footprint-aware CIRCLE (euclidean, edge-to-edge) — the round field reaches this Skill's
+      // Aura radius (base = the Skill's Rank + any Tune growth, per-skill) out from the source's
+      // BODY, a larger source or target counting its size, matching the ring drawn on canvas
+      // (apps/aura-field.mjs). Other area reach (Mass/Chain) keeps the grid measurement.
+      const tiles = modifierValue(skill, "aura");
+      const inRange = tokensInRange(src, tiles, { euclidean: true }).filter((r) => r.actor && !r.document.hidden && r.actor !== actor);
       // The audience within range (the Skill's Target — config.mjs auraAudience). Ally and Any
       // auras ALSO apply to the bearer (you stand in your own field): a PASSIVE one covers the
       // bearer in-memory, so project to the bearer only when ACTIVE (its effect is dormant on the

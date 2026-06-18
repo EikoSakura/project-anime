@@ -374,6 +374,15 @@ export function modifiersBudget(mods, sys) {
  *  by the reconcile engine (helpers/aura.mjs), not the on-use multi-target flow. */
 PROJECTANIME.areaModifiers = ["burst", "line", "mass", "chain"];
 
+/** True when an area Skill is a SELF-CENTERED emanation rather than a point placed within Range: a
+ *  Burst whose Range is Self explodes from the caster's own token (no placement). Its radius is the
+ *  Burst value (config.mjs modifierValue) and its Target (Foe/Ally/Any) decides who it catches — so
+ *  "a burst of energy centered on you, hitting the foes around you" needs no Range trickery. The
+ *  Builder lifts its "Self Range ⇒ Target Self" lock for this case, and dice.mjs skips placement. */
+export function isSelfCenteredArea(sys) {
+  return sys?.range?.scope === "self" && (sys?.modifiers ?? []).includes("burst");
+}
+
 /** Modifiers that only make sense on a PASSIVE Skill. Selecting one in the Skill Builder forces the
  *  Skill's Action Type to Passive. Currently none — Aura was moved off this list when it gained
  *  ACTIVE support (an active aura runs for its duration, then ends). The generic enforcement that
@@ -404,30 +413,42 @@ export function auraAudience(sys) {
   return t === "foe" ? "foe" : t === "any" ? "any" : "ally";
 }
 
-/** Modifiers with a numeric value the "Tune a Modifier" advancement grows (+1 per SP).
- *  `base` is the value before any growth; `rankBased: true` means the base is the Skill's RANK
- *  (rules: Push/Pull shove the target a number of tiles equal to the Skill's Rank). Per-skill
- *  growth is stored in system.modifierGrowth. Burst = the circle radius in tiles; Chain = extra
- *  targets it leaps to after the first hit; Move = bonus tiles on top of the Modifier's
- *  half-Skill-die movement (base 0 — Tune is how it grows). */
+/** EVERY Modifier carrying a numeric value the "Tune a Modifier" advancement grows (+1 per SP, up
+ *  to PROJECTANIME.modifierGrowthMax). `rankBased: true` means the base is the Skill's RANK; a plain
+ *  `base` is the fixed value before any growth. Per-skill growth is stored in system.modifierGrowth.
+ *  The full set of "numbers you can improve":
+ *    • Aura       — the field radius in tiles (base = the Skill's Rank).
+ *    • Burst      — the circle radius in tiles (base = the Skill's Rank).
+ *    • Chain      — extra targets it leaps to after the first hit (base = the Skill's Rank).
+ *    • Move       — bonus tiles on top of the Modifier's half-Skill-die movement (base = the Skill's Rank).
+ *    • Protection — the Defense the Skill grants its target(s) (fixed base 1).
+ *    • Push/Pull  — tiles of forced movement (base = the Skill's Rank). */
 PROJECTANIME.growableModifiers = {
-  burst: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  chain: { base: 2, unit: "PROJECTANIME.Skill.growUnit.targets" },
-  move: { base: 0, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  aura: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  burst: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  chain: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.targets" },
+  move: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  protection: { base: 1, unit: "PROJECTANIME.Skill.growUnit.defense" },
   push: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
   pull: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" }
 };
+
+/** The most "Tune a Modifier" can add to any one Modifier (homebrew cap): growth is 0–3, so e.g. a
+ *  Push tops out at Rank + 3 tiles and Protection at +1 + 3 = +4 Defense. Enforced by the Tune
+ *  handler, the Builder UI, the data model (item-models.mjs), and clamped at read in modifierValue. */
+PROJECTANIME.modifierGrowthMax = 3;
 
 /** How many tiles a Chain may leap between targets (rules: "within 3 tiles"). */
 PROJECTANIME.chainTiles = 3;
 
 /** A growable Modifier's effective value on an item = its base (the Skill's Rank for a
- *  rank-based one) + that item's stored growth. */
+ *  rank-based one) + that item's stored growth, the growth clamped to the +3 Tune cap. */
 export function modifierValue(item, key) {
   const g = PROJECTANIME.growableModifiers?.[key];
   if (!g) return 0;
   const base = g.rankBased ? (Number(item?.system?.rank) || 1) : (g.base ?? 0);
-  return base + (item?.system?.modifierGrowth?.[key] ?? 0);
+  const growth = Math.min(PROJECTANIME.modifierGrowthMax, Math.max(0, item?.system?.modifierGrowth?.[key] ?? 0));
+  return base + growth;
 }
 
 /** The Affinity levels an Affinity Modifier may grant at a given Rank (rules: Resist; ⭐⭐⭐ may

@@ -174,6 +174,31 @@ export async function pickTargetsDialog(tokens) {
 }
 
 /* -------------------------------------------- */
+/*  Self-centered Burst (emanation)             */
+/* -------------------------------------------- */
+
+/** A SELF-CENTERED Burst: a circle of `distanceTiles` radius centered on the origin token — no
+ *  interactive placement, the caster IS the centre. Persists a MeasuredTemplate for visual feedback
+ *  (best-effort; targets are captured first so it works even without create permission) and returns
+ *  every token caught under it (the caster included — the Skill's Target filters who's affected). */
+export async function emanateBurst(originToken, distanceTiles) {
+  if (!originToken || !canvas?.ready) return [];
+  const c = originToken.center;
+  const per = unitsPerTile();
+  const radiusPx = Math.max(0, distanceTiles) * (canvas.dimensions?.size ?? 100);
+  // A plain geometric circle (origin-local) is all templateTokens needs to test containment.
+  const tokens = templateTokens(new PIXI.Circle(0, 0, radiusPx), c.x, c.y);
+  try {
+    await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
+      user: game.user.id, t: "circle", x: c.x, y: c.y,
+      distance: distanceTiles * per, direction: 0,
+      fillColor: game.user.color?.toString?.() ?? "#ff0000"
+    }]);
+  } catch (_e) { /* creation denied — targets are already captured */ }
+  return tokens;
+}
+
+/* -------------------------------------------- */
 /*  Interactive template placement              */
 /* -------------------------------------------- */
 

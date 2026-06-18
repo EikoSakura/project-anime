@@ -156,6 +156,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
           isTrade: r.type === "trade",
           isReveal: r.type === "reveal",
           isGrant: r.type === "grant",
+          isSkillMod: r.type === "skillMod",
           items: r.items ?? [],
           predType: pt,
           predStatus: pred.status ?? "",

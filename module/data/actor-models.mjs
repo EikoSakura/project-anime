@@ -72,7 +72,11 @@ function bondField() {
     abilities: new fields.ArrayField(new fields.SchemaField({
       rank: new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 5 }),
       name: new fields.StringField({ required: false, blank: true, initial: "" }),
-      desc: new fields.StringField({ required: false, blank: true, initial: "" })
+      desc: new fields.StringField({ required: false, blank: true, initial: "" }),
+      // The no-code Effect this rank unlocks (Grant Items/Skills + buffs + Skill adjustments), authored in
+      // the shared Effect Builder on the NPC offer and copied here on forge. Projected as an always-on
+      // AE while the bond holds this rank — and its Grant rules delivered once — by helpers/bond-effect.mjs.
+      rules: new fields.ArrayField(new fields.ObjectField(), { initial: [] })
     }), { initial: [] })
   });
 }
@@ -420,8 +424,12 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
         abilityDesc: new fields.StringField({ required: false, blank: true, initial: "" }),
         rewardGold: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
         rewardSP: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
-        rewardItems: new fields.ArrayField(new fields.ObjectField(), { initial: [] })
-      }), { initial: () => [1, 2, 3, 4, 5].map((r) => ({ rank: r, abilityName: "", abilityDesc: "", rewardGold: 0, rewardSP: 0, rewardItems: [] })) })
+        rewardItems: new fields.ArrayField(new fields.ObjectField(), { initial: [] }),
+        // The mechanical Effect this rank grants — no-code Effect-Builder rules (Grant Items/Skills,
+        // passive buffs, Skill adjustments). Authored via the rank's "Edit Effect" button; copied onto the
+        // player's bond and projected/delivered as they deepen the bond (helpers/bond-effect.mjs).
+        rules: new fields.ArrayField(new fields.ObjectField(), { initial: [] })
+      }), { initial: () => [1, 2, 3, 4, 5].map((r) => ({ rank: r, abilityName: "", abilityDesc: "", rewardGold: 0, rewardSP: 0, rewardItems: [], rules: [] })) })
     });
 
     // ---- HQ work profile (roster mechanics; see the Codex Home / HQ tab) ----------------------

@@ -25,7 +25,7 @@
  * PURE in-memory transform — never call update()/setFlag() from here (infinite loop).
  */
 
-import { PROJECTANIME, skillEffectKeys, auraAudience } from "./config.mjs";
+import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
 import { elementChoices, elementLabel } from "./elements.mjs";
 import { materialCategoryLabel, materialCategoryChoices } from "./materials.mjs";
 
@@ -66,7 +66,21 @@ export const RULE_TYPES = {
   luck: "PROJECTANIME.Effect.type.luck",
   trade: "PROJECTANIME.Effect.type.trade",
   reveal: "PROJECTANIME.Effect.type.reveal",
-  grant: "PROJECTANIME.Effect.type.grant"
+  grant: "PROJECTANIME.Effect.type.grant",
+  // Modifier-scoped Skill adjustment: while live, the bearer's Skills that carry a chosen Modifier
+  // (or any Skill, any weapon attack, or their Unarmed strike) deal a flat ±damage and cost ±Energy.
+  // NOT a passive prepare rule — read at use time (collectSkillModBonuses, folded into dice.mjs).
+  skillMod: "PROJECTANIME.Effect.type.skillMod"
+};
+
+/** The "scope" a `skillMod` rule keys off: a Skill Modifier key (Burst, Pierce, …) OR one of these
+ *  pseudo-scopes. `unarmed` matches the Natural-Attack weapon (the "fighting with your hands" case);
+ *  `weapon` any weapon/shield attack; `skill` any Skill. Merged with PROJECTANIME.skillModifiers in
+ *  the builder menu (special scopes pinned first). */
+export const SKILLMOD_SCOPES = {
+  skill: "PROJECTANIME.Effect.modScope.skill",
+  weapon: "PROJECTANIME.Effect.modScope.weapon",
+  unarmed: "PROJECTANIME.Effect.modScope.unarmed"
 };
 
 /** Which roll a "roll" rule modifies. "check" applies to any 2-die Check (incl. attacks). */
@@ -254,6 +268,16 @@ export function normalizeRule(raw) {
       rule = { type: "grant", items };
       break;
     }
+    case "skillMod": {
+      const scope = (raw.scope in SKILLMOD_SCOPES || raw.scope in PROJECTANIME.skillModifiers) ? raw.scope : "burst";
+      rule = {
+        type: "skillMod",
+        scope,
+        damage: Math.round(Number(raw.damage) || 0),
+        energy: Math.round(Number(raw.energy) || 0)
+      };
+      break;
+    }
     default:
       return null;
   }
@@ -343,7 +367,8 @@ export function hasAuthoredSustainEffect(item) {
 }
 
 /** The rules a Skill's MODIFIERS contribute automatically (like bolsterHinderRules, but driven by
- *  the Modifier list instead of the Effect): Protection grants the target(s) +1 Defense; Affinity
+ *  the Modifier list instead of the Effect): Protection grants the target(s) +1 Defense (more if
+ *  Tuned — config.mjs modifierValue); Affinity
  *  (Damage) grants its chosen Element Affinity at the Rank-gated level. Used by all three delivery
  *  paths — the passive in-memory engine (below), the on-use copy (dice.mjs), and the aura
  *  projection (helpers/aura.mjs) — so every path grants the identical thing. [] for non-Skills or
@@ -353,7 +378,7 @@ export function skillModifierRules(item) {
   const sys = item.system ?? {};
   const mods = sys.modifiers ?? [];
   const out = [];
-  if (mods.includes("protection")) out.push({ type: "stat", key: "defense", value: 1 });
+  if (mods.includes("protection")) out.push({ type: "stat", key: "defense", value: modifierValue(item, "protection") });
   if (mods.includes("affinityDamage")) {
     // Multi-take: one affinity rule per take, each level clamped to what the Rank allows.
     const allowed = { resist: 1, immune: 3, absorb: 5 };
@@ -607,6 +632,47 @@ export function collectRollModifiers(actor, selector, { target = null } = {}) {
       if (!v) continue;
       out.flat += v;
       out.sources.push({ name: effect.name, value: v });
+    }
+  }
+  return out;
+}
+
+/** Does a `skillMod` rule's scope apply to THIS attack/cast? `item` is the Skill/weapon used; `src`
+ *  is the weapon actually rolled (weapon ?? item — a borrowed weapon for Weapon-range Skills). A
+ *  Modifier-key scope reads the SKILL's own modifier list; the pseudo-scopes read the weapon. */
+function skillModScopeApplies(scope, item, src) {
+  const s = src ?? item;
+  if (scope === "skill") return item?.type === "skill";
+  if (scope === "weapon") return s?.type === "weapon" || s?.type === "shield";
+  if (scope === "unarmed") return !!s?.getFlag?.(FLAG_SCOPE, "natural");
+  // A Skill Modifier key (burst, pierce, …): the acting Skill must carry it.
+  return item?.type === "skill" && (item.system?.modifiers ?? []).includes(scope);
+}
+
+/**
+ * Sum the Modifier-scoped Skill adjustments (`skillMod` rules) the actor's live effects grant to ONE
+ * attack/cast: a flat ±damage baked into the rolled output and a ±delta to the Energy cost (signed —
+ * −1 = cheaper). `item` is the Skill/weapon being used; pass `src` (the rolled weapon) so the
+ * unarmed / weapon scopes resolve correctly. Equip-/toggle-/predicate-gated like the sibling
+ * collectors. Read at use time from dice.mjs (computeDamageRoll + spendSkillEnergy).
+ * @returns {{damage:number, energy:number, sources:{name:string, value:number}[]}}
+ */
+export function collectSkillModBonuses(actor, item, { src = null, target = null } = {}) {
+  const out = { damage: 0, energy: 0, sources: [] };
+  if (!actor || !item) return out;
+  let effects;
+  try { effects = actor.appliedEffects ?? []; } catch (_) { return out; }
+  for (const effect of effects) {
+    if (!effectGateOpen(actor, effect)) continue;
+    for (const rule of effectRules(effect)) {
+      if (rule?.type !== "skillMod" || !skillModScopeApplies(rule.scope, item, src)) continue;
+      if (!predicatePasses(rule.pred, actor, target)) continue;
+      const d = Math.round(Number(rule.damage) || 0);
+      const e = Math.round(Number(rule.energy) || 0);
+      if (!d && !e) continue;
+      out.damage += d;
+      out.energy += e;
+      if (d) out.sources.push({ name: effect.name, value: d });
     }
   }
   return out;
@@ -904,6 +970,12 @@ export async function removeGrants(actor, carrierId) {
 const L = (k) => (k ? game.i18n.localize(k) : "");
 const signed = (n) => { const v = Math.round(Number(n) || 0); return v >= 0 ? `+${v}` : `${v}`; };
 
+/** Localized label for a `skillMod` rule's scope (a pseudo-scope or a Skill Modifier key). */
+function skillModScopeLabel(scope) {
+  if (scope in SKILLMOD_SCOPES) return L(SKILLMOD_SCOPES[scope]);
+  return L(PROJECTANIME.skillModifiers[scope]) || scope;
+}
+
 /** A short, localized one-line summary of a single rule (for chips on the sheets). */
 export function summarizeRule(rule) {
   switch (rule?.type) {
@@ -951,6 +1023,13 @@ export function summarizeRule(rule) {
       const names = items.map((i) => i?.name).filter(Boolean);
       const head = L("PROJECTANIME.Effect.grant");
       return names.length ? `${head}: ${names.join(", ")}` : head;
+    }
+    case "skillMod": {
+      const parts = [];
+      if (rule.damage) parts.push(`${signed(rule.damage)} ${L("PROJECTANIME.Effect.skillModDmg")}`);
+      if (rule.energy) parts.push(`${signed(rule.energy)} ${L("PROJECTANIME.Effect.skillModEnergy")}`);
+      const label = skillModScopeLabel(rule.scope);
+      return parts.length ? `${label}: ${parts.join(" · ")}` : label;
     }
     default:
       return "";
@@ -1008,6 +1087,12 @@ export function narrateRule(rule) {
       const names = (Array.isArray(rule.items) ? rule.items : []).map((i) => i?.name).filter(Boolean);
       return names.length ? `grants ${names.join(", ")}` : "";
     }
+    case "skillMod": {
+      const bits = [];
+      if (rule.damage) bits.push(`${signed(rule.damage)} damage`);
+      if (rule.energy) bits.push(`${signed(rule.energy)} Energy cost`);
+      return bits.length ? `gives ${skillModScopeLabel(rule.scope)} Skills ${bits.join(" and ")}` : "";
+    }
     default:
       return "";
   }
@@ -1042,6 +1127,8 @@ export function ruleChoices() {
     elements: elementChoices(), // already sorted by label at its source
     levels: sortChoices(map(PROJECTANIME.affinityLevels), ["none"]),
     rollSelectors: sortChoices(map(ROLL_SELECTORS)),
+    // Skill-adjustment scopes: the three pseudo-scopes pinned first, then every Skill Modifier (sorted).
+    modScopes: { ...map(SKILLMOD_SCOPES), ...sortChoices(map(PROJECTANIME.skillModifiers)) },
     conditionScopes: sortChoices(map(CONDITION_SCOPES)),
     conditions: sortChoices(Object.fromEntries((PROJECTANIME.statusConditions ?? []).map((c) => [c.id, L(c.name)]))),
     revealCategories: sortChoices(map(REVEAL_CATEGORIES)),
