@@ -1,0 +1,128 @@
+{{!-- Project: Anime — Cinematic HUD console (frameless ApplicationV2 part).
+      Always renders while enabled: full console when an actor is active, else a discoverable
+      placeholder (generic portrait + prompt) so a GM with no character/selection can still open
+      the picker and settings. Popovers live at .hud-wrap level so they work in both states. --}}
+<div class="hud-wrap">
+
+  {{#if popoverPicker}}
+  <div class="hud-popover picker">
+    <div class="pop-arrow"></div>
+    <h4>{{localize "PROJECTANIME.Hud.choose"}}</h4>
+    <div class="pgrid">
+      {{#each picks}}
+      <div class="pc{{#if sel}} sel{{/if}}" data-action="hudChoose" data-actor-id="{{id}}">
+        <div class="pav" style="background-image:url('{{img}}')"></div>
+        <div class="pmeta"><b>{{name}}</b></div>
+      </div>
+      {{else}}
+      <div class="pc-empty">{{localize "PROJECTANIME.Hud.noOwned"}}</div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if popoverSettings}}
+  <div class="hud-popover settings">
+    <div class="pop-arrow"></div>
+    <h4>{{localize "PROJECTANIME.Hud.settings"}}</h4>
+    <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.intensity.name"}}</label>
+      <div class="seg">{{#each segIntensity}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
+    </div>
+    <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.shape.name"}}</label>
+      <div class="seg">{{#each segShape}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
+    </div>
+    <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.size.name"}}</label>
+      <div class="seg">{{#each segSize}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
+    </div>
+    <div class="set-row">
+      <button type="button" class="set-toggle{{#if showParty}} on{{/if}}" data-action="hudSet" data-key="hudShowParty" data-value="{{#if showParty}}false{{else}}true{{/if}}">
+        <i class="fas {{#if showParty}}fa-square-check{{else}}fa-square{{/if}}"></i> {{localize "PROJECTANIME.Settings.hud.party.name"}}
+      </button>
+    </div>
+    <div class="set-row">
+      <button type="button" class="set-toggle{{#if showCombat}} on{{/if}}" data-action="hudSet" data-key="hudCombat" data-value="{{#if showCombat}}false{{else}}true{{/if}}">
+        <i class="fas {{#if showCombat}}fa-square-check{{else}}fa-square{{/if}}"></i> {{localize "PROJECTANIME.Settings.hud.combat.name"}}
+      </button>
+    </div>
+    <div class="set-row">
+      <button type="button" class="set-off" data-action="hudSet" data-key="hudEnabled" data-value="false">
+        <i class="fas fa-power-off"></i> {{localize "PROJECTANIME.Hud.turnOff"}}
+      </button>
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="hud-bar">
+    {{#if hasActor}}
+    {{!-- Character anchor --}}
+    <div class="anchor">
+      <div class="portrait" data-action="hudPicker" data-tooltip="{{name}}">
+        <div class="frame"></div>
+        <div class="pimg" style="background-image:url('{{img}}')"></div>
+        <div class="gloss"></div>
+        <span class="stud n"></span><span class="stud s"></span><span class="stud e"></span><span class="stud w"></span>
+        <span class="cog"><i class="fas fa-user-pen"></i></span>
+      </div>
+      <div class="who">
+        <div class="cname">{{name}}</div>
+        <div class="barrow"><span class="lab">{{localize "PROJECTANIME.Stat.hpShort"}}</span>
+          <div class="bar"><div class="fill hp-fill" style="width:{{vitals.hp.pct}}%"></div></div>
+          <span class="val">{{vitals.hp.value}}/{{vitals.hp.max}}</span></div>
+        <div class="barrow"><span class="lab">{{localize "PROJECTANIME.Stat.energyShort"}}</span>
+          <div class="bar"><div class="fill energy-fill" style="width:{{vitals.en.pct}}%"></div></div>
+          <span class="val">{{vitals.en.value}}/{{vitals.en.max}}</span></div>
+      </div>
+    </div>
+
+    {{!-- Action deck --}}
+    <div class="deck">
+      <div class="anime-slots">
+        {{#each slots}}
+        <div class="slot{{#unless filled}} is-empty{{/unless}}" data-i="{{i}}"{{#if filled}} data-tooltip="{{name}}" style="--accent:{{accent}}"{{/if}}>
+          <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+          <div class="face"></div>
+          <span class="key">{{key}}</span>
+          {{#if filled}}
+            <div class="icon" style="background-image:url('{{img}}')"></div>
+            {{#if cost}}<span class="cost">{{cost}}</span>{{/if}}
+          {{else}}
+            <div class="empty">+</div>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+      <div class="deck-foot">
+        <div class="pages">
+          {{#each pages}}<div class="pip{{#if active}} active{{/if}}" data-action="hudPage" data-page="{{p}}" data-tooltip="{{p}}"></div>{{/each}}
+        </div>
+        <span class="hint">{{dragHint}}</span>
+      </div>
+    </div>
+
+    {{!-- Util --}}
+    <div class="util">
+      <div class="ubtn" data-action="hudSheet" data-tooltip="{{localize 'PROJECTANIME.Hud.openSheet'}}"><i class="fas fa-id-badge"></i></div>
+      <div class="ubtn" data-action="hudSettings" data-tooltip="{{localize 'PROJECTANIME.Hud.settings'}}"><i class="fas fa-sliders"></i></div>
+    </div>
+
+    {{else}}
+    {{!-- No active actor: discoverable placeholder. --}}
+    <div class="anchor noactor">
+      <div class="portrait" data-action="hudPicker" data-tooltip="{{localize 'PROJECTANIME.Hud.assignTip'}}">
+        <div class="frame"></div>
+        <div class="pimg" style="background-image:url('{{img}}')"></div>
+        <div class="gloss"></div>
+        <span class="stud n"></span><span class="stud s"></span><span class="stud e"></span><span class="stud w"></span>
+        <span class="cog"><i class="fas fa-user-pen"></i></span>
+      </div>
+      <div class="who">
+        <div class="cname">{{noActorName}}</div>
+        <div class="prompt">{{prompt}}</div>
+      </div>
+    </div>
+    <div class="util">
+      <div class="ubtn" data-action="hudSettings" data-tooltip="{{localize 'PROJECTANIME.Hud.settings'}}"><i class="fas fa-sliders"></i></div>
+    </div>
+    {{/if}}
+  </div>
+</div>

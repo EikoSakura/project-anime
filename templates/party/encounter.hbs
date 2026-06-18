@@ -1,6 +1,27 @@
 {{!-- Encounter tab (GM-only part): difficulty → budget, and the monster tally vs that budget. --}}
 <section class="party-pane{{#if onEncounter}} active{{/if}}" data-pane="encounter">
   <div class="party-section party-budget">
+    <label class="party-manual-toggle">
+      <input type="checkbox" name="system.encounterManual" {{#if encounterManual}}checked{{/if}} />
+      <span>{{localize "PROJECTANIME.Party.manualEstimate"}}</span>
+    </label>
+
+    {{#if encounterManual}}
+    <div class="party-manual-fields">
+      <label class="party-field">
+        <span class="party-label">{{localize "PROJECTANIME.Party.players"}}</span>
+        <input type="number" name="system.encounterPlayers" value="{{encounterPlayers}}" min="1" step="1" />
+      </label>
+      <label class="party-field party-field-sp">
+        <span class="party-label">{{localize "PROJECTANIME.Party.totalSP"}}</span>
+        <input type="number" name="system.encounterSP" value="{{encounterSP}}" min="0" step="1" />
+      </label>
+      <button type="button" class="party-pull" data-action="pullRoster">
+        <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.Party.pullRoster"}} <span class="party-pull-n">{{rosterPower}}</span>
+      </button>
+    </div>
+    {{/if}}
+
     <div class="party-budget-head">
       <label class="party-diff">
         <span class="party-label">{{localize "PROJECTANIME.Party.difficulty"}}</span>
@@ -24,6 +45,9 @@
       <span class="party-spent{{#if over}} over{{/if}}">{{spent}} / {{budget}}</span>
     </h3>
     <div class="party-meter"><div class="party-meter-fill{{#if over}} over{{/if}}" style="width: {{usePct}}%"></div></div>
+    {{#if actionEcon}}
+    <p class="party-econ {{actionEcon.tone}}"><i class="fas fa-users-between-lines"></i> {{actionEcon.label}}</p>
+    {{/if}}
     <div class="party-drop" data-drop="encounter">
       {{#each encounter as |m|}}
       <div class="party-row{{#if m.missing}} missing{{/if}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.tierColor}}">

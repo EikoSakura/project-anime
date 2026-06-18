@@ -63,3 +63,4 @@ export function elementLabel(key) {
 export function isImageIcon(icon) {
   return typeof icon === "string" && /\.(webp|png|jpe?g|svg|gif|avif)$/i.test(icon.trim());
 }
+

@@ -1,11 +1,14 @@
 {{!-- In-game Skill Builder: hub / build wizard / advance (improve). --}}
 <div class="sb-body">
 
+  {{!-- A standalone (world/compendium) Skill has no SP balance to show. --}}
+  {{#unless isStandalone}}
   <div class="sb-sp" title="{{localize 'PROJECTANIME.Stat.skillPoints'}}">
     <i class="fas fa-star"></i>
     <span class="sb-sp-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
     <span class="sb-sp-val">{{sp}}</span>
   </div>
+  {{/unless}}
 
   {{!-- ============================ HUB ============================ --}}
   {{#if isHub}}
@@ -111,27 +114,30 @@
           <span class="sb-label">{{localize "PROJECTANIME.Skill.field.attrB"}}</span>
           <select name="attrB">{{selectOptions attributeChoices selected=draft.attrB localize=true}}</select>
         </label>
-        <label class="sb-field{{#unless rangeHasTiles}} span-2{{/unless}}">
-          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.range"}}</span>
-          <select name="rangeScope">{{selectOptions rangeChoices selected=draft.range.scope localize=true}}</select>
-        </label>
-        {{#if rangeHasTiles}}
+      </div>
+      <label class="sb-field">
+        <span class="sb-label">{{localize "PROJECTANIME.Skill.field.effect"}}</span>
+        <select name="effect">
+          {{#each effectChoices}}
+          <option value="{{key}}" {{#if selected}}selected{{/if}}{{#if gated}} disabled{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <p class="sb-effect-desc">{{effectDesc}}</p>
+      {{#if skillEvasionPair}}
+      <div class="sb-field-grid">
         <label class="sb-field">
-          <span class="sb-label">{{localize "PROJECTANIME.Skill.tiles"}} <span class="sb-cap">({{localize "PROJECTANIME.SkillBuilder.upTo"}} {{rangeRec}})</span></span>
-          <input type="number" name="rangeTiles" value="{{draft.range.tiles}}" min="0" step="1" />
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillEvasionA"}}</span>
+          <select disabled><option selected>{{skillEvasionPair.a}}</option></select>
+        </label>
+        {{#if skillEvasionPair.b}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillEvasionB"}}</span>
+          <select disabled><option selected>{{skillEvasionPair.b}}</option></select>
         </label>
         {{/if}}
       </div>
-    </section>
-    {{/if}}
-
-    {{#if onEffect}}
-    <section class="sb-step-body sb-effect">
-      <label class="sb-field">
-        <span class="sb-label">{{localize "PROJECTANIME.Skill.field.effect"}}</span>
-        <select name="effect">{{selectOptions effectChoices selected=draft.effect localize=true}}</select>
-      </label>
-      <p class="sb-effect-desc">{{effectDesc}}</p>
+      {{/if}}
       {{#if showEffectExtras}}
       <div class="sb-field-grid">
         {{#if showDamageDie}}
@@ -146,6 +152,12 @@
           <select name="damageType">{{selectOptions damageTypeChoices selected=draft.damageType blank=""}}</select>
         </label>
         {{/if}}
+        {{#if showControlElement}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.controlElement"}}</span>
+          <input type="text" name="controlElement" value="{{draft.controlElement}}" />
+        </label>
+        {{/if}}
         {{#if showDamagePool}}
         <label class="sb-field">
           <span class="sb-label">{{localize poolLabel}}</span>
@@ -154,18 +166,61 @@
         {{/if}}
       </div>
       {{/if}}
-      {{#if isBolsterHinder}}
+      {{#if isAttrEffect}}
+      <div class="sb-bh">
+        <div class="sb-bh-group">
+          <span class="sb-bh-label">{{#if isHinder}}{{localize "PROJECTANIME.SkillBuilder.lowerAttrs"}}{{else}}{{localize "PROJECTANIME.SkillBuilder.raiseAttrs"}}{{/if}}</span>
+          <div class="sb-field-grid">
+            {{#each effectAttrPickers as |p|}}
+            <label class="sb-field">
+              <select name="effectAttr{{p.index}}">{{selectOptions ../attributeChoices selected=p.value localize=true blank=""}}</select>
+            </label>
+            {{/each}}
+          </div>
+        </div>
+      </div>
+      {{/if}}
+    </section>
+    {{/if}}
+
+    {{#if onRange}}
+    <section class="sb-step-body sb-range">
       <div class="sb-field-grid">
-        {{#if showAttrC}}
+        <label class="sb-field{{#unless rangeHasTiles}} span-2{{/unless}}">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.range"}}</span>
+          <select name="rangeScope">{{selectOptions rangeChoices selected=draft.range.scope localize=true}}</select>
+        </label>
+        {{#if rangeHasTiles}}
         <label class="sb-field">
-          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.attrC"}}</span>
-          <select name="attrC">{{selectOptions attributeChoices selected=draft.attrC localize=true blank=""}}</select>
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.tiles"}} <span class="sb-cap">({{localize "PROJECTANIME.SkillBuilder.upTo"}} {{rangeRec}})</span></span>
+          <input type="number" name="rangeTiles" value="{{draft.range.tiles}}" min="0" step="1" />
         </label>
         {{/if}}
-        {{#if showEffectDuration}}
+      </div>
+      {{#if showTargetDuration}}
+      <div class="sb-field-grid">
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.target"}}</span>
+          {{#if targetLocked}}
+          <select name="target" disabled><option selected>{{localize "PROJECTANIME.Skill.target.self"}}</option></select>
+          {{else}}
+          <select name="target">{{selectOptions targetChoices selected=draft.target localize=true}}</select>
+          {{/if}}
+        </label>
+        {{#if showDurationField}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.duration"}}</span>
+          {{#if durationLocked}}
+          <select name="duration" disabled><option selected>{{durationLocked}}</option></select>
+          {{else}}
+          <select name="duration">{{selectOptions durationChoices selected=draft.duration localize=true}}</select>
+          {{/if}}
+        </label>
+        {{/if}}
+        {{#if showDurationTurns}}
         <label class="sb-field">
           <span class="sb-label">{{localize "PROJECTANIME.Skill.field.effectDuration"}}</span>
-          <input type="number" name="effectDuration" value="{{draft.effectDuration}}" min="1" placeholder="{{localize 'PROJECTANIME.Skill.field.durationScene'}}" />
+          <input type="number" name="effectDuration" value="{{draft.effectDuration}}" min="1" placeholder="2" />
         </label>
         {{/if}}
       </div>
@@ -185,6 +240,92 @@
           <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
           <span class="sb-mod-name">{{mod.label}}{{#if mod.heavy}} <span class="heavy-badge">{{localize "PROJECTANIME.Skill.heavy"}}</span>{{/if}}</span>
           <span class="sb-mod-desc">{{mod.desc}}</span>
+          {{#if mod.selected}}
+          {{#if mod.isCustom}}
+          <span class="sb-mod-opts">
+            <span class="sb-mod-opt{{#if mod.customHeavy}} on{{/if}}" data-action="toggleCustomHeavy">{{localize "PROJECTANIME.Skill.heavy"}}</span>
+          </span>
+          {{/if}}
+          {{#if mod.isReequip}}
+          <span class="sb-mod-opts">
+            <span class="sb-mod-opt{{#if mod.reequipHeavy}} on{{/if}}" data-action="toggleReequipHeavy">{{localize "PROJECTANIME.Skill.heavy"}}</span>
+          </span>
+          {{/if}}
+          {{/if}}
+          {{#if mod.hasConfig}}
+          <div class="sb-mod-config">
+            {{#if mod.showInflict}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.inflictStatus"}}</span>
+              <select name="inflictStatus">{{selectOptions ../conditionChoices selected=../draft.inflictStatus blank=""}}</select>
+            </label>
+            {{#if ../inflictLingering}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.decayType"}}</span>
+              <select name="decayType">{{selectOptions ../damageTypeChoices selected=../draft.decayType blank=""}}</select>
+            </label>
+            {{/if}}
+            {{#if ../inflictHasPool}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.inflictPool"}}</span>
+              <select name="inflictPool">{{selectOptions ../config.damagePools selected=../draft.inflictPool localize=true}}</select>
+            </label>
+            {{/if}}
+            {{/if}}
+            {{#if mod.showAffinityDamage}}
+            {{#each mod.affinityDamageTakes as |t|}}
+            <div class="sb-take">
+              <label class="sb-field">
+                <span class="sb-label">{{localize "PROJECTANIME.Skill.field.affinityType"}}</span>
+                <select name="affinityType{{t.index}}">{{selectOptions ../../damageTypeChoices selected=t.type blank=""}}</select>
+              </label>
+              <label class="sb-field">
+                <span class="sb-label">{{localize "PROJECTANIME.Skill.field.affinityLevel"}}</span>
+                <select name="affinityLevel{{t.index}}">{{selectOptions ../../affinityLevelChoices selected=t.level}}</select>
+              </label>
+              {{#if t.removable}}<span class="sb-mod-opt sb-take-x" data-action="removeModifierTake" data-take="{{t.index}}" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeRemove'}}"><i class="fas fa-xmark"></i></span>{{/if}}
+            </div>
+            {{/each}}
+            {{/if}}
+            {{#if mod.showAffinityStatus}}
+            {{#each mod.affinityStatusTakes as |t|}}
+            <div class="sb-take">
+              <label class="sb-field">
+                <span class="sb-label">{{localize "PROJECTANIME.Skill.field.affinityStatusId"}}</span>
+                <select name="affinityStatusId{{t.index}}">{{selectOptions ../../conditionChoices selected=t.id blank=""}}</select>
+              </label>
+              {{#if t.removable}}<span class="sb-mod-opt sb-take-x" data-action="removeModifierTake" data-take="{{t.index}}" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeRemove'}}"><i class="fas fa-xmark"></i></span>{{/if}}
+            </div>
+            {{/each}}
+            {{/if}}
+            {{#if mod.showAnalyze}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.analyzeCategory"}}</span>
+              <select name="analyzeCategory">{{selectOptions ../analyzeChoices selected=../draft.analyzeCategory}}</select>
+            </label>
+            {{/if}}
+            {{#if mod.showInfuse}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.infuseKind"}}</span>
+              <select name="infuseKind">{{selectOptions ../infuseKindChoices selected=../draft.infuseKind}}</select>
+            </label>
+            {{#if ../infuseIsStatus}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.infuseStatus"}}</span>
+              <select name="infuseStatus">{{selectOptions ../conditionChoices selected=../draft.infuseStatus blank=""}}</select>
+            </label>
+            {{else}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.infuseElement"}}</span>
+              <select name="infuseElement">{{selectOptions ../damageTypeChoices selected=../draft.infuseElement blank=""}}</select>
+            </label>
+            {{/if}}
+            {{/if}}
+            {{#if mod.canTakeAgain}}
+            <span class="sb-mod-opt sb-take-add" data-action="addModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeAdd'}}"><i class="fas fa-plus"></i></span>
+            {{/if}}
+          </div>
+          {{/if}}
         </li>
         {{/each}}
       </ul>
@@ -192,7 +333,11 @@
       <div class="sb-secondary-effect">
         <label class="sb-field">
           <span class="sb-label">{{localize "PROJECTANIME.Skill.field.secondaryEffect"}}</span>
-          <select name="secondaryEffect">{{selectOptions effectChoices selected=draft.secondaryEffect localize=true}}</select>
+          <select name="secondaryEffect">
+            {{#each secondaryEffectChoices}}
+            <option value="{{key}}" {{#if selected}}selected{{/if}}{{#if gated}} disabled{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
         </label>
         <p class="sb-effect-desc">{{secondaryEffectDesc}}</p>
         {{#if showSecondaryExtras}}
@@ -207,6 +352,12 @@
           <label class="sb-field">
             <span class="sb-label">{{localize "PROJECTANIME.Skill.field.damageType"}}</span>
             <select name="secondaryDamageType">{{selectOptions damageTypeChoices selected=draft.secondaryDamageType blank=""}}</select>
+          </label>
+          {{/if}}
+          {{#if showSecondaryControlElement}}
+          <label class="sb-field">
+            <span class="sb-label">{{localize "PROJECTANIME.Skill.field.controlElement"}}</span>
+            <input type="text" name="controlElement" value="{{draft.controlElement}}" />
           </label>
           {{/if}}
           {{#if showSecondaryPool}}
@@ -234,14 +385,25 @@
       <dl class="sb-review-list">
         <div><dt>{{localize "PROJECTANIME.Skill.field.effect"}}</dt><dd>{{review.effect}}</dd></div>
         {{#if review.secondaryEffect}}<div><dt>{{localize "PROJECTANIME.Skill.field.secondaryEffect"}}</dt><dd>{{review.secondaryEffect}}</dd></div>{{/if}}
+        <div><dt>{{localize "PROJECTANIME.Skill.field.target"}}</dt><dd>{{review.target}}</dd></div>
+        {{#if review.duration}}<div><dt>{{localize "PROJECTANIME.Skill.field.duration"}}</dt><dd>{{review.duration}}</dd></div>{{/if}}
+        {{#if review.skillEvasion}}<div><dt>{{localize "PROJECTANIME.Skill.field.skillEvasion"}}</dt><dd>{{review.skillEvasion}}</dd></div>{{/if}}
+        {{#if review.affinityDamage}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.affinityDamage"}}</dt><dd>{{review.affinityDamage}}</dd></div>{{/if}}
+        {{#if review.affinityStatus}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.affinityStatus"}}</dt><dd>{{review.affinityStatus}}</dd></div>{{/if}}
+        {{#if review.inflict}}<div><dt>{{localize "PROJECTANIME.Skill.field.inflictStatus"}}</dt><dd>{{review.inflict}}</dd></div>{{/if}}
+        {{#if review.analyze}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.analyze"}}</dt><dd>{{review.analyze}}</dd></div>{{/if}}
+        {{#if review.infuse}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.infuse"}}</dt><dd>{{review.infuse}}</dd></div>{{/if}}
         <div><dt>{{localize "PROJECTANIME.SkillBuilder.attributes"}}</dt><dd>{{review.attrA}} + {{review.attrB}}</dd></div>
+        {{#if review.effectAttrs.length}}<div><dt>{{#if review.isHinder}}{{localize "PROJECTANIME.SkillBuilder.lowerAttrs"}}{{else}}{{localize "PROJECTANIME.SkillBuilder.raiseAttrs"}}{{/if}}</dt><dd>{{#each review.effectAttrs as |a|}}{{a}}{{#unless @last}}, {{/unless}}{{/each}}</dd></div>{{/if}}
         {{#if review.damageDie}}<div><dt>{{localize damageDieLabel}}</dt><dd>{{review.damageDie}}</dd></div>{{/if}}
         <div><dt>{{localize "PROJECTANIME.Skill.field.range"}}</dt><dd>{{review.range}}</dd></div>
         {{#if review.damageType}}<div><dt>{{localize "PROJECTANIME.Skill.field.damageType"}}</dt><dd>{{review.damageType}}</dd></div>{{/if}}
+        {{#if review.controlElement}}<div><dt>{{localize "PROJECTANIME.Skill.field.controlElement"}}</dt><dd>{{review.controlElement}}</dd></div>{{/if}}
         {{#if review.damagePool}}<div><dt>{{localize poolLabel}}</dt><dd>{{review.damagePool}}</dd></div>{{/if}}
         {{#if review.trigger}}<div><dt>{{localize "PROJECTANIME.Skill.field.trigger"}}</dt><dd>{{review.trigger}}</dd></div>{{/if}}
         {{#if review.modifiers.length}}<div><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{#each review.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}</dd></div>{{/if}}
         {{#if review.energyCost}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyCost"}}</dt><dd><i class="fas fa-bolt"></i> {{review.energyCost}}</dd></div>{{/if}}
+        {{#if review.passive}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyTax"}}</dt><dd><i class="fas fa-bolt"></i> −{{review.passiveEnergyTax}}</dd></div>{{/if}}
       </dl>
       <div class="sb-cost-line{{#unless affordable}} unaffordable{{/unless}}">
         {{localize "PROJECTANIME.SkillBuilder.cost"}}: <strong><i class="fas fa-star"></i> {{review.spCost}} {{localize "PROJECTANIME.Stat.skillPointsAbbr"}}</strong>
@@ -250,7 +412,14 @@
     {{/if}}
 
     <div class="sb-nav">
-      <button type="button" class="sb-cancel" data-action="backToHub"><i class="fas fa-xmark"></i> {{localize "Cancel"}}</button>
+      <div class="sb-nav-left">
+        <button type="button" class="sb-cancel" data-action="backToHub"><i class="fas fa-xmark"></i> {{localize "Cancel"}}</button>
+        {{!-- Standalone mode: the plain sheet's Effects tab is gone, so the wizard carries
+              the hub's Edit Mechanical Effects entry itself. --}}
+        {{#if isStandalone}}
+        <button type="button" class="sb-fx" data-action="editEffects"><i class="fas fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.SkillBuilder.editEffects"}}</button>
+        {{/if}}
+      </div>
       <div class="sb-nav-right">
         {{#unless isFirst}}<button type="button" class="sb-back" data-action="stepBack"><i class="fas fa-chevron-left"></i> {{localize "PROJECTANIME.SkillBuilder.back"}}</button>{{/unless}}
         {{#if isLast}}
@@ -280,6 +449,7 @@
       <div><dt>{{localize "PROJECTANIME.SkillBuilder.attributes"}}</dt><dd>{{skill.attrA}} + {{skill.attrB}}</dd></div>
       <div><dt>{{localize "PROJECTANIME.Skill.field.range"}}</dt><dd>{{skill.rangeLabel}}</dd></div>
       {{#if skill.energyCost}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyCost"}}</dt><dd><i class="fas fa-bolt"></i> {{skill.energyCost}}</dd></div>{{/if}}
+      {{#if skill.passive}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyTax"}}</dt><dd><i class="fas fa-bolt"></i> −{{skill.passiveEnergyTax}}</dd></div>{{/if}}
       <div><dt>{{localize "PROJECTANIME.Skill.field.accuracyMod"}}</dt><dd>+{{skill.accuracyMod}}</dd></div>
       <div class="span-2"><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{skill.modUsed}} / {{skill.modMax}}{{#if skill.modifiers.length}} — {{#each skill.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}</dd></div>
     </dl>

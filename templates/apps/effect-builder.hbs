@@ -11,6 +11,7 @@
       <label>{{localize "PROJECTANIME.Effect.name"}}</label>
       <input type="text" name="name" value="{{name}}" />
     </div>
+    {{#unless rulesOnly}}
     <label class="eb-enabled">
       <input type="checkbox" name="enabled" {{#if enabled}}checked{{/if}} />
       <span>{{localize "PROJECTANIME.Effect.enabled"}}</span>
@@ -19,13 +20,23 @@
       <input type="checkbox" name="toggle" {{#if toggle}}checked{{/if}} />
       <span>{{localize "PROJECTANIME.Effect.toggleable"}}</span>
     </label>
+    {{/unless}}
   </div>
 
+  {{#unless rulesOnly}}
   <div class="eb-duration">
     <label>{{localize "PROJECTANIME.Effect.duration"}}</label>
     <select name="durUnit">{{selectOptions choices.durations selected=durUnit}}</select>
     <input type="number" class="eb-num" name="durValue" value="{{durValue}}" min="0" step="1" />
   </div>
+  {{/unless}}
+
+  {{#if withDesc}}
+  <div class="eb-flavor">
+    <label>{{localize "PROJECTANIME.Talent.signatureFlavor"}}</label>
+    <textarea name="desc" rows="2">{{desc}}</textarea>
+  </div>
+  {{/if}}
 
   <div class="eb-rules">
     {{#each rules as |rule i|}}
@@ -41,6 +52,26 @@
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.steps"}}</span>
       {{/if}}
 
+      {{#if rule.isTalent}}
+      <select name="rules.{{i}}.mode">{{selectOptions ../choices.modes selected=rule.mode}}</select>
+      <select name="rules.{{i}}.key">{{selectOptions ../choices.talents selected=rule.key}}</select>
+      <input type="number" class="eb-num" name="rules.{{i}}.steps" value="{{rule.steps}}" min="1" max="4" step="1" />
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.steps"}}</span>
+      {{/if}}
+
+      {{#if rule.isHq}}
+      <select name="rules.{{i}}.target">{{selectOptions ../choices.hqOutputs selected=rule.target}}</select>
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.by"}}</span>
+      <input type="number" class="eb-num" name="rules.{{i}}.value" value="{{rule.value}}" step="1" />
+      {{/if}}
+
+      {{#if rule.isGather}}
+      <span class="eb-unit">+</span>
+      <input type="number" class="eb-num" name="rules.{{i}}.value" value="{{rule.value}}" min="0" step="1" />
+      <select name="rules.{{i}}.target">{{selectOptions ../choices.gather selected=rule.target}}</select>
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.perTurn"}}</span>
+      {{/if}}
+
       {{#if rule.isStat}}
       <select name="rules.{{i}}.key">{{selectOptions ../choices.stats selected=rule.key}}</select>
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.by"}}</span>
@@ -51,6 +82,13 @@
       <select name="rules.{{i}}.target">{{selectOptions ../choices.resources selected=rule.target}}</select>
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.by"}}</span>
       <input type="number" class="eb-num" name="rules.{{i}}.value" value="{{rule.value}}" step="1" />
+      {{/if}}
+
+      {{#if rule.isSustain}}
+      <span class="eb-unit">+</span>
+      <input type="number" class="eb-num" name="rules.{{i}}.value" value="{{rule.value}}" min="0" step="1" />
+      <select name="rules.{{i}}.pool">{{selectOptions ../choices.sustainPools selected=rule.pool}}</select>
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.perTurn"}}</span>
       {{/if}}
 
       {{#if rule.isAffinity}}

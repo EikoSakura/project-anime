@@ -1,0 +1,238 @@
+{{!-- Codex — QUESTS pane (the Chronicle quest log). Rail + cinematic detail. GM authors inline. --}}
+<section class="codex-pane cdx-quests{{#if onQuests}} active{{/if}}" data-pane="quests">
+<div class="chronicle-wrap">
+
+  <div class="cw-toolbar">
+    <div class="cw-search"><input type="text" placeholder="{{localize 'PROJECTANIME.Chronicle.search'}}"></div>
+    {{#if isGM}}<button type="button" class="cw-new" data-action="newQuest">＋ {{localize "PROJECTANIME.Chronicle.newQuest"}}</button>{{/if}}
+  </div>
+
+  <nav class="cw-tabs">
+    {{#each tabs}}
+    <button type="button" class="tab {{#if on}}on{{/if}}" data-action="setTab" data-tab="{{k}}" style="--tc:{{color}}">
+      <span class="pip"></span>{{label}}<b>{{n}}</b>
+    </button>
+    {{/each}}
+  </nav>
+
+  <div class="cw-body">
+
+    {{!-- ---------- rail ---------- --}}
+    <aside class="q-list">
+      {{#each quests}}
+      <div class="q-card {{#if selected}}sel{{/if}} {{#if isDone}}done{{/if}}" data-action="selectQuest"
+           data-id="{{id}}" data-title="{{title}}" style="--cat:{{color}}">
+        {{#if banner}}<div class="q-card-bg" style="background-image:url('{{banner}}'); background-position:{{bannerPos}}"></div>{{/if}}
+        {{#if isNew}}<div class="q-flag">{{localize 'PROJECTANIME.Chronicle.new'}}</div>{{/if}}
+        <div class="q-thumb">{{#if icon}}<img src="{{icon}}" alt="">{{else}}◆{{/if}}</div>
+        <div class="q-cmid">
+          <div class="qt">{{title}}</div>
+          <div class="qg"><span class="dot"></span>{{#if giverName}}{{giverName}}{{else}}{{localize 'PROJECTANIME.Chronicle.noGiver'}}{{/if}}{{#if levelNum}}<span class="q-cstars" title="{{localize 'PROJECTANIME.Chronicle.level'}} {{levelNum}}/5">{{#each levelStars}}<i class="qs {{#if on}}on{{/if}}">✦</i>{{/each}}</span>{{/if}}</div>
+        </div>
+        <div class="q-cright">
+          <div class="ring" style="--p:{{pct}}"><span>{{progLabel}}</span></div>
+        </div>
+      </div>
+      {{else}}
+      <div class="empty">{{localize 'PROJECTANIME.Chronicle.empty'}}</div>
+      {{/each}}
+    </aside>
+
+    {{!-- ---------- detail ---------- --}}
+    <main class="q-detail">
+      {{#if detail}}
+      {{#with detail}}
+
+      <div class="q-hero{{#if @root.editMode}}{{#if hasBanner}} repos{{/if}}{{/if}}" style="{{bannerStyle}}; --cat:{{color}}">
+        {{#if icon}}<div class="glyph"><img src="{{icon}}" alt=""></div>{{/if}}
+        <div class="scrim"></div><div class="shimmer"></div><div class="speed"></div>
+        <div class="q-stamp {{#if isDone}}done{{else}}active{{/if}}">{{statusLabel}}</div>
+        <div class="q-ribbon"><span>{{catLabel}}</span></div>
+        {{#if @root.editMode}}
+        <input class="hero-title-edit" data-field="title" value="{{title}}" placeholder="{{localize 'PROJECTANIME.Chronicle.titlePlaceholder'}}">
+        {{else}}
+        <h2>{{title}}</h2>
+        {{/if}}
+        <div class="meta">
+          {{#if @root.editMode}}
+          <span><i>⚐</i><input class="meta-edit" data-field="location" value="{{location}}" placeholder="{{localize 'PROJECTANIME.Chronicle.location'}}"></span>
+          <span class="q-stars edit" title="{{localize 'PROJECTANIME.Chronicle.level'}}">{{#each levelStars}}<i class="qs {{#if on}}on{{/if}}" data-action="setLevel" data-star="{{n}}" title="{{n}}">✦</i>{{/each}}</span>
+          {{else}}
+          {{#if location}}<span><i>⚐</i>{{location}}</span>{{/if}}
+          {{#if levelNum}}<span class="q-stars" title="{{localize 'PROJECTANIME.Chronicle.level'}} {{levelNum}}/5">{{#each levelStars}}<i class="qs {{#if on}}on{{/if}}">✦</i>{{/each}}</span>{{/if}}
+          {{/if}}
+        </div>
+      </div>
+
+      {{#if @root.editMode}}
+      <div class="gm-bar">
+        <label>{{localize 'PROJECTANIME.Chronicle.category'}}
+          <select data-field="category">{{#each catOptions}}<option value="{{k}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+        </label>
+        <label>{{localize 'PROJECTANIME.Chronicle.status'}}
+          <select data-field="status">{{#each statusOptions}}<option value="{{k}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+        </label>
+        <div class="art-pickers">
+          {{#if icon}}<img class="icon-preview" src="{{icon}}" alt="">{{/if}}
+          <button type="button" class="gbtn" data-action="pickIcon">🖼 {{localize 'PROJECTANIME.Chronicle.icon'}}</button>
+          <button type="button" class="gbtn" data-action="pickBanner">🖼 {{localize 'PROJECTANIME.Chronicle.banner'}}</button>
+        </div>
+        <button type="button" class="gbtn danger" data-action="deleteQuest">🗑 {{localize 'PROJECTANIME.Chronicle.delete'}}</button>
+      </div>
+      {{/if}}
+
+      <div class="q-giver">
+        {{#if giver}}
+        <div class="qp" data-action="openGiver" title="{{giver.name}}">
+          <div class="frame"></div>
+          {{#if giver.img}}<img class="img-photo" src="{{giver.img}}" alt="{{giver.name}}">{{else}}<div class="img">{{giver.initial}}</div>{{/if}}
+          <div class="gloss"></div>
+          <span class="stud n"></span><span class="stud s"></span><span class="stud e"></span><span class="stud w"></span>
+        </div>
+        <div class="gtext">
+          <span class="glabel">{{localize 'PROJECTANIME.Chronicle.giver'}}</span>
+          <span class="gname">{{giver.name}}</span>
+          {{#if @root.editMode}}
+          <input class="grole-edit" data-field="giverRole" value="{{giver.role}}" placeholder="{{localize 'PROJECTANIME.Chronicle.role'}}">
+          {{else}}{{#if giver.role}}<span class="grole">{{giver.role}}</span>{{/if}}{{/if}}
+        </div>
+        <div class="gacts">
+          <button type="button" class="gbtn" data-action="openGiver">☰ {{localize 'PROJECTANIME.Chronicle.openSheet'}}</button>
+          {{#if @root.editMode}}<button type="button" class="gbtn" data-action="clearGiver" title="{{localize 'PROJECTANIME.Chronicle.clearGiver'}}">✕</button>{{/if}}
+        </div>
+        {{else}}
+        {{#if @root.editMode}}
+        <div class="giver-drop" data-drop="giver"><i class="fa-solid fa-user-plus"></i> {{localize 'PROJECTANIME.Chronicle.dropGiver'}}</div>
+        {{else}}
+        <div class="gtext"><span class="glabel">{{localize 'PROJECTANIME.Chronicle.giver'}}</span><span class="gname muted">{{localize 'PROJECTANIME.Chronicle.unknown'}}</span></div>
+        {{/if}}
+        {{/if}}
+      </div>
+
+      <div class="q-body">
+
+        <div class="q-sec">
+          <h3>{{localize 'PROJECTANIME.Chronicle.briefing'}}</h3>
+          {{#if @root.editMode}}
+          <textarea class="brief-edit" data-field="brief" rows="4" placeholder="{{localize 'PROJECTANIME.Chronicle.briefPlaceholder'}}">{{briefRaw}}</textarea>
+          {{else}}
+          <div class="brief">{{{brief}}}</div>
+          {{/if}}
+        </div>
+
+        <div class="q-sec">
+          <h3>{{localize 'PROJECTANIME.Chronicle.objectives'}} <span class="count">{{prog.done}} / {{prog.total}}</span></h3>
+          <div class="q-prog"><div class="bar"><div class="fill" style="width:{{prog.pct}}%"></div></div><div class="ptxt">{{prog.pct}}%</div></div>
+          <div class="objs">
+            {{#each objectives}}
+            <div class="obj {{#if done}}done{{/if}} {{#if optional}}opt{{/if}} {{#if hidden}}is-hidden{{/if}}">
+              {{#if @root.isGM}}
+              <span class="box" data-action="toggleObjective" data-obj="{{id}}"></span>
+              {{else}}
+              <span class="box"></span>
+              {{/if}}
+              {{#if @root.editMode}}
+              <input class="obj-edit" data-obj="{{id}}" data-obj-field="text" value="{{text}}" placeholder="{{localize 'PROJECTANIME.Chronicle.objectivePlaceholder'}}">
+              <label class="obj-tog" title="{{localize 'PROJECTANIME.Chronicle.hiddenObj'}}"><input type="checkbox" data-obj="{{id}}" data-obj-field="hidden" {{#if hidden}}checked{{/if}}><i class="fa-solid fa-eye-slash"></i></label>
+              <label class="obj-tog" title="{{localize 'PROJECTANIME.Chronicle.optionalObj'}}"><input type="checkbox" data-obj="{{id}}" data-obj-field="optional" {{#if optional}}checked{{/if}}><i class="fa-regular fa-circle"></i></label>
+              <span class="obj-x" data-action="removeObjective" data-obj="{{id}}" title="{{localize 'PROJECTANIME.Chronicle.removeObj'}}">✕</span>
+              {{else}}
+              <div class="otext">{{text}}</div>
+              {{/if}}
+            </div>
+            {{else}}
+            <div class="obj-empty muted">{{localize 'PROJECTANIME.Chronicle.noObjectives'}}</div>
+            {{/each}}
+          </div>
+          {{#if @root.editMode}}<button type="button" class="add-line" data-action="addObjective">＋ {{localize 'PROJECTANIME.Chronicle.addObjective'}}</button>{{/if}}
+        </div>
+
+        <div class="q-sec">
+          <h3>{{localize 'PROJECTANIME.Chronicle.rewards'}}</h3>
+          <div class="rewards">
+            {{#each rewards}}
+            <div class="reward {{type}}{{#if hidden}} is-hidden{{/if}}" style="--rg:{{rg}}">
+              {{#if @root.editMode}}
+              <label class="reward-hide" title="{{localize 'PROJECTANIME.Chronicle.hiddenReward'}}"><input type="checkbox" data-rwd="{{idx}}" data-rwd-field="hidden" {{#if hidden}}checked{{/if}}><i class="fa-solid fa-eye-slash"></i></label>
+              <span class="reward-x" data-action="removeReward" data-idx="{{idx}}">✕</span>
+              {{/if}}
+              <div class="ic">{{#if img}}<img src="{{img}}" alt="{{v}}">{{else}}{{{icon}}}{{/if}}</div>
+              <div class="rv">{{v}}</div>
+              <div class="rl">{{l}}</div>
+            </div>
+            {{/each}}
+            {{#if @root.editMode}}<div class="reward-drop" data-drop="reward"><i class="fa-solid fa-arrow-down-to-bracket"></i> {{localize 'PROJECTANIME.Chronicle.dropItem'}}</div>{{/if}}
+            {{#if @root.editMode}}<div class="reward-drop bond-drop" data-drop="bond"><i class="fa-solid fa-heart"></i> {{localize 'PROJECTANIME.Chronicle.dropBond'}}</div>{{/if}}
+          </div>
+          {{#if @root.editMode}}
+          <div class="add-reward cols3">
+            <div class="ar-col">
+              <span class="ar-label"><span class="ar-glyph sp">◆</span>{{localize 'PROJECTANIME.Chronicle.reward.sp'}}</span>
+              <input data-ar="sp" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
+            </div>
+            <div class="ar-col">
+              <span class="ar-label"><span class="ar-glyph gold">G</span>{{localize 'PROJECTANIME.Chronicle.reward.gold'}}</span>
+              <input data-ar="gold" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
+            </div>
+            <div class="ar-col ar-faction">
+              <span class="ar-label"><span class="ar-glyph rep"><i class="fa-solid fa-handshake"></i></span>{{localize 'PROJECTANIME.Chronicle.factionReward'}}</span>
+              <div class="ar-faction-row">
+                <select data-ar="faction">
+                  <option value="">{{localize 'PROJECTANIME.Chronicle.selectFaction'}}</option>
+                  {{#each factionChoices}}<option value="{{id}}">{{name}}</option>{{/each}}
+                </select>
+                <input data-ar="rep" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
+              </div>
+            </div>
+            {{#if recruitChoices.length}}
+            <div class="ar-col ar-recruit">
+              <span class="ar-label"><span class="ar-glyph recruit">⚑</span>{{localize 'PROJECTANIME.Chronicle.recruitReward'}}</span>
+              <div class="ar-rec-cards">
+                {{#each recruitChoices}}
+                <button type="button" class="ar-rec-card{{#if picked}} picked{{/if}}" data-action="addRecruitReward" data-recruit-id="{{id}}" title="{{name}}">
+                  <span class="ar-rec-pic">{{#if img}}<img src="{{img}}" alt="">{{else}}<span>{{initial}}</span>{{/if}}</span>
+                  <span class="ar-rec-meta"><span class="ar-rec-name">{{name}}</span><span class="ar-rec-role">{{roleLabel}}</span></span>
+                  {{#if picked}}<span class="ar-rec-check"><i class="fas fa-check"></i></span>{{/if}}
+                </button>
+                {{/each}}
+              </div>
+            </div>
+            {{/if}}
+            <button type="button" class="gbtn ar-add" data-action="addReward">＋ {{localize 'PROJECTANIME.Chronicle.add'}}</button>
+          </div>
+          {{/if}}
+        </div>
+
+        <div class="q-actions">
+          {{#if @root.isGM}}
+            {{#if @root.editMode}}
+            <button type="button" class="act save" data-action="exitEdit">💾 {{localize 'PROJECTANIME.Chronicle.save'}}</button>
+            {{else}}
+              {{#if isDone}}
+              <button type="button" class="act track" data-action="reopen">↺ {{localize 'PROJECTANIME.Chronicle.reopen'}}</button>
+              {{else}}
+              <button type="button" class="act complete" data-action="complete">✓ {{localize 'PROJECTANIME.Chronicle.complete'}}</button>
+              <button type="button" class="act abandon" data-action="abandon">✕ {{localize 'PROJECTANIME.Chronicle.abandon'}}</button>
+              {{/if}}
+              <button type="button" class="act distribute" data-action="distribute">⤲ {{localize 'PROJECTANIME.Chronicle.distribute'}}</button>
+            {{/if}}
+          {{/if}}
+          <button type="button" class="act trackbtn {{#if tracked}}on{{/if}}" data-action="track">
+            ⚐ {{#if tracked}}{{localize 'PROJECTANIME.Chronicle.tracking'}}{{else}}{{localize 'PROJECTANIME.Chronicle.track'}}{{/if}}
+          </button>
+        </div>
+
+      </div>
+      {{/with}}
+      {{else}}
+      <div class="q-none">
+        <i class="fa-solid fa-book-open"></i>
+        <p>{{#if hasQuests}}{{localize 'PROJECTANIME.Chronicle.pickQuest'}}{{else}}{{localize 'PROJECTANIME.Chronicle.noQuestsYet'}}{{/if}}</p>
+        {{#if isGM}}<button type="button" class="act complete" data-action="newQuest">＋ {{localize 'PROJECTANIME.Chronicle.newQuest'}}</button>{{/if}}
+      </div>
+      {{/if}}
+    </main>
+
+  </div>
+</div>
+</section>

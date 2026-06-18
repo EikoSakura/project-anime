@@ -1,0 +1,209 @@
+{{!-- Codex — FACTIONS pane: the world's factions, their standing, and the Layer-4 relationship web. A
+      clean main view (ornate faction cards above an interactive relationship web) whose cards open a
+      two-page detail BOOK overlay. Read for everyone; the GM authors inline. Recruitment + the HQ live
+      on the Home tab. --}}
+<section class="codex-pane pa-factions{{#if onFactions}} active{{/if}}" data-pane="factions">
+  <div class="fx-scroll">
+
+    <div class="pf-head">
+      <h3 class="party-title"><i class="fas fa-flag"></i> {{localize "PROJECTANIME.Party.tabFactions"}}</h3>
+      <div class="pf-head-tools">
+        {{#if isGM}}
+        <button type="button" class="pf-new" data-action="newFaction"><i class="fas fa-plus"></i> {{localize "PROJECTANIME.Covenant.newFactionBtn"}}</button>
+        {{/if}}
+      </div>
+    </div>
+
+    {{!-- ===================== FACTION CARD GRID ===================== --}}
+    <div class="fgrid">
+      {{#each factions as |f|}}
+      <div class="fcard" data-fid="{{f.id}}" data-action="openFactionDrawer" style="--acc:{{f.accent}}; --tc:{{f.tierColor}}">
+        <div class="fc-banner" style="{{f.bannerStyle}}">
+          <div class="scrim"></div>
+          <div class="fc-crest"><div class="inner">{{#if f.crest}}<img src="{{f.crest}}" alt="">{{else}}<span>{{f.initial}}</span>{{/if}}</div></div>
+        </div>
+        <div class="fc-body">
+          <div class="fc-name">{{f.name}}</div>
+          {{#if f.motto}}<div class="fc-motto">{{f.motto}}</div>{{/if}}
+          <div class="fc-tier"><span class="tname">{{f.tierLabel}}</span><span class="tval">{{f.standing}} / 100</span></div>
+          <div class="meter"><div class="fill" style="width:{{f.standing}}%"></div><div class="gem" style="left:{{f.standing}}%"></div></div>
+          <div class="fc-rel">
+            {{#each f.allies}}<span class="relchip ally" title="{{name}}"><i class="fas {{icon}}"></i>{{code}}</span>{{/each}}
+            {{#each f.rivals}}<span class="relchip rival" title="{{name}}"><i class="fas {{icon}}"></i>{{code}}</span>{{/each}}
+            {{#unless f.hasRelations}}<span class="rel-none">{{localize "PROJECTANIME.Covenant.noTies"}}</span>{{/unless}}
+          </div>
+        </div>
+      </div>
+      {{else}}
+      <div class="pf-empty">
+        <i class="fa-solid fa-flag"></i>
+        <p>{{#if isGM}}{{localize "PROJECTANIME.Covenant.noneFactionsYet"}}{{else}}{{localize "PROJECTANIME.Covenant.noFactions"}}{{/if}}</p>
+      </div>
+      {{/each}}
+    </div>
+
+    {{!-- ===================== RELATIONSHIP WEB (Layer 4) ===================== --}}
+    {{!-- Interactive node-link graph beneath the faction list: hover a faction to spotlight its ties,
+          click it to open its book. Everyone can right-drag the stage to pan around. The GM left-drags
+          nodes to lay out the web (saved), toggles "Link" to wire two factions, or clicks an edge to
+          cycle its tie. SVG edges sit under absolutely-positioned HTML nodes inside a pannable canvas;
+          both share the 0–100 space the viewBox maps to (preserveAspectRatio="none"). --}}
+    {{#if hasWeb}}
+    <div class="fx-sec-label">{{localize "PROJECTANIME.Covenant.relations"}}</div>
+    <div class="fweb-wrap{{#if isGM}} gm{{/if}}">
+      {{#if isGM}}
+      <div class="fweb-tools">
+        <button type="button" class="fweb-link-btn" data-action="toggleFactionLink" title="{{localize 'PROJECTANIME.Covenant.linkHint'}}"><i class="fas fa-link"></i> {{localize "PROJECTANIME.Covenant.linkBtn"}}</button>
+      </div>
+      {{/if}}
+      <div class="fweb-frame">
+        <span class="fweb-corner tl"></span><span class="fweb-corner tr"></span><span class="fweb-corner bl"></span><span class="fweb-corner br"></span>
+        <div class="fweb-stage">
+        <div class="fweb-canvas">
+          <svg class="fweb-edges" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {{#each web.edges}}
+            <g class="fweb-edge {{stance}}" data-a="{{aId}}" data-b="{{bId}}">
+              <line class="hit" x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}"></line>
+              <line class="vis" x1="{{x1}}" y1="{{y1}}" x2="{{x2}}" y2="{{y2}}"></line>
+            </g>
+            {{/each}}
+          </svg>
+          {{#each web.nodes}}
+          <div class="fweb-node{{#if pinned}} pinned{{/if}}" data-fid="{{id}}" style="left:{{x}}%; top:{{y}}%; --acc:{{accent}}" title="{{name}}">
+            <span class="fweb-dot">{{#if crest}}<img src="{{crest}}" alt="" draggable="false">{{else}}<span class="code">{{code}}</span>{{/if}}</span>
+            <span class="fweb-name">{{name}}</span>
+          </div>
+          {{/each}}
+          </div>{{!-- /.fweb-canvas --}}
+        </div>{{!-- /.fweb-stage --}}
+      </div>{{!-- /.fweb-frame --}}
+      <div class="mx-legend">
+        <span><i class="sw ally"></i> {{localize "PROJECTANIME.Covenant.ally"}}</span>
+        <span><i class="sw rival"></i> {{localize "PROJECTANIME.Covenant.rival"}}</span>
+      </div>
+    </div>
+    {{/if}}
+
+  </div>{{!-- /.fx-scroll --}}
+
+  {{!-- ============================ DETAIL BOOKS ============================ --}}
+  {{#each factions as |f|}}
+  <aside class="section-drawer{{#if f.isOpen}} open{{/if}}" data-drawer="{{f.id}}">
+    <div class="drawer-backdrop" data-action="closeFactionDrawer"></div>
+    <div class="book" style="--acc:{{f.accent}}; --tc:{{f.tierColor}}">
+      <a class="bk-close" data-action="closeFactionDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+
+      {{!-- POSTER PAGE --}}
+      <div class="bk-poster">
+        <div class="pbanner" style="{{f.bannerStyle}}"></div>
+        <div class="p-stars">{{#each f.tierStars}}<i class="fas fa-star{{#if on}} on{{/if}}"></i>{{/each}}</div>
+        <div class="bigcrest{{#if @root.isGM}} pickable{{/if}}"{{#if @root.isGM}} data-action="pickFactionCrest" data-fid="{{f.id}}" title="{{localize 'PROJECTANIME.Covenant.crestPick'}}"{{/if}}>
+          <div class="inner">{{#if f.crest}}<img src="{{f.crest}}" alt="">{{else}}<span>{{f.initial}}</span>{{/if}}{{#if @root.isGM}}<span class="crest-pick"><i class="fas fa-camera"></i></span>{{/if}}</div>
+        </div>
+        <div class="p-id">
+          <div class="p-name">{{f.name}}</div>
+          {{#if f.motto}}<div class="p-motto">{{f.motto}}</div>{{/if}}
+        </div>
+        <div class="p-seal"><span class="cap">{{localize "PROJECTANIME.Covenant.standingLabel"}}</span><b>{{f.standing}}</b><span class="cap tname">{{f.tierLabel}}</span></div>
+      </div>
+
+      {{!-- INFO / AUTHORING PAGE --}}
+      <div class="bk-info">
+        <div class="bk-banner"><i class="fas fa-flag"></i> {{f.name}}</div>
+        <div class="bk-body">
+          {{#if @root.isGM}}
+          <input class="bk-name-edit" data-fid="{{f.id}}" data-ffield="name" value="{{f.name}}" placeholder="{{localize 'PROJECTANIME.Covenant.factionNamePlaceholder'}}">
+          <input class="bk-motto-edit" data-fid="{{f.id}}" data-ffield="motto" value="{{f.motto}}" placeholder="{{localize 'PROJECTANIME.Covenant.mottoPlaceholder'}}">
+          {{/if}}
+
+          <span class="bk-sec">{{localize "PROJECTANIME.Covenant.standingLabel"}}</span>
+          <div class="standing-full">
+            <div class="barwrap">
+              <div class="zones"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="fill" style="width:{{f.standing}}%"><span class="gem"></span></div>
+            </div>
+            <div class="tierrow">{{#each f.tiers}}<span class="{{#if cur}}cur{{/if}}">{{label}}</span>{{/each}}</div>
+            {{#if @root.isGM}}
+            <div class="adj">
+              <button type="button" data-action="factionRepDown" data-fid="{{f.id}}">−</button>
+              <input class="rep-input" type="number" min="0" max="100" data-fid="{{f.id}}" data-ffield="standing" value="{{f.standing}}">
+              <button type="button" data-action="factionRepUp" data-fid="{{f.id}}">＋</button>
+            </div>
+            {{/if}}
+          </div>
+
+          <span class="bk-sec">{{localize "PROJECTANIME.Covenant.relations"}}</span>
+          <div class="rel-list">
+            {{#each f.allies}}<span class="relchip ally" title="{{name}}"><i class="fas {{icon}}"></i> {{localize "PROJECTANIME.Covenant.ally"}} · {{name}}</span>{{/each}}
+            {{#each f.rivals}}<span class="relchip rival" title="{{name}}"><i class="fas {{icon}}"></i> {{localize "PROJECTANIME.Covenant.rival"}} · {{name}}</span>{{/each}}
+            {{#unless f.hasRelations}}<span class="rel-none">{{localize "PROJECTANIME.Covenant.noTies"}}</span>{{/unless}}
+          </div>
+
+          <span class="bk-sec">{{localize "PROJECTANIME.Covenant.boons"}}</span>
+          <div class="ladder">
+            {{#each f.perks}}
+            <div class="rung{{#if on}} reached{{/if}}{{#if claimed}} claimed{{/if}}" style="--tc:{{tierColor}}">
+              <span class="rbadge">{{tierLabel}}</span>
+              <div class="rmid">
+                {{#if @root.isGM}}
+                <input class="perk-edit" data-fid="{{f.id}}" data-fperk="{{tier}}" value="{{text}}" placeholder="{{localize 'PROJECTANIME.Covenant.perkPlaceholder'}}">
+                <div class="rrew">
+                  <label class="m-num"><i class="fas fa-coins"></i><span class="cap">{{localize "PROJECTANIME.Bond.gold"}}</span><input type="number" min="0" data-fid="{{f.id}}" data-freward-rank="{{tier}}" data-freward-field="rewardGold" value="{{rewardGold}}"></label>
+                  <label class="m-num"><i class="fas fa-star"></i><span class="cap">{{localize "PROJECTANIME.Bond.sp"}}</span><input type="number" min="0" data-fid="{{f.id}}" data-freward-rank="{{tier}}" data-freward-field="rewardSP" value="{{rewardSP}}"></label>
+                  <div class="rew-drop drop" data-fid="{{f.id}}" data-faction-reward-drop="{{tier}}">
+                    {{#each rewardItems}}
+                    <span class="rew-item" title="{{name}}"><img src="{{img}}" alt=""><span>{{name}}</span><a class="rew-x" data-action="removeFactionRewardItem" data-fid="{{f.id}}" data-freward-rank="{{../tier}}" data-reward-item="{{idx}}">✕</a></span>
+                    {{else}}
+                    <span class="frew-drop-hint">{{localize "PROJECTANIME.NpcBond.dropItem"}}</span>
+                    {{/each}}
+                  </div>
+                </div>
+                {{else}}
+                {{#if text}}<div class="rtext">{{text}}</div>{{/if}}
+                {{#if hasReward}}
+                <div class="rrew read">
+                  {{#if rewardGold}}<span class="m-num"><i class="fas fa-coins"></i> {{rewardGold}}</span>{{/if}}
+                  {{#if rewardSP}}<span class="m-num"><i class="fas fa-star"></i> {{rewardSP}}</span>{{/if}}
+                  {{#each rewardItems}}<span class="rew-item" title="{{name}}"><img src="{{img}}" alt=""><span>{{name}}</span></span>{{/each}}
+                </div>
+                {{/if}}
+                {{/if}}
+              </div>
+              {{#if claimed}}<span class="claim"><i class="fas fa-check"></i></span>{{/if}}
+            </div>
+            {{/each}}
+          </div>
+
+          <span class="bk-sec">{{localize "PROJECTANIME.Covenant.theFaction"}}</span>
+          {{#if @root.isGM}}
+          <textarea class="lore-edit" data-fid="{{f.id}}" data-ffield="lore" rows="3" placeholder="{{localize 'PROJECTANIME.Covenant.lorePlaceholder'}}">{{f.loreRaw}}</textarea>
+          {{else}}{{#if f.lore}}<div class="lore">{{{f.lore}}}</div>{{/if}}{{/if}}
+
+          {{#if f.members.length}}
+          <span class="bk-sec">{{localize "PROJECTANIME.Covenant.members"}} · {{f.memberCount}}</span>
+          <div class="members">
+            {{#each f.members}}
+            <div class="member"{{#if ref}} data-ref="{{ref}}" data-action="openActor"{{/if}} title="{{owner}}" style="--acc:{{accent}}">
+              <div class="mframe"><div class="fr"></div><div class="fc2">{{#if img}}<img src="{{img}}" alt="">{{else}}<span>{{initial}}</span>{{/if}}</div></div>
+              <div class="mn">{{name}}</div>
+              <div class="ms">{{starsStr}}</div>
+            </div>
+            {{/each}}
+          </div>
+          {{/if}}
+
+          {{#if @root.isGM}}
+          <div class="bk-tools">
+            <input class="color-edit" type="color" data-fid="{{f.id}}" data-ffield="accent" value="{{f.accent}}" title="{{localize 'PROJECTANIME.Covenant.crestColor'}}">
+            <button type="button" class="gbtn" data-action="pickFactionBanner" data-fid="{{f.id}}"><i class="fas fa-image"></i> {{localize "PROJECTANIME.Covenant.banner"}}</button>
+            <button type="button" class="gbtn danger" data-action="deleteFaction" data-fid="{{f.id}}"><i class="fas fa-trash"></i> {{localize "PROJECTANIME.Covenant.delete"}}</button>
+          </div>
+          {{/if}}
+
+        </div>
+      </div>
+    </div>
+  </aside>
+  {{/each}}
+
+</section>

@@ -2,17 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "foundry",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["C:/Program Files/Foundry Virtual Tabletop/resources/app/main.mjs", "--dataPath=C:/Users/sword/AppData/Local/FoundryVTT", "--port=30000", "--noupdate"],
-      "port": 30000
-    },
-    {
-      "name": "foundry-proxy",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [".claude/proxy.mjs"],
-      "port": 30001
+      "name": "mockup",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8137", "--directory", "mockups"],
+      "port": 8137
     }
-  ],
-  "autoVerify": false
+  ]
 }

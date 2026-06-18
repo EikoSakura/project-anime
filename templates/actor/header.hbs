@@ -1,6 +1,6 @@
 {{!-- Persistent side panel (Character & NPC) — Log Horizon-style status panel --}}
 <header class="sheet-header">
-  <div class="portrait">
+  <div class="portrait{{#if isNPC}} portrait-card{{/if}}">
     <div class="portrait-frame">
       <img class="profile-img" src="{{actor.img}}" data-action="editImage" data-edit="img"
            title="{{actor.name}}" alt="{{actor.name}}" />
@@ -9,6 +9,11 @@
     <i class="stud stud-e"></i>
     <i class="stud stud-s"></i>
     <i class="stud stud-w"></i>
+    {{#if isNPC}}
+    <button type="button" class="role-crest nested{{#if isNpcRole}} npc{{/if}}" data-action="toggleRole" title="{{localize 'PROJECTANIME.NpcRole.toggle'}}" aria-label="{{localize 'PROJECTANIME.NpcRole.toggle'}}">
+      <span class="dia"><span class="face">{{#if isNpcRole}}<i class="fas fa-user"></i>{{else}}<i class="fas fa-dragon"></i>{{/if}}</span></span>
+    </button>
+    {{/if}}
   </div>
 
   <input class="char-name" type="text" name="name" value="{{actor.name}}" placeholder="{{localize 'Name'}}" />
@@ -29,9 +34,9 @@
 
   {{#if isNPC}}
   <div class="header-actions">
-    <button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.MonsterCreator.title'}}">
+    {{#if isMonster}}<button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.MonsterCreator.title'}}">
       <i class="fas fa-dragon"></i><span>{{localize "PROJECTANIME.MonsterCreator.open"}}</span>
-    </button>
+    </button>{{/if}}
     <button type="button" class="advance-btn" data-action="openAdvancement" title="{{localize 'PROJECTANIME.Advancement.title'}}">
       <i class="fas fa-arrow-up-right-dots"></i><span>{{localize "PROJECTANIME.Advancement.open"}}</span>
     </button>

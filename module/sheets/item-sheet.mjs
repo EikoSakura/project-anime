@@ -1,9 +1,10 @@
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices, elementLabel } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles, skillEffectKeys } from "../helpers/config.mjs";
+import { rangeLabel, physicalRangeLabel, rangeHasTiles, skillEffectKeys, isHeavyModifier, skillTarget, skillDuration, skillEvasionAttr, skillEvasionLabel } from "../helpers/config.mjs";
 import { skillRulesHTML } from "../helpers/skill-description.mjs";
 import { summarizeRules, grantRefs } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
+import { SkillBuilderApp } from "../apps/skill-builder.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ItemSheetV2 } = foundry.applications.sheets;
@@ -26,7 +27,8 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       addEffect: ProjectAnimeItemSheet.#onAddEffect,
       editEffect: ProjectAnimeItemSheet.#onEditEffect,
       deleteEffect: ProjectAnimeItemSheet.#onDeleteEffect,
-      toggleEffectEnabled: ProjectAnimeItemSheet.#onToggleEffectEnabled
+      toggleEffectEnabled: ProjectAnimeItemSheet.#onToggleEffectEnabled,
+      openSkillBuilder: ProjectAnimeItemSheet.#onOpenSkillBuilder
     }
   };
 
@@ -65,6 +67,19 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
 
   /** Saved scroll position of .window-content, restored after re-renders (submitOnChange). */
   #scroll = 0;
+
+  /** @override — an editable standalone (world/compendium) Skill has no plain edit sheet:
+   *  every render request (sidebar double-click, content link, the create dialog's auto-open)
+   *  shows the Skill Builder wizard instead. Read-only contexts (locked pack, no permission)
+   *  keep this sheet as the view surface; actor-owned Skills keep it too — their edit path
+   *  already routes through the actor's Builder. */
+  async render(options = {}, _options = {}) {
+    if (this.item.type === "skill" && !this.item.parent && this.isEditable) {
+      SkillBuilderApp.openForItem(this.item);
+      return this;
+    }
+    return super.render(options, _options);
+  }
 
   /** @override — render the shared header, the type-specific body, and the description. */
   _configureRenderOptions(options) {
@@ -116,6 +131,16 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     return context;
   }
 
+  /** @override — Skill sheets get a header control into the Skill Builder wizard (built
+   *  fresh each render; mutating the parent's options-backed array would duplicate it). */
+  _getHeaderControls() {
+    const controls = [...super._getHeaderControls()];
+    if (this.item.type === "skill" && this.isEditable) {
+      controls.unshift({ icon: "fa-solid fa-wand-sparkles", label: "PROJECTANIME.SkillBuilder.title", action: "openSkillBuilder" });
+    }
+    return controls;
+  }
+
   /** @override — replace native dropdowns with the themed custom widget. */
   async _onRender(context, options) {
     await super._onRender(context, options);
@@ -156,6 +181,8 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       context.isReact = sys.actionType === "react";
       context.isStrike = sys.effect === "strike";
       context.showDamageType = cfg.damageEffects.includes(sys.effect);
+      // Elemental Control's free-text element (either Effect slot may hold EC).
+      context.showControlElement = skillEffectKeys(sys).includes("elementalControl");
       context.showDamageDie = cfg.dieEffects.includes(sys.effect);
       context.damageDieChoices = {
         attrA: game.i18n.localize(cfg.attributes[sys.attributes?.attrA] ?? sys.attributes?.attrA ?? "attrA"),
@@ -178,13 +205,14 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         key,
         label: game.i18n.localize(label),
         desc: game.i18n.localize(`PROJECTANIME.Skill.modifierDesc.${key}`),
-        heavy: cfg.heavyModifiers.includes(key),
+        heavy: isHeavyModifier(key, sys),
         selected: (sys.modifiers ?? []).includes(key)
       }));
-      // Passive Skills cost no Energy, so the header summary is just the rank stars.
+      // Active Skills show their Energy cost; a Passive shows its max-Energy tax instead.
+      const stars = context.rankInfo.stars ?? "";
       context.summary = sys.energyCost > 0
-        ? `${context.rankInfo.stars ?? ""} · ${sys.energyCost} EN`
-        : `${context.rankInfo.stars ?? ""}`;
+        ? `${stars} · ${sys.energyCost} EN`
+        : (sys.actionType === "passive" && sys.passiveEnergyTax > 0 ? `${stars} · −${sys.passiveEnergyTax} Max EN` : `${stars}`);
     } else if (this.item.type === "weapon" || this.item.type === "shield") {
       context.accuracyFormula = `⟪${this.#attrName(sys.accuracy.attrA)}⟫ + ⟪${this.#attrName(sys.accuracy.attrB)}⟫`;
     } else if (this.item.type === "consumable") {
@@ -203,7 +231,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     const push = (label, value) => { if (value !== undefined && value !== null && value !== "") rows.push({ label, value }); };
     const accuracy = () => `${context.accuracyFormula ?? ""}${sys.accuracy?.mod ? ` ${signed(sys.accuracy.mod)}` : ""}`.trim();
     const damage = () => `${signed(sys.damage?.mod)} · ${elementLabel(sys.damage?.type)}`;
-    const phRange = () => `${L(cfg.rangeTypes[sys.range?.type])} · ${sys.range?.tiles ?? 0}`;
+    const phRange = () => physicalRangeLabel(sys.range);
 
     switch (this.item.type) {
       case "weapon":
@@ -258,16 +286,35 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         push("PROJECTANIME.Skill.field.rank", `${r.stars ?? ""} ${L(r.label)}`.trim());
         push("PROJECTANIME.Skill.field.actionType", L(cfg.actionTypes[sys.actionType]));
         push("PROJECTANIME.Skill.field.effect", skillEffectKeys(sys).map((k) => L(cfg.skillEffects[k])).join(" + "));
+        push("PROJECTANIME.Skill.field.target", L(cfg.skillTargets[skillTarget(sys)]));
+        // Duration (rules v0.01): Standard shows its turn count; passives are always-on (no row).
+        if (sys.actionType !== "passive" && sys.effect !== "passive") {
+          const dur = skillDuration(sys);
+          push("PROJECTANIME.Skill.field.duration", dur === "standard"
+            ? `${L(cfg.skillDurations.standard)} · ${sys.effectDuration ?? cfg.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`
+            : L(cfg.skillDurations[dur]));
+        }
+        if (skillEvasionAttr(sys)) push("PROJECTANIME.Skill.field.skillEvasion", skillEvasionLabel(skillEvasionAttr(sys)));
         push("PROJECTANIME.Skill.field.range", rangeLabel(sys.range));
         push("PROJECTANIME.Skill.field.attrA", `${L(cfg.attributes[sys.attributes?.attrA])} + ${L(cfg.attributes[sys.attributes?.attrB])}`);
         if (cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie", L(cfg.attributes[sys.attributes?.[sys.damageAttr]]));
         if (sys.energyCost > 0) push("PROJECTANIME.Skill.field.energyCost", sys.energyCost);
+        else if (sys.actionType === "passive" && sys.passiveEnergyTax > 0) push("PROJECTANIME.Skill.field.energyTax", `−${sys.passiveEnergyTax}`);
         push("PROJECTANIME.Skill.field.spCost", sys.spCost);
         if (sys.accuracyMod) push("PROJECTANIME.Skill.field.accuracyMod", `+${sys.accuracyMod}`);
         if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod", `+${sys.damageMod}`);
         if (sys.damageType && cfg.damageEffects.includes(sys.effect)) push("PROJECTANIME.Skill.field.damageType", elementLabel(sys.damageType));
+        if ((sys.controlElement ?? "").trim() && skillEffectKeys(sys).includes("elementalControl")) push("PROJECTANIME.Skill.field.controlElement", sys.controlElement.trim());
         if (sys.actionType === "react" && sys.trigger) push("PROJECTANIME.Skill.field.trigger", L(cfg.triggers[sys.trigger]));
         if (sys.modifiers?.length) push("PROJECTANIME.Skill.field.modifiers", sys.modifiers.map((m) => L(cfg.skillModifiers[m]) || m).join(", "));
+        // Inflict's chosen Status (+ its chosen pool for a pool-choice one — Barrier/Regen protect
+        // or restore that pool, Curse blocks that pool's recovery).
+        if ((sys.modifiers ?? []).includes("inflict") && sys.inflictStatus) {
+          const cond = (cfg.statusConditions ?? []).find((c) => c.id === sys.inflictStatus);
+          const hasPool = (cfg.poolChoiceStatuses ?? []).includes(sys.inflictStatus);
+          push("PROJECTANIME.Skill.field.inflictStatus",
+            `${cond ? L(cond.name) : sys.inflictStatus}${hasPool ? ` · ${L(cfg.damagePools[sys.inflictPool === "energy" ? "energy" : "hp"])}` : ""}`);
+        }
         break;
       }
       case "package": {
@@ -302,6 +349,14 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     return fp.browse();
   }
 
+  /** Hand the Skill to the Builder wizard — the actor-bound flow for owned Skills (SP
+   *  reconcile), the standalone flow for world/compendium ones. */
+  static #onOpenSkillBuilder() {
+    if (this.item.type !== "skill" || !this.isEditable) return;
+    if (this.item.actor) return SkillBuilderApp.open(this.item.actor, { skillId: this.item.id });
+    return SkillBuilderApp.openForItem(this.item);
+  }
+
   static async #onToggleModifier(event, target) {
     if (!this.isEditable) return;
     const key = target.dataset.modifier;
@@ -309,7 +364,10 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     const set = new Set(this.item.system.modifiers ?? []);
     if (set.has(key)) set.delete(key);
     else set.add(key);
-    await this.item.update({ "system.modifiers": [...set] });
+    const update = { "system.modifiers": [...set] };
+    // A passive-only Modifier (Aura) forces the Skill to Passive so the field actually projects.
+    if (set.has(key) && (CONFIG.PROJECTANIME.passiveOnlyModifiers ?? []).includes(key)) update["system.actionType"] = "passive";
+    await this.item.update(update);
   }
 
   /** Switch tabs via CSS (toggle .active on the live DOM) — instant, no re-render.

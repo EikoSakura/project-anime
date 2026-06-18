@@ -4,7 +4,7 @@
  * A guided ApplicationV2 that builds a combat NPC ("monster") on the SAME rules as a
  * Player Character — the five Attributes start at d4 and you spend Step-Ups; HP =
  * ⟪Might⟫×2, Energy = ⟪Spirit⟫×2 — then scales it by an anime power **Tier** (Minion /
- * Standard / Elite / Boss / Raid Boss; see PROJECTANIME.monsterTiers). The Tier sets the Step-Up
+ * Standard / Elite / Solo; see PROJECTANIME.monsterTiers). The Tier sets the Step-Up
  * budget, multiplies HP / Energy, grants flat Evasion / Defense, and hands out Skill
  * Points to build the monster's powers with the in-game Skill Builder.
  *
@@ -138,7 +138,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.name = this.actor.name;
     ctx.img = this.actor.img;
     ctx.biography = sys.biography ?? "";
-    ctx.disposition = sys.disposition ?? "neutral";
+    ctx.disposition = sys.disposition ?? "hostile";
 
     // Tier — the cards (Skill Points + HP multiplier scaled to the current Encounter
     // Power) + the selected key. The dial readout shows the basis for those numbers.
@@ -191,14 +191,14 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.tierName = this.#tier() ? game.i18n.localize(this.#tier().label) : game.i18n.localize("PROJECTANIME.MonsterCreator.noTier");
     ctx.vitals = {
       hp: sys.hp.max,
-      energy: sys.energy.max,
+      energy: sys.energy.base ?? sys.energy.max,
       evasion: sys.evasion.value,
       defense: sys.defense.value,
       movement: sys.movement.value,
       carry: sys.carryingCapacity.max
     };
     ctx.vitalNote = game.i18n.format("PROJECTANIME.MonsterCreator.vitalNote", { mult: ctx.mult, tier: ctx.tierName });
-    ctx.vitalsStale = sys.hp.max !== Math.round(might * 2 * rawMult) || sys.energy.max !== Math.round(spirit * 2 * rawMult);
+    ctx.vitalsStale = sys.hp.max !== Math.round(might * 2 * rawMult) || (sys.energy.base ?? sys.energy.max) !== Math.round(spirit * 2 * rawMult);
 
     // Basic Attacks — natural weapons. The rules' "Basic Attack" strikes with an equipped
     // weapon and costs NO Energy (and no Skill Points); these roll through rollAttack from

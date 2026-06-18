@@ -1,9 +1,9 @@
 import { rollCheck, rollInitiative, useConsumable } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { rangeLabel, skillEffectKeys } from "../helpers/config.mjs";
+import { rangeLabel, physicalRangeLabel, skillEffectKeys } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
-import { summarizeRules, collectToggles, applyEffectCopy } from "../helpers/effects.mjs";
+import { summarizeRules, narrateRule, normalizeRule, collectToggles, applyEffectCopy } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 import { AdvancementApp } from "../apps/advancement.mjs";
 import { RestApp } from "../apps/rest.mjs";
@@ -12,6 +12,9 @@ import { CharacterCreatorApp } from "../apps/character-creator.mjs";
 import { MonsterCreatorApp } from "../apps/monster-creator.mjs";
 import { SkillLogApp } from "../apps/skill-log.mjs";
 import { skillPointLedger } from "../helpers/skill-points.mjs";
+import { blankBond, getBonds, saveBonds, BOND_MAX_RANK, npcBond, npcBondRanks, forgeBondFromNpc } from "../helpers/bonds.mjs";
+import { getFactions, clampStanding } from "../helpers/factions.mjs";
+import { confirmAndDismiss } from "../helpers/servants.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
@@ -22,6 +25,9 @@ const GEAR_GROUPS = ["weapon", "armor", "shield", "accessory", "consumable", "ge
 
 /** Item types that can be equipped (and so get an equip toggle). */
 const EQUIPPABLE = new Set(["weapon", "armor", "shield", "accessory"]);
+
+/** Item types that can be copied onto an actor via drag-drop (every embeddable Item type). */
+const TRANSFERABLE_ITEM_TYPES = new Set([...GEAR_GROUPS, "skill", "container", "package"]);
 
 /** Paperdoll equip slots, positioned over the portrait in the Gear drawer (the
  *  template places each by `key` via CSS). The two accessory slots use the
@@ -46,8 +52,44 @@ const SLOT_ACCEPTS = {
 /** Stable inventory ordering: by sort, then name. */
 const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
 
-/** Sections that open as slide-in drawers (Stats is the always-visible main view). */
-const DRAWER_SECTIONS = ["skills", "gear", "biography", "defenses", "effects"];
+/** First letter of a bond's name (the diamond-portrait fallback when there's no image). */
+const initialOf = (name) => String(name || "?").trim().charAt(0).toUpperCase() || "?";
+
+/** Default icon for a Signature Trait / Trait card before one is chosen. */
+const DEFAULT_TRAIT_IMG = "icons/svg/aura.svg";
+
+/* ---- Signature Trait / Trait card auto-description (a skill-style rules line) ---- */
+const escTraitHtml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/** Wrap dice / signed ints / percents in the gold "number" span (matches skill descriptions). */
+const colorizeTraitNums = (s) => String(s ?? "").replace(/(\bd\d+\b|[+\-−]?\d+%?)/g, (m) => `<span class="nd-num">${m}</span>`);
+/** Join clauses naturally: "a", "a and b", "a, b, and c". */
+const joinTraitClauses = (arr) => {
+  const a = arr.filter(Boolean);
+  if (a.length <= 1) return a.join("");
+  if (a.length === 2) return `${a[0]} and ${a[1]}`;
+  return `${a.slice(0, -1).join(", ")}, and ${a[a.length - 1]}`;
+};
+/** The auto-written rules line (+ optional flavor) for a Signature/Trait card, as safe HTML. The
+ *  mechanics describe themselves (numbers in gold); flavor is escaped user prose for bespoke abilities. */
+function traitCardDescHTML(rules, flavor) {
+  const clauses = (rules ?? []).map((r) => narrateRule(normalizeRule(r))).filter(Boolean);
+  let s = joinTraitClauses(clauses);
+  if (s) s = colorizeTraitNums(escTraitHtml(s.charAt(0).toUpperCase() + s.slice(1) + "."));
+  const fl = (flavor ?? "").trim();
+  const parts = [];
+  if (fl) parts.push(`<span class="nd-flavor">${escTraitHtml(fl)}</span>`);
+  if (s) parts.push(`<span class="nd-rules">${s}</span>`);
+  return parts.join(" ");
+}
+
+/** Fallback hero gradient when a bond has no banner — built from its accent colour. */
+const bondHeroGrad = (acc) =>
+  `radial-gradient(120% 120% at 78% 8%, color-mix(in srgb, ${acc} 42%, transparent), transparent 55%), ` +
+  `linear-gradient(150deg, #2c2340, #1c1730 60%, #120e1c)`;
+
+/** Sections that open as slide-in drawers (Stats is the always-visible main view). The Bonds
+ *  drawer (a character's own relationship cards) is Character-only — see _configureRenderOptions. */
+const DRAWER_SECTIONS = ["skills", "gear", "biography", "defenses", "effects", "bonds", "npcbond"];
 
 /**
  * ApplicationV2 actor sheet shared by Character and NPC. Stats is the always-on
@@ -84,12 +126,36 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       cycleAffinity: ProjectAnimeActorSheet.#onCycleAffinity,
       openDrawer: ProjectAnimeActorSheet.#onOpenDrawer,
       closeDrawer: ProjectAnimeActorSheet.#onCloseDrawer,
+      rollTalent: ProjectAnimeActorSheet.#onRollTalent,
+      editSignature: ProjectAnimeActorSheet.#onEditSignature,
+      clearSignature: ProjectAnimeActorSheet.#onClearSignature,
+      addTrait: ProjectAnimeActorSheet.#onAddTrait,
+      editTrait: ProjectAnimeActorSheet.#onEditTrait,
+      removeTrait: ProjectAnimeActorSheet.#onRemoveTrait,
       rollInitiative: ProjectAnimeActorSheet.#onRollInitiative,
       openAdvancement: ProjectAnimeActorSheet.#onOpenAdvancement,
       openRest: ProjectAnimeActorSheet.#onOpenRest,
       buildSkill: ProjectAnimeActorSheet.#onBuildSkill,
       openCreator: ProjectAnimeActorSheet.#onOpenCreator,
-      openSkillLog: ProjectAnimeActorSheet.#onOpenSkillLog
+      openSkillLog: ProjectAnimeActorSheet.#onOpenSkillLog,
+      flipBond: ProjectAnimeActorSheet.#onFlipBond,
+      newBond: ProjectAnimeActorSheet.#onNewBond,
+      deleteBond: ProjectAnimeActorSheet.#onDeleteBond,
+      deepenBond: ProjectAnimeActorSheet.#onDeepenBond,
+      lessenBond: ProjectAnimeActorSheet.#onLessenBond,
+      addBondVital: ProjectAnimeActorSheet.#onAddBondVital,
+      removeBondVital: ProjectAnimeActorSheet.#onRemoveBondVital,
+      pickBondPortrait: ProjectAnimeActorSheet.#onPickBondPortrait,
+      pickBondBanner: ProjectAnimeActorSheet.#onPickBondBanner,
+      openBondActor: ProjectAnimeActorSheet.#onOpenBondActor,
+      clearBondActor: ProjectAnimeActorSheet.#onClearBondActor,
+      toggleRole: ProjectAnimeActorSheet.#onToggleRole,
+      toggleStatblock: ProjectAnimeActorSheet.#onToggleStatblock,
+      addNpcVital: ProjectAnimeActorSheet.#onAddNpcVital,
+      removeNpcVital: ProjectAnimeActorSheet.#onRemoveNpcVital,
+      removeRewardItem: ProjectAnimeActorSheet.#onRemoveRewardItem,
+      pickNpcBondBanner: ProjectAnimeActorSheet.#onPickNpcBondBanner,
+      dismissServant: ProjectAnimeActorSheet.#onDismissServant
     }
   };
 
@@ -100,12 +166,29 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     gear: { template: "systems/project-anime/templates/actor/gear.hbs", scrollable: [""] },
     biography: { template: "systems/project-anime/templates/actor/biography.hbs", scrollable: [""] },
     defenses: { template: "systems/project-anime/templates/actor/defenses-drawer.hbs" },
-    effects: { template: "systems/project-anime/templates/actor/effects-drawer.hbs" }
+    effects: { template: "systems/project-anime/templates/actor/effects-drawer.hbs" },
+    bonds: { template: "systems/project-anime/templates/actor/bonds.hbs", scrollable: [".bonds-grid"] },
+    npcbond: { template: "systems/project-anime/templates/actor/npc-bond.hbs", scrollable: [".npcbond-scroll"] }
   };
 
   /** Which section drawer is open ("skills"/"gear"/"biography"/"defenses"), or null.
    *  Transient UI state; re-applied on render so it survives re-renders. */
   #openSection = null;
+
+  /** Bond cards currently flipped to their detail face (set of bond ids). Transient UI state,
+   *  re-applied on render so a flip survives the re-render an edit triggers. */
+  #flippedBonds = new Set();
+
+  /** Queued "bond deepened" flourish: { rank, id }, set by Deepen and consumed once in _onRender
+   *  after the data-driven re-render (so the gala + star-pop fire exactly once). */
+  #bondGala = null;
+
+  /** One-shot flag → plays the role crest's flip animation once after a Monster⇄NPC toggle. */
+  #roleFlip = false;
+
+  /** Whether a social NPC's collapsible "Combat stats" block is expanded (npc-role only). Default
+   *  collapsed — an NPC leads with its dossier, with the statblock tucked away. Re-applied on render. */
+  #statblockOpen = false;
 
   /** Which bag (container) the Gear inventory is scoped to: "" = backpack, else a
    *  container item id. Drives the WoW-style bag view; survives re-renders. */
@@ -117,6 +200,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   #skillFilters = new Set();
   #skillQuery = "";
 
+  /** @override — a raised servant's sheet gets a "Dismiss" header control (its owner only): a
+   *  persistent release path beside the Animate raise card's button. Built fresh each render so
+   *  the options-backed parent array isn't mutated (which would duplicate it). */
+  _getHeaderControls() {
+    const controls = [...super._getHeaderControls()];
+    if (this.actor.getFlag("project-anime", "servantOf") && this.actor.isOwner) {
+      controls.unshift({ icon: "fas fa-person-walking-arrow-loop-left", label: "PROJECTANIME.Servant.dismiss", action: "dismissServant" });
+    }
+    return controls;
+  }
+
   /** @override — choose which parts render (handles the limited-permission view). */
   _configureRenderOptions(options) {
     super._configureRenderOptions(options);
@@ -126,6 +220,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       return;
     }
     options.parts.push("stats", "skills", "gear", "biography", "defenses", "effects");
+    // Bonds are a Player Character's own relationship cards — not shown for NPCs.
+    if (this.document.type === "character") options.parts.push("bonds");
+    // A social NPC (role "npc") authors a Bond OFFER in its own drawer; Monsters don't.
+    if (this.document.type === "npc" && this.document.system?.role === "npc") options.parts.push("npcbond");
   }
 
   /** @override */
@@ -140,8 +238,15 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.config = CONFIG.PROJECTANIME;
     context.isCharacter = this.actor.type === "character";
     context.isNPC = this.actor.type === "npc";
-    // Monster Tier badge (NPCs the Monster Creator has stamped) — null = untiered NPC.
-    const tierKey = this.actor.system.tier;
+    // NPC role: "monster" (the combat statblock) vs "npc" (a social NPC that offers a Bond). Drives
+    // the header toggle + which extra UI shows. Characters are neither.
+    context.npcRole = context.isNPC ? (this.actor.system.role ?? "monster") : null;
+    context.isNpcRole = context.isNPC && context.npcRole === "npc";
+    context.isMonster = context.isNPC && context.npcRole !== "npc";
+    // A social NPC's combat statblock is collapsible (default folded) — see stats.hbs.
+    context.statblockOpen = this.#statblockOpen;
+    // Monster Tier badge — only on a Monster-role NPC (a social NPC isn't Tiered). null otherwise.
+    const tierKey = context.isMonster ? this.actor.system.tier : null;
     const tierCfg = tierKey ? CONFIG.PROJECTANIME.monsterTiers?.[tierKey] : null;
     context.tierBadge = tierCfg
       ? { label: game.i18n.localize(tierCfg.label), icon: tierCfg.icon, color: tierCfg.color }
@@ -167,6 +272,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       iconImg: isImageIcon(f.icon),
       long: f.type === "long"
     }));
+    // Faction affiliation for a social NPC — relocated to the Biography "Profile" (was the Bond drawer).
+    // Stored at system.bond.faction; the bio select uses name= so the actor form saves it directly.
+    if (context.isNpcRole) {
+      const facId = this.actor.system.bond?.faction ?? "";
+      const facs = getFactions();
+      context.npcFaction = {
+        value: facId,
+        label: facs.find((f) => f.id === facId)?.name ?? "",
+        options: facs.map((f) => ({ id: f.id, name: f.name, sel: f.id === facId }))
+      };
+    }
     // Which section drawer is open — drives `{{#if open.<section>}}` in the templates.
     context.open = Object.fromEntries(DRAWER_SECTIONS.map((s) => [s, this.#openSection === s]));
 
@@ -235,10 +351,38 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       };
     });
 
+    // NPC HQ work profile — Talents (work dice) + the Signature Trait + Traits (npc actor type only).
+    if (context.isNPC) {
+      context.talentList = cfg.talentKeys.map((k) => {
+        const tt = this.actor.system.talents?.[k] ?? {};
+        const base = tt.base ?? 4;
+        const value = tt.value ?? base; // current die (base + any `talent` effect), shown on the card
+        return { key: k, label: game.i18n.localize(cfg.talents[k]), icon: cfg.talentIcons?.[k] ?? "", base, value, die: `d${value}` };
+      });
+      // Signature Trait + Traits — skill-style ability cards. The flat Trait-Bonus rows are retired;
+      // bonuses are authored as Traits via the Effect Builder, each shown with its auto rules line.
+      const tr = this.actor.system.trait ?? {};
+      context.signature = {
+        name: tr.name ?? "",
+        img: tr.img || DEFAULT_TRAIT_IMG,
+        descHTML: traitCardDescHTML(tr.rules, tr.desc),
+        empty: !((tr.name || "").trim() || tr.rules?.length || (tr.desc || "").trim())
+      };
+      context.traitsList = (this.actor.system.traits ?? []).map((t, idx) => ({
+        idx, id: t.id, name: t.name ?? "", img: t.img || DEFAULT_TRAIT_IMG,
+        descHTML: traitCardDescHTML(t.rules, "")
+      }));
+    }
+
     // Initiative formula label for the side-panel button (Agility die + Mind die).
     const agi = this.actor.system.attributes.agility?.value ?? 4;
     const mnd = this.actor.system.attributes.mind?.value ?? 4;
     context.initiativeLabel = `d${agi} + d${mnd}`;
+
+    // BONDS drawer (Characters only) — the player's own relationship cards (flip-cards).
+    if (context.isCharacter) context.bonds = await this.#bondContext();
+    // BOND OFFER drawer (social NPCs) — the bond this NPC offers + its per-rank rewards.
+    if (context.isNpcRole) context.npcBond = this.#npcBondContext();
 
     this.#prepareItems(context);
     return context;
@@ -253,14 +397,32 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     if (this.isEditable) {
       this.#bindPaperdoll();
       this.#bindItemContext();
-      this.#bindEffectDnD();
+      this.#bindSheetDnD();
+      this.#bindHudDrag();
+      this.#bindBondsDrawer();
+      this.#bindNpcBond();
+    }
+    // A queued Deepen flourish fires once, after the data re-render that raised the rank.
+    if (this.#bondGala != null) {
+      const { rank, id } = this.#bondGala;
+      this.#bondGala = null;
+      ProjectAnimeActorSheet.#playBondGala(rank);
+      const card = this.element?.querySelector?.(`.bond-flip[data-bond-id="${id}"]`);
+      card?.querySelector?.(`.b-stars .st[data-star="${rank - 1}"]`)?.classList.add("pop");
+      card?.querySelector?.(`.ability[data-ar="${rank}"]`)?.classList.add("just");
+    }
+    // The Monster⇄NPC crest flips once, right after a role toggle's re-render.
+    if (this.#roleFlip) {
+      this.#roleFlip = false;
+      this.element?.querySelector?.(".role-crest")?.classList.add("flip");
     }
   }
 
-  /** Make Effects-drawer rows draggable (as ActiveEffect drag data) and let the sheet
-   *  accept dropped effects — drag an effect from another sheet/item/token onto this
-   *  character to apply a copy. Native listeners, mirroring the paperdoll DnD approach. */
-  #bindEffectDnD() {
+  /** Drag-and-drop INTO the sheet: accept Items (skills + gear) and ActiveEffects dropped from
+   *  another sheet, a compendium, the sidebar, or the party stash — each lands as a copy on this
+   *  actor. Also (re)marks the Effects-drawer rows draggable so effects can be dragged back out.
+   *  Native listeners, mirroring the paperdoll DnD approach. */
+  #bindSheetDnD() {
     const root = this.element;
     if (!root) return;
     // Drawer rows are rebuilt each render → (re)mark them draggable.
@@ -271,21 +433,86 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       });
     }
     // Drop target lives on the persistent window root → bind once.
-    if (root.dataset.paEffectDrop) return;
-    root.dataset.paEffectDrop = "1";
+    if (root.dataset.paSheetDrop) return;
+    root.dataset.paSheetDrop = "1";
     root.addEventListener("dragover", (ev) => { ev.preventDefault(); });
-    root.addEventListener("drop", (ev) => this.#onEffectDrop(ev));
+    root.addEventListener("drop", (ev) => this.#onSheetDrop(ev));
   }
 
-  /** Apply a dropped ActiveEffect as a copy on this actor. Ignores non-effect drops, so
-   *  the paperdoll's item DnD (which stops propagation on its own zones) is unaffected. */
-  async #onEffectDrop(ev) {
-    let data;
-    try { data = JSON.parse(ev.dataTransfer.getData("text/plain") || "{}"); } catch (_) { return; }
-    if (data?.type !== "ActiveEffect" || !data.uuid) return;
-    ev.preventDefault();
-    const effect = await fromUuid(data.uuid);
-    if (effect) await applyEffectCopy(this.actor, effect);
+  /** Handle a drop on the sheet body: copy a dropped Item (skill/gear) onto this actor, or apply a
+   *  dropped ActiveEffect. Drops on the paperdoll slots / bag tabs are handled by their own zones
+   *  (which stop propagation), so this only fires for the rest of the open sheet area. */
+  async #onSheetDrop(ev) {
+    // Leave text-editor drops alone (content-link creation in the biography editor).
+    if (ev.target?.closest?.("prose-mirror, .ProseMirror, .editor-content")) return;
+    const data = this.#readDrag(ev);
+    if (data?.type === "ActiveEffect" && data.uuid) {
+      ev.preventDefault();
+      const effect = await fromUuid(data.uuid);
+      if (effect) await applyEffectCopy(this.actor, effect);
+      return;
+    }
+    if (data?.type === "Actor" && data.uuid && this.actor.type === "character") {
+      // Drag a social NPC onto a Player → forge/sync the bond it offers + deliver its rank rewards.
+      // A monster / plain NPC (no offer) is ignored. Re-drag safe (matches by the NPC's UUID).
+      ev.preventDefault();
+      const npc = await fromUuid(data.uuid).catch(() => null);
+      if (!npc) return;
+      this.#openSection = "bonds";              // reveal the card on the re-render the forge triggers
+      const res = await forgeBondFromNpc(this.actor, npc);
+      if (!res) this.#openSection = null;       // no offer → nothing forged, leave drawers closed
+      return;
+    }
+    if (data?.type === "Item" && data.uuid) {
+      // A same-sheet drag (paperdoll/HUD tile) is handled by its own zones — ignore it here so
+      // dropping a tile back on its own sheet never duplicates the item.
+      if (data.paItem && this.actor.items.has(data.paItem)) return;
+      ev.preventDefault();
+      await this.#importDroppedItem(data);
+    }
+  }
+
+  /** Foundry's ActorSheetV2 binds its own `element.ondrop` every render (see its `_onRender`),
+   *  which auto-creates a raw copy of any dropped Item/ActiveEffect. We run our own drop pipeline
+   *  (#onSheetDrop → #importDroppedItem / applyEffectCopy) that strips grant/natural/pin flags and
+   *  routes effects, so the two channels would both fire and the drop would land TWICE. Suppress
+   *  the base auto-create for foreign drops; keep delegating own-item drops to core so intra-sheet
+   *  re-sorting (dropping a tile onto a sibling) still works. */
+  async _onDropItem(event, item) {
+    if (this.actor.uuid !== item?.parent?.uuid) return null; // foreign → our pipeline copies it
+    return super._onDropItem(event, item);                   // own item → let core re-sort
+  }
+
+  /** Suppress the base auto-create on ActiveEffect drops — handled by #onSheetDrop → applyEffectCopy. */
+  async _onDropActiveEffect(event, effect) {
+    return null;
+  }
+
+  /** Actor drops are handled by #onSheetDrop (drag a social NPC onto a PC → forge the bond it
+   *  offers); suppress any base Actor-drop behavior so only our pipeline runs. */
+  async _onDropActor(event, actor) {
+    return null;
+  }
+
+  /** Make Skill-drawer + quick-panel tiles (and Package chips) draggable as standard Item drag
+   *  data, so they can be dropped onto another actor's sheet (transfer) or the Cinematic HUD's
+   *  action slots. (Paperdoll/gear tiles already emit their own {paItem} payload, which the HUD
+   *  resolves against the actor — so they're left untouched here.) */
+  #bindHudDrag() {
+    const root = this.element;
+    if (!root) return;
+    for (const el of root.querySelectorAll(".skill-tile[data-item-id], .quick-tile[data-item-id], .pkg-chip[data-item-id]")) {
+      const item = this.actor.items.get(el.dataset.itemId);
+      if (!item) continue;
+      el.setAttribute("draggable", "true");
+      // The inner <img> is natively draggable and would hijack the drag (carrying the image, not the
+      // item) so this dragstart never fires — disable it so the tile itself is the drag source.
+      for (const img of el.querySelectorAll("img")) img.setAttribute("draggable", "false");
+      el.addEventListener("dragstart", (ev) => {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "Item", uuid: item.uuid, paItem: item.id }));
+        ev.dataTransfer.effectAllowed = "copyMove";
+      });
+    }
   }
 
   /* -------------------------------------------- */
@@ -356,13 +583,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       .map((p) => ({ id: p.id, name: p.name, img: p.img, category: p.system?.category ?? "" }));
 
     // Quick-action panel on the Stats main view: equipped weapons + the innate Natural Attack
-    // (always available, in addition to equipment) + skills the player has pinned (`readied`).
-    // Equipped weapons lead; the Natural Attack trails as the unarmed fallback.
+    // (always available, in addition to equipment) + Dual-Wield shields + skills the player has
+    // pinned (`readied`). Equipped items lead; the Natural Attack trails as the unarmed fallback.
     const isNatural = (i) => !!i.getFlag("project-anime", "natural");
-    context.quickWeapons = groups.weapon
-      .filter((i) => i.system?.equipped || isNatural(i))
-      .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || bySort(a, b))
-      .map((i) => ({ id: i.id, name: i.name, img: i.img, natural: isNatural(i) }));
+    const isReadied = (i) => !!i.getFlag("project-anime", "readied");
+    // A Dual-Wield shield bashes as an off-hand weapon (see the shield "Wield As" mode), so it joins
+    // the Weapons block when EITHER equipped or pinned — surfaced like a real weapon. Shield-Only
+    // shields are defensive and never land here (a pinned one stays in the Items block below).
+    const isWeaponShield = (i) => i.type === "shield" && i.system?.use === "dual" && (i.system?.equipped || isReadied(i));
+    context.quickWeapons = [...groups.weapon.filter((i) => i.system?.equipped || isNatural(i)), ...groups.shield.filter(isWeaponShield)]
+      .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || (isNatural(a) - isNatural(b)) || bySort(a, b))
+      .map((i) => ({ id: i.id, name: i.name, img: i.img, natural: isNatural(i), shield: i.type === "shield" }));
     const readied = skills.filter((i) => i.getFlag("project-anime", "readied"));
     const mapSkill = (i) => ({ id: i.id, name: i.name, img: i.img, energyCost: i.system?.energyCost ?? 0 });
     // Pinned skills, split into the three action-type groups (empty groups drop out).
@@ -377,10 +608,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     // Pinned NON-skill gear (consumables + other items) → the "Items" quick block on the Stats
     // view. Same `readied` flag as skills, set from the gear context menu; clicking a tile runs the
     // item's roll() (a consumable posts its Use card, a weapon attacks, other gear posts a
-    // description). The innate Natural Attack lives in the Weapons block, never here.
+    // description). The innate Natural Attack and pinned Dual-Wield shields live in the Weapons
+    // block (the shield bashes as a weapon), so both are excluded here.
     context.quickItems = GEAR_GROUPS
       .flatMap((k) => groups[k])
-      .filter((i) => i.getFlag("project-anime", "readied") && !isNatural(i))
+      .filter((i) => isReadied(i) && !isNatural(i) && !isWeaponShield(i))
       .sort(bySort)
       .map((i) => {
         const q = Number(i.system?.quantity);
@@ -795,6 +1027,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const acc = sys.accuracy ?? {};
       row(i18n("PROJECTANIME.Field.accuracy"), `⟪${aName(acc.attrA)}⟫ + ⟪${aName(acc.attrB)}⟫${signed(acc.mod)}`);
       if (sys.damage) row(i18n("PROJECTANIME.Roll.damage"), `${elName(sys.damage.type)}${signed(sys.damage.mod)}`.trim());
+      if (sys.range) row(i18n("PROJECTANIME.Field.range"), physicalRangeLabel(sys.range));
       if (item.type === "shield" && sys.evasionBonus) row(i18n("PROJECTANIME.Field.evasionBonus"), sys.evasionBonus);
       if (item.type === "shield" && sys.defenseBonus) row(i18n("PROJECTANIME.Field.defenseBonus"), sys.defenseBonus);
       if (cfg.hands?.[sys.hand]) row(i18n("PROJECTANIME.Field.hand"), i18n(cfg.hands[sys.hand]));
@@ -812,6 +1045,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) row(i18n(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod"), `+${sys.damageMod}`);
       if (sys.actionType === "react" && sys.trigger) row(i18n("PROJECTANIME.Skill.field.trigger"), i18n(cfg.triggers[sys.trigger] ?? sys.trigger));
       if (sys.damageType && cfg.damageEffects.includes(sys.effect)) row(i18n("PROJECTANIME.Skill.field.damageType"), elName(sys.damageType));
+      if ((sys.controlElement ?? "").trim() && skillEffectKeys(sys).includes("elementalControl")) row(i18n("PROJECTANIME.Skill.field.controlElement"), sys.controlElement.trim());
     } else if (item.type === "armor") {
       row(i18n("PROJECTANIME.Field.defenseBonus"), sys.defenseBonus);
       if (sys.evasionPenalty) row(i18n("PROJECTANIME.Field.evasionPenalty"), sys.evasionPenalty);
@@ -964,7 +1198,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     }
     // Weapons flip grip in place (a two-handed grip Steps Up the damage die and, when
     // equipped, frees the off hand via enforceEquipExclusivity on the resulting update).
-    if (item.type === "weapon") {
+    // A Two-Handed-Only weapon (a bow) has no grip to flip — both hands, always.
+    if (item.type === "weapon" && !item.system?.twoHandedOnly) {
       const twoH = item.system?.grip === "two";
       add(twoH ? "fa-hand" : "fa-hands", twoH ? "PROJECTANIME.Action.gripOne" : "PROJECTANIME.Action.gripTwo",
         () => item.update({ "system.grip": twoH ? "one" : "two" }));
@@ -976,9 +1211,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       add(dual ? "fa-shield-halved" : "fa-hand-fist", dual ? "PROJECTANIME.Action.useShieldOnly" : "PROJECTANIME.Action.useDualWield",
         () => item.update({ "system.use": dual ? "shield" : "dual" }));
     }
-    // Pin / unpin to the main-screen "Items" quick block (Skills pin via their own menu).
-    if (pinned) add("fa-xmark", "PROJECTANIME.Quick.unpinItem", () => item.unsetFlag("project-anime", "readied"));
-    else add("fa-thumbtack", "PROJECTANIME.Quick.pinItem", () => item.setFlag("project-anime", "readied", true));
+    // Pin / unpin to a main-screen quick block (Skills pin via their own menu). A Dual-Wield shield
+    // pins into the Weapons block (it bashes as an off-hand weapon); all other gear pins to "Items".
+    const asWeapon = item.type === "shield" && item.system?.use === "dual";
+    if (pinned) add("fa-xmark", asWeapon ? "PROJECTANIME.Quick.unpinWeapon" : "PROJECTANIME.Quick.unpinItem", () => item.unsetFlag("project-anime", "readied"));
+    else add("fa-thumbtack", asWeapon ? "PROJECTANIME.Quick.pinWeapon" : "PROJECTANIME.Quick.pinItem", () => item.setFlag("project-anime", "readied", true));
     add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
     add("fa-trash", "PROJECTANIME.Action.delete", () => item.deleteDialog(), "danger");
     show();
@@ -990,20 +1227,26 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     if (!root) return;
 
     for (const el of root.querySelectorAll("[data-item-id][draggable='true']")) {
+      // Disable native <img> dragging inside the tile so the tile/icon is the drag source (an inner
+      // <img> would otherwise carry the image instead of the item — breaking both equip and HUD drops).
+      for (const img of el.querySelectorAll("img")) img.setAttribute("draggable", "false");
       el.addEventListener("dragstart", (ev) => {
-        ev.dataTransfer.setData("text/plain", JSON.stringify({ paItem: el.dataset.itemId }));
-        ev.dataTransfer.effectAllowed = "move";
+        // paItem keeps the paperdoll equip working; type+uuid lets the Cinematic HUD slots resolve it.
+        const uuid = this.actor?.items.get(el.dataset.itemId)?.uuid;
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ paItem: el.dataset.itemId, type: "Item", uuid }));
+        ev.dataTransfer.effectAllowed = "copyMove";
       });
     }
 
     for (const slot of root.querySelectorAll(".pd-slot")) {
       slot.addEventListener("dragover", (ev) => { ev.preventDefault(); slot.classList.add("drag-over"); });
       slot.addEventListener("dragleave", () => slot.classList.remove("drag-over"));
-      slot.addEventListener("drop", (ev) => {
+      slot.addEventListener("drop", async (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         slot.classList.remove("drag-over");
-        const item = this.#draggedItem(ev);
+        // Own item → equip it; foreign item → copy it onto this actor first, then equip the copy.
+        const item = this.#draggedItem(ev) ?? await this.#importDroppedItem(this.#readDrag(ev));
         if (item) this.#equipToSlot(item, slot.dataset.slot);
       });
     }
@@ -1025,26 +1268,66 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     for (const tab of root.querySelectorAll(".bag-tab")) {
       tab.addEventListener("dragover", (ev) => { ev.preventDefault(); tab.classList.add("drag-over"); });
       tab.addEventListener("dragleave", () => tab.classList.remove("drag-over"));
-      tab.addEventListener("drop", (ev) => {
+      tab.addEventListener("drop", async (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         tab.classList.remove("drag-over");
-        const item = this.#draggedItem(ev);
         const bagId = tab.dataset.bagId || "";
-        if (item && item.type !== "container" && (item.system.container || "") !== bagId) {
-          item.update({ "system.container": bagId });
+        const item = this.#draggedItem(ev);
+        if (item) {
+          // Own item → just refile it into this bag.
+          if (item.type !== "container" && (item.system.container || "") !== bagId) {
+            await item.update({ "system.container": bagId });
+          }
+          return;
         }
+        // Foreign item → copy it straight into this bag.
+        await this.#importDroppedItem(this.#readDrag(ev), { container: bagId });
       });
     }
   }
 
-  /** Resolve the embedded item being dragged within this sheet (null if not ours). */
+  /** Parse the drag payload (the JSON stashed on `text/plain` by our sheets + core Foundry). */
+  #readDrag(ev) {
+    try { return JSON.parse(ev.dataTransfer.getData("text/plain") || "{}"); } catch (_) { return {}; }
+  }
+
+  /** Resolve the embedded item being dragged within THIS sheet (null if foreign / not ours). */
   #draggedItem(ev) {
-    try {
-      const data = JSON.parse(ev.dataTransfer.getData("text/plain") || "{}");
-      if (data.paItem) return this.actor.items.get(data.paItem) ?? null;
-    } catch (_) { /* not our drag payload */ }
-    return null;
+    const data = this.#readDrag(ev);
+    return data.paItem ? (this.actor.items.get(data.paItem) ?? null) : null;
+  }
+
+  /** Strip a source item down to a clean object for copying onto this actor: drop the source id,
+   *  the grant/natural/pin flags (meaningless or duplicative on a new owner), and reset the
+   *  equipped/bag state so the copy lands loose in the chosen bag (default backpack). */
+  #cleanItemForTransfer(item, { container = "" } = {}) {
+    const obj = item.toObject();
+    delete obj._id;
+    delete obj.sort;
+    const paFlags = obj.flags?.["project-anime"];
+    if (paFlags) {
+      delete paFlags.granted;     // a copy is a normally-owned ability, not a grant…
+      delete paFlags.grantedBy;   // …and its source carrier doesn't exist on the new owner
+      delete paFlags.natural;     // the new owner already has its own Natural Attack
+      delete paFlags.readied;     // don't auto-pin to the new owner's quick panel
+    }
+    if (obj.system) {
+      if ("equipped" in obj.system) obj.system.equipped = false;
+      if ("container" in obj.system) obj.system.container = item.type === "container" ? "" : container;
+    }
+    return obj;
+  }
+
+  /** Copy a dropped foreign Item (from another sheet / compendium / sidebar / stash) onto this
+   *  actor. Returns the created Item, or null if the drop wasn't a transferable foreign item. */
+  async #importDroppedItem(data, options = {}) {
+    if (data?.type !== "Item" || !data.uuid) return null;
+    const item = await fromUuid(data.uuid);
+    if (!item || item.documentName !== "Item" || !TRANSFERABLE_ITEM_TYPES.has(item.type)) return null;
+    if (item.parent?.id === this.actor.id) return null; // already ours — never self-copy
+    const [created] = await this.actor.createEmbeddedDocuments("Item", [this.#cleanItemForTransfer(item, options)]);
+    return created ?? null;
   }
 
   static async #onToggleCondition(event, target) {
@@ -1138,6 +1421,506 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   /* -------------------------------------------- */
+  /*  Bonds drawer (per-character relationships)  */
+  /* -------------------------------------------- */
+
+  /** Build the flip-card view-model for every bond on this character: the front (tarot art) plus
+   *  the full detail face (stars, dossier, vitals, quote, per-rank abilities) carried on each card,
+   *  since the back holds the whole write-up. Mirrors the old Covenant bond detail. */
+  async #bondContext() {
+    const factions = getFactions();
+    const accentFor = (b) => b.accent || factions.find((f) => f.id === b.faction)?.accent || "#8a6fc0";
+    const TE = foundry.applications.ux.TextEditor?.implementation ?? globalThis.TextEditor;
+    const L = (k) => game.i18n.localize(k);
+    const F = (k, d) => game.i18n.format(k, d);
+    const out = [];
+    for (const b of getBonds(this.actor)) {
+      const f = factions.find((x) => x.id === b.faction) ?? null;
+      const maxed = b.rank >= BOND_MAX_RANK;
+      const accent = accentFor(b);
+      const stars = Array.from({ length: BOND_MAX_RANK }, (_v, i) => ({ full: i < b.rank, idx: i }));
+      const abilities = (b.abilities ?? []).map((a) => {
+        const on = a.rank <= b.rank;
+        return {
+          rank: a.rank,
+          nameRaw: a.name ?? "",
+          descRaw: a.desc ?? "",
+          name: a.name || F("PROJECTANIME.Covenant.abilityUnnamed", { rank: a.rank }),
+          desc: on ? (a.desc || "") : F("PROJECTANIME.Covenant.abilityLocked", { rank: a.rank }),
+          on,
+          reqLabel: on ? L("PROJECTANIME.Covenant.unlocked") : F("PROJECTANIME.Covenant.rankN", { rank: a.rank })
+        };
+      });
+      out.push({
+        id: b.id,
+        name: b.name,
+        title: b.title,
+        accent,
+        img: b.img,
+        initial: initialOf(b.name),
+        bannerStyle: b.banner ? `background-image:url('${b.banner}')` : `background:${bondHeroGrad(accent)}`,
+        faction: f ? { id: f.id, name: f.name, sigil: f.sigil, accent: f.accent } : null,
+        factionName: f?.name ?? L("PROJECTANIME.Covenant.unaffiliated"),
+        factionSig: f?.sigil ?? "◆",
+        actorUuid: b.actorUuid,
+        locked: !!b.locked,
+        maxed,
+        rankNum: b.rank,
+        rankDisplay: maxed ? "★" : b.rank,
+        rankWord: maxed ? L("PROJECTANIME.Covenant.bondMax") : L("PROJECTANIME.Covenant.bondRank"),
+        stars,
+        progPct: maxed ? 100 : clampStanding(b.prog),
+        progLabel: maxed ? "★ ★ ★ ★ ★" : `${clampStanding(b.prog)}%`,
+        towardLabel: maxed ? L("PROJECTANIME.Covenant.bondComplete") : F("PROJECTANIME.Covenant.towardRank", { rank: b.rank + 1 }),
+        vitals: (b.vitals ?? []).map((v) => ({ id: v.id, k: v.k, v: v.v })),
+        dossier: await TE.enrichHTML(b.dossier ?? "", { relativeTo: this.actor, secrets: this.actor.isOwner }),
+        dossierRaw: b.dossier ?? "",
+        quote: b.quote,
+        abilities,
+        factionOptions: factions.map((x) => ({ id: x.id, name: x.name, sel: x.id === b.faction })),
+        flipped: this.#flippedBonds.has(b.id)
+      });
+    }
+    return out;
+  }
+
+  /** Mutate one bond on this actor and persist the whole list (mirrors the Covenant pattern). */
+  async #mutateBond(id, fn) {
+    if (!this.isEditable) return;
+    const bonds = getBonds(this.actor);
+    const b = bonds.find((x) => x.id === id);
+    if (!b) return;
+    fn(b);
+    await saveBonds(this.actor, bonds);
+  }
+
+  /** Commit an inline bond edit (a field, a vital, or an ability). The inputs carry data-* (never
+   *  `name`), so the actor form's submitOnChange never collects them — we persist here instead. */
+  async #onBondFieldChange(event) {
+    const el = event.currentTarget;
+    const id = el.dataset.bond;
+    if (!id) return;
+    const val = el.type === "checkbox" ? el.checked : el.value;
+    if (el.dataset.bvital !== undefined) {
+      return this.#mutateBond(id, (b) => {
+        const v = (b.vitals ?? []).find((x) => x.id === el.dataset.bvital);
+        if (v) v[el.dataset.bvitalField] = val;
+      });
+    }
+    if (el.dataset.babil !== undefined) {
+      return this.#mutateBond(id, (b) => {
+        const a = (b.abilities ?? []).find((x) => x.rank === Number(el.dataset.babil));
+        if (a) a[el.dataset.babilField] = val;
+      });
+    }
+    const field = el.dataset.bondField;
+    if (field) return this.#mutateBond(id, (b) => { b[field] = val; });
+  }
+
+  /** Bind the Bonds drawer's inline-edit listeners + actor-link drop zones (owner only). */
+  #bindBondsDrawer() {
+    const drawer = this.element?.querySelector?.('.section-drawer[data-section="bonds"]');
+    if (!drawer) return;
+    for (const el of drawer.querySelectorAll("[data-bond-field], [data-bvital], [data-babil]")) {
+      el.addEventListener("change", this.#onBondFieldChange.bind(this));
+    }
+    for (const zone of drawer.querySelectorAll("[data-bdrop]")) {
+      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        zone.classList.remove("drag-over");
+        this.#onBondActorDrop(ev, zone.dataset.bdrop);
+      });
+    }
+  }
+
+  /** Drop an Actor onto a bond zone: "new-bond" forges a fresh bond from it; "bond-actor:<id>"
+   *  links it to an existing bond (filling portrait + name). */
+  async #onBondActorDrop(event, spec) {
+    if (!this.isEditable || !spec) return;
+    const data = this.#readDrag(event);
+    if (data?.type !== "Actor" || !data.uuid) return;
+    const actor = await fromUuid(data.uuid).catch(() => null);
+    if (!actor) return;
+    // A social NPC that OFFERS a Bond → forge/sync from its definition + deliver rewards (re-drag
+    // safe). On a card's "link actor" zone it targets that card; on the forge zone it forges fresh.
+    if (npcBond(actor)) {
+      const bondId = spec.startsWith("bond-actor:") ? spec.slice("bond-actor:".length) : null;
+      await forgeBondFromNpc(this.actor, actor, { bondId });
+      return;
+    }
+    if (spec === "new-bond") {
+      const bonds = getBonds(this.actor);
+      const bond = blankBond({ name: actor.name, img: actor.img || "", actorUuid: actor.uuid });
+      bonds.unshift(bond);
+      this.#flippedBonds.add(bond.id);
+      await saveBonds(this.actor, bonds);
+      return;
+    }
+    if (spec.startsWith("bond-actor:")) {
+      const id = spec.slice("bond-actor:".length);
+      await this.#mutateBond(id, (b) => {
+        b.actorUuid = actor.uuid;
+        b.img = actor.img || b.img;
+        if (!b.name || b.name === game.i18n.localize("PROJECTANIME.Covenant.newBondName")) b.name = actor.name;
+      });
+    }
+  }
+
+  /** Flip a bond card between its art (front) and detail (back) — instant, no re-render. */
+  static #onFlipBond(event, target) {
+    const card = target.closest("[data-bond-id]");
+    const id = card?.dataset.bondId;
+    if (!id) return;
+    if (this.#flippedBonds.has(id)) this.#flippedBonds.delete(id);
+    else this.#flippedBonds.add(id);
+    card.classList.toggle("flipped", this.#flippedBonds.has(id));
+  }
+
+  static async #onNewBond() {
+    if (!this.isEditable) return;
+    const bonds = getBonds(this.actor);
+    const bond = blankBond();
+    bonds.unshift(bond);
+    this.#flippedBonds.add(bond.id); // open the new card to its editable back
+    await saveBonds(this.actor, bonds);
+  }
+
+  static async #onDeleteBond(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const bonds = getBonds(this.actor);
+    const b = bonds.find((x) => x.id === id);
+    if (!b) return;
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("PROJECTANIME.Covenant.deleteBondTitle") },
+      content: `<p>${game.i18n.format("PROJECTANIME.Covenant.deleteConfirm", { name: b.name })}</p>`
+    }).catch(() => false);
+    if (!ok) return;
+    this.#flippedBonds.delete(id);
+    await saveBonds(this.actor, bonds.filter((x) => x.id !== id));
+  }
+
+  static async #onDeepenBond(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const bonds = getBonds(this.actor);
+    const b = bonds.find((x) => x.id === id);
+    if (!b || b.rank >= BOND_MAX_RANK) return;
+    b.rank += 1;
+    b.prog = b.rank >= BOND_MAX_RANK ? 100 : 20;
+    b.locked = false;
+    this.#bondGala = { rank: b.rank, id }; // consumed once in _onRender after the re-render
+    await saveBonds(this.actor, bonds);
+  }
+
+  static async #onLessenBond(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    await this.#mutateBond(id, (b) => {
+      if (b.rank <= 0) return;
+      b.rank -= 1;
+      b.prog = b.rank >= BOND_MAX_RANK ? 100 : 20;
+    });
+  }
+
+  static async #onAddBondVital(event, target) {
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    await this.#mutateBond(id, (b) => { (b.vitals ??= []).push({ id: foundry.utils.randomID(), k: "", v: "" }); });
+  }
+
+  static async #onRemoveBondVital(event, target) {
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const vid = target.dataset.bvital;
+    await this.#mutateBond(id, (b) => { b.vitals = (b.vitals ?? []).filter((x) => x.id !== vid); });
+  }
+
+  /* ---- NPC Talents & Trait (HQ work profile) ---- */
+
+  /** Roll a Talent die (an NPC's work die) to chat. */
+  static async #onRollTalent(event, target) {
+    const k = target.dataset.talent;
+    const tt = this.actor.system.talents?.[k] ?? {};
+    const faces = tt.value ?? tt.base ?? 4; // roll the current die (includes any `talent` effect)
+    const roll = await new Roll(`1d${faces}`).evaluate();
+    const label = game.i18n.localize(CONFIG.PROJECTANIME.talents?.[k] ?? k);
+    return roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: `${label} — ${game.i18n.localize("PROJECTANIME.Talent.title")}` });
+  }
+
+  /** Author the Signature Trait in the shared Effect Builder (data mode, with a flavor line) — saving
+   *  back to `system.trait`, which reconcileTraits then projects as an always-on AE. */
+  static async #onEditSignature() {
+    if (!this.isEditable) return;
+    const actor = this.actor;
+    const tr = actor.system.trait ?? {};
+    const id = `trait-sig-${actor.id}`;
+    const existing = foundry.applications.instances.get(`pa-effect-builder-${id}`);
+    if (existing) return existing.bringToFront();
+    EffectBuilder.forData({
+      id,
+      title: game.i18n.localize("PROJECTANIME.Talent.signature"),
+      name: tr.name || "",
+      img: tr.img || DEFAULT_TRAIT_IMG,
+      rules: tr.rules ?? [],
+      desc: tr.desc || "",
+      withDesc: true,
+      onSave: ({ name, img, rules, desc }) => actor.update({ "system.trait": { name, img, rules, desc: desc ?? "" } })
+    }).render(true);
+  }
+
+  /** Clear the Signature Trait (reconcileTraits then purges its projected AE). */
+  static async #onClearSignature() {
+    if (!this.isEditable) return;
+    await this.actor.update({ "system.trait": { name: "", desc: "", img: "", rules: [] } });
+  }
+
+  /** Add a new Trait, then open the Effect Builder to author it. */
+  static async #onAddTrait() {
+    if (!this.isEditable) return;
+    const actor = this.actor;
+    const id = foundry.utils.randomID();
+    const traits = foundry.utils.deepClone(actor.system.traits ?? []);
+    traits.push({ id, name: "", img: DEFAULT_TRAIT_IMG, rules: [] });
+    await actor.update({ "system.traits": traits });
+    ProjectAnimeActorSheet.#openTraitBuilder(actor, id);
+  }
+
+  /** Edit a Trait by id in the Effect Builder. */
+  static async #onEditTrait(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-trait-id]")?.dataset.traitId;
+    if (id) ProjectAnimeActorSheet.#openTraitBuilder(this.actor, id);
+  }
+
+  /** Remove a Trait by id. */
+  static async #onRemoveTrait(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-trait-id]")?.dataset.traitId;
+    const traits = foundry.utils.deepClone(this.actor.system.traits ?? []).filter((t) => t.id !== id);
+    await this.actor.update({ "system.traits": traits });
+  }
+
+  /** Open the Effect Builder (data mode) bound to one Trait, saving back to its array entry by id. */
+  static #openTraitBuilder(actor, id) {
+    const t = (actor.system.traits ?? []).find((x) => x.id === id);
+    if (!t) return;
+    const winId = `trait-${actor.id}-${id}`;
+    const existing = foundry.applications.instances.get(`pa-effect-builder-${winId}`);
+    if (existing) return existing.bringToFront();
+    EffectBuilder.forData({
+      id: winId,
+      title: game.i18n.localize("PROJECTANIME.Talent.traitTitle"),
+      name: t.name || "",
+      img: t.img || DEFAULT_TRAIT_IMG,
+      rules: t.rules ?? [],
+      onSave: ({ name, img, rules }) => {
+        const traits = foundry.utils.deepClone(actor.system.traits ?? []);
+        const i = traits.findIndex((x) => x.id === id);
+        if (i < 0) return;
+        traits[i] = { ...traits[i], name, img, rules };
+        return actor.update({ "system.traits": traits });
+      }
+    }).render(true);
+  }
+
+  static async #onPickBondPortrait(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
+    const cur = getBonds(this.actor).find((x) => x.id === id)?.img ?? "";
+    new FP({ type: "image", current: cur, callback: (path) => this.#mutateBond(id, (b) => { b.img = path; }) }).browse();
+  }
+
+  static async #onPickBondBanner(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
+    const cur = getBonds(this.actor).find((x) => x.id === id)?.banner ?? "";
+    new FP({ type: "image", current: cur, callback: (path) => this.#mutateBond(id, (b) => { b.banner = path; }) }).browse();
+  }
+
+  static async #onOpenBondActor(event, target) {
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const b = getBonds(this.actor).find((x) => x.id === id);
+    if (!b?.actorUuid) return;
+    const actor = await fromUuid(b.actorUuid).catch(() => null);
+    actor?.sheet?.render(true);
+  }
+
+  static async #onClearBondActor(event, target) {
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    await this.#mutateBond(id, (b) => { b.actorUuid = ""; });
+  }
+
+  /** A full-screen "Bond Deepened — RANK N" flourish on a detached overlay (survives re-renders).
+   *  Ported from the old Covenant gala. */
+  static #playBondGala(rank) {
+    document.querySelector(".pa-bond-gala")?.remove();
+    const el = document.createElement("div");
+    el.className = "project-anime theme-dark pa-bond-gala";
+    let rays = "";
+    for (let i = 0; i < 12; i++) rays += `<span class="burst" style="--r:${i * 30}deg"></span>`;
+    el.innerHTML = `${rays}<span class="ringp"></span>
+      <div class="gmsg">
+        <div class="k">${game.i18n.localize("PROJECTANIME.Covenant.bondDeepened")}</div>
+        <div class="t">${game.i18n.format("PROJECTANIME.Covenant.rankWord", { rank })}</div>
+      </div>`;
+    document.body.appendChild(el);
+    void el.offsetWidth; // force reflow so the animation always restarts
+    el.classList.add("show");
+    setTimeout(() => el.remove(), 1800);
+  }
+
+  /* -------------------------------------------- */
+  /*  Bond OFFER drawer (social NPC → players)    */
+  /* -------------------------------------------- */
+
+  /** View-model for the NPC's Bond-offer editor: identity + five rank rows (ability boon + rewards).
+   *  Reward items render as chips read straight from the stored snapshots (no async resolve). */
+  #npcBondContext() {
+    const def = this.actor.system.bond ?? {};
+    const accent = def.accent || "#8a6fc0";
+    return {
+      title: def.title ?? "",
+      accent,
+      banner: def.banner ?? "",
+      bannerStyle: def.banner ? `background-image:url('${def.banner}')` : `background:${bondHeroGrad(accent)}`,
+      dossier: def.dossier ?? "",
+      quote: def.quote ?? "",
+      vitals: (def.vitals ?? []).map((v) => ({ id: v.id, k: v.k, v: v.v })),
+      npcName: this.actor.name,
+      npcImg: this.actor.img,
+      ranks: npcBondRanks(this.actor).map((r) => ({
+        rank: r.rank,
+        rankLabel: game.i18n.format("PROJECTANIME.Covenant.rankN", { rank: r.rank }),
+        abilityName: r.abilityName,
+        abilityDesc: r.abilityDesc,
+        rewardGold: r.rewardGold,
+        rewardSP: r.rewardSP,
+        rewardItems: r.rewardItems.map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" }))
+      }))
+    };
+  }
+
+  /** Read this NPC's bond offer as a fully-normalized mutable object (scalars + vitals + the five
+   *  rank rows), apply `fn`, and persist the whole `system.bond`. */
+  async #mutateNpcBond(fn) {
+    if (!this.isEditable) return;
+    const sys = this.actor.system.bond ?? {};
+    const bond = {
+      title: sys.title ?? "", accent: sys.accent ?? "", banner: sys.banner ?? "",
+      faction: sys.faction ?? "", dossier: sys.dossier ?? "", quote: sys.quote ?? "",
+      vitals: (sys.vitals ?? []).map((v) => ({ id: v.id, k: v.k, v: v.v })),
+      ranks: npcBondRanks(this.actor)
+    };
+    fn(bond);
+    await this.actor.update({ "system.bond": bond });
+  }
+
+  /** Commit an inline edit to the NPC's bond offer (a scalar field, a vital, or a rank's
+   *  ability text / reward number). data-* attributes only → never collected by the actor form. */
+  async #onNpcBondFieldChange(event) {
+    const el = event.currentTarget;
+    const val = el.value;
+    if (el.dataset.npcbondVitalField !== undefined) {
+      return this.#mutateNpcBond((b) => {
+        const v = b.vitals.find((x) => x.id === el.dataset.npcbondVital);
+        if (v) v[el.dataset.npcbondVitalField] = val;
+      });
+    }
+    if (el.dataset.npcbondRankField !== undefined) {
+      const rank = Number(el.dataset.npcbondRank);
+      const field = el.dataset.npcbondRankField;
+      const num = field === "rewardGold" || field === "rewardSP";
+      return this.#mutateNpcBond((b) => {
+        const r = b.ranks.find((x) => x.rank === rank);
+        if (r) r[field] = num ? Math.max(0, Math.round(Number(val) || 0)) : val;
+      });
+    }
+    const field = el.dataset.npcbondField;
+    if (field) return this.#mutateNpcBond((b) => { b[field] = val; });
+  }
+
+  /** Bind the Bond-offer editor's inline listeners + reward-item drop zones (owner only). */
+  #bindNpcBond() {
+    const drawer = this.element?.querySelector?.('.section-drawer[data-section="npcbond"]');
+    if (!drawer) return;
+    for (const el of drawer.querySelectorAll("[data-npcbond-field], [data-npcbond-vital-field], [data-npcbond-rank-field]"))
+      el.addEventListener("change", this.#onNpcBondFieldChange.bind(this));
+    for (const zone of drawer.querySelectorAll("[data-reward-drop]")) {
+      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        zone.classList.remove("drag-over");
+        this.#onRewardItemDrop(ev, zone.dataset.rewardDrop);
+      });
+    }
+  }
+
+  /** Drop an Item onto a rank's reward slot → store a self-contained snapshot as that rank's reward. */
+  async #onRewardItemDrop(event, rank) {
+    if (!this.isEditable) return;
+    const data = this.#readDrag(event);
+    if (data?.type !== "Item" || !data.uuid) return;
+    const item = await fromUuid(data.uuid).catch(() => null);
+    if (!item?.toObject) return;
+    const snap = item.toObject();
+    delete snap._id;
+    await this.#mutateNpcBond((b) => {
+      const r = b.ranks.find((x) => x.rank === Number(rank));
+      if (r) (r.rewardItems ??= []).push(snap);
+    });
+  }
+
+  /** Flip an NPC between the Monster statblock and the social-NPC (Bond offer) layout. */
+  static async #onToggleRole() {
+    if (!this.isEditable || this.actor.type !== "npc") return;
+    const next = this.actor.system.role === "npc" ? "monster" : "npc";
+    const updates = { "system.role": next };
+    // A social NPC defaults to a non-hostile disposition — nudge it Neutral when it was still the
+    // Monster's Hostile default (so its token isn't auto-treated as an enemy). Leave any deliberate
+    // disposition the GM already set untouched.
+    if (next === "npc" && this.actor.system.disposition === "hostile") updates["system.disposition"] = "neutral";
+    this.#roleFlip = true;   // play the crest flip on the re-render this triggers
+    await this.actor.update(updates);
+  }
+
+  /** Expand / collapse a social NPC's "Combat stats" block (instant DOM toggle, persisted for re-render). */
+  static #onToggleStatblock() {
+    this.#statblockOpen = !this.#statblockOpen;
+    this.element?.querySelector?.(".statblock.foldable")?.classList.toggle("open", this.#statblockOpen);
+  }
+
+  static async #onAddNpcVital() {
+    await this.#mutateNpcBond((b) => b.vitals.push({ id: foundry.utils.randomID(), k: "", v: "" }));
+  }
+
+  static async #onRemoveNpcVital(event, target) {
+    const id = target.dataset.npcbondVital;
+    await this.#mutateNpcBond((b) => { b.vitals = b.vitals.filter((x) => x.id !== id); });
+  }
+
+  static async #onRemoveRewardItem(event, target) {
+    const rank = Number(target.dataset.npcbondRank);
+    const idx = Number(target.dataset.rewardItem);
+    await this.#mutateNpcBond((b) => {
+      const r = b.ranks.find((x) => x.rank === rank);
+      if (r && Array.isArray(r.rewardItems)) r.rewardItems.splice(idx, 1);
+    });
+  }
+
+  static async #onPickNpcBondBanner() {
+    if (!this.isEditable) return;
+    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
+    const cur = this.actor.system.bond?.banner ?? "";
+    new FP({ type: "image", current: cur, callback: (path) => this.#mutateNpcBond((b) => { b.banner = path; }) }).browse();
+  }
+
+  /* -------------------------------------------- */
   /*  Advancement                                 */
   /* -------------------------------------------- */
 
@@ -1146,6 +1929,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const existing = foundry.applications.instances.get(id);
     if (existing) return existing.bringToFront();
     return new AdvancementApp(this.actor).render(true);
+  }
+
+  /** Header control on a raised servant's sheet → confirm + release it (restores the caster's
+   *  locked Energy via the deleteActor hook). Shares the chat card / Token HUD dismissal flow. */
+  static #onDismissServant() {
+    return confirmAndDismiss(this.actor);
   }
 
   static #onOpenRest() {
@@ -1183,15 +1972,5 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const existing = foundry.applications.instances.get(id);
     if (existing) return existing.bringToFront();
     return (isNPC ? new MonsterCreatorApp(actor) : new CharacterCreatorApp(actor)).render(true);
-  }
-
-  /** @override — the first time an owner opens an un-finished character, launch the
-   *  Character Creator. Gated by `flags.project-anime.creationComplete` (set on Finish),
-   *  so it guides new PCs once and never nags afterwards. */
-  async _onFirstRender(context, options) {
-    await super._onFirstRender?.(context, options);
-    if (this.actor.type !== "character" || !this.isEditable) return;
-    if (this.actor.getFlag("project-anime", "creationComplete")) return;
-    ProjectAnimeActorSheet.#openCreator(this.actor);
   }
 }

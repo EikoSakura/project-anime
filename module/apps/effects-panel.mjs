@@ -13,6 +13,7 @@
  * effects of unequipped gear. The panel hides itself entirely when there's nothing to show.
  */
 import { liveEffects, summarizeRules } from "../helpers/effects.mjs";
+import { performOvercome } from "../helpers/dice.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -65,18 +66,57 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   async _onRender(context, options) {
     await super._onRender(context, options);
     this.element.classList.toggle("empty", !context.hasEffects);
-    // Right-click an icon to remove that effect (left-click still opens its source). The entries
-    // are rebuilt each render, so binding here can't stack duplicate handlers.
+    // Right-click an icon to act on that effect (left-click still opens its source): a status
+    // condition or an ensnaring Skill's marker offers the Overcome action (rules v0.01) beside
+    // removal; anything else removes outright, as before. The entries are rebuilt each render,
+    // so binding here can't stack duplicate handlers.
     for (const li of this.element.querySelectorAll(".ep-effect[data-effect-uuid]")) {
       li.addEventListener("contextmenu", (ev) => {
         ev.preventDefault();
-        EffectsPanel.#onRemoveEffect(li.dataset.effectUuid);
+        EffectsPanel.#onContextEffect(li.dataset.effectUuid);
       });
     }
   }
 
+  /** Right-click router: overcomeable effects (conditions / ensnare markers) on an owned actor
+   *  open the Overcome-or-Remove choice; everything else keeps the instant removal. */
+  static async #onContextEffect(uuid) {
+    const effect = uuid ? await fromUuid(uuid) : null;
+    if (!effect) return;
+    const flags = effect.flags?.["project-anime"] ?? {};
+    const isCondition = [...(effect.statuses ?? [])].some((s) => (CONFIG.PROJECTANIME?.conditionKeys ?? []).includes(s));
+    const onActor = effect.parent?.documentName === "Actor";
+    if (onActor && effect.isOwner && (isCondition || flags.ensnare)) {
+      const action = await foundry.applications.api.DialogV2.wait({
+        window: { title: effect.name },
+        content: "",
+        buttons: [
+          { action: "overcome", label: game.i18n.localize("PROJECTANIME.Roll.overcome"), icon: "fas fa-hand-fist", default: true },
+          { action: "remove", label: game.i18n.localize("PROJECTANIME.Effect.remove"), icon: "fas fa-trash" },
+          { action: "cancel", label: game.i18n.localize("Cancel"), icon: "fas fa-times" }
+        ],
+        rejectClose: false
+      });
+      if (action === "overcome") return performOvercome(effect.parent, effect);
+      if (action === "remove") return EffectsPanel.#onRemoveEffect(uuid);
+      return;
+    }
+    return EffectsPanel.#onRemoveEffect(uuid);
+  }
+
+  /** A single integer of remaining lifetime for the corner badge, or null for permanent / scene-long
+   *  effects. Status conditions count down in the system's `statusTimers` flag (keyed by status id);
+   *  Skill-applied effects use Foundry's native round duration. */
+  static #remaining(effect, actor) {
+    const timers = actor.getFlag("project-anime", "statusTimers") ?? {};
+    for (const id of effect.statuses ?? []) if (id in timers) return Number(timers[id]) || 0;
+    const rem = effect.duration?.remaining;
+    return Number.isFinite(rem) && rem > 0 ? Math.ceil(rem) : null;
+  }
+
   /** Map an actor's live effects to icon rows, baking name + remaining duration + rule
-   *  summary into a rich `data-tooltip-html` payload (matching the sheet's item tooltips). */
+   *  summary into a rich `data-tooltip-html` payload (matching the sheet's item tooltips). The
+   *  remaining count also rides as `dur` for the on-icon corner badge. */
   static #collect(actor) {
     const esc = foundry.utils.escapeHTML;
     return liveEffects(actor).map((e) => {
@@ -91,7 +131,7 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
         : "";
       const desc = e.description ? `<div class="pa-tt-desc">${e.description}</div>` : "";
       const body = (chips || desc) ? `<div class="pa-tt-body">${chips}${desc}</div>` : "";
-      return { uuid: e.uuid, name: e.name, img: e.img, tooltip: head + body };
+      return { uuid: e.uuid, name: e.name, img: e.img, tooltip: head + body, dur: EffectsPanel.#remaining(e, actor) };
     });
   }
 

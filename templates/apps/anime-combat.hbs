@@ -1,0 +1,83 @@
+{{!-- Project: Anime — encounter tracker (frameless ApplicationV2 part), pinned just left of the
+      chat sidebar. Clean pf2e-hud-style layout: a header turn/round nav bar (GM), a flat list of
+      combatant rows — circular portrait | name over a row of small controls | initiative stacked
+      over HP — and a footer with the round actions, round counter, and collapse toggle. Shows as
+      soon as the encounter has visible combatants (even before it begins); hidden otherwise. --}}
+{{#if show}}
+<div class="ct-wrap{{#if collapsed}} collapsed{{/if}}">
+
+  <div class="ct-head">
+    {{#if gm}}
+      {{#if started}}
+      <a class="ct-nav" data-action="combatPrevRound" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.prevRound'}}"><i class="fas fa-backward-step"></i></a>
+      <a class="ct-nav" data-action="combatPrevTurn" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.prevTurn'}}"><i class="fas fa-arrow-left"></i></a>
+      <a class="ct-endcombat" data-action="combatEndCombat">{{localize 'PROJECTANIME.Hud.combat.endEncounter'}}</a>
+      <a class="ct-nav" data-action="combatEndTurn" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.nextTurn'}}"><i class="fas fa-arrow-right"></i></a>
+      <a class="ct-nav" data-action="combatNextRound" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.nextRound'}}"><i class="fas fa-forward-step"></i></a>
+      {{else}}
+      <a class="ct-begin" data-action="combatBegin"><i class="fas fa-play"></i> {{localize 'PROJECTANIME.Hud.combat.begin'}}</a>
+      {{/if}}
+    {{else}}
+      <span class="ct-title"><i class="fas fa-swords"></i> {{localize 'PROJECTANIME.Hud.combat.title'}}</span>
+    {{/if}}
+  </div>
+
+  <ol class="ct-list">
+    {{#each turns}}
+    <li class="ct-row disp-{{disp}}{{#if active}} active{{/if}}{{#if keep}} keep{{/if}}{{#if defeated}} defeated{{/if}}{{#if hidden}} hidden{{/if}}"
+        data-combatant-id="{{id}}" data-action="combatGoto" data-tooltip="{{name}}">
+      <div class="ct-av">
+        <div class="ct-img" style="background-image:url('{{img}}')"></div>
+        {{#if defeated}}<i class="ct-dead fas fa-skull"></i>{{/if}}
+      </div>
+      <div class="ct-mid">
+        <div class="ct-name">{{name}}</div>
+        <div class="ct-ctrls">
+          {{#if @root.gm}}
+          <a class="ct-c{{#if hidden}} active{{/if}}" data-action="combatToggleHidden" data-tooltip="{{hideLabel}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></a>
+          <a class="ct-c{{#if defeated}} active{{/if}}" data-action="combatToggleDefeated" data-tooltip="{{defeatLabel}}"><i class="fas fa-skull"></i></a>
+          {{/if}}
+          <a class="ct-c{{#if targeted}} active{{/if}}" data-action="combatTarget" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.target'}}"><i class="fas fa-crosshairs"></i></a>
+          <a class="ct-c" data-action="combatPing" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.ping'}}"><i class="fas fa-location-dot"></i></a>
+        </div>
+      </div>
+      <div class="ct-extras">
+        <div class="ct-initrow">
+          {{#if canRoll}}
+          <a class="ct-roll" data-action="combatRoll" data-combatant-id="{{id}}" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.roll'}}">
+            {{#if rolled}}<span class="ct-init">{{init}}</span>{{/if}}<i class="fas fa-dice-d20"></i>
+          </a>
+          {{else}}
+            {{#if rolled}}<span class="ct-init">{{init}}</span><i class="fas fa-dice-d20 ct-dim"></i>{{else}}<span class="ct-init-none">—</span>{{/if}}
+          {{/if}}
+        </div>
+        {{#if seeHP}}
+        <div class="ct-hp" style="--hue:{{hp.hue}}" data-tooltip="{{hp.value}}/{{hp.max}}"><span>{{hp.value}}</span><i class="fas fa-heart"></i></div>
+        {{/if}}
+        {{#if seeEN}}
+        <div class="ct-en" data-tooltip="{{en.value}}/{{en.max}}"><span>{{en.value}}</span><i class="fas fa-bolt"></i></div>
+        {{/if}}
+      </div>
+    </li>
+    {{/each}}
+  </ol>
+
+  <div class="ct-foot">
+    <div class="ct-foot-l">
+      {{#if gm}}
+      <a class="ct-fbtn" data-action="combatRollAll" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.rollAll'}}"><i class="fas fa-users"></i></a>
+      <a class="ct-fbtn" data-action="combatRollNpc" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.rollNpc'}}"><i class="fas fa-skull"></i></a>
+      <a class="ct-fbtn" data-action="combatReset" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.reset'}}"><i class="fas fa-rotate-left"></i></a>
+      {{else}}{{#if canEnd}}
+      <a class="ct-end" data-action="combatEndTurn"><i class="fas fa-hourglass-end"></i> {{localize 'PROJECTANIME.Hud.combat.endTurn'}}</a>
+      {{/if}}{{/if}}
+    </div>
+    <span class="ct-round">{{#if started}}{{localize "PROJECTANIME.Hud.combat.round"}} {{round}}{{else}}{{localize "PROJECTANIME.Hud.combat.notStarted"}}{{/if}}</span>
+    <div class="ct-foot-r">
+      <a class="ct-fbtn ct-collapse" data-action="combatToggleCollapse" data-tooltip="{{collapseLabel}}">
+        <i class="fas {{#if collapsed}}fa-up-right-and-down-left-from-center{{else}}fa-down-left-and-up-right-to-center{{/if}}"></i>
+      </a>
+    </div>
+  </div>
+</div>
+{{/if}}

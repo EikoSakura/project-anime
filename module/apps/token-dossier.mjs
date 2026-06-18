@@ -9,8 +9,7 @@
  * with the hover panel's gate (the basics row at the top).
  */
 import { PROJECTANIME, rangeLabel } from "../helpers/config.mjs";
-import { elementLabel } from "../helpers/elements.mjs";
-import { viewerReveals, customFieldRows, totalSkillPoints } from "./token-info.mjs";
+import { viewerReveals, totalSkillPoints, canSeeTokenVitals, actorStatBlock } from "./token-info.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const L = (k) => (k ? game.i18n.localize(k) : "");
@@ -91,25 +90,9 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
       ? L(PROJECTANIME.dispositions[sys.disposition] ?? "TYPES.Actor.npc")
       : L("TYPES.Actor.character");
 
-    const attributes = can("attributes")
-      ? PROJECTANIME.attributeKeys.map((k) => ({
-          label: L(PROJECTANIME.attributes[k]),
-          die: sys.attributes?.[k]?.die ?? `d${sys.attributes?.[k]?.value ?? 4}`
-        }))
-      : null;
-
-    const combat = can("combatStats")
-      ? { evasion: sys.evasion?.value ?? 0, defense: sys.defense?.value ?? 0, movement: sys.movement?.value ?? 0 }
-      : null;
-
-    const affinities = [];
-    if (can("affinities")) {
-      for (const [key, level] of Object.entries(sys.affinities ?? {})) {
-        if (!level || level === "none") continue;
-        affinities.push({ key, label: elementLabel(key) || key, level, levelLabel: L(PROJECTANIME.affinityLevels[level] ?? level) });
-      }
-      affinities.sort((a, b) => a.label.localeCompare(b.label));
-    }
+    // Attributes / Combat Stats / Affinities / custom dossier fields — the shared reveal-gated stat
+    // block (also consumed by the Codex Archive). Skills + HP/Energy stay local to this surface.
+    const stat = actorStatBlock(actor, { full, reveals });
 
     const TextEditor = foundry.applications.ux.TextEditor.implementation;
     const skills = can("skills")
@@ -144,14 +127,16 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
       img: actor.img,
       name: token.document.name || actor.name,
       badge,
+      // Same HP/Energy gate as the bars + hover panel ("allies only" hides enemy/neutral vitals).
+      vitals: canSeeTokenVitals(token),
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, pct: pct(hp.value, hp.max) },
       energy: { value: energy.value ?? 0, max: energy.max ?? 0, pct: pct(energy.value, energy.max) },
       sp: { show: hasSkillPoints && can("skillPoints"), value: totalSkillPoints(actor) },
-      attributes,
-      combat,
-      affinities,
+      attributes: stat.attributes,
+      combat: stat.combat,
+      affinities: stat.affinities,
       skills,
-      customFields: customFieldRows(actor, { full, reveals, surface: "dossier" })
+      customFields: stat.customFields
     };
   }
 

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HQ — Compact Ornate Cards Mockup</title>
+<style>
+  :root{
+    --bg:#161020; --panel:#1f1733; --panel2:#281e40; --line:rgba(216,178,87,.20);
+    --line2:rgba(216,178,87,.42); --gold:#d8b257; --gold2:#efd595; --ink:#ece6f5;
+    --soft:#9b8fb4; --acc:#9a78e0; --ok:#46c08d; --warn:#e0a44a; --bad:#cf6079;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(120% 90% at 50% -10%,#241a3a,#100b1a 60%);
+    color:var(--ink);font:13px/1.35 "Segoe UI",system-ui,sans-serif;min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;padding:22px 16px 60px}
+  .pgttl{color:var(--soft);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 11px}
+  .pgttl b{color:var(--gold)}
+  .win{position:relative;width:100%;max-width:740px;background:var(--panel);
+    border:1px solid var(--line2);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .pad{padding:14px 16px 18px}
+
+  /* ornate compact card (the shared look) */
+  .card{position:relative;background:linear-gradient(165deg,#271d40,#191230);
+    border:1px solid var(--gold);border-radius:9px;cursor:pointer;transition:.14s;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:3px;border:1px solid rgba(216,178,87,.30);
+    border-radius:6px;pointer-events:none;z-index:2}
+  .card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(216,178,87,.18)}
+  .stud{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--gold2);z-index:3;
+    box-shadow:0 0 3px rgba(216,178,87,.8)}
+  .stud.tl{top:4px;left:4px}.stud.tr{top:4px;right:4px}.stud.bl{bottom:4px;left:4px}.stud.br{bottom:4px;right:4px}
+
+  /* hero */
+  .hero{display:flex;align-items:center;gap:12px}
+  .crest{width:44px;height:44px;flex:0 0 auto;border-radius:10px;background:linear-gradient(160deg,#2c2142,#1a1430);
+    border:2px solid var(--gold);color:var(--gold2);display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800}
+  .hname{font-size:17px;font-weight:700}
+  .hmotto{color:var(--soft);font-weight:400;font-size:12px;font-style:italic}
+  .hmeta{display:flex;gap:5px;margin-top:4px;flex-wrap:wrap}
+  .chip{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);
+    color:var(--soft);white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+  .chip.lvl{background:rgba(154,120,224,.18);border-color:rgba(154,120,224,.5);color:#c9b6ff}
+  .chip.gold{color:var(--gold2);border-color:var(--line2)}
+  .adv{white-space:nowrap;cursor:pointer;font-size:12px;font-weight:700;color:#1a1430;
+    background:linear-gradient(180deg,var(--gold2),var(--gold));border:none;border-radius:8px;padding:7px 11px}
+  .hid{flex:1;min-width:0}
+
+  /* nav */
+  .nav{display:flex;gap:8px;margin-top:12px}
+  .nav button{flex:1;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
+    font-size:12px;font-weight:600;color:var(--ink);background:var(--panel2);border:1px solid var(--line2);
+    border-radius:9px;padding:9px;transition:.14s}
+  .nav button:hover{background:#322648;border-color:var(--gold);color:var(--gold2)}
+  .nav .b{font-size:10px;background:var(--gold);color:#1a1430;border-radius:5px;padding:0 5px;font-weight:800}
+
+  /* section header (collapsible) */
+  .seclab{display:flex;align-items:center;gap:7px;margin:15px 2px 8px;font-size:11px;font-weight:800;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--soft);cursor:pointer;
+    padding:5px 8px;border-radius:7px;background:rgba(216,178,87,.05);border:1px solid var(--line)}
+  .seclab .ic{color:var(--gold)}
+  .seclab .n{color:var(--line2)}
+  .seclab .cv{margin-left:auto;color:var(--gold);transition:.2s}
+
+  /* ROSTER — tiny ornate portrait cards */
+  .rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px}
+  .rcard{padding:9px 5px 7px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+  .av{position:relative;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:700;color:#1a1430;background:linear-gradient(160deg,var(--gold2),#b98f3e);z-index:3}
+  .av.alt{background:linear-gradient(160deg,#b9a3ec,#7d62c2)}
+  .dot{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;border:2px solid #191230}
+  .dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}
+  .cn{font-size:11.5px;font-weight:600;z-index:3}
+  .cr{font-size:10px;color:var(--soft);z-index:3}
+  .cr.warn{color:var(--warn)}
+
+  /* FACILITIES — small ornate cards in a tight grid */
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .fcard{padding:9px 10px}
+  .fhead{display:flex;align-items:center;gap:8px;position:relative;z-index:3}
+  .ric{width:26px;height:26px;flex:0 0 auto;border-radius:6px;background:#120d22;border:1px solid var(--line2);
+    display:flex;align-items:center;justify-content:center;color:var(--gold2);font-size:13px}
+  .fnm{font-size:12.5px;font-weight:700}
+  .fsub{font-size:10px;color:var(--soft);margin-top:5px;position:relative;z-index:3}
+  .frow{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;position:relative;z-index:3}
+  .stars{font-size:11px;letter-spacing:.5px;color:#4b3f63;white-space:nowrap}
+  .stars b{color:var(--gold)}
+  .pill{font-size:10px;padding:1px 6px;border-radius:6px;background:#120d22;border:1px solid var(--line);
+    color:var(--soft);white-space:nowrap}
+  .pill.shop{background:rgba(70,192,141,.16);border-color:rgba(70,192,141,.5);color:#7fe0b6}
+  .pill.gold{color:var(--gold2);border-color:var(--line)}
+
+  /* MISSIONS — small ornate contract cards */
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(166px,1fr));gap:8px}
+  .mcard{padding:9px 10px}
+  .mnm{font-size:12.5px;font-weight:700;position:relative;z-index:3;display:flex;align-items:center;gap:6px}
+  .mseal{color:var(--gold)}
+  .mmeta{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;position:relative;z-index:3}
+  .mout{font-size:10px;color:var(--warn);margin-top:6px;position:relative;z-index:3}
+
+  /* drawer */
+  .backdrop{position:absolute;inset:0;background:rgba(8,6,16,.55);opacity:0;pointer-events:none;transition:.2s;z-index:5}
+  .backdrop.on{opacity:1;pointer-events:auto}
+  .drawer{position:absolute;top:0;right:0;height:100%;width:min(86%,390px);background:var(--panel);
+    border-left:1px solid var(--line2);transform:translateX(100%);transition:transform .22s ease;z-index:6;
+    display:flex;flex-direction:column;box-shadow:-16px 0 40px rgba(0,0,0,.45)}
+  .drawer.on{transform:none}
+  .dhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .dhead h3{margin:0;font-size:14px;font-weight:700;color:var(--gold2)}
+  .dx{cursor:pointer;color:var(--soft);font-size:17px;background:none;border:none}
+  .dbody{padding:13px 14px;overflow:auto}
+  .drop{margin-top:10px;border:1px dashed var(--line2);border-radius:9px;padding:12px;text-align:center;font-size:11px;color:var(--soft)}
+  .fld{display:block;margin:0 0 10px}
+  .fld span{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);margin-bottom:4px}
+  .fld select,.fld input{width:100%;background:#120d22;border:1px solid var(--line2);border-radius:7px;color:var(--ink);padding:7px 9px;font-size:13px}
+  .ff{display:flex;gap:8px}.ff .fld{flex:1}
+  .hint{font-size:11px;color:var(--soft);margin:3px 0 0}
+  .tieradj{display:flex;align-items:center;gap:8px}
+  .tieradj button{width:28px;height:28px;border-radius:7px;background:#120d22;border:1px solid var(--line2);color:var(--gold2);font-size:15px;cursor:pointer}
+  .icon{font-style:normal}
+</style>
+</head>
+<body>
+  <p class="pgttl">project-anime · <b>Headquarters</b> — compact ornate cards &nbsp;·&nbsp; click cards / nav to open drawers</p>
+
+  <div class="win">
+    <div class="backdrop" id="bd" onclick="closeD()"></div>
+
+    <div class="pad">
+      <!-- HERO -->
+      <div class="hero">
+        <div class="crest">V</div>
+        <div class="hid">
+          <div class="hname">The Vanguard <span class="hmotto">— hold the line</span></div>
+          <div class="hmeta">
+            <span class="chip lvl"><span class="icon">◆</span> Level 7</span>
+            <span class="chip">⏳ Turn 3</span><span class="chip">6 roster</span><span class="chip">4 facilities</span>
+          </div>
+        </div>
+        <button class="adv">⏳ Advance turn</button>
+      </div>
+
+      <!-- NAV -->
+      <div class="nav">
+        <button onclick="openD('recruitment')">＋ Recruitment <span class="b">3</span></button>
+        <button onclick="openD('missions')">📜 Missions <span class="b">2</span></button>
+      </div>
+
+      <!-- ROSTER -->
+      <div class="seclab"><span class="ic">👥</span> Roster <span class="n">· 6</span><span class="cv">▾</span></div>
+      <div class="rgrid">
+        <div class="card rcard" onclick="openD('member')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av">KA<span class="dot ok"></span></div><div class="cn">Kael</div><div class="cr">Fighter</div></div>
+        <div class="card rcard" onclick="openD('member')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av">MI<span class="dot ok"></span></div><div class="cn">Mira</div><div class="cr">Fighter</div></div>
+        <div class="card rcard" onclick="openD('member')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av alt">YU<span class="dot ok"></span></div><div class="cn">Sister Yun</div><div class="cr">Service</div></div>
+        <div class="card rcard" onclick="openD('member')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av alt">BR<span class="dot ok"></span></div><div class="cn">Bram</div><div class="cr">Vendor</div></div>
+        <div class="card rcard" onclick="openD('member')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av">TE<span class="dot warn"></span></div><div class="cn">Tess</div><div class="cr warn">Away · t5</div></div>
+        <div class="card rcard" onclick="openD('member')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av alt">DO<span class="dot ok"></span></div><div class="cn">Doyle</div><div class="cr">Passive</div></div>
+      </div>
+
+      <!-- FACILITIES -->
+      <div class="seclab"><span class="ic">🏰</span> Facilities <span class="n">· 4</span><span class="cv">▾</span></div>
+      <div class="fgrid">
+        <div class="card fcard" onclick="openD('facility')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="fhead"><div class="ric">✚</div><div class="fnm">Infirmary</div></div><div class="fsub">Restores HP each turn</div><div class="frow"><span class="stars"><b>★★</b>☆</span><span class="pill">Sister Yun</span></div></div>
+        <div class="card fcard" onclick="openD('facility')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="fhead"><div class="ric">🏪</div><div class="fnm">Market Stall</div></div><div class="fsub">Buy / sell · +40g turn</div><div class="frow"><span class="stars"><b>★</b>☆☆</span><span class="pill shop">🛒 Visit</span></div></div>
+        <div class="card fcard" onclick="openD('facility')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="fhead"><div class="ric">🏋</div><div class="fnm">Training Yard</div></div><div class="fsub">+1 Might to the party</div><div class="frow"><span class="stars"><b>★★</b>☆</span><span class="pill">Doyle</span></div></div>
+        <div class="card fcard" onclick="openD('facility')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="fhead"><div class="ric">⬆</div><div class="fnm">Smithy</div></div><div class="fsub">Upgrades Market Stall</div><div class="frow"><span class="stars"><b>★</b>☆☆</span><span class="pill">— unstaffed</span></div></div>
+      </div>
+
+      <!-- MISSIONS -->
+      <div class="seclab"><span class="ic">📜</span> Missions <span class="n">· 2</span><span class="cv">▾</span></div>
+      <div class="mgrid">
+        <div class="card mcard" onclick="openD('missions')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="mnm"><span class="mseal">🧭</span> Escort the Caravan</div><div class="frow" style="margin-top:6px"><span class="stars"><b>★★</b>☆☆☆</span></div><div class="mmeta"><span class="pill">⏱ 3</span><span class="pill">80%</span><span class="pill gold">⛁ 120</span></div><div class="mout">Tess out · returns t5</div></div>
+        <div class="card mcard" onclick="openD('missions')"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="mnm"><span class="mseal">⛏</span> Clear the Mine</div><div class="frow" style="margin-top:6px"><span class="stars"><b>★★★</b>☆☆</span></div><div class="mmeta"><span class="pill">⏱ 4</span><span class="pill">60%</span><span class="pill gold">⛁ 200 +1</span></div></div>
+      </div>
+    </div>
+
+    <!-- DRAWERS -->
+    <div class="drawer" id="d-recruitment">
+      <div class="dhead"><h3>＋ Recruitment</h3><button class="dx" onclick="closeD()">✕</button></div>
+      <div class="dbody">
+        <div class="rgrid" style="grid-template-columns:repeat(2,1fr)">
+          <div class="card rcard"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av" style="filter:grayscale(.5);opacity:.7">RO</div><div class="cn">Rook</div><div class="cr">🔒 Honored</div></div>
+          <div class="card rcard" style="border-color:var(--ok)"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av" style="background:linear-gradient(160deg,#7fe0b6,#46c08d)">LI</div><div class="cn">Lia</div><div class="cr" style="color:var(--ok)">✔ Recruit</div></div>
+          <div class="card rcard"><span class="stud tl"></span><span class="stud tr"></span><span class="stud bl"></span><span class="stud br"></span><div class="av" style="filter:grayscale(.5);opacity:.7">GA</div><div class="cn">Garrik</div><div class="cr">🔒 HQ Lv 5</div></div>
+        </div>
+        <div class="drop">＋ Drag an NPC here to add a recruit</div>
+        <p class="hint">Each candidate's unlock gate + role are authored on its card here, folded out of the main view.</p>
+      </div>
+    </div>
+
+    <div class="drawer" id="d-missions">
+      <div class="dhead"><h3>📜 Mission</h3><button class="dx" onclick="closeD()">✕</button></div>
+      <div class="dbody">
+        <div class="fld"><span>Title</span><input value="Escort the Caravan"></div>
+        <div class="ff"><div class="fld"><span>Tier</span><input value="2"></div><div class="fld"><span>Turns</span><input value="3"></div><div class="fld"><span>Success %</span><input value="80"></div></div>
+        <div class="ff"><div class="fld"><span>⛁ Gold</span><input value="120"></div><div class="fld"><span>◆ SP</span><input value="0"></div></div>
+        <div class="drop">＋ Drag an item here to add as a mission reward</div>
+        <div class="fld" style="margin-top:11px"><span>Dispatch (multi-select)</span><select><option>Mira (idle)</option><option>Kael (idle)</option></select></div>
+        <button class="adv" style="width:100%;margin-top:4px">Send agents ›</button>
+      </div>
+    </div>
+
+    <div class="drawer" id="d-facility">
+      <div class="dhead"><h3>✚ Infirmary</h3><button class="dx" onclick="closeD()">✕</button></div>
+      <div class="dbody">
+        <div class="fld"><span>Kind</span><select><option>Service</option><option>Vendor</option><option>Passive</option><option>Upgrade</option></select></div>
+        <div class="fld"><span>Tier</span><div class="tieradj"><button>−</button><span class="stars"><b>★★</b>☆</span><button>＋</button></div></div>
+        <div class="ff"><div class="fld"><span>⛁ Gold / turn</span><input value="0"></div><div class="fld"><span>◆ SP / turn</span><input value="0"></div></div>
+        <div class="fld"><span>Service</span><select><option>Restore HP</option><option>Restore Energy</option><option>Full Rest</option><option>Cleanse</option></select></div>
+        <div class="drop">＋ Drag an item here to add to the yield</div>
+        <p class="hint">Staffed by <b style="color:var(--gold2)">Sister Yun</b>. The old flip-card back lives here now.</p>
+      </div>
+    </div>
+
+    <div class="drawer" id="d-member">
+      <div class="dhead"><h3>👤 Sister Yun</h3><button class="dx" onclick="closeD()">✕</button></div>
+      <div class="dbody">
+        <div style="display:flex;gap:11px;align-items:center;margin-bottom:11px"><div class="av alt" style="width:50px;height:50px;font-size:17px">YU</div><div><div style="font-size:14px;font-weight:700">Sister Yun</div><div class="cr">Service · staffs the Infirmary</div></div></div>
+        <div class="fld"><span>Roster effect</span><input value="A gentle hand; the wounded mend faster."></div>
+        <button class="adv" style="background:#120d22;color:var(--gold2);border:1px solid var(--line2);width:100%">Open NPC sheet ›</button>
+        <p class="hint">A dispatched member shows Away / Wounded + a Recall button here.</p>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  function openD(id){closeD();document.getElementById('d-'+id).classList.add('on');document.getElementById('bd').classList.add('on');}
+  function closeD(){document.querySelectorAll('.drawer.on').forEach(function(d){d.classList.remove('on')});document.getElementById('bd').classList.remove('on');}
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeD()});
+</script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+{{!-- NPC Bond-offer editor: the bond this social NPC offers + its per-rank rewards. The GM authors
+      it here; dragging the NPC onto a Player forges/syncs the bond and delivers each rank's rewards. --}}
+<aside class="section-drawer pa-npcbond{{#if open.npcbond}} open{{/if}}" data-section="npcbond">
+  <div class="drawer-backdrop" data-action="closeDrawer"></div>
+  <div class="drawer-panel">
+    <div class="drawer-headbar">
+      <h3>{{localize "PROJECTANIME.NpcBond.title"}}</h3>
+      <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+    </div>
+    <div class="drawer-content">
+      <div class="npcbond-scroll">
+        {{#with npcBond}}
+
+        <div class="nb-hero" style="--acc:{{accent}}; {{bannerStyle}}">
+          <div class="scrim"></div>
+          <div class="nb-portrait">{{#if npcImg}}<img src="{{npcImg}}" alt="">{{/if}}</div>
+          <div class="nb-id">
+            <div class="nb-name">{{npcName}}</div>
+            {{#if @root.editable}}
+            <input class="nb-title-edit" data-npcbond-field="title" value="{{title}}">
+            {{else}}{{#if title}}<div class="nb-title">{{title}}</div>{{/if}}{{/if}}
+          </div>
+        </div>
+
+        {{#if @root.editable}}
+        <div class="nb-grid">
+          <label class="nb-f nb-color">{{localize "PROJECTANIME.Covenant.accentColor"}}
+            <input type="color" data-npcbond-field="accent" value="{{accent}}">
+          </label>
+          <button type="button" class="gbtn" data-action="pickNpcBondBanner">🖼 {{localize "PROJECTANIME.Covenant.banner"}}</button>
+        </div>
+        {{/if}}
+
+        <div class="nb-sec">
+          <h4>{{localize "PROJECTANIME.Covenant.dossier"}}</h4>
+          <div class="vitals">
+            {{#each vitals}}
+              {{#if @root.editable}}
+              <div class="vital edit">
+                <input data-npcbond-vital="{{id}}" data-npcbond-vital-field="k" value="{{k}}">
+                <input data-npcbond-vital="{{id}}" data-npcbond-vital-field="v" value="{{v}}">
+                <span class="vital-x" data-action="removeNpcVital" data-npcbond-vital="{{id}}">✕</span>
+              </div>
+              {{else}}{{#if v}}<div class="vital"><span class="vk">{{k}}</span><span class="vv">{{v}}</span></div>{{/if}}{{/if}}
+            {{/each}}
+            {{#if @root.editable}}<button type="button" class="add-line" data-action="addNpcVital">＋ {{localize "PROJECTANIME.Covenant.addVital"}}</button>{{/if}}
+          </div>
+          {{#if @root.editable}}
+          <textarea class="nb-dossier-edit" data-npcbond-field="dossier" rows="4">{{dossier}}</textarea>
+          <input class="nb-quote-edit" data-npcbond-field="quote" value="{{quote}}">
+          {{else}}
+          {{#if dossier}}<div class="dossier">{{dossier}}</div>{{/if}}
+          {{#if quote}}<div class="quote"><p>{{quote}}</p></div>{{/if}}
+          {{/if}}
+        </div>
+
+        <div class="nb-sec">
+          <h4>{{localize "PROJECTANIME.NpcBond.ranks"}}</h4>
+          <div class="nb-ranks">
+            {{#each ranks}}
+            <div class="nb-rank" data-rank="{{rank}}">
+              <div class="nb-rank-head"><span class="medal">{{rank}}</span> {{rankLabel}}</div>
+              <div class="nb-rank-body">
+                {{#if @root.editable}}
+                <input class="nb-abil-name" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="abilityName" value="{{abilityName}}">
+                <textarea class="nb-abil-desc" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="abilityDesc" rows="2">{{abilityDesc}}</textarea>
+                {{else}}
+                {{#if abilityName}}<div class="an">{{abilityName}}</div>{{/if}}
+                {{#if abilityDesc}}<div class="ad">{{abilityDesc}}</div>{{/if}}
+                {{/if}}
+
+                <div class="nb-rewards">
+                  <div class="nb-rew-line">
+                    <span class="rew-lab">{{localize "PROJECTANIME.NpcBond.rewards"}}</span>
+                    {{#if @root.editable}}
+                    <label class="rew-num"><i class="fas fa-coins"></i><input type="number" min="0" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="rewardGold" value="{{rewardGold}}"></label>
+                    <label class="rew-num"><i class="fas fa-star"></i><input type="number" min="0" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="rewardSP" value="{{rewardSP}}"></label>
+                    {{else}}
+                    {{#if rewardGold}}<span class="rew-num"><i class="fas fa-coins"></i> {{rewardGold}}</span>{{/if}}
+                    {{#if rewardSP}}<span class="rew-num"><i class="fas fa-star"></i> {{rewardSP}}</span>{{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="nb-rew-items{{#if @root.editable}} drop{{/if}}"{{#if @root.editable}} data-reward-drop="{{rank}}"{{/if}}>
+                    {{#each rewardItems}}
+                    <div class="rew-item" title="{{name}}">
+                      <img src="{{img}}" alt=""><span>{{name}}</span>
+                      {{#if @root.editable}}<a class="rew-x" data-action="removeRewardItem" data-npcbond-rank="{{../rank}}" data-reward-item="{{idx}}">✕</a>{{/if}}
+                    </div>
+                    {{/each}}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+
+        {{/with}}
+      </div>
+    </div>
+  </div>
+</aside>

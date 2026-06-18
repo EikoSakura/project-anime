@@ -1,4 +1,4 @@
-import { monsterSPCost, memberPower, partyPower, encounterBudget, resolveActor } from "../helpers/encounter.mjs";
+import { monsterSPCost, memberPower, partyPower, effectivePartyPower, encounterBudget, actionEconomy, resolveActor } from "../helpers/encounter.mjs";
 import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -17,6 +17,10 @@ const STASHABLE = new Set(["weapon", "armor", "shield", "accessory", "consumable
  *   • Encounter — GM-ONLY budget builder: Party SP × difficulty = a monster budget, and a
  *                 drag-in tally of the fight's monsters (each priced in SP) vs that budget.
  * Members and encounter monsters are stored as UUIDs; the Stash uses embedded Items.
+ *
+ * The party reads as JUST a folder in the Actors sidebar (PF2e-style) — its own actor row is
+ * hidden, and this sheet opens from the folder's icon (or the `P` key). Since the right-click
+ * "Delete Actor" is therefore out of reach, the GM gets a Delete control in the window header.
  */
 export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static DEFAULT_OPTIONS = {
@@ -36,7 +40,9 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       giveItem: ProjectAnimePartySheet.#onGiveItem,
       splitGold: ProjectAnimePartySheet.#onSplitGold,
       collectGold: ProjectAnimePartySheet.#onCollectGold,
-      openActor: ProjectAnimePartySheet.#onOpenActor
+      openActor: ProjectAnimePartySheet.#onOpenActor,
+      pullRoster: ProjectAnimePartySheet.#onPullRoster,
+      deleteParty: ProjectAnimePartySheet.#onDeleteParty
     }
   };
 
@@ -46,6 +52,16 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     stash: { template: "systems/project-anime/templates/party/stash.hbs", scrollable: [""] },
     encounter: { template: "systems/project-anime/templates/party/encounter.hbs", scrollable: [""] }
   };
+
+  /** @override — the party actor row is hidden from the directory (it reads as just a folder), so
+   *  the usual right-click "Delete Actor" is out of reach. Give the GM a Delete control here;
+   *  ownership / UUID stay on the inherited header menu. Built fresh each render so the
+   *  options-backed parent array isn't mutated (which would duplicate it). */
+  _getHeaderControls() {
+    const controls = [...super._getHeaderControls()];
+    if (game.user.isGM) controls.unshift({ icon: "fas fa-trash", label: "PROJECTANIME.Party.delete", action: "deleteParty" });
+    return controls;
+  }
 
   /** Active tab ("party" | "stash" | "encounter"). Survives re-render. */
   #activeTab = "party";
@@ -69,7 +85,8 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     context.system = sys;
     context.isGM = isGM;
 
-    // Tabs — Encounter is GM-only; reconcile the active tab to one that's available.
+    // Tabs — Party + Stash for everyone; Encounter is GM-only. Reconcile the active tab to an
+    // available one. (Factions + Home now live in the standalone Codex window, not here.)
     const available = ["party", "stash", ...(isGM ? ["encounter"] : [])];
     if (!available.includes(this.#activeTab)) this.#activeTab = "party";
     const active = this.#activeTab;
@@ -111,7 +128,13 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
 
     // Encounter tab (GM only) — difficulty, budget, and the monster tally.
     if (isGM) {
-      const power = context.partyPower;
+      // Budget basis: typed total Skill Points in manual-estimate mode (plan a fight with no
+      // built roster), else the live roster's summed power.
+      const power = effectivePartyPower(this.actor);
+      context.encounterManual = sys.encounterManual ?? false;
+      context.encounterPlayers = sys.encounterPlayers ?? 4;
+      context.encounterSP = sys.encounterSP ?? 0;
+      context.rosterPower = context.partyPower; // shown as the "pull from roster" reference
       context.difficulty = sys.difficulty ?? "standard";
       context.difficultyChoices = Object.fromEntries(
         cfg.encounterDifficultyKeys.map((k) => [k, game.i18n.localize(cfg.encounterDifficulty[k].label)])
@@ -143,6 +166,13 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       context.budgetTotal = context.budget;
       context.over = spent > context.budget;
       context.usePct = context.budget > 0 ? Math.clamp(Math.round((spent / context.budget) * 100), 0, 100) : 0;
+
+      // Action-economy guide — head-count vs players (the SP budget can't see action economy).
+      const econ = actionEconomy(this.actor);
+      const econKey = { heavy: "actionEconHeavy", light: "actionEconLight", ok: "actionEconOk" }[econ.tone];
+      context.actionEcon = econKey
+        ? { tone: econ.tone, label: game.i18n.format(`PROJECTANIME.Party.${econKey}`, econ) }
+        : null;
     }
 
     return context;
@@ -212,6 +242,20 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       else list.push({ uuid: actor.uuid, qty: 1 });
       await this.actor.update({ "system.encounter": list });
     }
+  }
+
+  /** Foundry's ActorSheetV2 binds its own `element.ondrop` (in `_onRender`) that auto-creates a
+   *  copy of any dropped Item. The stash zone's own handler (#onDrop) doesn't stop propagation, so
+   *  without this both channels would fire and stash drops would land TWICE. Suppress the base
+   *  auto-create for foreign items (our #onDrop copies them); delegate own-item drops to core. */
+  async _onDropItem(event, item) {
+    if (this.actor.uuid !== item?.parent?.uuid) return null;
+    return super._onDropItem(event, item);
+  }
+
+  /** No ActiveEffects live on the party actor — suppress the base auto-create on effect drops. */
+  async _onDropActiveEffect(event, effect) {
+    return null;
   }
 
   /** Switch tabs via CSS (toggle .active on the live DOM) — instant, no re-render. */
@@ -354,5 +398,26 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     const ref = el?.dataset.ref ?? el?.dataset.uuid;
     const actor = ref ? await fromUuid(ref) : null;
     actor?.sheet?.render(true);
+  }
+
+  /** Prefill the manual-estimate fields from the live roster — the party's summed power as the
+   *  total SP, its member count as the player count. Lets the GM start from the real party and
+   *  then tweak the numbers (e.g. "what if there were 5 of them?") without a built roster. */
+  static async #onPullRoster() {
+    await this.actor.update({
+      "system.encounterSP": partyPower(this.actor),
+      "system.encounterPlayers": Math.max(1, this.#resolvedMembers().length || 1)
+    });
+  }
+
+  /** Delete the whole party (GM, from the header control). The deleteActor hook tears down its
+   *  backing folder; the folder's Characters fall back to the directory root, not deleted. */
+  static async #onDeleteParty() {
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("PROJECTANIME.Party.deleteTitle"), icon: "fas fa-trash" },
+      content: `<p>${game.i18n.format("PROJECTANIME.Party.deleteConfirm", { name: this.actor.name })}</p>`,
+      rejectClose: false
+    });
+    if (ok) await this.actor.delete();
   }
 }

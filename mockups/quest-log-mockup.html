@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project: Anime — CHRONICLE Quest Log Mockup</title>
+<style>
+/* ============================================================
+   Project: Anime — "CHRONICLE" quest-log mockup (standalone).
+   Reuses the live "Cinematic Dossier" tokens (--pa-*), then
+   layers GlitchSmith / Persona-5 quest-journal energy: cinematic
+   hero banner, oblique category ribbon, diamond quest-giver
+   portraits, objective checklists, reward medallions, and a
+   floating on-canvas quest tracker.
+   THIS IS A MOCKUP. It touches no system code.
+   ============================================================ */
+
+/* ---- Design tokens copied from css/project-anime.css ---- */
+.project-anime {
+  --pa-accent:#6c4f9c; --pa-accent-2:#8a6fc0; --pa-accent-ink:#4a356f;
+  --pa-gold:#b7912f; --pa-gold-soft:#d8b257;
+  --pa-surface:#f6f2ea; --pa-surface-2:#ece5d7; --pa-panel:#fffdf8; --pa-field:#ffffff;
+  --pa-ink:#2b2733; --pa-ink-soft:#6f6878; --pa-line:rgba(43,39,51,.18); --pa-track:#e2dbcb;
+  --pa-hp-a:#b5384a; --pa-hp-b:#e07a5f; --pa-hp-c:#f4b15e;
+  --pa-energy-a:#3b59b0; --pa-energy-b:#7c8fe8; --pa-energy-c:#b079e6;
+  --pa-danger:#b03a2e; --pa-on-accent:#fff;
+  --pa-font:"Signika","Segoe UI",sans-serif;
+  --pa-font-display:"Constantia","Georgia","Palatino Linotype",serif;
+  --pa-font-mono:"Spline Sans Mono","Cascadia Mono","Consolas",ui-monospace,monospace;
+  --pa-radius:5px;
+  /* quest category accents */
+  --q-main:var(--pa-gold); --q-side:var(--pa-accent-2); --q-personal:#43b88a; --q-done:#5fae5f;
+}
+.project-anime.theme-dark {
+  --pa-accent:#9a78e0; --pa-accent-2:#b79bf0; --pa-accent-ink:#cdb8f5;
+  --pa-gold:#d8b257; --pa-gold-soft:#ecca77;
+  --pa-surface:#1f1e28; --pa-surface-2:#181722; --pa-panel:#282636; --pa-field:rgba(255,255,255,.06);
+  --pa-ink:#ece9f5; --pa-ink-soft:#a39db8; --pa-line:rgba(220,215,240,.16); --pa-track:rgba(0,0,0,.38);
+  --pa-hp-a:#c34155; --pa-hp-b:#ef8a6e; --pa-hp-c:#ffc36b;
+  --pa-energy-a:#4f6ad0; --pa-energy-b:#97a6f2; --pa-energy-c:#c58cff;
+  --pa-danger:#ff7a6b;
+  --q-main:var(--pa-gold); --q-side:#b79bf0; --q-personal:#6fe0b0; --q-done:#74d074;
+}
+
+* { box-sizing:border-box; }
+html,body { margin:0; height:100%; }
+body { font-family:var(--pa-font); color:var(--pa-ink); overflow:hidden; }
+
+/* ---- Faux Foundry stage ---- */
+.stage {
+  position:fixed; inset:0;
+  background:
+    radial-gradient(120% 90% at 50% 8%, rgba(122,92,180,.18), transparent 55%),
+    radial-gradient(90% 70% at 80% 90%, rgba(216,178,87,.10), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.022) 0 1px, transparent 1px 64px),
+    linear-gradient(160deg,#11101a,#0a0910 60%,#080711);
+  display:grid; place-items:center;
+}
+.project-anime:not(.theme-dark) .stage {
+  background:
+    radial-gradient(120% 90% at 50% 8%, rgba(122,92,180,.14), transparent 55%),
+    radial-gradient(90% 70% at 80% 90%, rgba(216,178,87,.12), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.03) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,.03) 0 1px, transparent 1px 64px),
+    linear-gradient(160deg,#cdc7e0,#bcb4d2 60%,#b3aacb);
+}
+.stage::after{ content:""; position:absolute; inset:0; pointer-events:none;
+  box-shadow: inset 0 0 220px 40px rgba(0,0,0,.55); }
+
+/* dim placeholders for native Foundry chrome */
+.fvtt-ghost { position:absolute; color:var(--pa-ink-soft); opacity:.32;
+  font-size:11px; letter-spacing:.04em; pointer-events:none; user-select:none; }
+.ghost-controls { left:10px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:8px; }
+.ghost-controls i { width:30px; height:30px; border-radius:5px; border:1px solid var(--pa-line);
+  background:rgba(255,255,255,.04); display:grid; place-items:center; font-style:normal; }
+.ghost-controls i.hot{ color:var(--pa-gold); border-color:color-mix(in srgb,var(--pa-gold) 60%,transparent);
+  background:color-mix(in srgb,var(--pa-gold) 14%,transparent); opacity:1;
+  box-shadow:0 0 12px color-mix(in srgb,var(--pa-gold) 45%,transparent); }
+.ghost-nav { top:8px; left:50%; transform:translateX(-50%); display:flex; gap:6px; }
+.ghost-nav b { font-weight:600; padding:4px 12px; border:1px solid var(--pa-line); border-radius:5px;
+  background:rgba(255,255,255,.04); }
+
+/* =====================================================================
+   ANNOTATIONS (callouts)
+   ===================================================================== */
+.note { position:absolute; z-index:80; font-size:11px; line-height:1.35; color:var(--pa-ink);
+  background:color-mix(in srgb, var(--pa-panel) 92%, transparent);
+  border:1px solid var(--pa-line); border-left:3px solid var(--pa-gold);
+  border-radius:5px; padding:6px 9px; max-width:210px; backdrop-filter:blur(4px);
+  box-shadow:0 6px 18px rgba(0,0,0,.4); }
+.note b { color:var(--pa-gold-soft); }
+.note .n { display:inline-grid; place-items:center; width:16px; height:16px; margin-right:4px;
+  background:var(--pa-gold); color:#1a1622; border-radius:50%; font-weight:800; font-size:10px;
+  vertical-align:-3px; }
+.hide-notes .note { display:none; }
+
+/* =====================================================================
+   THE CHRONICLE WINDOW
+   ===================================================================== */
+.chronicle{
+  --notch:20px;
+  position:relative; z-index:30;
+  width:min(1080px,94vw); height:min(686px,90vh);
+  display:flex; flex-direction:column; overflow:hidden;
+  clip-path: polygon(var(--notch) 0, 100% 0, 100% calc(100% - var(--notch)),
+                     calc(100% - var(--notch)) 100%, 0 100%, 0 var(--notch));
+  background:
+    radial-gradient(120% 80% at 8% 0%, color-mix(in srgb,var(--pa-accent) 14%, transparent), transparent 56%),
+    linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  box-shadow:
+    0 28px 70px rgba(0,0,0,.62),
+    0 0 26px color-mix(in srgb,var(--pa-accent) 26%, transparent),
+    inset 0 0 0 1.5px color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line)),
+    inset 0 1px 0 rgba(255,255,255,.06);
+}
+.intensity-anime .chronicle::after{
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:.05; z-index:60;
+  background:repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,255,255,.8) 3px 4px);
+  clip-path:inherit;
+}
+
+/* ---- Titlebar / masthead ---- */
+.cw-bar{ display:flex; align-items:center; gap:14px; padding:13px 20px 12px;
+  border-bottom:1px solid color-mix(in srgb,var(--pa-gold) 26%, var(--pa-line));
+  background:linear-gradient(180deg, color-mix(in srgb,var(--pa-accent) 12%, transparent), transparent); }
+.cw-title{ display:flex; align-items:baseline; gap:11px; }
+.cw-title .dia{ align-self:center; width:13px; height:13px; transform:rotate(45deg);
+  background:linear-gradient(135deg,var(--pa-gold-soft),var(--pa-gold));
+  box-shadow:0 0 10px color-mix(in srgb,var(--pa-gold) 70%,transparent); }
+.cw-title h1{ margin:0; font-family:var(--pa-font-display); font-size:25px; font-weight:800;
+  letter-spacing:.14em; color:var(--pa-gold-soft);
+  text-shadow:0 1px 0 rgba(0,0,0,.4), 0 0 18px color-mix(in srgb,var(--pa-gold) 30%,transparent); }
+.cw-sub{ font-size:10.5px; text-transform:uppercase; letter-spacing:.22em; color:var(--pa-ink-soft); }
+.cw-tools{ margin-left:auto; display:flex; align-items:center; gap:10px; }
+.cw-search{ display:flex; align-items:center; gap:7px; padding:6px 11px; border-radius:20px;
+  background:var(--pa-field); border:1px solid var(--pa-line); color:var(--pa-ink-soft); }
+.cw-search::before{ content:"⌕"; font-size:14px; }
+.cw-search input{ border:0; background:transparent; outline:none; color:var(--pa-ink); width:148px;
+  font-family:var(--pa-font); font-size:12.5px; }
+.cw-new{ display:flex; align-items:center; gap:6px; padding:7px 14px; cursor:pointer; font-weight:700;
+  font-size:12px; letter-spacing:.02em; color:var(--pa-on-accent); border:0; border-radius:6px;
+  background:linear-gradient(180deg, var(--pa-accent-2), var(--pa-accent));
+  box-shadow:0 3px 10px color-mix(in srgb,var(--pa-accent) 45%,transparent), inset 0 1px 0 rgba(255,255,255,.25);
+  transition:transform .12s ease, box-shadow .12s ease; }
+.cw-new:hover{ transform:translateY(-1px); box-shadow:0 6px 16px color-mix(in srgb,var(--pa-accent) 55%,transparent); }
+.cw-winx{ color:var(--pa-ink-soft); cursor:pointer; font-size:14px; padding:2px 4px; }
+.cw-winx:hover{ color:var(--pa-danger); }
+
+/* ---- Category tabs ---- */
+.cw-tabs{ display:flex; gap:4px; padding:9px 18px 0; }
+.tab{ position:relative; display:flex; align-items:center; gap:7px; padding:8px 15px 11px; cursor:pointer;
+  font-family:var(--pa-font); font-size:12.5px; font-weight:600; color:var(--pa-ink-soft);
+  background:transparent; border:0; border-bottom:2px solid transparent; transition:.14s; letter-spacing:.01em; }
+.tab .pip{ width:9px; height:9px; transform:rotate(45deg); border-radius:1px; opacity:.85;
+  background:var(--tc,var(--pa-ink-soft)); box-shadow:0 0 7px color-mix(in srgb,var(--tc,transparent) 70%,transparent); }
+.tab b{ font-family:var(--pa-font-mono); font-size:10px; font-weight:700; padding:1px 7px; border-radius:9px;
+  background:color-mix(in srgb,var(--pa-ink) 8%,transparent); color:var(--pa-ink-soft); }
+.tab:hover{ color:var(--pa-ink); }
+.tab.on{ color:var(--pa-ink); border-bottom-color:var(--tc,var(--pa-gold));
+  text-shadow:0 0 14px color-mix(in srgb,var(--tc,var(--pa-gold)) 40%,transparent); }
+.tab.on b{ background:color-mix(in srgb,var(--tc,var(--pa-gold)) 24%,transparent); color:var(--pa-ink); }
+
+/* ---- Body split ---- */
+.cw-body{ flex:1; display:flex; min-height:0;
+  border-top:1px solid color-mix(in srgb,var(--pa-gold) 22%, var(--pa-line)); }
+
+/* =====================================================================
+   QUEST LIST (left rail)
+   ===================================================================== */
+.q-list{ width:300px; flex:0 0 auto; overflow-y:auto; padding:12px 10px; display:flex; flex-direction:column; gap:9px;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--pa-surface-2) 70%, transparent), transparent 18%);
+  border-right:1px solid var(--pa-line); }
+.q-list::-webkit-scrollbar{ width:9px; }
+.q-list::-webkit-scrollbar-thumb{ background:color-mix(in srgb,var(--pa-accent) 40%,transparent); border-radius:6px; }
+.q-list .empty{ margin:24px 8px; text-align:center; color:var(--pa-ink-soft); font-size:12px; opacity:.7; }
+
+.q-card{ position:relative; display:flex; gap:11px; padding:10px 12px 10px 15px; cursor:pointer;
+  border-radius:8px; overflow:hidden; background:var(--pa-panel);
+  border:1px solid var(--pa-line); transition:transform .14s ease, box-shadow .14s ease, border-color .14s; }
+.q-card::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+  background:linear-gradient(180deg, var(--cat), color-mix(in srgb,var(--cat) 45%, transparent)); }
+.q-card:hover{ transform:translateX(2px); border-color:color-mix(in srgb,var(--cat) 55%, var(--pa-line));
+  box-shadow:0 6px 16px rgba(0,0,0,.32); }
+.q-card.sel{ border-color:color-mix(in srgb,var(--cat) 80%, transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--cat) 60%,transparent),
+             0 8px 20px rgba(0,0,0,.4),
+             inset 0 0 24px color-mix(in srgb,var(--cat) 14%, transparent); }
+.q-card.sel::after{ content:""; position:absolute; right:9px; top:9px; width:7px; height:7px; transform:rotate(45deg);
+  background:var(--cat); box-shadow:0 0 8px var(--cat); }
+.q-thumb{ flex:0 0 auto; width:46px; height:46px; border-radius:7px; display:grid; place-items:center;
+  font-size:22px; background:var(--bann); box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),
+  inset 0 -10px 16px rgba(0,0,0,.32); filter:drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+.q-cmid{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; justify-content:center; }
+.q-cmid .qt{ font-family:var(--pa-font-display); font-size:14px; font-weight:700; color:var(--pa-ink);
+  line-height:1.18; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.q-cmid .qg{ font-size:10.5px; color:var(--pa-ink-soft); display:flex; align-items:center; gap:5px; }
+.q-cmid .qg .dot{ width:4px; height:4px; border-radius:50%; background:var(--cat); }
+.q-cright{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
+.ring{ position:relative; width:34px; height:34px; border-radius:50%;
+  background:conic-gradient(var(--cat) calc(var(--p,0)*1%), var(--pa-track) 0); display:grid; place-items:center; }
+.ring::before{ content:""; position:absolute; inset:3.5px; border-radius:50%; background:var(--pa-panel); }
+.ring span{ position:relative; font-family:var(--pa-font-mono); font-size:9px; font-weight:700; color:var(--pa-ink); }
+.q-card.done{ opacity:.72; }
+.q-card.done .q-thumb{ filter:grayscale(.55) drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+.q-flag{ position:absolute; right:-26px; top:9px; transform:rotate(45deg); width:84px; text-align:center;
+  font-size:8px; font-weight:800; letter-spacing:.1em; color:#1a1622; padding:2px 0;
+  background:linear-gradient(180deg,var(--pa-gold-soft),var(--pa-gold)); box-shadow:0 2px 6px rgba(0,0,0,.4); }
+
+/* =====================================================================
+   QUEST DETAIL (right pane)
+   ===================================================================== */
+.q-detail{ flex:1; min-width:0; overflow-y:auto; }
+.q-detail::-webkit-scrollbar{ width:10px; }
+.q-detail::-webkit-scrollbar-thumb{ background:color-mix(in srgb,var(--pa-accent) 40%,transparent); border-radius:6px; }
+
+/* hero banner */
+.q-hero{ position:relative; height:188px; padding:18px 22px; display:flex; flex-direction:column;
+  justify-content:flex-end; background:var(--bann); overflow:hidden; --cat:var(--pa-gold); }
+.q-hero .glyph{ position:absolute; right:-6px; top:-26px; font-size:170px; line-height:1; opacity:.13;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,.5)); transform:rotate(-8deg); pointer-events:none; }
+.q-hero .scrim{ position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(180deg, rgba(8,7,16,.12) 0%, rgba(8,7,16,.18) 42%, rgba(8,7,16,.82) 100%); }
+.q-hero .shimmer{ position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.14) 50%,transparent 60%);
+  background-size:250% 100%; animation:sweep 6.5s linear infinite; }
+.q-hero .speed{ position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,255,255,.05) 22px 24px); }
+.intensity-anime .q-hero .speed{ opacity:1; }
+.intensity-restrained .q-hero .shimmer{ display:none; }
+
+.q-ribbon{ position:relative; align-self:flex-start; transform:skewX(-12deg); margin-bottom:11px;
+  padding:4px 16px; background:linear-gradient(180deg, color-mix(in srgb,var(--cat) 92%,#fff), var(--cat));
+  box-shadow:0 4px 12px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.4); }
+.q-ribbon span{ display:block; transform:skewX(12deg); font-size:10px; font-weight:800; letter-spacing:.16em;
+  text-transform:uppercase; color:#1a1622; }
+.q-hero h2{ position:relative; margin:0; font-family:var(--pa-font-display); font-size:31px; font-weight:800;
+  line-height:1.05; color:#fff; letter-spacing:.005em; max-width:78%;
+  text-shadow:0 2px 4px rgba(0,0,0,.6), 0 0 26px rgba(0,0,0,.5); }
+.q-hero .meta{ position:relative; margin-top:8px; display:flex; gap:16px; font-size:11px; color:rgba(255,255,255,.82);
+  text-shadow:0 1px 3px rgba(0,0,0,.7); }
+.q-hero .meta i{ font-style:normal; opacity:.7; margin-right:5px; }
+.q-stamp{ position:absolute; right:20px; top:18px; z-index:3; transform:rotate(-9deg);
+  font-family:var(--pa-font-display); font-size:13px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 12px; color:#fff; border:2px solid currentColor; border-radius:5px; opacity:.92;
+  text-shadow:0 1px 3px rgba(0,0,0,.6); box-shadow:0 2px 10px rgba(0,0,0,.4); }
+.q-stamp.active{ color:#ffd98a; }
+.q-stamp.done{ color:#8fe39a; }
+
+/* giver bar */
+.q-giver{ display:flex; align-items:center; gap:14px; padding:14px 22px;
+  border-bottom:1px solid var(--pa-line);
+  background:linear-gradient(180deg, color-mix(in srgb,var(--pa-accent) 9%,transparent), transparent); }
+.qp{ position:relative; width:62px; height:62px; flex:0 0 auto; cursor:pointer;
+  filter:drop-shadow(0 0 8px color-mix(in srgb,var(--pa-gold) 55%,transparent)) drop-shadow(0 3px 5px rgba(0,0,0,.45));
+  transition:transform .16s ease, filter .16s ease; }
+.qp:hover{ transform:scale(1.05);
+  filter:drop-shadow(0 0 16px color-mix(in srgb,var(--pa-gold) 85%,transparent)) drop-shadow(0 4px 7px rgba(0,0,0,.5)); }
+.qp .frame{ position:absolute; inset:0; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  background:conic-gradient(from 0deg at 50% 50%, var(--pa-gold) 0deg,
+    color-mix(in srgb,var(--pa-gold) 50%,#000) 135deg, var(--pa-gold) 215deg, var(--pa-gold-soft) 312deg, var(--pa-gold) 360deg); }
+.qp .img{ position:absolute; inset:3px; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  display:grid; place-items:center; font-family:var(--pa-font-display); font-size:21px; font-weight:800; color:#fff;
+  background:var(--grad); text-shadow:0 1px 3px rgba(0,0,0,.5); }
+.qp .gloss{ position:absolute; inset:3px; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  background:linear-gradient(135deg, rgba(255,255,255,.32), rgba(255,255,255,0) 44%); pointer-events:none; }
+.qp .stud{ position:absolute; width:7px; height:7px; transform:rotate(45deg);
+  background:linear-gradient(135deg,var(--pa-gold-soft),var(--pa-gold));
+  box-shadow:0 0 5px color-mix(in srgb,var(--pa-gold) 80%,transparent); }
+.qp .stud.n{ top:-1px; left:50%; margin-left:-3.5px;} .qp .stud.s{ bottom:-1px; left:50%; margin-left:-3.5px;}
+.qp .stud.e{ right:-1px; top:50%; margin-top:-3.5px;} .qp .stud.w{ left:-1px; top:50%; margin-top:-3.5px;}
+.q-giver .gtext{ display:flex; flex-direction:column; gap:2px; }
+.q-giver .glabel{ font-size:9px; text-transform:uppercase; letter-spacing:.16em; color:var(--pa-ink-soft); }
+.q-giver .gname{ font-family:var(--pa-font-display); font-size:18px; font-weight:700; color:var(--pa-ink); }
+.q-giver .grole{ font-size:11px; color:var(--pa-accent-ink); }
+.theme-dark .q-giver .grole{ color:var(--pa-accent-2); }
+.q-giver .gacts{ margin-left:auto; display:flex; gap:8px; }
+.gbtn{ display:flex; align-items:center; gap:6px; padding:6px 12px; cursor:pointer; font-size:11px; font-weight:600;
+  color:var(--pa-ink); background:var(--pa-field); border:1px solid var(--pa-line); border-radius:6px; transition:.12s; }
+.gbtn:hover{ border-color:var(--pa-accent); color:var(--pa-accent-ink); box-shadow:0 0 10px color-mix(in srgb,var(--pa-accent) 30%,transparent); }
+.theme-dark .gbtn:hover{ color:var(--pa-accent-2); }
+
+/* content sections */
+.q-body{ padding:6px 22px 22px; }
+.q-sec{ margin-top:20px; }
+.q-sec > h3{ display:flex; align-items:center; gap:9px; margin:0 0 11px; font-family:var(--pa-font);
+  font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--pa-ink-soft); }
+.q-sec > h3::before{ content:""; width:8px; height:8px; transform:rotate(45deg); flex:0 0 auto;
+  background:linear-gradient(135deg,var(--pa-gold-soft),var(--pa-gold)); box-shadow:0 0 7px color-mix(in srgb,var(--pa-gold) 60%,transparent); }
+.q-sec > h3::after{ content:""; flex:1; height:1px; background:linear-gradient(90deg, color-mix(in srgb,var(--pa-gold) 45%,transparent), transparent); }
+.q-sec .count{ font-family:var(--pa-font-mono); font-size:10px; color:var(--pa-ink); letter-spacing:.02em;
+  background:color-mix(in srgb,var(--pa-accent) 16%,transparent); padding:1px 8px; border-radius:9px; }
+
+/* briefing */
+.brief{ font-size:13.5px; line-height:1.62; color:var(--pa-ink); }
+.brief .lead::first-letter{ font-family:var(--pa-font-display); font-size:2.7em; font-weight:800; float:left;
+  line-height:.82; margin:4px 9px 0 0; color:var(--pa-gold); text-shadow:0 1px 0 rgba(0,0,0,.3); }
+.brief em{ color:var(--pa-accent-ink); font-style:italic; }
+.theme-dark .brief em{ color:var(--pa-accent-2); }
+
+/* objectives */
+.q-prog{ display:flex; align-items:center; gap:11px; margin-bottom:13px; }
+.q-prog .bar{ position:relative; flex:1; height:10px; border-radius:6px; background:var(--pa-track); overflow:hidden;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35); }
+.q-prog .fill{ position:absolute; inset:0 auto 0 0; border-radius:inherit; background-size:200% 100%, 200% 100%;
+  animation:flow 7s linear infinite; transition:width .4s cubic-bezier(.4,0,.2,1);
+  background-image:
+    linear-gradient(115deg,transparent 38%,rgba(255,255,255,.22) 50%,transparent 62%),
+    linear-gradient(90deg, var(--cat), color-mix(in srgb,var(--cat) 55%,#fff), var(--cat), color-mix(in srgb,var(--cat) 55%,#fff), var(--cat)); }
+.intensity-restrained .q-prog .fill{ animation:none; }
+.q-prog .ptxt{ font-family:var(--pa-font-mono); font-size:11px; font-weight:700; color:var(--pa-ink); white-space:nowrap; }
+
+.objs{ display:flex; flex-direction:column; gap:2px; }
+.obj{ display:flex; align-items:flex-start; gap:11px; padding:8px 10px; border-radius:7px; cursor:pointer;
+  transition:background .12s; }
+.obj:hover{ background:color-mix(in srgb,var(--pa-accent) 8%,transparent); }
+.obj .box{ flex:0 0 auto; width:18px; height:18px; margin-top:1px; position:relative; transform:rotate(45deg);
+  border:1.5px solid color-mix(in srgb,var(--cat) 70%, var(--pa-line)); border-radius:3px;
+  background:var(--pa-field); transition:.16s; }
+.obj.done .box{ background:linear-gradient(135deg, color-mix(in srgb,var(--cat) 88%,#fff), var(--cat));
+  border-color:var(--cat); box-shadow:0 0 9px color-mix(in srgb,var(--cat) 55%,transparent); }
+.obj.done .box::after{ content:"✓"; position:absolute; inset:0; transform:rotate(-45deg); display:grid; place-items:center;
+  font-size:12px; font-weight:900; color:#1a1622; }
+.obj .otext{ flex:1; font-size:13px; line-height:1.45; color:var(--pa-ink); padding-top:1px; }
+.obj .otext small{ display:block; font-size:10.5px; color:var(--pa-ink-soft); margin-top:1px; }
+.obj.done .otext{ color:var(--pa-ink-soft); text-decoration:line-through; text-decoration-color:color-mix(in srgb,var(--cat) 60%,transparent); }
+.obj.opt .otext::after{ content:"OPTIONAL"; font-size:8px; font-weight:800; letter-spacing:.1em; margin-left:8px;
+  padding:1px 6px; border-radius:8px; vertical-align:1px; color:var(--pa-ink-soft);
+  background:color-mix(in srgb,var(--pa-ink) 10%,transparent); }
+.obj.locked{ cursor:default; }
+.obj.locked .box{ border-style:dashed; border-color:var(--pa-line); background:transparent; }
+.obj.locked .box::after{ content:"🔒"; position:absolute; inset:0; transform:rotate(-45deg); display:grid; place-items:center; font-size:9px; opacity:.6; }
+.obj.locked .otext{ color:var(--pa-ink-soft); font-style:italic; opacity:.7; }
+
+/* rewards */
+.rewards{ display:flex; flex-wrap:wrap; gap:11px; align-items:flex-start; }
+.reward{ position:relative; display:flex; flex-direction:column; align-items:center; gap:7px; width:92px; padding:13px 8px 10px;
+  border-radius:10px; cursor:grab; text-align:center; background:var(--pa-panel); border:1px solid var(--pa-line);
+  transition:transform .14s ease, box-shadow .14s ease, border-color .14s; }
+.reward:hover{ transform:translateY(-3px) rotate(-1deg); border-color:color-mix(in srgb,var(--pa-gold) 55%,var(--pa-line));
+  box-shadow:0 10px 22px rgba(0,0,0,.4), 0 0 16px color-mix(in srgb,var(--pa-gold) 25%,transparent); }
+.reward:active{ cursor:grabbing; }
+.reward .ic{ width:48px; height:48px; border-radius:50%; display:grid; place-items:center; font-size:22px;
+  background:radial-gradient(125% 125% at 50% 18%, color-mix(in srgb,var(--rg,var(--pa-gold-soft)) 92%,#fff),
+    var(--rg,var(--pa-gold)) 52%, color-mix(in srgb,var(--rg,var(--pa-gold)) 65%,#000));
+  box-shadow:inset 0 1px 2px rgba(255,255,255,.55), inset 0 -3px 5px rgba(0,0,0,.22), 0 3px 8px rgba(0,0,0,.4);
+  color:#1a1622; font-weight:800; }
+/* reputation = a faction crest, shield-shaped to read as "standing", not currency */
+.reward.rep .ic{ border-radius:7px; box-shadow:none;
+  clip-path:polygon(50% 1%, 94% 20%, 94% 56%, 50% 99%, 6% 56%, 6% 20%);
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)) drop-shadow(0 0 8px color-mix(in srgb,var(--rg) 45%,transparent)); }
+.reward.rep .rl{ color:color-mix(in srgb,var(--rg) 70%, var(--pa-ink-soft)); font-weight:700; }
+.reward .rv{ font-family:var(--pa-font-mono); font-size:13px; font-weight:800; color:var(--pa-ink); }
+.reward .rl{ font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:var(--pa-ink-soft); }
+.reward .grip{ position:absolute; right:6px; top:5px; font-size:9px; color:var(--pa-ink-soft); opacity:.5; }
+
+/* footer actions */
+.q-actions{ display:flex; align-items:center; gap:9px; margin-top:24px; padding-top:16px;
+  border-top:1px solid var(--pa-line); }
+.act{ display:flex; align-items:center; gap:7px; padding:9px 17px; cursor:pointer; font-size:12.5px; font-weight:700;
+  border-radius:7px; border:1px solid transparent; transition:transform .12s, box-shadow .12s; }
+.act:hover{ transform:translateY(-1px); }
+.act.track{ color:var(--pa-on-accent); background:linear-gradient(180deg,var(--pa-accent-2),var(--pa-accent));
+  box-shadow:0 4px 12px color-mix(in srgb,var(--pa-accent) 45%,transparent), inset 0 1px 0 rgba(255,255,255,.25); }
+.act.complete{ color:#1a1622; background:linear-gradient(180deg,var(--pa-gold-soft),var(--pa-gold));
+  box-shadow:0 4px 12px color-mix(in srgb,var(--pa-gold) 40%,transparent), inset 0 1px 0 rgba(255,255,255,.35); }
+.act.abandon{ color:var(--pa-danger); background:transparent; border-color:color-mix(in srgb,var(--pa-danger) 45%,transparent); }
+.act.abandon:hover{ background:color-mix(in srgb,var(--pa-danger) 12%,transparent); }
+.act.edit{ margin-left:auto; color:var(--pa-ink-soft); background:var(--pa-field); border-color:var(--pa-line); }
+.act.edit:hover{ color:var(--pa-accent-ink); border-color:var(--pa-accent); }
+.theme-dark .act.edit:hover{ color:var(--pa-accent-2); }
+
+/* =====================================================================
+   FLOATING QUEST TRACKER (on-canvas)
+   ===================================================================== */
+.q-tracker{ position:absolute; right:20px; top:64px; z-index:35; width:248px; --cat:var(--pa-gold); --notch:14px;
+  clip-path: polygon(var(--notch) 0, 100% 0, 100% calc(100% - var(--notch)),
+                     calc(100% - var(--notch)) 100%, 0 100%, 0 var(--notch));
+  background:linear-gradient(180deg, color-mix(in srgb,var(--pa-panel) 94%, transparent), color-mix(in srgb,var(--pa-surface-2) 94%, transparent));
+  backdrop-filter:blur(7px);
+  box-shadow:0 14px 34px rgba(0,0,0,.55), 0 0 16px color-mix(in srgb,var(--cat) 24%,transparent),
+             inset 0 0 0 1.5px color-mix(in srgb,var(--cat) 45%, var(--pa-line)); }
+.q-tracker.hidden{ display:none; }
+.qt-head{ display:flex; align-items:center; gap:8px; padding:9px 13px 8px;
+  border-bottom:1px solid color-mix(in srgb,var(--cat) 30%,var(--pa-line));
+  background:linear-gradient(180deg, color-mix(in srgb,var(--cat) 16%,transparent), transparent); }
+.qt-head .tk{ font-size:8px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--cat);
+  display:flex; align-items:center; gap:5px; }
+.qt-head .tk::before{ content:""; width:6px; height:6px; transform:rotate(45deg); background:var(--cat);
+  box-shadow:0 0 6px var(--cat); animation:pulse 2s ease-in-out infinite; }
+.qt-head .tx{ margin-left:auto; color:var(--pa-ink-soft); cursor:pointer; font-size:11px; }
+.qt-name{ padding:9px 13px 6px; font-family:var(--pa-font-display); font-size:15px; font-weight:700; line-height:1.2;
+  color:var(--pa-ink); }
+.qt-objs{ padding:0 13px 6px; display:flex; flex-direction:column; gap:5px; }
+.qt-obj{ display:flex; align-items:flex-start; gap:8px; font-size:11.5px; color:var(--pa-ink); line-height:1.35; }
+.qt-obj .b{ flex:0 0 auto; width:11px; height:11px; margin-top:2px; transform:rotate(45deg); border-radius:2px;
+  border:1.5px solid color-mix(in srgb,var(--cat) 70%,var(--pa-line)); }
+.qt-obj.done .b{ background:var(--cat); border-color:var(--cat); box-shadow:0 0 6px color-mix(in srgb,var(--cat) 60%,transparent); }
+.qt-obj.done{ color:var(--pa-ink-soft); text-decoration:line-through; }
+.qt-foot{ padding:7px 13px 10px; }
+.qt-foot .bar{ position:relative; height:7px; border-radius:5px; background:var(--pa-track); overflow:hidden;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35); }
+.qt-foot .fill{ position:absolute; inset:0 auto 0 0; border-radius:inherit; transition:width .4s;
+  background:linear-gradient(90deg, var(--cat), color-mix(in srgb,var(--cat) 55%,#fff), var(--cat)); }
+
+/* =====================================================================
+   MOCKUP CONTROLS + toast
+   ===================================================================== */
+.controls{ position:absolute; left:14px; top:14px; z-index:90; width:214px;
+  background:linear-gradient(180deg,#23222e,#1a1925); color:#ece9f5; border-radius:8px;
+  box-shadow:0 14px 30px rgba(0,0,0,.6), inset 0 0 0 1px rgba(220,215,240,.16); font-size:12px; }
+.controls .ch{ padding:8px 12px; font-weight:800; letter-spacing:.04em; font-size:11px; text-transform:uppercase;
+  color:#cdb8f5; border-bottom:1px solid rgba(220,215,240,.14); display:flex; align-items:center; gap:7px;}
+.controls .ch::before{ content:""; width:7px; height:7px; background:#d8b257; transform:rotate(45deg);}
+.controls .cb{ padding:9px 12px; display:flex; flex-direction:column; gap:8px; }
+.controls .grp{ display:flex; flex-direction:column; gap:4px; }
+.controls .grp > label{ font-size:9px; letter-spacing:.07em; text-transform:uppercase; color:#a39db8; }
+.controls .seg{ display:flex; gap:3px; }
+.controls .seg button{ flex:1; padding:5px 4px; font-size:10px; cursor:pointer; color:#cfc8df;
+  background:rgba(255,255,255,.05); border:1px solid rgba(220,215,240,.16); border-radius:5px; transition:.12s; }
+.controls .seg button.on{ background:linear-gradient(180deg,#9a78e0,#6c4f9c); color:#fff; border-color:#b79bf0;
+  box-shadow:0 0 8px rgba(154,120,224,.5); }
+.controls .tog{ display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
+.controls .tog input{ accent-color:#9a78e0; }
+.controls .foot{ padding:7px 12px; font-size:9px; color:#8a84a0; border-top:1px solid rgba(220,215,240,.12); }
+
+.toast{ position:absolute; left:50%; bottom:34px; transform:translateX(-50%) translateY(10px);
+  z-index:95; padding:8px 18px; font-size:12.5px; font-weight:700; color:#fff; opacity:0; pointer-events:none;
+  background:linear-gradient(180deg,var(--pa-accent-2),var(--pa-accent)); border-radius:20px;
+  box-shadow:0 8px 20px rgba(0,0,0,.5); transition:.2s; }
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+@keyframes flow{ 0%{background-position:0% 0%,0% 50%;} 100%{background-position:200% 0%,100% 50%;} }
+@keyframes sweep{ 0%{background-position:130% 0} 100%{background-position:-40% 0} }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+</style>
+</head>
+<body>
+<div class="project-anime theme-dark intensity-cinematic" id="root">
+  <div class="stage" id="stage">
+
+    <!-- faint native-Foundry chrome for context -->
+    <div class="fvtt-ghost ghost-nav"><b>◀ Scene</b><b>Town Square</b><b>Scene ▶</b></div>
+    <div class="fvtt-ghost ghost-controls">
+      <i>⛶</i><i>🗺</i><i>✎</i><i class="hot" title="Opens here">📜</i><i>⚙</i>
+    </div>
+
+    <!-- ===================== THE CHRONICLE WINDOW ===================== -->
+    <section class="chronicle" id="chronicle">
+      <header class="cw-bar">
+        <div class="cw-title"><span class="dia"></span><h1>CHRONICLE</h1><span class="cw-sub">Quest Log</span></div>
+        <div class="cw-tools">
+          <div class="cw-search"><input id="search" placeholder="Search quests…"></div>
+          <button class="cw-new" data-act="new">＋ New Quest</button>
+          <span class="cw-winx">✕</span>
+        </div>
+      </header>
+
+      <nav class="cw-tabs" id="tabs"></nav>
+
+      <div class="cw-body">
+        <aside class="q-list" id="qlist"></aside>
+        <main class="q-detail" id="qdetail"></main>
+      </div>
+    </section>
+
+    <!-- ===================== FLOATING TRACKER ===================== -->
+    <aside class="q-tracker" id="tracker"></aside>
+
+    <!-- ===================== ANNOTATIONS ===================== -->
+    <div class="note" style="left:22px; bottom:150px;"><span class="n">1</span><b>Quest rail</b> — categorized cards (Main / Side / Personal). Color stripe = type, ring = objective progress. Click to open.</div>
+    <div class="note" style="left:50%; transform:translateX(-50%); top:96px;"><span class="n">2</span><b>Cinematic hero</b> — banner art, skewed category ribbon, status stamp. The drama, not a spreadsheet.</div>
+    <div class="note" style="right:286px; bottom:236px;"><span class="n">3</span><b>Quest giver</b> — a diamond NPC portrait you can open or locate. Objectives check off live; rewards drag to your sheet.</div>
+    <div class="note" style="right:18px; top:248px;"><span class="n">4</span><b>Quest tracker</b> — pin a quest to the canvas. Top objectives + progress, always in view.</div>
+
+    <!-- ===================== MOCKUP CONTROLS ===================== -->
+    <div class="controls">
+      <div class="ch">Mockup Controls</div>
+      <div class="cb">
+        <div class="grp"><label>Theme</label>
+          <div class="seg" data-seg="theme">
+            <button data-v="dark" class="on">Dark</button>
+            <button data-v="light">Light</button>
+          </div></div>
+        <div class="grp"><label>Intensity</label>
+          <div class="seg" data-seg="intensity">
+            <button data-v="restrained">Restrained</button>
+            <button data-v="cinematic" class="on">Cinematic</button>
+            <button data-v="anime">Full Anime</button>
+          </div></div>
+        <label class="tog"><span>Show quest tracker</span><input type="checkbox" id="tTrack" checked></label>
+        <label class="tog"><span>Show annotations</span><input type="checkbox" id="tNotes" checked></label>
+      </div>
+      <div class="foot">Mockup only — no system files changed. Click objectives to check them; drag a reward.</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+/* ---------------- mock data ---------------- */
+const CAT = {
+  main:     { label:"Main Story", color:"var(--q-main)" },
+  side:     { label:"Side Quest", color:"var(--q-side)" },
+  personal: { label:"Personal",   color:"var(--q-personal)" },
+};
+const QUESTS = [
+  {
+    id:"crown", cat:"main", status:"active", isNew:false, glyph:"👑",
+    title:"The Sundered Crown",
+    bann:"radial-gradient(120% 120% at 78% 12%, #b78a2e55, transparent 55%), linear-gradient(150deg,#4a3563,#2c1d3f 58%,#16101f)",
+    loc:"The Drowned Spire", lvl:"Recommended ★★★★",
+    giver:{ name:"Empress Reina", role:"Sovereign of the Vael", initial:"R", grad:"linear-gradient(160deg,#d8b257,#8a6a1f)" },
+    brief:"<p class='lead'>The crown that bound the seven provinces lies shattered, its shards scattered to the deep. Empress Reina summons you to the Spire — not as a soldier, but as the only one the relic still <em>answers</em> to.</p><p>Recover what was lost before the tide takes it forever.</p>",
+    objectives:[
+      { text:"Recover the Crown Shard from the Drowned Vault", done:true },
+      { text:"Speak with Empress Reina in the Spire", done:true },
+      { text:"Defeat the Vault Warden", done:false, note:"Last seen guarding the inner sanctum." },
+      { text:"Optional — Free the captive divers", done:false, opt:true },
+      { text:"???", locked:true },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"+5", l:"Skill Points", rg:"#9a78e0" },
+      { type:"gold", icon:"G", v:"1,200", l:"Gold", rg:"#e0c14a" },
+      { type:"rep", icon:"✪", v:"+10", l:"Vael Court", rg:"#c75d6a" },
+      { type:"item", icon:"♛", v:"Crown Shard", l:"Relic", rg:"#9ad0ff" },
+      { type:"unlock", icon:"⚿", v:"The Spire", l:"Unlock", rg:"#6fe0b0" },
+    ],
+  },
+  {
+    id:"deep", cat:"main", status:"active", isNew:false, glyph:"🌊",
+    title:"Echoes in the Deep",
+    bann:"radial-gradient(120% 120% at 24% 16%, #3a7fb855, transparent 55%), linear-gradient(150deg,#16384f,#0e2436 60%,#0a151f)",
+    loc:"Cobalt Trench", lvl:"Recommended ★★★",
+    giver:{ name:"Captain Mira", role:"Navigator of the Tide", initial:"M", grad:"linear-gradient(160deg,#7c8fe8,#3b59b0)" },
+    brief:"<p class='lead'>Something sings beneath the Cobalt Trench, and the crews who hear it do not return. Captain Mira will take you down — if you can stomach the dark.</p>",
+    objectives:[
+      { text:"Charter passage with Captain Mira", done:true },
+      { text:"Descend to the Trench floor", done:false },
+      { text:"Discover the source of the song", done:false },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"+3", l:"Skill Points", rg:"#9a78e0" },
+      { type:"gold", icon:"G", v:"600", l:"Gold", rg:"#e0c14a" },
+      { type:"rep", icon:"✪", v:"+5", l:"Tide Wardens", rg:"#4fb0c8" },
+      { type:"item", icon:"❍", v:"Pearl Charm", l:"Accessory", rg:"#7c8fe8" },
+    ],
+  },
+  {
+    id:"pact", cat:"main", status:"active", isNew:true, glyph:"🩸",
+    title:"The Crimson Pact",
+    bann:"radial-gradient(120% 120% at 70% 18%, #b8324355, transparent 55%), linear-gradient(150deg,#4a1d24,#2e1116 60%,#180a0d)",
+    loc:"Unknown", lvl:"Recommended ★★★★★",
+    giver:{ name:"Vael", role:"The Oathbreaker", initial:"V", grad:"linear-gradient(160deg,#c34155,#6e1722)" },
+    brief:"<p class='lead'>A stranger in red knows your name, your blood, and a debt you never agreed to. The Crimson Pact has come due.</p>",
+    objectives:[
+      { text:"Meet Vael at the crossroads after dusk", done:false },
+      { text:"???", locked:true },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"???", l:"Skill Points", rg:"#9a78e0" },
+      { type:"gold", icon:"G", v:"???", l:"Gold", rg:"#e0c14a" },
+      { type:"rep", icon:"✪", v:"???", l:"Crimson Pact", rg:"#c34155" },
+    ],
+  },
+  {
+    id:"bloom", cat:"side", status:"active", isNew:false, glyph:"🌸",
+    title:"A Bloom Out of Season",
+    bann:"radial-gradient(120% 120% at 30% 18%, #e08ab855, transparent 55%), linear-gradient(150deg,#5a3a4f,#3a2540 60%,#221426)",
+    loc:"Hana's Garden", lvl:"Recommended ★",
+    giver:{ name:"Hana", role:"Garden Keeper", initial:"H", grad:"linear-gradient(160deg,#f0a8c8,#b85a8a)" },
+    brief:"<p class='lead'>Hana's winter roses are blooming in spring — and weeping petals that glow. She'd like to know why before the whole garden wakes.</p>",
+    objectives:[
+      { text:"Collect 3 glowing petals", done:true, note:"2 / 3 gathered" },
+      { text:"Bring the petals to the Alchemist", done:false },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"+1", l:"Skill Points", rg:"#9a78e0" },
+      { type:"gold", icon:"G", v:"150", l:"Gold", rg:"#e0c14a" },
+      { type:"rep", icon:"✪", v:"+3", l:"Verdant Ring", rg:"#6fbf7a" },
+      { type:"item", icon:"✿", v:"Dawnbloom", l:"Consumable", rg:"#6fe0b0" },
+    ],
+  },
+  {
+    id:"clock", cat:"side", status:"active", isNew:false, glyph:"⚙️",
+    title:"The Clockwork Debt",
+    bann:"radial-gradient(120% 120% at 72% 16%, #c08a3a55, transparent 55%), linear-gradient(150deg,#4a3a28,#2e2418 60%,#1a140d)",
+    loc:"Goro's Workshop", lvl:"Recommended ★★",
+    giver:{ name:"Tinker Goro", role:"Artificer", initial:"G", grad:"linear-gradient(160deg,#ecca77,#a07a2a)" },
+    brief:"<p class='lead'>Goro fixed your gear on credit once. Now his automatons have walked off the job, and he's calling in the favor.</p>",
+    objectives:[
+      { text:"Track down the runaway automatons (0 / 4)", done:false },
+      { text:"Recover Goro's master key", done:false },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"+2", l:"Skill Points", rg:"#9a78e0" },
+      { type:"gold", icon:"G", v:"400", l:"Gold", rg:"#e0c14a" },
+      { type:"rep", icon:"✪", v:"+4", l:"Iron Cogs", rg:"#c08a3a" },
+    ],
+  },
+  {
+    id:"mirror", cat:"personal", status:"active", isNew:false, glyph:"🪞",
+    title:"What the Mirror Showed",
+    bann:"radial-gradient(120% 120% at 50% 14%, #9a78e055, transparent 55%), linear-gradient(150deg,#36294f,#231838 60%,#150e22)",
+    loc:"Your reflection", lvl:"Personal",
+    giver:{ name:"Aoi", role:"You", initial:"A", grad:"linear-gradient(160deg,#b79bf0,#6c4f9c)" },
+    brief:"<p class='lead'>The mirror in the old shrine showed a face that was yours — and was <em>not</em>. You haven't slept well since. Some questions are only yours to answer.</p>",
+    objectives:[
+      { text:"Return to the shrine alone", done:true },
+      { text:"Confront the reflection", done:false },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"+2", l:"Skill Points", rg:"#9a78e0" },
+      { type:"unlock", icon:"❂", v:"Insight", l:"Trait", rg:"#b79bf0" },
+    ],
+  },
+  {
+    id:"dawn", cat:"main", status:"done", isNew:false, glyph:"⚔️",
+    title:"First Blood at Dawn",
+    bann:"radial-gradient(120% 120% at 50% 16%, #8a6a2e55, transparent 55%), linear-gradient(150deg,#3a3330,#241f1d 60%,#15110f)",
+    loc:"Kuro's Dojo", lvl:"Completed",
+    giver:{ name:"Sensei Kuro", role:"Sword Master", initial:"K", grad:"linear-gradient(160deg,#b6b0c6,#5a5466)" },
+    brief:"<p class='lead'>Your first true test. Sensei Kuro asked only that you draw your blade and mean it. You did.</p>",
+    objectives:[
+      { text:"Complete the dawn kata", done:true },
+      { text:"Defeat Sensei Kuro in a spar", done:true },
+    ],
+    rewards:[
+      { type:"sp", icon:"◆", v:"+1", l:"Skill Points", rg:"#9a78e0" },
+      { type:"rep", icon:"✪", v:"+2", l:"Kuro's Dojo", rg:"#8a93b0" },
+      { type:"item", icon:"⚔", v:"Oak Blade", l:"Weapon", rg:"#ecca77" },
+    ],
+  },
+];
+
+/* ---------------- state ---------------- */
+let selId = "crown";
+let trackId = "crown";
+let curCat = "all";
+let query = "";
+
+const $ = (s,r=document)=>r.querySelector(s);
+const root = $("#root"), qlistEl = $("#qlist"), qdetailEl = $("#qdetail"),
+      tabsEl = $("#tabs"), trackerEl = $("#tracker");
+
+function realObjs(q){ return q.objectives.filter(o=>!o.locked); }
+function prog(q){ const r=realObjs(q); const done=r.filter(o=>o.done).length;
+  return { done, total:r.length, pct: r.length? Math.round(done/r.length*100):0 }; }
+function catColor(q){ return CAT[q.cat] ? CAT[q.cat].color : "var(--pa-gold)"; }
+
+/* ---------------- tabs ---------------- */
+function tabList(){
+  const counts = {
+    all: QUESTS.length,
+    main: QUESTS.filter(q=>q.cat==="main"&&q.status!=="done").length,
+    side: QUESTS.filter(q=>q.cat==="side"&&q.status!=="done").length,
+    personal: QUESTS.filter(q=>q.cat==="personal"&&q.status!=="done").length,
+    completed: QUESTS.filter(q=>q.status==="done").length,
+  };
+  const defs = [
+    { k:"all", label:"All", c:"var(--pa-gold)" },
+    { k:"main", label:"Main Story", c:"var(--q-main)" },
+    { k:"side", label:"Side", c:"var(--q-side)" },
+    { k:"personal", label:"Personal", c:"var(--q-personal)" },
+    { k:"completed", label:"Completed", c:"var(--q-done)" },
+  ];
+  tabsEl.innerHTML = defs.map(d=>`
+    <button class="tab ${d.k===curCat?'on':''}" data-cat="${d.k}" style="--tc:${d.c}">
+      <span class="pip"></span>${d.label}<b>${counts[d.k]}</b>
+    </button>`).join("");
+}
+
+/* ---------------- rail ---------------- */
+function visibleQuests(){
+  return QUESTS.filter(q=>{
+    if(query && !q.title.toLowerCase().includes(query)) return false;
+    if(curCat==="all") return true;
+    if(curCat==="completed") return q.status==="done";
+    return q.cat===curCat && q.status!=="done";
+  });
+}
+function renderList(){
+  const list = visibleQuests();
+  if(!list.length){ qlistEl.innerHTML = `<div class="empty">No quests here yet.</div>`; return; }
+  qlistEl.innerHTML = list.map(q=>{
+    const p = prog(q), col = catColor(q);
+    return `<div class="q-card ${q.id===selId?'sel':''} ${q.status==='done'?'done':''}"
+                 data-id="${q.id}" style="--cat:${col}; --bann:${q.bann}">
+      ${q.isNew?'<div class="q-flag">NEW</div>':''}
+      <div class="q-thumb">${q.glyph}</div>
+      <div class="q-cmid">
+        <div class="qt">${q.title}</div>
+        <div class="qg"><span class="dot"></span>${q.giver.name}</div>
+      </div>
+      <div class="q-cright">
+        <div class="ring" style="--p:${p.pct}"><span>${q.status==='done'?'✓':p.done+'/'+p.total}</span></div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------------- detail ---------------- */
+function renderDetail(){
+  const q = QUESTS.find(x=>x.id===selId); if(!q) return;
+  const p = prog(q), col = catColor(q), c = CAT[q.cat];
+  const stamp = q.status==="done"
+    ? `<div class="q-stamp done">Complete</div>`
+    : `<div class="q-stamp active">Active</div>`;
+  const objs = q.objectives.map((o,i)=>{
+    if(o.locked) return `<div class="obj locked"><div class="box"></div><div class="otext">${o.text}</div></div>`;
+    return `<div class="obj ${o.done?'done':''} ${o.opt?'opt':''}" data-obj="${i}">
+      <div class="box"></div>
+      <div class="otext">${o.text}${o.note?`<small>${o.note}</small>`:''}</div>
+    </div>`;
+  }).join("");
+  const rewards = q.rewards.map(r=>`
+    <div class="reward ${r.type}" draggable="true" data-reward="${r.v} ${r.l}" style="--rg:${r.rg}">
+      <span class="grip">⠿</span>
+      <div class="ic">${r.icon}</div>
+      <div class="rv">${r.v}</div>
+      <div class="rl">${r.l}</div>
+    </div>`).join("");
+
+  qdetailEl.style.setProperty("--cat", col);
+  qdetailEl.innerHTML = `
+    <div class="q-hero" style="--bann:${q.bann}; --cat:${col}">
+      <div class="glyph">${q.glyph}</div>
+      <div class="scrim"></div><div class="shimmer"></div><div class="speed"></div>
+      ${stamp}
+      <div class="q-ribbon"><span>${c.label}</span></div>
+      <h2>${q.title}</h2>
+      <div class="meta"><span><i>⚐</i>${q.loc}</span><span><i>✦</i>${q.lvl}</span></div>
+    </div>
+
+    <div class="q-giver">
+      <div class="qp" title="Open ${q.giver.name}">
+        <div class="frame"></div>
+        <div class="img" style="--grad:${q.giver.grad}">${q.giver.initial}</div>
+        <div class="gloss"></div>
+        <span class="stud n"></span><span class="stud s"></span><span class="stud e"></span><span class="stud w"></span>
+      </div>
+      <div class="gtext">
+        <span class="glabel">Quest Giver</span>
+        <span class="gname">${q.giver.name}</span>
+        <span class="grole">${q.giver.role}</span>
+      </div>
+      <div class="gacts">
+        <button class="gbtn" data-act="locate">⚐ Locate</button>
+        <button class="gbtn" data-act="open">☰ Open Sheet</button>
+      </div>
+    </div>
+
+    <div class="q-body">
+      <div class="q-sec">
+        <h3>Briefing</h3>
+        <div class="brief">${q.brief}</div>
+      </div>
+
+      <div class="q-sec">
+        <h3>Objectives <span class="count">${p.done} / ${p.total}</span></h3>
+        <div class="q-prog">
+          <div class="bar"><div class="fill" style="width:${p.pct}%"></div></div>
+          <div class="ptxt">${p.pct}%</div>
+        </div>
+        <div class="objs">${objs}</div>
+      </div>
+
+      <div class="q-sec">
+        <h3>Rewards</h3>
+        <div class="rewards">${rewards}</div>
+      </div>
+
+      <div class="q-actions">
+        ${q.status==="done"
+          ? `<button class="act track" data-act="reopen">↺ Reopen</button>`
+          : `<button class="act track" data-act="track">⚐ Track Quest</button>
+             <button class="act complete" data-act="complete">✓ Mark Complete</button>
+             <button class="act abandon" data-act="abandon">✕ Abandon</button>`}
+        <button class="act edit" data-act="edit">✎ Edit (GM)</button>
+      </div>
+    </div>`;
+}
+
+/* ---------------- tracker ---------------- */
+function renderTracker(){
+  const q = QUESTS.find(x=>x.id===trackId);
+  if(!q || q.status==="done"){ trackerEl.classList.add("hidden"); return; }
+  const p = prog(q), col = catColor(q);
+  const top = q.objectives.filter(o=>!o.locked).slice(0,3).map(o=>
+    `<div class="qt-obj ${o.done?'done':''}"><span class="b"></span><span>${o.text}</span></div>`).join("");
+  trackerEl.style.setProperty("--cat", col);
+  trackerEl.innerHTML = `
+    <div class="qt-head"><span class="tk">Tracking</span><span class="tx" data-act="untrack">✕</span></div>
+    <div class="qt-name">${q.title}</div>
+    <div class="qt-objs">${top}</div>
+    <div class="qt-foot"><div class="bar"><div class="fill" style="width:${p.pct}%"></div></div></div>`;
+}
+
+function renderAll(){ tabList(); renderList(); renderDetail(); renderTracker(); }
+
+/* ---------------- interactions ---------------- */
+let toastT; const toastEl = $("#toast");
+function toast(m){ toastEl.textContent=m; toastEl.classList.add("show"); clearTimeout(toastT);
+  toastT=setTimeout(()=>toastEl.classList.remove("show"),1600); }
+
+tabsEl.addEventListener("click", e=>{ const t=e.target.closest(".tab"); if(!t) return;
+  curCat=t.dataset.cat; tabList(); renderList(); });
+
+qlistEl.addEventListener("click", e=>{ const c=e.target.closest(".q-card"); if(!c) return;
+  selId=c.dataset.id; renderList(); renderDetail(); });
+
+qdetailEl.addEventListener("click", e=>{
+  const obj=e.target.closest(".obj[data-obj]");
+  if(obj){ const q=QUESTS.find(x=>x.id===selId); const o=q.objectives[+obj.dataset.obj];
+    o.done=!o.done; renderList(); renderDetail(); if(trackId===selId) renderTracker(); return; }
+  const act=e.target.closest("[data-act]"); if(!act) return;
+  const a=act.dataset.act, q=QUESTS.find(x=>x.id===selId);
+  if(a==="track"){ trackId=selId; renderTracker(); toast("Tracking: "+q.title); }
+  else if(a==="complete"){ q.status="done"; q.objectives.forEach(o=>{if(!o.locked)o.done=true;}); renderAll(); toast("Quest complete — "+q.title); }
+  else if(a==="reopen"){ q.status="active"; renderAll(); toast("Reopened: "+q.title); }
+  else if(a==="abandon"){ toast("Abandoned (mock)"); }
+  else if(a==="locate"){ toast("Pinging "+q.giver.name+" on the map…"); }
+  else if(a==="open"){ toast("Opening "+q.giver.name+"'s sheet…"); }
+  else if(a==="edit"){ toast("GM quest editor (mock)"); }
+});
+
+qdetailEl.addEventListener("dragstart", e=>{ const r=e.target.closest(".reward"); if(!r) return;
+  e.dataTransfer.setData("text/plain", r.dataset.reward); toast("Drag "+r.dataset.reward+" onto your sheet to claim"); });
+
+trackerEl.addEventListener("click", e=>{ if(e.target.closest('[data-act="untrack"]')){ trackId=null; renderTracker(); }});
+
+$("#search").addEventListener("input", e=>{ query=e.target.value.trim().toLowerCase(); renderList(); });
+
+$(".cw-new").addEventListener("click", ()=>toast("New quest creator (mock)"));
+
+/* controls */
+document.querySelectorAll(".seg").forEach(seg=>{
+  seg.addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b) return;
+    seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    const k=seg.dataset.seg, v=b.dataset.v;
+    if(k==="theme") root.classList.toggle("theme-dark", v==="dark");
+    if(k==="intensity"){ root.classList.remove("intensity-restrained","intensity-cinematic","intensity-anime");
+      root.classList.add("intensity-"+v); }
+  });
+});
+$("#tTrack").addEventListener("change", e=> trackerEl.style.display = e.target.checked?"":"none");
+$("#tNotes").addEventListener("change", e=> root.querySelector(".stage").classList.toggle("hide-notes", !e.target.checked));
+
+renderAll();
+</script>
+</body>
+</html>

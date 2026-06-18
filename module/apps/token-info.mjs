@@ -15,11 +15,34 @@
  * self-contained dark palette (matching `.pa-tooltip`) so it reads the same in any theme.
  */
 import { collectReveals } from "../helpers/effects.mjs";
+import { PROJECTANIME } from "../helpers/config.mjs";
+import { elementLabel } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const L = (k) => (k ? game.i18n.localize(k) : "");
 
 export const TOKEN_INFO_SETTING = "showTokenInfo";
 export const TOKEN_INFO_CLIENT_SETTING = "tokenInfoClientShow";
+
+/** World setting key + choices: who may see tokens' HP / Energy — across the on-canvas bars, this
+ *  hover panel, AND the right-click dossier. "everyone" keeps the prior always-visible behavior;
+ *  "allies" hides vitals on non-owned, non-Friendly tokens from players. Registered (with its
+ *  grouped Settings menu) in apps/token-config.mjs. */
+export const TOKEN_BARS_SETTING = "tokenBarsVisibility";
+export const TOKEN_BARS_MODES = {
+  everyone: "PROJECTANIME.Settings.tokenSettings.barsEveryone",
+  allies: "PROJECTANIME.Settings.tokenSettings.barsAllies"
+};
+
+/** Whether the CURRENT viewer may see a token's HP / Energy. The GM and a token's owner always do;
+ *  otherwise the setting above decides: "everyone" → yes, "allies" → only Friendly tokens (your own
+ *  side). Single source of truth shared by the on-canvas bars (paDrawBar), this panel, and the
+ *  dossier — so all three reveal vitals to exactly the same people. */
+export function canSeeTokenVitals(token) {
+  if (game.user.isGM || token?.actor?.isOwner) return true;
+  if (game.settings.get("project-anime", TOKEN_BARS_SETTING) !== "allies") return true;
+  return token?.document?.disposition === CONST.TOKEN_DISPOSITIONS.FRIENDLY;
+}
 
 /** The reveal categories the current user's own character / controlled token unlocks (their
  *  Scouter) — the active Reveal rules on the viewer's assigned PC, or whichever token they
@@ -80,6 +103,43 @@ export function customFieldRows(actor, { full = false, reveals = null, surface =
     out.push({ label: f.label || f.path, value });
   }
   return out;
+}
+
+/**
+ * The reveal-gated stat-block view-model shared by the right-click Token Dossier and the Codex
+ * Archive. Returns the deeper layers that read straight off an actor's system data — Attributes,
+ * Combat Stats, Affinities — plus the GM-authored custom dossier fields. Each section is omitted
+ * (null / empty array) unless the viewer's gate passes: `full` = owner/GM (sees everything),
+ * `reveals` = the viewer's unlocked Scouter category Set (from collectReveals) for any other viewer.
+ * Skills (async) and HP/Energy (token-gated via canSeeTokenVitals) stay with each caller.
+ * @returns {{attributes: object[]|null, combat: object|null, affinities: object[], customFields: object[]}}
+ */
+export function actorStatBlock(actor, { full = false, reveals = null } = {}) {
+  if (!actor) return { attributes: null, combat: null, affinities: [], customFields: [] };
+  const sys = actor.system ?? {};
+  const can = (cat) => full || !!reveals?.has(cat);
+
+  const attributes = can("attributes")
+    ? PROJECTANIME.attributeKeys.map((k) => ({
+        label: L(PROJECTANIME.attributes[k]),
+        die: sys.attributes?.[k]?.die ?? `d${sys.attributes?.[k]?.value ?? 4}`
+      }))
+    : null;
+
+  const combat = can("combatStats")
+    ? { evasion: sys.evasion?.value ?? 0, defense: sys.defense?.value ?? 0, movement: sys.movement?.value ?? 0 }
+    : null;
+
+  const affinities = [];
+  if (can("affinities")) {
+    for (const [key, level] of Object.entries(sys.affinities ?? {})) {
+      if (!level || level === "none") continue;
+      affinities.push({ key, label: elementLabel(key) || key, level, levelLabel: L(PROJECTANIME.affinityLevels[level] ?? level) });
+    }
+    affinities.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  return { attributes, combat, affinities, customFields: customFieldRows(actor, { full, reveals, surface: "dossier" }) };
 }
 
 /** A character/NPC's TOTAL Skill Points: unspent + everything spent + free granted abilities.
@@ -176,12 +236,17 @@ export class TokenInfoPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     const can = (cat) => view.owner || !!reveals?.has(cat);
     const hasSkillPoints = sys.skillPoints !== undefined;
 
+    // HP/Energy visibility ("allies only" hides enemy/neutral vitals from players) — same gate as
+    // the on-canvas bars, so the panel never reveals what the bars hide.
+    const vitals = canSeeTokenVitals(token);
+
     return {
       show: true,
       disp: TokenInfoPanel.#dispKey(token),
       img: actor.img,
       name: token.document.name || actor.name,
       badge,
+      vitals,
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, pct: pct(hp.value, hp.max) },
       energy: { value: energy.value ?? 0, max: energy.max ?? 0, pct: pct(energy.value, energy.max) },
       sp: { show: hasSkillPoints && can("skillPoints"), value: totalSkillPoints(actor) },

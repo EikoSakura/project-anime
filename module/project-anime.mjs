@@ -7,25 +7,56 @@ import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
 import { ProjectAnimeItemSheet } from "./sheets/item-sheet.mjs";
-import { PROJECTANIME, ENCOUNTER_POWER_SETTING } from "./helpers/config.mjs";
+import { PROJECTANIME, ENCOUNTER_POWER_SETTING, cursedPools } from "./helpers/config.mjs";
 import * as dice from "./helpers/dice.mjs";
+import { elementLabel } from "./helpers/elements.mjs";
 import { registerElementSettings } from "./apps/element-config.mjs";
+import { registerMaterialSettings } from "./apps/material-config.mjs";
 import { registerBioFieldSettings } from "./apps/bio-field-config.mjs";
 import { registerTokenFieldSettings } from "./apps/token-field-config.mjs";
+import { registerTokenSettings } from "./apps/token-config.mjs";
 import { registerCreationSettings } from "./apps/creation-config.mjs";
-import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule } from "./helpers/effects.mjs";
+import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain } from "./helpers/effects.mjs";
+import { raiseServant, createCompanion, removeServantActor, pruneServantLedger, confirmAndDismiss } from "./helpers/servants.mjs";
+import { auditGearPacks, PACK_AUDIT_SETTING } from "./helpers/pack-audit.mjs";
+import { syncAuras, isAuraEffect } from "./helpers/aura.mjs";
 import { EffectsPanel } from "./apps/effects-panel.mjs";
-import { TokenInfoPanel, TOKEN_INFO_SETTING, TOKEN_INFO_CLIENT_SETTING } from "./apps/token-info.mjs";
+import { TokenInfoPanel, TOKEN_INFO_SETTING, TOKEN_INFO_CLIENT_SETTING, canSeeTokenVitals } from "./apps/token-info.mjs";
 import { TokenDossier } from "./apps/token-dossier.mjs";
 import { RangeLine, RANGE_LINE_SETTING, RANGE_LINE_CLIENT_SETTING } from "./apps/range-line.mjs";
+import { AuraField } from "./apps/aura-field.mjs";
+import { patchEffectsHalo } from "./apps/effects-halo.mjs";
 import { ComboSplash, COMBO_SPLASH_SETTING, COMBO_SPLASH_CLIENT_SETTING } from "./apps/combo-splash.mjs";
 import { ensurePartyFolder, ensureAllPartyFolders, syncPartyFolderName, deletePartyFolder, partyMembers } from "./helpers/party-folder.mjs";
+import { AnimeHud, AnimePartyRail, AnimeCombatTracker, registerHudSettings, applyHudState, HUD_ENABLED_SETTING, HUD_SHOW_PARTY_SETTING, HUD_COMBAT_SETTING } from "./apps/anime-hud.mjs";
+import { Codex, ChronicleTracker } from "./apps/codex.mjs";
+import { QUESTS_SETTING, TRACKED_SETTING, TRACKER_VISIBLE_SETTING } from "./helpers/chronicle.mjs";
+import { FACTIONS_SETTING, HQ_SETTING, DEATH_STRIKES_SETTING, CRAFT_REQUIRE_SETTING, migrateRostersToHQ, migrateHQModel, getHQ, buildFacility, craftRecipe } from "./helpers/factions.mjs";
+import { ARCHIVE_SETTING } from "./helpers/archive.mjs";
+import { reconcileHQBoons } from "./helpers/hq-boons.mjs";
+import { reconcileTraits } from "./helpers/trait-effect.mjs";
+import { registerPartySettings } from "./apps/party-config.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
 const { ActorSheet, ItemSheet } = foundry.appv1.sheets;
 
 // Hidden world flag — set once after the bottom-stacked HP/Energy bars migrate existing tokens.
 const BARS_BACKFILLED_SETTING = "barsBackfilled";
+
+// Hidden world flag — set once after existing Natural Attacks pick up the weapon table's
+// Unarmed DMG −2 (v0.01).
+const UNARMED_DMG_SETTING = "unarmedDmgV001";
+
+// Hidden client flag — set once after this client defaults chat bubbles + pan-to-speaker off.
+const CHAT_DEFAULTS_SETTING = "chatBubbleDefaultsApplied";
+
+// Hidden world flag — set once after the GM defaults automatic token rotation off and locks
+// rotation on every existing actor's prototype token + placed token.
+const ROTATION_DEFAULTS_SETTING = "tokenRotationDefaultsApplied";
+
+// Hidden world flag — set once after the world is seeded with its starter Party, so every game
+// ships with one. Guarding it means a GM who later deletes the party isn't fighting a respawn.
+const DEFAULT_PARTY_SETTING = "defaultPartyProvisioned";
 
 /* -------------------------------------------- */
 /*  Init                                        */
@@ -37,7 +68,7 @@ Hooks.once("init", function () {
   // Expose useful classes on the global scope for macros / downstream modules.
   globalThis.projectanime = {
     documents: { ProjectAnimeActor, ProjectAnimeItem },
-    applications: { ProjectAnimeActorSheet, ProjectAnimeItemSheet },
+    applications: { ProjectAnimeActorSheet, ProjectAnimeItemSheet, Codex },
     dice,
     models
   };
@@ -45,8 +76,129 @@ Hooks.once("init", function () {
   // Configuration constants.
   CONFIG.PROJECTANIME = PROJECTANIME;
 
+  // CHRONICLE quest log — the campaign's quests live in one world setting (GM writes, all read).
+  game.settings.register("project-anime", QUESTS_SETTING, {
+    scope: "world",
+    config: false,
+    type: Array,
+    default: [],
+    onChange: () => {
+      // A quest edit only touches the Quests pane — scope the re-render so the Factions/Home panes
+      // (and their prose enrichment) aren't rebuilt; rep/recruit side effects fire their own saves.
+      for (const app of foundry.applications.instances.values()) {
+        if (app.id === "pa-codex") app.render({ parts: ["quests"] });
+      }
+      ChronicleTracker.refresh();
+    }
+  });
+  // Per-user "tracked quest" id (drives the on-canvas quest tracker).
+  game.settings.register("project-anime", TRACKED_SETTING, {
+    scope: "client",
+    config: false,
+    type: String,
+    default: "",
+    onChange: () => ChronicleTracker.refresh()
+  });
+  // Per-user toggle for the on-canvas quest tracker widget. The tracker's own "hide" (eye-slash)
+  // button flips this off so it stops taking up screen space without un-tracking the quest; it's
+  // also a checkbox in Settings, and tracking a quest turns it back on.
+  game.settings.register("project-anime", TRACKER_VISIBLE_SETTING, {
+    name: "PROJECTANIME.Settings.trackerVisible.name",
+    hint: "PROJECTANIME.Settings.trackerVisible.hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
+    onChange: () => ChronicleTracker.refresh()
+  });
+
+  // FACTIONS — the world's factions live in one world setting (GM writes, all read), like the quest
+  // log. Bonds moved onto each Character (data/actor-models.mjs); Factions + Home now surface in the
+  // standalone CODEX window, so a change re-renders any open Codex (on every client). The legacy
+  // `covenantBonds` setting is intentionally no longer registered — bonds are per-actor now.
+  game.settings.register("project-anime", FACTIONS_SETTING, {
+    scope: "world",
+    config: false,
+    type: Array,
+    default: [],
+    onChange: () => {
+      // Faction standing also gates HQ repTier recruits, so refresh both panes — but scoped, so the
+      // Quests pane and nav keep their DOM (no whole-window flash on a standing tweak).
+      for (const app of foundry.applications.instances.values()) {
+        if (app.id === "pa-codex") app.render({ parts: ["factions", "hq"] });
+      }
+    }
+  });
+
+  // THE HQ — the party's single built faction + its recruit pool (Codex Home tab). One world object
+  // (GM writes, all read), like the faction list; a change re-renders any open Codex on every client.
+  // Recruitment used to live per-faction (the `buildable` flag); it consolidated here.
+  game.settings.register("project-anime", HQ_SETTING, {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {},
+    onChange: () => {
+      // Hand every open HQ window the change and let IT decide whether to re-render. Each one compares
+      // a signature of the slice it actually shows, so an edit it doesn't surface (e.g. authoring a
+      // Workshop recipe while the Codex Home tab is open) costs no flash. The Codex scopes to its `hq`
+      // part; the satellites re-render their single body. `notifyHQChanged` is the seamless entry point.
+      for (const app of foundry.applications.instances.values()) {
+        if (app.id === "pa-codex" || app.id === "pa-structures" || app.id?.startsWith("pa-shop-") || app.id?.startsWith("pa-workshop-")) {
+          app.notifyHQChanged?.();
+        }
+      }
+      reconcileHQBoons(); // GM-gated: re-project passive-facility boons onto party members
+    }
+  });
+
+  // THE CODEX ARCHIVE — the in-world encyclopedia (the "Codex" tab of the Headquarters window). One
+  // world object (GM writes, everyone reads), like the quest log + factions; a change routes through each
+  // open Codex's seamless gate (notifyArchiveChanged), which re-renders the archive pane only when what
+  // THAT viewer sees actually moved — so inline authoring edits (saved quietly) don't flash the pane, and
+  // a reveal still refreshes a player. Mirrors the HQ pane's notifyHQChanged fan-out.
+  game.settings.register("project-anime", ARCHIVE_SETTING, {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {},
+    onChange: () => {
+      for (const app of foundry.applications.instances.values()) {
+        if (app.id === "pa-codex") app.notifyArchiveChanged?.();
+      }
+    }
+  });
+
+  // Variant rule (default on): a dispatch agent who rolls a natural 1 on three missions is lost for
+  // good. Off → agents only ever come back wounded. A rules toggle, so it's world-scoped + visible.
+  game.settings.register("project-anime", DEATH_STRIKES_SETTING, {
+    name: "PROJECTANIME.Settings.hqDeathStrikes.name",
+    hint: "PROJECTANIME.Settings.hqDeathStrikes.hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  // Crafting: when on (default), a Workshop recipe's `requires[]` facility prerequisites are enforced;
+  // off → recipes gate on Workshop tier + resource cost only (pure tier-gating). World-scoped rules knob.
+  game.settings.register("project-anime", CRAFT_REQUIRE_SETTING, {
+    name: "PROJECTANIME.Settings.craftRequireFacilities.name",
+    hint: "PROJECTANIME.Settings.craftRequireFacilities.hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
+  // Party Sheet settings — the grouped menu that toggles the Factions / Reputation tab.
+  registerPartySettings();
+
   // Homebrew Elements (damage types): world setting + GM-only config menu.
   registerElementSettings();
+
+  // Homebrew Material Categories: world setting + GM-only config menu.
+  registerMaterialSettings();
 
   // GM-configurable Bio-tab dossier fields: world setting + GM-only config menu.
   registerBioFieldSettings();
@@ -54,6 +206,11 @@ Hooks.once("init", function () {
   // GM-configurable Character Creator: starting SP / Step-Ups / Gold, purchasable
   // types, and which compendiums the gear shop draws from.
   registerCreationSettings();
+
+  // Cinematic HUD — per-client settings (enable + intensity / slot shape / size / party rail).
+  // The console replaces the hotbar and the party rail replaces the names list; both are
+  // reversible from the "Cinematic HUD" client setting. See module/apps/anime-hud.mjs.
+  registerHudSettings();
 
   // Monster Creator "Encounter Power" — the party-power baseline its Tiers scale from
   // (≈ a typical current PC's total Skill Points). Raising it as the party advances makes
@@ -73,11 +230,13 @@ Hooks.once("init", function () {
     }
   });
 
-  // Token Info panel: a GM-flipped, off-by-default hover readout of a token's HP/Energy.
+  // Token Info panel: a GM-flipped, off-by-default hover readout of a token's HP/Energy. Now grouped
+  // under the "Token Settings" menu (registered below, alongside the HP/EP bar-visibility dropdown),
+  // so it's config:false here and toggled from that dialog rather than as a standalone checkbox.
   game.settings.register("project-anime", TOKEN_INFO_SETTING, {
     name: "PROJECTANIME.Settings.tokenInfo.name",
     scope: "world",
-    config: true,
+    config: false,
     type: Boolean,
     default: false,
     onChange: () => { projectanime.tokenInfo?.hide(); ui.controls?.render(); }
@@ -94,10 +253,42 @@ Hooks.once("init", function () {
     onChange: (value) => { if (!value) projectanime.tokenInfo?.hide(); }
   });
 
+  // "Token Settings" menu — one System-Settings entry grouping the HP/Energy bar-visibility dropdown
+  // (everyone vs. allies; gates paDrawBar below) with the Token Info Panel toggle registered above.
+  registerTokenSettings();
+
   // One-shot guard: switch pre-existing creatures' tokens to always-on resource bars (the new
   // bottom-stacked HP/Energy overlay) exactly once per world, so a GM's later manual change to a
   // token's bar display isn't re-forced on every load. Hidden (not a player-facing setting).
   game.settings.register("project-anime", BARS_BACKFILLED_SETTING, {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
+  // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
+  // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
+  for (const key of [PACK_AUDIT_SETTING, UNARMED_DMG_SETTING, DEFAULT_PARTY_SETTING]) {
+    game.settings.register("project-anime", key, {
+      scope: "world",
+      config: false,
+      type: Boolean,
+      default: false
+    });
+  }
+
+  // One-shot guards for the system's preferred token/UI defaults (applied in the ready hook):
+  // chat bubbles + pan-to-speaker off (per client) and automatic token rotation off + rotation
+  // locked on existing tokens (per world). Guarding the writes lets a GM/player turn any of them
+  // back on without the system re-forcing it on the next load. Hidden (not player-facing).
+  game.settings.register("project-anime", CHAT_DEFAULTS_SETTING, {
+    scope: "client",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+  game.settings.register("project-anime", ROTATION_DEFAULTS_SETTING, {
     scope: "world",
     config: false,
     type: Boolean,
@@ -185,15 +376,53 @@ Hooks.once("init", function () {
     TokenClass.prototype._paBarsPatched = true;
   }
 
+  // Effects Halo: show ALL of the actor's active effects (not just status conditions) as a ring of
+  // round icon badges around the token, replacing the default corner stack (PF2e-style).
+  patchEffectsHalo(TokenClass);
+
   // Register the system's status conditions (token HUD icons + Active Effects).
   CONFIG.statusEffects = PROJECTANIME.statusConditions.map((c) => ({ ...c }));
 
-  // Initiative Check (rules p.13): roll the Agility die + the Mind die; the
-  // highest total acts first. No tiebreaker fraction — just die + die.
+  // Initiative Check (rules p.13): roll the Agility die + the Mind die; the highest total acts
+  // first. Tiebreakers ride as fractions (small enough never to flip a real total): the larger
+  // Agility die wins a tie (+Agility/100), and an enemy acts before any player it still ties
+  // with (+0.001 for NPCs — see ProjectAnimeActor#getRollData's `tiebreak`). The tracker displays
+  // the whole number only (decimals: 0); the fractions still order ties, they just don't show.
   CONFIG.Combat.initiative = {
-    formula: "1d@attributes.agility.value + 1d@attributes.mind.value",
+    formula: "1d@attributes.agility.value + 1d@attributes.mind.value + (@attributes.agility.value / 100) + (@tiebreak.npc / 1000)",
     decimals: 0
   };
+
+  // Combo extra turn (rules p.13): "the moment it resolves you take an additional turn". A Combo
+  // scored on the roller's own turn flags the combat (dice.mjs maybeGrantComboTurn, GM-relayed);
+  // the next turn-advance consumes the flag and STAYS on that combatant — their extra turn — and
+  // marks the grant so a Combo during it can't chain another. Patched on the prototype so every
+  // advance path (tracker buttons, the HUD's End Turn relay) honors it.
+  const CombatClass = CONFIG.Combat.documentClass ?? Combat;
+  if (!CombatClass.prototype._paComboPatched) {
+    const baseNextTurn = CombatClass.prototype.nextTurn;
+    CombatClass.prototype.nextTurn = async function () {
+      const pending = this.getFlag("project-anime", "comboTurn");
+      const cur = this.combatant;
+      if (pending && cur && pending === `${cur.id}:${this.round}`) {
+        await this.update({
+          "flags.project-anime.-=comboTurn": null,
+          "flags.project-anime.comboGranted": `${cur.id}:${this.round}`
+        });
+        if (cur.actor) {
+          ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor: cur.actor }),
+            content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.comboTurn", { name: cur.actor.name })}</em></div></div>`
+          });
+        }
+        return this;
+      }
+      // A stale pending grant (the turn moved on some other way) dies with the advance.
+      if (pending) await this.unsetFlag("project-anime", "comboTurn");
+      return baseNextTurn.call(this);
+    };
+    CombatClass.prototype._paComboPatched = true;
+  }
 
   // Document classes.
   CONFIG.Actor.documentClass = ProjectAnimeActor;
@@ -249,6 +478,33 @@ Hooks.once("init", function () {
     restricted: false,
     onDown: () => { openPartySheetForUser(); return true; }
   });
+
+  game.keybindings.register("project-anime", "openQuestLog", {
+    name: "PROJECTANIME.Keybindings.openQuestLog.name",
+    hint: "PROJECTANIME.Keybindings.openQuestLog.hint",
+    editable: [{ key: "KeyL" }],
+    restricted: false,
+    onDown: () => { Codex.open("quests"); return true; }
+  });
+
+  // Press "H" to open the Codex on the Home (HQ) tab. Falls back to Quests if the GM hasn't enabled
+  // the Factions/Home panes (Codex reconciles an unavailable tab on render).
+  game.keybindings.register("project-anime", "openHome", {
+    name: "PROJECTANIME.Keybindings.openHome.name",
+    hint: "PROJECTANIME.Keybindings.openHome.hint",
+    editable: [{ key: "KeyH" }],
+    restricted: false,
+    onDown: () => { Codex.open("hq"); return true; }
+  });
+
+  // Press "K" to open the Codex on the Archive (encyclopedia) tab.
+  game.keybindings.register("project-anime", "openCodex", {
+    name: "PROJECTANIME.Keybindings.openCodex.name",
+    hint: "PROJECTANIME.Keybindings.openCodex.hint",
+    editable: [{ key: "KeyK" }],
+    restricted: false,
+    onDown: () => { Codex.open("archive"); return true; }
+  });
 });
 
 /* -------------------------------------------- */
@@ -271,6 +527,28 @@ Hooks.on("getChatMessageContextOptions", (...args) => {
 Hooks.on("createChatMessage", (message) => {
   const combo = message.getFlag("project-anime", "combo");
   if (combo) ComboSplash.flash(combo);
+});
+
+// Foundry's default initiative roll posts a plain parchment card showing the raw tiebreak formula
+// and a decimal total (1d4 + 1d4 + (4/100) + (1/1000) = 5.04). Reskin it into a themed system card —
+// combatant name + just the whole-number result, no math. Every roll path funnels here (sheet
+// button, the Anime-HUD roll buttons, the default tracker): core flags each such message
+// `core.initiativeRoll`. updateSource rewrites the stored doc so the whole table sees the themed
+// card; the combatant's precise initiative (set before the message) is left untouched.
+Hooks.on("preCreateChatMessage", (message) => {
+  if (!message.flags?.core?.initiativeRoll) return;
+  const roll = message.rolls?.[0];
+  if (!roll) return;
+  const speaker = message.speaker ?? {};
+  const actor = ChatMessage.getSpeakerActor?.(speaker) ?? null;
+  const name = speaker.alias || actor?.name || game.i18n.localize("PROJECTANIME.Roll.initiative");
+  const content = dice.cardHTML({
+    title: name,
+    subtitle: game.i18n.localize("PROJECTANIME.Roll.initiative"),
+    icon: actor?.img ?? "",
+    lines: [`<span class="init-result">${Math.floor(Number(roll.total) || 0)}</span>`]
+  });
+  message.updateSource({ content, rolls: [], flavor: "", sound: CONFIG.sounds.dice });
 });
 
 /* -------------------------------------------- */
@@ -303,7 +581,7 @@ Hooks.on("updateCombat", expireEffects);
 Hooks.on("updateWorldTime", expireEffects);
 
 /* -------------------------------------------- */
-/*  Combat turn-tick (Sustain / Decay / Stunned)*/
+/*  Combat turn-tick (Sustain / Channeled / Decay / Stunned) */
 /* -------------------------------------------- */
 
 /** A small themed chat line (no roll) announcing a turn-tick event. */
@@ -314,41 +592,67 @@ function tickCard(actor, text) {
   });
 }
 
-/** Sustain regen per turn by Skill Rank (rules: ★ 2 · ★★★ 4 · ★★★★★ 6 → +2 per tier). */
-function sustainAmount(rank) {
-  return 2 * Math.ceil((Number(rank) || 1) / 2);
-}
-
-/** Decay: 1 HP damage at the END of the actor's turn, for up to 3 turns, then it clears. The
- *  remaining-turns counter is a flag, initialised to 3 the first tick (so ANY way the `decay`
- *  status was applied — Skill modifier, effect, token HUD — gets the rules' 3-turn life). */
+/** Lingering (stored id `decay`): 1 HP damage at the END of each of the bearer's turns while the
+ *  status lasts. Its lifetime is the STANDARD condition timer (default 2 of the bearer's turns, a
+ *  Skill's Duration overrides — counted down by tickStatusDurations after this damage lands), so
+ *  Lingering expires like every other condition. */
 async function tickDecay(actor) {
   if (!actor?.statuses?.has?.("decay")) return;
-  let remaining = actor.getFlag("project-anime", "decay");
-  if (!Number.isInteger(remaining) || remaining <= 0) remaining = 3;
   const hp = actor.system.hp ?? { value: 0, max: 0 };
-  remaining -= 1;
-  const updates = { "system.hp.value": Math.max(0, (hp.value ?? 0) - 1) };
-  if (remaining <= 0) updates["flags.project-anime.-=decay"] = null;
-  else updates["flags.project-anime.decay"] = remaining;
+
+  // The tick is a flat 1 HP unless the inflicting Skill set a Lingering Element
+  // (flags.project-anime.decayType): a typed tick is affinity-adjusted for THIS creature
+  // (weak +2 / resist −2 / immune → 0 / absorb → heal), bypassing Defense. adjustForTarget
+  // (dice.mjs) is the shared affinity authority, so typed Lingering matches every other source.
+  const element = actor.getFlag("project-anime", "decayType") || "";
+  const cur = hp.value ?? 0;
+  let next = Math.max(0, cur - 1), amount = 1, healed = false;
+  if (element) {
+    const adj = dice.adjustForTarget(1, element, actor, { ignoresDefense: true });
+    amount = adj.amount;
+    healed = !!adj.heal;
+    next = healed ? Math.min(hp.max ?? cur, cur + amount) : Math.max(0, cur - amount);
+  }
+
+  const updates = { "system.hp.value": next };
+  // Pre-timer applications carry no countdown (the old build ran Lingering on its own 3-turn
+  // counter flag): retire any legacy counter and stamp the standard default so it still expires.
+  if (actor.getFlag("project-anime", "decay") !== undefined) updates["flags.project-anime.-=decay"] = null;
+  const timers = actor.getFlag("project-anime", "statusTimers") ?? {};
+  if (!("decay" in timers)) updates["flags.project-anime.statusTimers.decay"] = 2;
   await actor.update(updates);
-  if (remaining <= 0) await actor.toggleStatusEffect?.("decay", { active: false });
-  tickCard(actor, game.i18n.format("PROJECTANIME.Effect.decayTick", { name: actor.name }));
+
+  // Tick card: untyped keeps the original line; a typed tick names the element + result
+  // (absorb heals; immune lands 0; resist now floors at 1 like every other HP hit).
+  const fmt = (k, d) => game.i18n.format(`PROJECTANIME.Effect.${k}`, d);
+  let msg;
+  if (!element) msg = fmt("decayTick", { name: actor.name });
+  else if (healed) msg = fmt("decayTickAbsorb", { name: actor.name, n: amount, element: elementLabel(element) });
+  else msg = fmt("decayTickTyped", { name: actor.name, n: amount, element: elementLabel(element) });
+  tickCard(actor, msg);
 }
 
-/** Sustain: each PASSIVE Sustain Skill regenerates its rank amount into its pool (HP/Energy)
- *  at the START of the actor's turn, clamped to max. */
+/** Sustain: regenerate the actor's pools at the START of their turn from every live `sustain` Active
+ *  Effect — authored effects, gear, drag-ons, and projected auras, plus the actor's own passive
+ *  Sustain Skills (all folded together by collectSustain). Clamped to each pool's max. */
 async function tickSustain(actor) {
-  const skills = actor?.items?.filter(
-    (i) => i.type === "skill" && i.system.actionType === "passive" && i.system.effect === "sustain"
-  ) ?? [];
-  if (!skills.length) return;
-  const gains = { hp: 0, energy: 0 };
-  for (const skill of skills) gains[skill.system.damagePool === "energy" ? "energy" : "hp"] += sustainAmount(skill.system.rank);
+  // Defeated creatures (0 HP) can't passively regenerate: Sustain shuts off the moment HP hits 0 and
+  // stays off until they're healed back above 0. Gating here (not just on the skip-Defeated turn
+  // order) stops a downed creature self-reviving via Sustain even if it somehow gets a turn. This
+  // suppresses BOTH HP- and Energy-pool regen — it's the creature's life that's switched off, not one pool.
+  if ((actor?.system?.hp?.value ?? 0) <= 0) return;
+  // A Cursed creature cannot regain its cursed pool (rules: Curse) — that pool's regen is
+  // suppressed until the Curse ends. A pool-specific Curse leaves the other pool regenerating;
+  // a hand-toggled Curse blocks both (cursedPools resolves which).
+  const cursed = cursedPools(actor);
+  // All Sustain now flows through the Active-Effect engine — including a Sustain+Aura projected onto
+  // this creature by a nearby ally (the projected effect carries a `sustain` rule), so the old
+  // regeneration-aura special case is gone.
+  const gains = collectSustain(actor);
   const updates = {};
   const parts = [];
   for (const pool of ["hp", "energy"]) {
-    if (gains[pool] <= 0) continue;
+    if (gains[pool] <= 0 || cursed.includes(pool)) continue;
     const res = actor.system[pool] ?? { value: 0, max: 0 };
     const next = Math.min(res.max ?? 0, (res.value ?? 0) + gains[pool]);
     if (next !== res.value) {
@@ -361,34 +665,177 @@ async function tickSustain(actor) {
   tickCard(actor, game.i18n.format("PROJECTANIME.Effect.sustainRegen", { name: actor.name, gain: parts.join(" · ") }));
 }
 
-/** Stunned: announce a skipped turn at the START of the actor's turn (GM advances manually). */
-function tickStunned(actor) {
-  if (!actor?.statuses?.has?.("stunned")) return;
+/** Channeled Skills (rules v0.01: "This Skill remains active as long as you spend 1 EP at the
+ *  Start of your Turn"): each open channel is a marker effect on the caster (stamped by dice.mjs
+ *  when the Skill is used). At the start of the caster's turn, pay 1 EP per channel — can't pay
+ *  → that channel ends (deleting the marker; the deleteActiveEffect hook below sweeps every
+ *  effect copy carrying its key). Paying is a COST, not recovery, so Curse doesn't block it. */
+async function tickChanneled(actor) {
+  const markers = (actor?.effects ?? []).filter((e) => e.flags?.["project-anime"]?.channelSource);
+  for (const m of markers) {
+    const en = actor.system?.energy ?? { value: 0 };
+    if ((en.value ?? 0) >= 1) {
+      await actor.update({ "system.energy.value": en.value - 1 });
+      tickCard(actor, game.i18n.format("PROJECTANIME.Effect.channelPay", { name: actor.name, skill: m.name }));
+    } else {
+      tickCard(actor, game.i18n.format("PROJECTANIME.Effect.channelEnd", { name: actor.name, skill: m.name }));
+      await m.delete();   // → deleteActiveEffect hook sweeps the channel's copies
+    }
+  }
+}
+
+/** Remove every effect copy carrying a channel's key — from the combatants, the current scene's
+ *  tokens, and world actors (a linked target may have left the scene). Fired when a channel
+ *  marker is deleted for ANY reason: the EP tick ran dry, the player dismissed the Skill (rules
+ *  v0.01: dismissing an ongoing Skill on your turn is free — deleting the marker IS the
+ *  dismissal), or the end-of-combat scene sweep took it. GM-side only. */
+async function sweepChannelCopies(channelKey) {
+  if (!channelKey) return;
+  const actors = new Set(game.actors);
+  for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);
+  for (const t of canvas?.tokens?.placeables ?? []) if (t.actor) actors.add(t.actor);
+  for (const actor of actors) {
+    const linked = (actor.effects ?? []).filter((e) =>
+      e.flags?.["project-anime"]?.channelKey === channelKey && !e.flags?.["project-anime"]?.channelSource
+    ).map((e) => e.id);
+    if (linked.length) await actor.deleteEmbeddedDocuments("ActiveEffect", linked);
+  }
+}
+
+/** A conjured item evaporates with its lifetime marker (rules v0.01: Conjure makes something out
+ *  of nothing — when the Skill's Duration ends, so does the something). Sweep every actor that
+ *  could hold one. GM-side only. */
+async function sweepConjuredItems(conjureKey) {
+  if (!conjureKey) return;
+  const actors = new Set(game.actors);
+  for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);
+  // Every scene's token actors, not just the viewed one — an unlinked recipient elsewhere
+  // must lose its conjuration too.
+  for (const scene of game.scenes) for (const t of scene.tokens) if (t.actor) actors.add(t.actor);
+  for (const actor of actors) {
+    const ids = (actor.items ?? []).filter((i) => i.flags?.["project-anime"]?.conjured === conjureKey).map((i) => i.id);
+    if (ids.length) await actor.deleteEmbeddedDocuments("Item", ids);
+  }
+}
+
+/** A Gate's paired portal tiles close with their lifetime marker. GM-side only. */
+async function sweepGateTiles(gateKey) {
+  if (!gateKey) return;
+  for (const scene of game.scenes) {
+    const ids = scene.tiles.filter((t) => t.flags?.["project-anime"]?.gateKey === gateKey).map((t) => t.id);
+    if (ids.length) await scene.deleteEmbeddedDocuments("Tile", ids);
+  }
+}
+
+// A deleted channel marker takes its channel's effect copies with it; a deleted Conjure / Gate
+// lifetime marker takes its conjured items / portal tiles (single active GM acts). A channeled
+// Conjure/Gate chains naturally: the channel's end sweeps the lifetime marker (it carries the
+// channel's key), and THAT deletion lands back here to sweep the items/tiles.
+Hooks.on("deleteActiveEffect", (effect) => {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  const flags = effect?.flags?.["project-anime"];
+  if (flags?.channelSource && flags?.channelKey) sweepChannelCopies(flags.channelKey);
+  if (flags?.conjureMarker) sweepConjuredItems(flags.conjureMarker);
+  if (flags?.gateMarker) sweepGateTiles(flags.gateMarker);
+});
+
+// A raised servant's death-of-record (dismissal or a straight delete) releases its master's
+// locked Energy: prune the ledger entry. GM-side (the active GM may update any actor).
+Hooks.on("deleteActor", (actor) => {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  pruneServantLedger(actor);
+});
+
+/** Status durations (rules p.13): a status condition lasts a number of the affected creature's own
+ *  turns — a default of 2, or whatever the Skill that applied it set — and counts down at the END of
+ *  that creature's turn, ending when it reaches 0. The per-target counters live under
+ *  flags.project-anime.statusTimers (stamped by applyStatusTo on application, max-merged so re-applying
+ *  refreshes to the longer duration). Decay (its own damage counter) and Stunned (skip-based) run
+ *  separately and never appear here. A status cleared by other means (Cleanse, the token HUD) leaves a
+ *  stale timer, pruned here. */
+async function tickStatusDurations(actor) {
+  if (!actor) return;
+  const timers = actor.getFlag("project-anime", "statusTimers");
+  if (!timers || !Object.keys(timers).length) return;
+  const updates = {};
+  const expired = [];
+  for (const [id, n] of Object.entries(timers)) {
+    if (!actor.statuses?.has?.(id)) { updates[`flags.project-anime.statusTimers.-=${id}`] = null; continue; }
+    const remaining = Number(n) - 1;
+    if (remaining <= 0) { updates[`flags.project-anime.statusTimers.-=${id}`] = null; expired.push(id); }
+    else updates[`flags.project-anime.statusTimers.${id}`] = remaining;
+  }
+  if (Object.keys(updates).length) await actor.update(updates);
+  for (const id of expired) {
+    await actor.toggleStatusEffect?.(id, { active: false });
+    // Lingering's stashed Element retires with the status (applyStatusTo isn't on this path), as do
+    // a pool-choice status's flags — a valued status's pools (Barrier / Regen) or a Curse's pool —
+    // and any stamped Overcome CT.
+    if (id === "decay" && actor.getFlag("project-anime", "decayType")) {
+      await actor.update({ "flags.project-anime.-=decayType": null });
+    }
+    if ((PROJECTANIME.poolChoiceStatuses ?? []).includes(id) && actor.getFlag("project-anime", id)) {
+      await actor.update({ [`flags.project-anime.-=${id}`]: null });
+    }
+    if (id in (actor.getFlag("project-anime", "overcomeCT") ?? {})) {
+      await actor.update({ [`flags.project-anime.overcomeCT.-=${id}`]: null });
+    }
+    tickCard(actor, game.i18n.format("PROJECTANIME.Effect.statusExpired", {
+      status: game.i18n.localize(`PROJECTANIME.Status.${id}`), name: actor.name
+    }));
+  }
+}
+
+/** Runaway guard: bounds the chain of consecutive Stunned skips so a status that somehow can't be
+ *  cleared can never spin the tracker forever. Reset whenever the turn lands on a non-Stunned actor. */
+let stunnedSkipChain = 0;
+
+/** Stunned (rules p.13): the creature loses its next turn entirely (no Move, no Action), then Stunned
+ *  ends. At the START of a Stunned creature's turn we announce it, remove the status, and auto-advance
+ *  the tracker so the turn is skipped. Consecutive Stunned creatures chain (each is skipped in turn).
+ *  GM-side only (the caller is gated). Returns true if a turn was skipped. */
+async function tickStunned(combat, started) {
+  const actor = started?.actor;
+  if (!actor?.statuses?.has?.("stunned")) { stunnedSkipChain = 0; return false; }
+  // Safety: if a Stunned status can't be cleared, stop after one full lap rather than loop forever.
+  if (stunnedSkipChain > (combat.combatants?.size ?? 0)) { stunnedSkipChain = 0; return false; }
+  stunnedSkipChain += 1;
   tickCard(actor, game.i18n.format("PROJECTANIME.Effect.stunnedSkip", { name: actor.name }));
+  await actor.toggleStatusEffect?.("stunned", { active: false });
+  await combat.nextTurn();   // re-enters combatTurnTick for the now-current combatant (chains if also Stunned)
+  return true;
 }
 
 /**
  * Combat turn-tick automation (GM-side only, mirroring expireEffects' single-active-GM guard).
- * On a turn/round advance: the combatant whose turn just ENDED takes Decay; the one whose turn
- * just STARTED gets Sustain regen + a Stunned skip notice. Reads combat.previous / combat.current.
- * Sustain regen is gated to once per round per combatant via a high-water `sustainRound` flag, so
- * stepping back through the turn order — within a round or across rounds — never re-heals.
+ * On a turn/round advance: the combatant whose turn just ENDED takes Decay and counts down its
+ * status durations; the one whose turn just STARTED gets Sustain regen, then — if Stunned — has its
+ * turn auto-skipped. Reads combat.previous / combat.current. Sustain regen is gated to once per round
+ * per combatant via a high-water `sustainRound` flag, so stepping back through the turn order — within
+ * a round or across rounds — never re-heals.
  */
 async function combatTurnTick(combat, change) {
   if (game.users.activeGM?.id !== game.user.id) return;
   if (!("turn" in change) && !("round" in change)) return;
   const endedActor = combat.combatants.get(combat.previous?.combatantId)?.actor ?? null;
   const started = combat.combatants.get(combat.current?.combatantId) ?? null;
-  if (endedActor) await tickDecay(endedActor);
+  if (endedActor) {
+    await tickDecay(endedActor);
+    await tickStatusDurations(endedActor);
+  }
   if (started?.actor) {
     // HP/Energy regen applies once per round: only when this combatant first reaches a round it
     // hasn't sustained in yet. Going back in the turn order won't clear the flag, so it won't reheal.
+    // Channeled upkeep rides the same once-per-round gate (1 EP per open channel, rules v0.01) —
+    // regen first, then the channel bill, then a Stunned creature's turn is skipped (a channel
+    // holds while Stunned: the EP keeps flowing even though the bearer can't act).
     const lastSustained = Number(started.getFlag("project-anime", "sustainRound")) || 0;
     if (combat.round > lastSustained) {
       await started.setFlag("project-anime", "sustainRound", combat.round);
       await tickSustain(started.actor);
+      await tickChanneled(started.actor);
     }
-    tickStunned(started.actor);
+    await tickStunned(combat, started);
   }
 }
 
@@ -409,21 +856,33 @@ function markDefeatedFromHP(actor, changes) {
   const defeated = hp <= 0;
   let crossed = false;
   for (const c of game.combat?.combatants ?? []) {
-    if (c.actor?.uuid === actor.uuid && c.defeated !== defeated) { c.update({ defeated }); crossed = true; }
+    if (c.actor?.uuid !== actor.uuid || c.defeated === defeated) continue;
+    c.update({ defeated });
+    crossed = true;
+    // Auto-hide a defeated Hostile token (and reveal it again if it's healed back above 0). Only
+    // Hostile tokens vanish: player characters (FRIENDLY) are downed, not removed, and recover at end
+    // of combat (rules p.14), and friendly / neutral NPCs stay on the board. NPCs default Hostile.
+    const tok = c.token;
+    if (tok && tok.disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE
+        && tok.hidden !== defeated) tok.update({ hidden: defeated });
   }
   if (defeated && crossed) tickCard(actor, game.i18n.format("PROJECTANIME.Effect.defeated", { name: actor.name }));
 }
 Hooks.on("updateActor", markDefeatedFromHP);
 
-/** End of combat: any still-Defeated player character recovers to half their Max HP, rounded down
- *  (rules p.14). Only PCs (type "character") and only those at/below 0 HP — anyone who ended the
- *  fight above 0 keeps their HP, and enemies are left as-is. GM-side only. */
+/** End of combat: any still-Defeated character recovers to half their Max HP, rounded down
+ *  (rules: "any character still Defeated"). Player characters always; NPCs only if they're NOT
+ *  hostile (a downed ally/bystander gets back up — defeated enemies stay down, and their tokens
+ *  stay auto-hidden rather than popping back onto the field). Only those at/below 0 HP — anyone
+ *  who ended the fight above 0 keeps their HP. GM-side only. */
 async function recoverDefeatedOnCombatEnd(combat) {
   if (game.users.activeGM?.id !== game.user.id) return;
   const seen = new Set();
   for (const c of combat.combatants ?? []) {
     const actor = c.actor;
-    if (!actor || actor.type !== "character" || seen.has(actor.uuid)) continue;
+    if (!actor || seen.has(actor.uuid)) continue;
+    const friendlyNpc = actor.type === "npc" && actor.system?.disposition !== "hostile";
+    if (actor.type !== "character" && !friendlyNpc) continue;
     seen.add(actor.uuid);
     const hp = actor.system.hp ?? { value: 0, max: 0 };
     if ((hp.value ?? 0) > 0) continue;
@@ -506,6 +965,40 @@ Hooks.on("deleteActiveEffect", (effect, options, userId) => resyncGrantsFromEffe
 Hooks.on("updateActiveEffect", (effect, change, options, userId) => resyncGrantsFromEffect(effect, userId));
 
 /* -------------------------------------------- */
+/*  Aura Skills (passive area buff)             */
+/* -------------------------------------------- */
+
+// A passive Skill carrying the "Aura" Modifier continuously grants its Effect(s) to allies within
+// PROJECTANIME.auraTiles of the bearer. The single active GM reconciles the projected effects for the
+// whole canvas (helpers/aura.mjs); we just nudge it whenever the picture could change. Debounced so a
+// burst of related updates collapses into one pass.
+// syncAuras() reconciles the projected effects (GM-only, internally gated); the field overlay redraws
+// the on-canvas rings for THIS client. Both hang off the same triggers below, so a ring appears/moves
+// exactly when the field it represents does.
+const refreshAuras = foundry.utils.debounce(() => { syncAuras(); globalThis.projectanime?.auraField?.refresh(); }, 100);
+
+// Token movement / visibility / side changes shift who's inside an aura.
+Hooks.on("updateToken", (doc, changes) => {
+  if ("x" in changes || "y" in changes || "hidden" in changes || "disposition" in changes) refreshAuras();
+});
+Hooks.on("createToken", refreshAuras);
+Hooks.on("deleteToken", refreshAuras);
+// A bearer crossing 0 HP switches its aura off (and back on when healed above 0).
+Hooks.on("updateActor", (actor, changes) => { if (foundry.utils.hasProperty(changes, "system.hp.value")) refreshAuras(); });
+// Learning / editing / removing an Aura Skill (its Modifiers, Effect, or Action Type) changes what's projected.
+Hooks.on("createItem", (item) => { if (item.type === "skill") refreshAuras(); });
+Hooks.on("updateItem", (item) => { if (item.type === "skill") refreshAuras(); });
+Hooks.on("deleteItem", (item) => { if (item.type === "skill") refreshAuras(); });
+// Editing an Aura Skill's authored Effect re-projects it — but ignore our OWN projected copies (they
+// carry the aura flag), or creating/deleting them in the reconcile would loop back here.
+const onAuraEffectChange = (effect) => { if (!isAuraEffect(effect)) refreshAuras(); };
+Hooks.on("createActiveEffect", onAuraEffectChange);
+Hooks.on("updateActiveEffect", onAuraEffectChange);
+Hooks.on("deleteActiveEffect", onAuraEffectChange);
+// Initial pass + on every scene change (the new scene's tokens reconcile fresh).
+Hooks.on("canvasReady", refreshAuras);
+
+/* -------------------------------------------- */
 /*  Equipment slot exclusivity                  */
 /* -------------------------------------------- */
 
@@ -582,6 +1075,7 @@ function paBarLabel(bar, text, innerW, bh) {
     label.scale.set(fit, fit);
   }
   label.position.set(innerW / 2, bh / 2);
+  label.visible = true;                                 // re-show after an HP/EP-visibility gate
 }
 
 // Override of Token#_drawBar (see the `init` patch). `number` 0 = bar1 (HP), 1 = bar2 (Energy) —
@@ -589,6 +1083,13 @@ function paBarLabel(bar, text, innerW, bh) {
 // the bottom, inset, with HP stacked directly above Energy.
 function paDrawBar(number, bar, data) {
   const doc = this.document;
+  // HP/EP visibility gate — canSeeTokenVitals (shared with the hover panel + dossier). If this
+  // viewer may not see vitals, draw nothing and hide the cached label; re-shown when allowed again.
+  if (!canSeeTokenVitals(this)) {
+    bar.clear();
+    if (bar.paLabel) bar.paLabel.visible = false;
+    return false;
+  }
   const max = Number(data.max) || 0;
   const pct = max > 0 ? Math.clamp(Number(data.value), 0, max) / max : 0;
 
@@ -644,18 +1145,30 @@ function paDrawBar(number, bar, data) {
 // HP/Energy bars (the bottom-stacked overlay), show the name on owner-hover, and map an NPC's
 // disposition to the token's disposition. (Bars read hp/energy via the manifest token attributes.)
 Hooks.on("preCreateActor", (actor, data) => {
-  // The Party planner has no token / combat stats — leave its prototype token at core defaults.
-  if (actor.type === "party") return;
+  // The Party planner has no token / combat stats — leave its prototype token at core defaults,
+  // but default it to OBSERVER for everyone so the whole table can open the shared party sheet.
+  // (updateSource merges, so the creating user's OWNER entry is preserved; the GM can raise a
+  // player to Owner if they want them managing the Stash.)
+  if (actor.type === "party") {
+    actor.updateSource({ "ownership.default": CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER });
+    return;
+  }
   const isChar = actor.type === "character";
   const DISP = CONST.TOKEN_DISPOSITIONS;
   const dispMap = { friendly: DISP.FRIENDLY, neutral: DISP.NEUTRAL, hostile: DISP.HOSTILE };
   actor.updateSource({
     prototypeToken: {
-      actorLink: isChar,
+      // Respect an explicitly-provided link (raised servants / bonded companions are linked
+      // NPCs — their advancement must flow to the placed token); otherwise PCs link, NPCs don't.
+      actorLink: data?.prototypeToken?.actorLink ?? isChar,
       sight: { enabled: isChar },
       displayBars: CONST.TOKEN_DISPLAY_MODES.ALWAYS,
       displayName: CONST.TOKEN_DISPLAY_MODES.OWNER_HOVER,
-      disposition: isChar ? DISP.FRIENDLY : (dispMap[data?.system?.disposition] ?? DISP.NEUTRAL)
+      // Lock rotation by default so token art never spins (the system also defaults core's
+      // "Automatic Token Rotation" off); respect an explicit value on import / duplication.
+      lockRotation: data?.prototypeToken?.lockRotation ?? true,
+      disposition: data?.prototypeToken?.disposition
+        ?? (isChar ? DISP.FRIENDLY : (dispMap[data?.system?.disposition] ?? DISP.HOSTILE))
     }
   });
   // Innate Natural Attack: bake an unarmed strike into every new creature unless it already
@@ -684,6 +1197,22 @@ Hooks.on("createActor", (actor) => { if (actor.type === "party" && paIsActiveGM(
 Hooks.on("updateActor", (actor, changes) => { if (actor.type === "party" && "name" in changes && paIsActiveGM()) syncPartyFolderName(actor); });
 Hooks.on("deleteActor", (actor) => { if (actor.type === "party" && paIsActiveGM()) deletePartyFolder(actor); });
 
+// Every world ships with a Party (PF2e-style). On first ready per world, if none exists yet, seed
+// a starter one — the createActor hook above backs it with its folder, and the directory hook below
+// pins that folder to the top with an "open sheet" icon. Flagged provisioned so it runs exactly
+// once: a GM who later deletes the party isn't fighting a respawn on the next load.
+async function ensureDefaultParty() {
+  if (!paIsActiveGM() || game.settings.get("project-anime", DEFAULT_PARTY_SETTING)) return;
+  if (!game.actors.some((a) => a.type === "party")) {
+    await Actor.create({
+      name: game.i18n.localize("PROJECTANIME.Party.defaultName"),
+      type: "party",
+      img: "icons/svg/team.svg"
+    });
+  }
+  await game.settings.set("project-anime", DEFAULT_PARTY_SETTING, true);
+}
+
 // A party's roster IS its folder's Characters, so adding/removing a member mutates the CHARACTER
 // (its `folder`) — never the party Document — and the open party sheet won't refresh on its own.
 // Re-render any open party sheet whenever folder membership could have shifted: a character's
@@ -694,9 +1223,17 @@ const refreshOpenPartySheets = foundry.utils.debounce(() => {
   for (const app of foundry.applications.instances.values())
     if (app instanceof ProjectAnimePartySheet) app.render(false);
 }, 50);
-Hooks.on("updateActor", (actor, changes) => { if (actor.type === "character" && "folder" in changes) refreshOpenPartySheets(); });
-Hooks.on("createActor", (actor) => { if (actor.type === "character") refreshOpenPartySheets(); });
+Hooks.on("updateActor", (actor, changes) => { if (actor.type === "character" && "folder" in changes) { refreshOpenPartySheets(); reconcileHQBoons(); } });
+Hooks.on("createActor", (actor) => { if (actor.type === "character") { refreshOpenPartySheets(); reconcileHQBoons(); } });
 Hooks.on("deleteActor", (actor) => { if (actor.type === "character") refreshOpenPartySheets(); });
+
+// SIGNATURE TRAIT + TRAITS: project the Signature Trait and each Trait as always-on AEs
+// (helpers/trait-effect.mjs, the hq-boons HAVE/WANT mirror) whenever a card is authored/cleared or an
+// actor is created. Internally GM-gated (single active GM); the ready hook below does the initial pass.
+Hooks.on("updateActor", (actor, changes) => {
+  if (foundry.utils.hasProperty(changes, "system.trait") || foundry.utils.hasProperty(changes, "system.traits")) reconcileTraits(actor);
+});
+Hooks.on("createActor", (actor) => reconcileTraits(actor));
 
 // Open the Party sheet most relevant to this user: for a player, the party whose folder holds a
 // character they own; otherwise (and for the GM) the first party they can view. Backs both the
@@ -708,18 +1245,23 @@ function openPartySheetForUser() {
   (mine || parties[0]).sheet.render(true);
 }
 
-// Make each Party folder behave like PF2e's party in the Actors sidebar:
-//   • PIN it to the TOP of its list — no matter the directory's sort mode (the `sort: -100000`
-//     set at creation only bites in MANUAL mode; under alphabetical sorting it's ignored, so the
-//     folder would otherwise drift). Re-applied on every render, so it can't drift.
-//   • Drop a one-click "open the party sheet" icon on the folder header (for users who can view
-//     it). The folder's Characters already ARE the roster, so this is the party's home.
-// Pure DOM, so it runs for everyone (the pin has no GM gate; the icon is permission-gated).
+// Present each Party as JUST its folder in the Actors sidebar (PF2e-style). The party actor has no
+// character sheet of its own — only a compact Stash / Gold / encounter popup — so:
+//   • HIDE the party actor's own directory entry: the folder, not a stray actor row, IS the party.
+//   • PIN the folder to the TOP of its list — no matter the directory's sort mode (the `sort:
+//     -100000` set at creation only bites in MANUAL mode; under alphabetical sorting it's ignored,
+//     so the folder would otherwise drift). Re-applied on every render, so it can't drift.
+//   • Drop a one-click icon on the folder header (for users who can view it) that opens the popup.
+//     The folder's Characters already ARE the roster, so this is the party's home.
+// Pure DOM, so it runs for everyone (the hide + pin have no GM gate; the icon is permission-gated).
 Hooks.on("renderActorDirectory", (app, element) => {
   const root = element instanceof HTMLElement ? element : element?.[0];
   if (!root) return;
   // Reversed so that after each prepend the directory's first party ends up topmost.
   for (const party of game.actors.filter((a) => a.type === "party").reverse()) {
+    // The party reads as a folder, not an actor — drop its own entry from the directory.
+    root.querySelector(`li[data-entry-id="${party.id}"], li[data-document-id="${party.id}"]`)?.remove();
+
     const id = party.getFlag("project-anime", "folderId");
     const li = id ? root.querySelector(`li[data-folder-id="${id}"]`) : null;
     if (!li) continue;
@@ -746,6 +1288,17 @@ Hooks.on("renderActorDirectory", (app, element) => {
 Hooks.on("getSceneControlButtons", (controls) => {
   const tools = controls.tokens?.tools;
   if (!tools) return;
+  // Open the CODEX (Quests / Factions / Home) — available to everyone; the GM additionally authors here.
+  tools["project-anime-codex"] = {
+    name: "project-anime-codex",
+    order: 99,
+    title: "PROJECTANIME.Codex.open",
+    icon: "fa-solid fa-book-open",
+    button: true,
+    onClick: () => Codex.open()
+  };
+  // (The Covenant scene-control button is gone: Bonds live on each character's "Bonds" sheet drawer,
+  // and Factions + Home moved into the Codex.)
   if (game.settings.get("project-anime", TOKEN_INFO_SETTING)) {
     tools["project-anime-token-info"] = {
       name: "project-anime-token-info",
@@ -839,6 +1392,26 @@ async function backfillNaturalAttacks() {
 }
 
 /* -------------------------------------------- */
+/*  Unarmed DMG −2 backfill (one-time, v0.01)   */
+/* -------------------------------------------- */
+
+// Bring existing creatures' innate Natural Attacks in line with the weapon table's Unarmed row
+// (DMG −2). Only touches natural-flagged weapons still at the old default of 0, so a deliberately
+// retuned one (a monster's claws at +1) is left alone. GM-side, once per world.
+async function backfillUnarmedDamage() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", UNARMED_DMG_SETTING)) return;
+  for (const actor of game.actors) {
+    if (actor.type !== "character" && actor.type !== "npc") continue;
+    const updates = actor.items
+      .filter((i) => i.type === "weapon" && i.getFlag("project-anime", "natural") && (i.system.damage?.mod ?? 0) === 0)
+      .map((i) => ({ _id: i.id, "system.damage.mod": -2 }));
+    if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+  }
+  await game.settings.set("project-anime", UNARMED_DMG_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Always-on token bars backfill (one-time)    */
 /* -------------------------------------------- */
 
@@ -872,6 +1445,75 @@ async function backfillAlwaysBars() {
   await game.settings.set("project-anime", BARS_BACKFILLED_SETTING, true);
 }
 
+// Per-client UI default: chat bubbles and pan-to-speaker (both core, client-scoped) start off, once
+// per client. Guarded by CHAT_DEFAULTS_SETTING so a user who re-enables either keeps it on.
+async function applyChatBubbleDefaults() {
+  if (game.settings.get("project-anime", CHAT_DEFAULTS_SETTING)) return;
+  await game.settings.set("core", "chatBubbles", false);
+  await game.settings.set("core", "chatBubblesPan", false);
+  await game.settings.set("project-anime", CHAT_DEFAULTS_SETTING, true);
+}
+
+// GM-side, once per world: turn core's "Automatic Token Rotation" off and lock rotation on every
+// existing actor's prototype token + placed token (matching the lockRotation default new actors get
+// in preCreateActor). Guarded by ROTATION_DEFAULTS_SETTING so a GM who later re-enables auto-rotate
+// or unlocks a token isn't overridden on the next load.
+async function applyTokenRotationDefaults() {
+  if (!paIsActiveGM()) return;
+  if (game.settings.get("project-anime", ROTATION_DEFAULTS_SETTING)) return;
+
+  await game.settings.set("core", "tokenAutoRotate", false);
+
+  const actorUpdates = [];
+  for (const actor of game.actors) {
+    if (actor.type === "party") continue;               // the planner has no token
+    if (!actor.prototypeToken?.lockRotation)
+      actorUpdates.push({ _id: actor.id, "prototypeToken.lockRotation": true });
+  }
+  if (actorUpdates.length) await Actor.updateDocuments(actorUpdates);
+
+  for (const scene of game.scenes) {
+    const tokenUpdates = [];
+    for (const token of scene.tokens) {
+      if (token.actor?.type === "party") continue;
+      if (!token.lockRotation) tokenUpdates.push({ _id: token.id, lockRotation: true });
+    }
+    if (tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates);
+  }
+
+  await game.settings.set("project-anime", ROTATION_DEFAULTS_SETTING, true);
+}
+
+/* -------------------------------------------- */
+/*  Orphaned `material` Item purge (self-heal)  */
+/* -------------------------------------------- */
+
+// An early design modelled crafting resources as a `material` Item sub-type before the system settled
+// on HQ resource *pools* (helpers/materials.mjs now configures Resource Types, NOT an Item type). A
+// `material` Item left in a world from that experiment is an unregistered type, so it fails validation
+// on every load ("'material' is not a valid type for the Item Document class") and is parked in the
+// collection's invalid set instead of the sidebar — the GM can't see it to delete it. Remove those
+// orphans so the world loads clean. GM-side; naturally idempotent (nothing to do once they're gone);
+// strictly scoped to type "material" so a genuinely-corrupt item of some OTHER type is left for manual
+// recovery rather than silently deleted.
+async function purgeOrphanedMaterialItems() {
+  if (!paIsActiveGM()) return;
+  const invalid = game.items?.invalidDocumentIds;
+  if (!invalid?.size || typeof game.items.getInvalid !== "function") return;
+
+  const orphans = [];
+  for (const id of invalid) {
+    let doc = null;
+    try { doc = game.items.getInvalid(id, { strict: false }); } catch (_e) { /* unreadable — leave it be */ }
+    if ((doc?.type ?? doc?._source?.type) === "material") orphans.push(id);
+  }
+  if (!orphans.length) return;
+
+  console.warn(`Project: Anime | Removing ${orphans.length} orphaned 'material' Item(s) from a retired design:`, orphans);
+  await ProjectAnimeItem.deleteDocuments(orphans);
+  ui.notifications.info(game.i18n.format("PROJECTANIME.MaterialOrphansPurged", { count: orphans.length }));
+}
+
 /* -------------------------------------------- */
 /*  Ready                                       */
 /* -------------------------------------------- */
@@ -879,21 +1521,50 @@ async function backfillAlwaysBars() {
 Hooks.once("ready", function () {
   console.log("Project: Anime | System ready");
 
+  // Restore the on-canvas quest tracker for whatever quest this client was tracking.
+  ChronicleTracker.refresh();
+
   // One-time: seed the Skill-Point ledger from existing skills + past advancement.
   backfillSkillPointLog();
 
   // One-time: give pre-existing creatures their innate Natural Attack.
   backfillNaturalAttacks();
 
+  // One-time (v0.01): Unarmed strikes land at DMG −2 per the weapon table.
+  backfillUnarmedDamage();
+
+  // One-time (v0.01): reconcile the gear compendiums to the rules doc's tables.
+  if (paIsActiveGM() && !game.settings.get("project-anime", PACK_AUDIT_SETTING)) {
+    auditGearPacks().then(() => game.settings.set("project-anime", PACK_AUDIT_SETTING, true));
+  }
+
   // One-time: switch existing tokens to always-on HP/Energy bars (the bottom-stacked overlay).
   backfillAlwaysBars();
 
-  // One-time: back each existing Party with a real Folder (migrating any legacy system.members).
-  if (paIsActiveGM()) ensureAllPartyFolders();
+  // Self-heal: drop any orphaned `material` Items (a retired Item-type experiment; resources are HQ
+  // pools now) so the world loads without "'material' is not a valid type" validation errors.
+  purgeOrphanedMaterialItems();
+
+  // One-time: back each existing Party with a real Folder (migrating any legacy system.members),
+  // then ensure the world ships with a Party at all — seed a starter one if it has none.
+  if (paIsActiveGM()) ensureAllPartyFolders().then(ensureDefaultParty);
+
+  // One-time HQ migrations (ordered): fold any legacy per-faction recruit rosters into the HQ pool,
+  // THEN split the fused recruits[] into the People/Facilities model, THEN project passive boons.
+  if (paIsActiveGM()) { migrateRostersToHQ().then(() => migrateHQModel()).then(() => reconcileHQBoons()); }
+
+  // Initial self-healing pass for every actor's Signature Trait + Traits (the onChange hooks don't fire
+  // on load). Each call is GM-gated + idempotent, so it's a cheap no-op for actors with no trait cards.
+  if (paIsActiveGM()) for (const a of game.actors ?? []) reconcileTraits(a);
 
   // Enforce the rules' "skip the Defeated" turn order (p.14) — defeated enemies/PCs at 0 HP
   // are stepped over in the encounter tracker.
   if (paIsActiveGM()) ensureSkipDefeated();
+
+  // Apply the system's preferred defaults once: chat bubbles + pan-to-speaker off (per client),
+  // automatic token rotation off + rotation locked on existing tokens (per world, GM-side).
+  applyChatBubbleDefaults();
+  applyTokenRotationDefaults();
 
   // GM-side relay for applying damage. A player clicking "Apply" on a target
   // they don't own (e.g. the GM's monster) can't update it directly — the server
@@ -901,9 +1572,53 @@ Hooks.once("ready", function () {
   // GM performs the HP change. Requires "socket": true in system.json.
   game.socket.on("system.project-anime", (payload) => {
     if (game.users.activeGM?.id !== game.user.id) return;
-    if (payload?.type === "applyDamage") dice.applyDamageTo(payload.targetUuid, payload.amount, payload.heal, payload.pool);
-    else if (payload?.type === "applyStatus") dice.applyStatusTo(payload.targetUuid, payload.statusId, payload.active);
+    if (payload?.type === "applyDamage") dice.applyDamageTo(payload.targetUuid, payload.amount, payload.heal, payload.pool, { ignoreBarrier: payload.ignoreBarrier });
+    else if (payload?.type === "applyStatus") dice.applyStatusTo(payload.targetUuid, payload.statusId, payload.active, payload.duration, { decayType: payload.decayType, value: payload.value, pool: payload.pool, overcomeCT: payload.overcomeCT });
     else if (payload?.type === "applyEffect") dice.applyEffectTo(payload.targetUuid, payload.effectData);
+    else if (payload?.type === "stealItem") dice.stealItemTo(payload.stealerUuid, payload.targetUuid, payload.itemId);
+    else if (payload?.type === "createItems") dice.createItemsOn(payload.targetUuid, payload.items);
+    else if (payload?.type === "raiseServant") raiseServant(payload.casterUuid, payload.itemId, payload.corpseUuid, payload.userId);
+    else if (payload?.type === "createCompanion") createCompanion(payload.casterUuid, payload.itemId, payload.name, payload.userId);
+    else if (payload?.type === "dismissServant") removeServantActor(payload.servantUuid);
+    else if (payload?.type === "placeGates") {
+      // Portal tiles are GM territory — stamp them onto the caster's scene.
+      game.scenes.get(payload.sceneId)?.createEmbeddedDocuments("Tile", payload.tiles ?? []);
+    }
+    else if (payload?.type === "comboTurn") {
+      // A roll comboed on the CURRENT combatant's own turn (the roller's — a Luck flip by anyone
+      // can manufacture it): validate the grant lands on whoever holds the turn right now, then
+      // flag the pending extra turn (consumed by the Combat#nextTurn patch).
+      const combat = game.combats.get(payload.combatId) ?? game.combats.active;
+      const cur = combat?.combatant;
+      if (combat?.started && cur && cur.id === payload.combatantId && cur.actor?.uuid === payload.actorUuid) {
+        const key = `${cur.id}:${combat.round}`;
+        const granted = combat.getFlag("project-anime", "comboGranted") === key;
+        if (!granted) combat.setFlag("project-anime", "comboTurn", key);
+      }
+    }
+    else if (payload?.type === "endTurn") {
+      // A player asked to end their turn. Validate they own the CURRENT combatant, then advance.
+      const combat = game.combats.get(payload.combatId) ?? game.combats.active;
+      const user = game.users.get(payload.userId);
+      const cur = combat?.combatant;
+      if (combat?.started && cur && user) {
+        const owns = cur.players?.some((u) => u.id === payload.userId)
+          || !!cur.actor?.testUserPermission(user, "OWNER");
+        if (owns) combat.nextTurn();
+      }
+    }
+    else if (payload?.type === "buildFacility") {
+      // A player asked to build/upgrade an HQ facility. The HQ is GM-owned, so the GM performs it —
+      // but ONLY for a facility the GM has flagged `unlocked` (others are GM-managed; players can't touch).
+      const f = getHQ().facilities.find((x) => x.id === payload.facilityId);
+      if (f && f.unlocked) buildFacility(payload.facilityId);
+    }
+    else if (payload?.type === "craftRecipe") {
+      // A player asked to craft at a Workshop. The HQ is GM-owned, so the GM performs the craft —
+      // but ONLY at a workshop facility the GM has flagged `unlocked` (others are GM-managed).
+      const f = getHQ().facilities.find((x) => x.id === payload.facilityId);
+      if (f && f.role === "workshop" && f.unlocked) craftRecipe(payload.facilityId, payload.recipeId);
+    }
   });
 
   // Floating Effects Panel (PF2e-style): a frameless, screen-docked readout of the
@@ -919,6 +1634,42 @@ Hooks.once("ready", function () {
     "createActiveEffect", "updateActiveEffect", "deleteActiveEffect",
     "updateWorldTime", "updateCombat", "canvasReady"
   ]) Hooks.on(hook, refreshEffectsPanel);
+
+  // Cinematic HUD: persistent anime console (bottom-centre, replaces the hotbar) + party rail
+  // (lower-left, replaces the names list). applyHudState() reads the client settings, toggles
+  // the body class that CSS-hides the native chrome, and renders/closes the widgets.
+  projectanime.hud = new AnimeHud();
+  projectanime.party = new AnimePartyRail();
+  applyHudState();
+  // Re-render on anything that changes the driven actor, its vitals/items, or the party. Guarded
+  // on the enabled setting so the debounced render() can't re-open the HUD after it's switched off.
+  const refreshHud = () => {
+    if (!game.settings.get("project-anime", HUD_ENABLED_SETTING)) return;
+    projectanime.hud?.refresh();
+    if (game.settings.get("project-anime", HUD_SHOW_PARTY_SETTING)) projectanime.party?.refresh();
+  };
+  // NB: no "collapseSidebar" here — the bar is now positioned with constant layout vars (CSS), so it
+  // holds its place when the sidebar toggles. Re-rendering on collapse only rebuilt every slot (async
+  // fromUuid) for nothing and contributed to the visible shift/flicker.
+  for (const hook of [
+    "controlToken", "updateActor", "updateUser", "canvasReady",
+    "createItem", "updateItem", "deleteItem", "createActor", "deleteActor"
+  ]) Hooks.on(hook, refreshHud);
+
+  // Encounter tracker — pinned just left of the chat sidebar (in #ui-right). Appears as soon as an
+  // encounter has combatants (the createCombat/createCombatant hooks below re-render it live, so it
+  // pops up without a reload — even before "Begin"), and carries a Begin button + the GM/player
+  // turn controls. Players end their own turn via the GM socket relay.
+  projectanime.combat = new AnimeCombatTracker();
+  projectanime.combat.refresh();   // render/close lifecycle — shows only if an encounter already has combatants
+  const refreshCombat = () => projectanime.combat?.refresh();
+  for (const hook of [
+    "combatStart", "combatTurn", "combatRound", "updateCombat", "createCombat", "deleteCombat",
+    "createCombatant", "updateCombatant", "deleteCombatant", "updateActor", "targetToken",
+    // renderCombatTracker fires whenever the native tracker re-renders (combatant added/removed, etc.),
+    // so ours mirrors it live — the reliable "people are now in the encounter" signal.
+    "renderCombatTracker"
+  ]) Hooks.on(hook, refreshCombat);
 
   // Hover Token Info panel: a screen-docked HP/Energy readout shown beside a token while
   // hovered (off by default — see the "Token Info Panel" world setting). Hidden on
@@ -951,6 +1702,26 @@ Hooks.once("ready", function () {
     "updateCombat", "updateWorldTime"
   ]) Hooks.on(hook, refreshTokenInfo);
 
+  // Servant dismissal from the Token HUD — a persistent release path that doesn't depend on the
+  // transient Animate raise card. A raised servant's token shows a "Dismiss" control to its owner;
+  // clicking confirms, then releases the servant (deleting its actor + tokens), and the deleteActor
+  // → pruneServantLedger hook restores the caster's locked Energy.
+  Hooks.on("renderTokenHUD", (hud, html) => {
+    const actor = hud?.object?.actor ?? hud?.document?.actor ?? null;
+    if (!actor?.getFlag?.("project-anime", "servantOf") || !actor.isOwner) return;
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    const col = root?.querySelector(".col.right") ?? root?.querySelector(".col.left");
+    if (!col || col.querySelector(".pa-dismiss-servant")) return;
+    const btn = document.createElement("div");
+    btn.className = "control-icon pa-dismiss-servant";
+    const label = game.i18n.localize("PROJECTANIME.Servant.dismiss");
+    btn.dataset.tooltip = label;
+    btn.setAttribute("aria-label", label);
+    btn.innerHTML = `<i class="fas fa-person-walking-arrow-loop-left"></i>`;
+    btn.addEventListener("click", () => confirmAndDismiss(actor));
+    col.appendChild(btn);
+  });
+
   // Hover Range Line: a measured line from the controlled token (near end) to the hovered token
   // (far end), labelled with the tile distance (off by default — see the "Range Line" world
   // setting). A local canvas overlay; only this user sees their own line.
@@ -967,4 +1738,23 @@ Hooks.once("ready", function () {
   Hooks.on("updateToken", (doc, changes) => { if ("x" in changes || "y" in changes) rangeLine.refresh(); });
   Hooks.on("deleteToken", () => rangeLine.refresh());
   Hooks.on("canvasReady", () => rangeLine.hide());
+
+  // Aura field overlay: a visible ring around every token projecting an Aura, with a PF2e-style area
+  // highlight while a bearer is hovered. Per-client and cosmetic; it mirrors the reconcile's live-aura
+  // set + circular radius. The shared refreshAuras() (above) rebuilds it on every aura-set change; here
+  // we add the hover highlight and the live follow-along during a token's move animation.
+  const auraField = new AuraField();
+  globalThis.projectanime.auraField = auraField;
+  auraField.refresh();
+  Hooks.on("hoverToken", (token, hovered) => auraField.setHover(token, hovered));
+  // refreshToken is the reliable "this token moved (and settled)" signal in V13 — the updateToken
+  // diff doesn't always surface x/y for an animated drag, which would leave a creature that walked
+  // out of an aura still carrying the projected effect. Reposition the ring every frame (cheap), and
+  // also nudge the debounced reconcile so the effect is added/removed against the final position.
+  Hooks.on("refreshToken", (token) => { auraField.reposition(token); refreshAuras(); });
+  Hooks.on("canvasReady", () => auraField.refresh());
+
+  // Initial Aura reconcile for the active scene (the canvasReady hook also covers first load and
+  // scene changes; this catches the case where the canvas is already ready when the system boots).
+  refreshAuras();
 });

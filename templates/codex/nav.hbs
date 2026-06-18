@@ -1,0 +1,8 @@
+{{!-- Codex section nav — a HUD bar; click a section to open its pane (Quests / Factions / Home). --}}
+<nav class="cdx-nav">
+  {{#each sections as |s|}}
+  <button type="button" class="cdx-tab{{#if s.active}} active{{/if}}" data-action="selectTab" data-tab="{{s.key}}">
+    <i class="fas {{s.icon}}"></i> <span>{{s.label}}</span>
+  </button>
+  {{/each}}
+</nav>

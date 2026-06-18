@@ -1,0 +1,12 @@
+{{!-- Project: Anime — party rail (frameless ApplicationV2 part). Diamond portrait chips at
+      the lower-left, replacing the native names list. Hover shows the name; the viewer's own
+      character is purple-framed. Hidden via `empty` when there are no party members. --}}
+<div class="party-rail">
+  {{#each members}}
+  <div class="chip{{#if me}} me{{/if}}{{#unless online}} off{{/unless}}" data-action="partyClick" data-actor-id="{{id}}" data-tooltip="{{name}}">
+    <div class="frame"></div>
+    <div class="cimg" style="background-image:url('{{img}}')"></div>
+    <div class="chp"><i style="width:{{hpPct}}%"></i></div>
+  </div>
+  {{/each}}
+</div>

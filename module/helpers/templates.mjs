@@ -75,19 +75,52 @@ export function templateTokens(shape, ox, oy) {
   return out;
 }
 
+/** A token's centre from its DOCUMENT position (its committed grid coordinates) rather than its
+ *  on-screen `center`, which lags behind while a movement animation plays. Range checks must use
+ *  this: an aura has to apply / remove against where a token actually IS once a move resolves, not
+ *  where it's still visually sliding through — the aura reconcile fires the instant the move commits
+ *  (the updateToken hook), long before the slide finishes. For a stationary token this equals
+ *  `token.center`, so targeting that runs at rest (Mass / Chain) is unaffected. */
+function tokenDocCenter(token) {
+  const d = token.document;
+  const gs = canvas.grid?.size ?? 100;
+  return { x: d.x + (d.width * gs) / 2, y: d.y + (d.height * gs) / 2 };
+}
+
+/** A token's "radius" in tiles — half of its larger footprint dimension (0.5 for a 1×1, 1 for a 2×2,
+ *  1.5 for a 3×3). Lets an aura's reach — and the ring drawn for it — extend from a creature's EDGE
+ *  rather than its centre point, so a bigger creature projects a correspondingly bigger field. */
+export function tokenHalfExtentTiles(token) {
+  const d = token?.document;
+  if (!d) return 0.5;
+  return Math.max(Number(d.width) || 1, Number(d.height) || 1) / 2;
+}
+
 /** Tokens within `tiles` of an origin token, nearest first (origin excluded by default).
- *  Distance is Foundry's path measurement, so it follows the SCENE's grid-diagonal rule —
+ *  By default distance is Foundry's path measurement, so it follows the SCENE's grid-diagonal rule —
  *  i.e. Mass / Chain reach counts diagonals the same way movement does (set the scene to
- *  "Equidistant" for the rules' diagonal = 1). */
-export function tokensInRange(originToken, tiles, { excludeSelf = true } = {}) {
+ *  "Equidistant" for the rules' diagonal = 1). Pass `euclidean: true` for a footprint-aware circular
+ *  reach instead — the straight-line gap between token EDGES, so size counts on BOTH ends (a bigger
+ *  source reaches further, a bigger target is caught sooner). Auras use this; their round field,
+ *  growing with the source's footprint, is exactly what the on-canvas ring draws. Measured between
+ *  DOCUMENT centres so an in-flight move animation never skews who counts as in range. */
+export function tokensInRange(originToken, tiles, { excludeSelf = true, euclidean = false } = {}) {
   if (!originToken) return [];
-  const o = originToken.center;
+  const o = tokenDocCenter(originToken);
   const per = unitsPerTile();
+  const sizePx = canvas?.dimensions?.size || 1;
+  const halfO = euclidean ? tokenHalfExtentTiles(originToken) : 0;
   const found = [];
   for (const token of canvas.tokens?.placeables ?? []) {
     if (token.isPreview || !token.actor) continue;
     if (excludeSelf && token === originToken) continue;
-    const dist = canvas.grid.measurePath([o, token.center]).distance / per;
+    const c = tokenDocCenter(token);
+    // euclidean (Auras): the EDGE-to-edge gap — subtract both tokens' half-extents from the
+    // centre-to-centre line, so the field is N tiles out from the source's body and a large target
+    // counts once any part of it reaches in. Otherwise: the scene's grid path measurement.
+    const dist = euclidean
+      ? Math.max(0, Math.hypot(c.x - o.x, c.y - o.y) / sizePx - halfO - tokenHalfExtentTiles(token))
+      : canvas.grid.measurePath([o, c]).distance / per;
     if (dist <= tiles) found.push({ token, dist });
   }
   found.sort((a, b) => a.dist - b.dist);

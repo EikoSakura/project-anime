@@ -1,0 +1,73 @@
+{{!-- Vendor SHOP — opened from a vendor-role HQ facility. Buy from the catalogue / sell the buyer's
+      items, priced from system.cost × the buyer's buy/sell rates (± the vendor's modifiers). The GM
+      authors stock here; everyone transacts as a chosen buyer. --}}
+<section class="pa-shop-body">
+{{#if gone}}
+  <div class="shop-gone"><i class="fa-solid fa-store-slash"></i><p>{{localize "PROJECTANIME.Shop.gone"}}</p></div>
+{{else}}
+
+  <header class="shop-bar">
+    <div class="shop-vendor"><img src="{{vendor.img}}" alt=""><span>{{vendor.name}}</span></div>
+    <div class="shop-buyer">
+      {{#if buyers.length}}
+      <label class="shop-as">{{localize "PROJECTANIME.Shop.buyingAs"}}
+        <select data-shop="buyer">{{#each buyers}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+      </label>
+      <span class="shop-gold"><i class="fa-solid fa-coins"></i> {{buyerGold}}</span>
+      {{else}}
+      <span class="shop-empty">{{localize "PROJECTANIME.Shop.noBuyer"}}</span>
+      {{/if}}
+    </div>
+  </header>
+
+  {{#if isGM}}
+  <div class="shop-author">
+    <label class="shop-draw"><input type="checkbox" data-vendor-field="drawFromShop" {{#if drawFromShop}}checked{{/if}}> {{localize "PROJECTANIME.Shop.drawFromShop"}}</label>
+    <label class="frew-num" title="{{localize 'PROJECTANIME.Shop.rateBuy'}}"><i class="fa-solid fa-tags"></i><input type="number" data-vendor-field="rateBuy" value="{{rateBuy}}"></label>
+    <label class="frew-num" title="{{localize 'PROJECTANIME.Shop.rateSell'}}"><i class="fa-solid fa-hand-holding-dollar"></i><input type="number" data-vendor-field="rateSell" value="{{rateSell}}"></label>
+    <div class="shop-stock-drop" data-stock-drop><i class="fa-solid fa-plus"></i> <span>{{localize "PROJECTANIME.Shop.stockDrop"}}</span></div>
+  </div>
+  {{/if}}
+
+  <div class="shop-cols">
+
+    {{!-- BUY --}}
+    <div class="shop-col shop-buy">
+      <h4 class="shop-h"><i class="fa-solid fa-bag-shopping"></i> {{localize "PROJECTANIME.Shop.buy"}}</h4>
+      {{#if hasBuy}}
+      <div class="shop-list">
+        {{#each buy}}
+        <div class="shop-row">
+          <img class="shop-ic" src="{{img}}" alt="">
+          <div class="shop-meta"><span class="shop-name">{{name}}</span>{{#if typeLabel}}<span class="shop-type">{{typeLabel}}</span>{{/if}}</div>
+          <span class="shop-price"><i class="fa-solid fa-coins"></i> {{price}}</span>
+          {{#if @root.hasBuyer}}<button type="button" class="shop-btn buy" data-action="buyItem" {{#if isStock}}data-idx="{{idx}}"{{else}}data-uuid="{{uuid}}"{{/if}}>{{localize "PROJECTANIME.Shop.buyBtn"}}</button>{{/if}}
+          {{#if @root.isGM}}{{#if isStock}}<a class="shop-x" data-action="removeStock" data-idx="{{idx}}" title="{{localize 'PROJECTANIME.Covenant.delete'}}">✕</a>{{/if}}{{/if}}
+        </div>
+        {{/each}}
+      </div>
+      {{else}}<div class="shop-empty">{{localize "PROJECTANIME.Shop.noStock"}}</div>{{/if}}
+    </div>
+
+    {{!-- SELL --}}
+    <div class="shop-col shop-sell">
+      <h4 class="shop-h"><i class="fa-solid fa-hand-holding-dollar"></i> {{localize "PROJECTANIME.Shop.sell"}}</h4>
+      {{#if hasBuyer}}
+        {{#if hasSell}}
+        <div class="shop-list">
+          {{#each sell}}
+          <div class="shop-row">
+            <img class="shop-ic" src="{{img}}" alt="">
+            <div class="shop-meta"><span class="shop-name">{{name}}</span>{{#if typeLabel}}<span class="shop-type">{{typeLabel}}</span>{{/if}}</div>
+            <span class="shop-price"><i class="fa-solid fa-coins"></i> {{price}}</span>
+            <button type="button" class="shop-btn sell" data-action="sellItem" data-item-id="{{id}}">{{localize "PROJECTANIME.Shop.sellBtn"}}</button>
+          </div>
+          {{/each}}
+        </div>
+        {{else}}<div class="shop-empty">{{localize "PROJECTANIME.Shop.noSell"}}</div>{{/if}}
+      {{else}}<div class="shop-empty">{{localize "PROJECTANIME.Shop.noBuyer"}}</div>{{/if}}
+    </div>
+
+  </div>
+{{/if}}
+</section>

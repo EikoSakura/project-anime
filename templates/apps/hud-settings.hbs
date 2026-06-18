@@ -1,0 +1,38 @@
+<div class="ec-body">
+  <div class="ts-field ts-check">
+    <label class="ts-label">
+      <input type="checkbox" name="enabled" {{checked enabled}} /> {{localize "PROJECTANIME.Settings.hud.enabled.name"}}
+    </label>
+  </div>
+
+  <div class="ts-field">
+    <label class="ts-label" for="pa-hud-intensity">{{localize "PROJECTANIME.Settings.hud.intensity.name"}}</label>
+    <select id="pa-hud-intensity" name="intensity">{{selectOptions intensityChoices selected=intensity}}</select>
+  </div>
+
+  <div class="ts-field">
+    <label class="ts-label" for="pa-hud-shape">{{localize "PROJECTANIME.Settings.hud.shape.name"}}</label>
+    <select id="pa-hud-shape" name="shape">{{selectOptions shapeChoices selected=shape}}</select>
+  </div>
+
+  <div class="ts-field">
+    <label class="ts-label" for="pa-hud-size">{{localize "PROJECTANIME.Settings.hud.size.name"}}</label>
+    <select id="pa-hud-size" name="size">{{selectOptions sizeChoices selected=size}}</select>
+  </div>
+
+  <div class="ts-field ts-check">
+    <label class="ts-label">
+      <input type="checkbox" name="showParty" {{checked showParty}} /> {{localize "PROJECTANIME.Settings.hud.party.name"}}
+    </label>
+  </div>
+
+  <div class="ts-field ts-check">
+    <label class="ts-label">
+      <input type="checkbox" name="showCombat" {{checked showCombat}} /> {{localize "PROJECTANIME.Settings.hud.combat.name"}}
+    </label>
+  </div>
+
+  <footer class="ec-footer">
+    <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.hudSettings.save"}}</button>
+  </footer>
+</div>

@@ -103,7 +103,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const sp = sys.skillPoints.value;
     const buys = {
       hp: { cost: 1, update: { "system.hp.max": sys.hp.max + 2, "system.hp.value": sys.hp.value + 2 } },
-      energy: { cost: 1, update: { "system.energy.max": sys.energy.max + 2, "system.energy.value": sys.energy.value + 2 } },
+      energy: { cost: 1, update: { "system.energy.max": (sys.energy.base ?? sys.energy.max) + 2, "system.energy.value": sys.energy.value + 2 } },
       carryingCapacity: { cost: 1, update: { "system.carryingCapacity.bonus": (sys.carryingCapacity.bonus ?? 0) + 1 } },
       movement: { cost: 3, update: { "system.movement.bonus": (sys.movement.bonus ?? 0) + 1 } }
     };

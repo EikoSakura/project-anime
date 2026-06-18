@@ -22,7 +22,7 @@ const FREE_STEP_UPS = 0;
 /**
  * HP/Energy over the ⟪×2⟫ baseline counts only LIGHTLY toward a monster's cost (HP points per
  * 1 SP). A Tier's HP multiplier is free "frame" durability, not bought power — pricing it at
- * the PC buy rate (÷2) let a tanky Tier (Raid ×4) dwarf everything else, so the budget tracked
+ * the PC buy rate (÷2) let a tanky Tier (Solo ×3) dwarf everything else, so the budget tracked
  * HP bloat instead of threat. At ÷6 a monster's price is driven by what it can DO (its
  * attributes + skills); raise this to count HP even less, or set it very high to ignore HP.
  */
@@ -85,12 +85,49 @@ export function partyPower(party) {
   return total;
 }
 
+/**
+ * A party's EFFECTIVE planning power — what the budget is actually built from. In manual-estimate
+ * mode (plan a fight before any character exists) that's the typed party total Skill Points;
+ * otherwise it's the live roster's summed power. One chokepoint so `encounterBudget` and the sheet
+ * agree on which side of the toggle is in force.
+ */
+export function effectivePartyPower(party) {
+  const sys = party?.system ?? {};
+  if (sys.encounterManual) return Math.max(0, Math.round(sys.encounterSP ?? 0));
+  return partyPower(party);
+}
+
 /** The budget multiplier for a difficulty key (defaults to Standard ×1). */
 export function difficultyMult(key) {
   return PROJECTANIME.encounterDifficulty[key]?.mult ?? 1;
 }
 
-/** The monster budget for a party at a difficulty = Party Power × difficulty multiplier. */
+/** The monster budget for a party at a difficulty = effective Party Power × difficulty multiplier
+ *  (effective = typed SP in manual mode, else the roster's summed power). */
 export function encounterBudget(party, difficulty = party?.system?.difficulty) {
-  return Math.round(partyPower(party) * difficultyMult(difficulty));
+  return Math.round(effectivePartyPower(party) * difficultyMult(difficulty));
+}
+
+/**
+ * The action-economy read for a planned fight — the companion to the SP budget. A raw SP sum
+ * can't see that many small monsters out-act one brute, so this compares the tally's monster
+ * head-count to the player count and aims for roughly one monster per player (a little more is
+ * fine). Players = the typed count in manual mode, else the live roster size. Pure and
+ * tier-agnostic; `tone` drives the colour/wording, `monsters` is the summed quantity.
+ * @returns {{players:number, monsters:number, low:number, high:number, tone:"empty"|"light"|"ok"|"heavy"}}
+ */
+export function actionEconomy(party) {
+  const sys = party?.system ?? {};
+  const players = Math.max(1, sys.encounterManual
+    ? (sys.encounterPlayers ?? 1)
+    : (partyMembers(party).length || 1));
+  let monsters = 0;
+  for (const e of sys.encounter ?? []) monsters += Math.max(1, e.qty ?? 1);
+  const low = Math.max(1, Math.floor(players * 0.5));
+  const high = Math.ceil(players * 1.5);
+  let tone = "ok";
+  if (monsters === 0) tone = "empty";
+  else if (monsters > high) tone = "heavy"; // outnumber the party → they get far more actions
+  else if (monsters < low) tone = "light";  // few bodies → leans on Elite/Solo threats
+  return { players, monsters, low, high, tone };
 }

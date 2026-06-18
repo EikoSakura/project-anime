@@ -36,6 +36,32 @@ export function partyMembers(party) {
   return (party?.system?.members ?? []).map(resolve).filter((a) => a?.type === "character");
 }
 
+/** Every Party-type actor in the world. */
+export function partyActors() {
+  return game.actors?.filter((a) => a.type === "party") ?? [];
+}
+
+/** Resolve the party to act on (reward delivery, faction standing, …). One party → it; several →
+ *  ask the GM which; none → null. Shared by CHRONICLE quest rewards and FACTION tier rewards. */
+export async function resolveParty() {
+  const parties = partyActors();
+  if (parties.length === 0) return null;
+  if (parties.length === 1) return parties[0];
+  const options = parties
+    .map((p) => `<option value="${p.id}">${String(p.name).replace(/</g, "&lt;")}</option>`)
+    .join("");
+  const id = await foundry.applications.api.DialogV2.prompt({
+    window: { title: game.i18n.localize("PROJECTANIME.Chronicle.choosePartyTitle") },
+    content: `<p>${game.i18n.localize("PROJECTANIME.Chronicle.chooseParty")}</p>
+      <select name="party" style="width:100%">${options}</select>`,
+    ok: {
+      label: game.i18n.localize("PROJECTANIME.Chronicle.choose"),
+      callback: (event, button) => button.form.elements.party.value
+    }
+  }).catch(() => null);
+  return id ? game.actors.get(id) : null;
+}
+
 /** Ensure the party has a backing Folder; create it (GM only) if missing, filing the party
  *  actor and any legacy `system.members` into it. Returns the folder, or null for a non-GM
  *  before one exists. Idempotent. */

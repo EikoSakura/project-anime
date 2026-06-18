@@ -29,10 +29,28 @@
         <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" step="1" />
       </div>
       {{/if}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.target"}}</label>
+        <select name="system.target">{{selectOptions config.skillTargets selected=system.target localize=true}}</select>
+      </div>
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.duration"}}</label>
+        <select name="system.duration">{{selectOptions config.skillDurations selected=system.duration localize=true}}</select>
+      </div>
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.skillEvasion"}}</label>
+        <select name="system.skillEvasion">{{selectOptions config.skillEvasionAttrs selected=system.skillEvasion localize=true blank="—"}}</select>
+      </div>
       {{#if showDamageType}}
       <div class="form-group">
         <label>{{localize "PROJECTANIME.Skill.field.damageType"}}</label>
         <select name="system.damageType">{{selectOptions damageTypeChoices selected=system.damageType blank=""}}</select>
+      </div>
+      {{/if}}
+      {{#if showControlElement}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.controlElement"}}</label>
+        <input type="text" name="system.controlElement" value="{{system.controlElement}}" />
       </div>
       {{/if}}
       {{#if showDamagePool}}

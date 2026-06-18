@@ -1,0 +1,17 @@
+<div class="ec-body">
+  <div class="ts-field">
+    <label class="ts-label" for="pa-ts-bars">{{localize "PROJECTANIME.Settings.tokenSettings.barsName"}}</label>
+    <select id="pa-ts-bars" name="bars">{{selectOptions barsChoices selected=bars}}</select>
+  </div>
+
+  <div class="ts-field ts-check">
+    <label class="ts-label">
+      <input type="checkbox" name="tokenInfo" {{checked tokenInfo}} />
+      {{localize "PROJECTANIME.Settings.tokenSettings.tokenInfoName"}}
+    </label>
+  </div>
+
+  <footer class="ec-footer">
+    <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.tokenSettings.save"}}</button>
+  </footer>
+</div>

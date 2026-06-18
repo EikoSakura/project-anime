@@ -51,8 +51,14 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     form: { template: "systems/project-anime/templates/apps/effect-builder.hbs", scrollable: [""] }
   };
 
-  /** The ActiveEffect being edited. */
+  /** The ActiveEffect being edited (null in data mode — see #data). */
   #effect;
+
+  /** Data-mode descriptor: `{ id, title, name, img, rules, onSave }`. When set, the builder edits a
+   *  plain data object instead of a live ActiveEffect — seeded from it and, on save, handed back to
+   *  `onSave({name, img, rules})` instead of writing a document. Used to author an effect that's
+   *  STORED in schema and projected as an AE elsewhere (e.g. an actor's signature Trait effect). */
+  #data = null;
 
   /** Working copy of editable state (survives interactive add/delete re-renders). */
   #name = null;
@@ -62,19 +68,45 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   #durUnit = "none";
   #durValue = 0;
   #rules = null;
+  #desc = ""; // optional flavor line (data mode + withDesc — e.g. a Signature Trait's prose)
 
   constructor(effect, options = {}) {
-    super({ ...options, id: `pa-effect-builder-${effect.id}` });
+    const data = options.dataMode ?? null;
+    super({ ...options, id: `pa-effect-builder-${data ? data.id : effect.id}` });
     this.#effect = effect;
+    this.#data = data;
+  }
+
+  /**
+   * Open the builder on a plain DATA object instead of a live ActiveEffect. Seeds from
+   * `{name, img, rules}` and, on submit, calls `onSave({name, img, rules})` rather than writing a
+   * document. `id` makes the window unique / re-focusable per source. In this mode the always-on meta
+   * controls (enabled / toggleable / duration) are hidden — a stored effect is reconciled always-on
+   * by whatever projects it (e.g. helpers/trait-effect.mjs).
+   */
+  static forData({ id, title, name = "", img = "icons/svg/aura.svg", rules = [], desc = "", withDesc = false, onSave }) {
+    return new EffectBuilder(null, { dataMode: { id, title, name, img, rules, desc, withDesc, onSave } });
   }
 
   get title() {
+    if (this.#data) return this.#data.title || game.i18n.localize("PROJECTANIME.Effect.builderTitle");
     return `${game.i18n.localize("PROJECTANIME.Effect.builderTitle")} — ${this.#effect.name}`;
   }
 
-  /** Seed the working copy from the effect on first render. */
+  /** Seed the working copy from the effect (or the data descriptor) on first render. */
   #initState() {
     if (this.#rules !== null) return;
+    if (this.#data) {
+      this.#name = this.#data.name ?? "";
+      this.#img = this.#data.img ?? "icons/svg/aura.svg";
+      this.#enabled = true;     // a stored Trait effect is reconciled always-on
+      this.#toggle = false;
+      this.#durUnit = "none";
+      this.#durValue = 0;
+      this.#rules = (this.#data.rules ?? []).map((r) => ({ ...r }));
+      this.#desc = this.#data.desc ?? "";
+      return;
+    }
     this.#name = this.#effect.name;
     this.#img = this.#effect.img;
     this.#enabled = !this.#effect.disabled;
@@ -90,6 +122,12 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#initState();
     const choices = ruleChoices();
     return {
+      // Data mode (a stored effect, e.g. a signature Trait): hide the always-on meta controls
+      // (enabled / toggleable / duration) — the projector keeps it always-on. `withDesc` adds an
+      // optional flavor textarea (the Signature Trait's prose for not-yet-codeable abilities).
+      rulesOnly: !!this.#data,
+      withDesc: !!this.#data?.withDesc,
+      desc: this.#desc,
       name: this.#name,
       img: this.#img,
       iconImg: isImageIcon(this.#img),
@@ -105,8 +143,12 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
           ...r,
           isNone: r.type === "none",
           isAttribute: r.type === "attribute",
+          isTalent: r.type === "talent",
+          isHq: r.type === "hq",
+          isGather: r.type === "gather",
           isStat: r.type === "stat",
           isResource: r.type === "resource",
+          isSustain: r.type === "sustain",
           isAffinity: r.type === "affinity",
           isRoll: r.type === "roll",
           isCondition: r.type === "condition",
@@ -187,6 +229,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#toggle = !!data.toggle;
     this.#durUnit = data.durUnit ?? this.#durUnit;
     this.#durValue = data.durValue ?? this.#durValue;
+    this.#desc = data.desc ?? this.#desc;
     this.#rules = data.rules
       ? Object.values(data.rules).map((r) => {
           const rule = { ...r };
@@ -228,6 +271,17 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onSubmit(event, form, formData) {
     const data = foundry.utils.expandObject(formData.object);
     const list = (data.rules ? Object.values(data.rules) : []).map(normalizeRule).filter(Boolean);
+    // Data mode: hand the cleaned rules + name/icon (+ optional flavor) back to the owner; no document
+    // is written.
+    if (this.#data) {
+      const payload = {
+        name: (data.name || "").trim(),
+        img: (data.img || "").trim() || this.#data.img,
+        rules: list
+      };
+      if (this.#data.withDesc) payload.desc = (data.desc || "").trim();
+      return this.#data.onSave(payload);
+    }
     const duration = toDuration(data.durUnit, data.durValue);
     // Stamp start markers so duration.remaining counts down from now (combat + world time).
     if (data.durUnit && data.durUnit !== "none") {

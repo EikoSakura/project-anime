@@ -1,4 +1,5 @@
 <div class="ec-body">
+
   <div class="ec-head">
     <span class="ec-h-preview"></span>
     <span>{{localize "PROJECTANIME.Settings.elements.icon"}}</span>
@@ -18,7 +19,7 @@
       <input type="text" class="ec-label" name="elements.{{i}}.label" value="{{row.label}}"
              placeholder="{{localize 'PROJECTANIME.Settings.elements.elementName'}}" />
       <input type="text" class="ec-key" name="elements.{{i}}.key" value="{{row.key}}" placeholder="key" />
-      <a class="ec-del" data-action="deleteElement" data-index="{{i}}"
+      <a class="ec-del" data-action="deleteRow" data-index="{{i}}"
          title="{{localize 'PROJECTANIME.Settings.elements.remove'}}"><i class="fa-solid fa-trash"></i></a>
     </div>
     {{else}}
@@ -27,8 +28,8 @@
   </div>
 
   <div class="ec-add">
-    <button type="button" data-action="addElement"><i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Settings.elements.add"}}</button>
-    <button type="button" data-action="restoreDefaults"><i class="fa-solid fa-rotate-left"></i> {{localize "PROJECTANIME.Settings.elements.restore"}}</button>
+    <button type="button" data-action="addRow"><i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Settings.elements.add"}}</button>
+    <button type="button" data-action="restoreList"><i class="fa-solid fa-rotate-left"></i> {{localize "PROJECTANIME.Settings.elements.restore"}}</button>
   </div>
 
   <footer class="ec-footer">

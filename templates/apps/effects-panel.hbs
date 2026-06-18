@@ -8,6 +8,7 @@
     <li class="ep-effect" data-effect-uuid="{{e.uuid}}" data-action="openEffect"
         data-tooltip-html="{{e.tooltip}}" data-tooltip-direction="LEFT" data-tooltip-class="pa-tooltip">
       <img class="ep-icon" src="{{e.img}}" alt="{{e.name}}" />
+      {{#if e.dur}}<span class="ep-badge">{{e.dur}}</span>{{/if}}
     </li>
     {{/each}}
   </ul>

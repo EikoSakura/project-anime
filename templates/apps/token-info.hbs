@@ -12,6 +12,7 @@
   </header>
 
   <div class="ti-resources">
+    {{#if vitals}}
     <div class="resource hp">
       <div class="resource-top">
         <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
@@ -26,6 +27,7 @@
       </div>
       <div class="bar"><div class="fill energy-fill" style="width: {{energy.pct}}%"></div></div>
     </div>
+    {{/if}}
 
     {{#if sp.show}}
     <div class="ti-stat">

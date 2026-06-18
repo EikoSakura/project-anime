@@ -4,9 +4,26 @@
       The Profile field list comes from the Bio Fields world setting (context.bioFields). --}}
 {{#*inline "bioProfile"}}
 <div class="bio-details">
+  {{#unless hideProfile}}
   <section class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.profile"}}</h4>
     <div class="form-grid">
+      {{#if @root.npcFaction}}
+        {{#if @root.editable}}
+        <div class="form-group">
+          <label>{{localize "PROJECTANIME.Covenant.faction"}}</label>
+          <select name="system.bond.faction">
+            <option value="">{{localize "PROJECTANIME.Covenant.unaffiliated"}}</option>
+            {{#each @root.npcFaction.options}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}
+          </select>
+        </div>
+        {{else}}{{#if @root.npcFaction.label}}
+        <div class="form-group">
+          <label>{{localize "PROJECTANIME.Covenant.faction"}}</label>
+          <input type="text" value="{{@root.npcFaction.label}}" disabled />
+        </div>
+        {{/if}}{{/if}}
+      {{/if}}
       {{#each bioFields as |field|}}
       <div class="form-group{{#if field.long}} span-2{{/if}}">
         <label>
@@ -22,6 +39,7 @@
       {{/each}}
     </div>
   </section>
+  {{/unless}}
 
   <section class="form-section bio-prose-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.biography"}}</h4>

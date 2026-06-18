@@ -24,9 +24,9 @@ export class ElementConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     window: { title: "PROJECTANIME.Settings.elements.title", icon: "fa-solid fa-fire-flame-curved" },
     form: { handler: ElementConfig.#onSubmit, closeOnSubmit: true },
     actions: {
-      addElement: ElementConfig.#onAdd,
-      deleteElement: ElementConfig.#onDelete,
-      restoreDefaults: ElementConfig.#onRestore,
+      addRow: ElementConfig.#onAdd,
+      deleteRow: ElementConfig.#onDelete,
+      restoreList: ElementConfig.#onRestore,
       pickIcon: ElementConfig.#onPickIcon
     }
   };
@@ -35,7 +35,7 @@ export class ElementConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     form: { template: "systems/project-anime/templates/apps/element-config.hbs", scrollable: [""] }
   };
 
-  /** Working copy of the rows being edited (survives interactive re-renders). */
+  /** Working copy of the element list being edited (survives interactive re-renders). */
   #rows = null;
 
   /** @override */
@@ -68,24 +68,23 @@ export class ElementConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  /** Pull the current (possibly unsaved) field values into a rows array. */
-  #readForm() {
-    if (!this.element) return this.#rows ?? [];
-    const data = new foundry.applications.ux.FormDataExtended(this.element).object;
-    const obj = foundry.utils.expandObject(data);
-    const rows = obj.elements ? Object.values(obj.elements) : [];
-    return rows.map((e) => ({ key: (e.key || "").trim(), label: (e.label || "").trim(), icon: (e.icon || "").trim() }));
+  /** Read the current (possibly unsaved) field values back into the working copy. */
+  #syncFromForm() {
+    if (!this.element) return;
+    const obj = foundry.utils.expandObject(new foundry.applications.ux.FormDataExtended(this.element).object);
+    this.#rows = (obj.elements ? Object.values(obj.elements) : [])
+      .map((e) => ({ key: (e.key || "").trim(), label: (e.label || "").trim(), icon: (e.icon || "").trim() }));
   }
 
   static #onAdd() {
-    this.#rows = this.#readForm();
+    this.#syncFromForm();
     this.#rows.push({ key: "", label: "", icon: "fa-solid fa-star" });
     this.render();
   }
 
   static #onDelete(event, target) {
+    this.#syncFromForm();
     const i = Number(target.dataset.index);
-    this.#rows = this.#readForm();
     if (i >= 0 && i < this.#rows.length) this.#rows.splice(i, 1);
     this.render();
   }
@@ -95,10 +94,10 @@ export class ElementConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Open the file browser to pick an image for this element's icon. */
+  /** Open the file browser to pick an image for a row's icon. */
   static async #onPickIcon(event, target) {
+    this.#syncFromForm();
     const i = Number(target.dataset.index);
-    this.#rows = this.#readForm();
     if (!(i >= 0 && i < this.#rows.length)) return;
     const FP = foundry.applications.apps.FilePicker?.implementation
       ?? foundry.applications.apps.FilePicker
@@ -113,33 +112,34 @@ export class ElementConfig extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async #onSubmit(event, form, formData) {
     const obj = foundry.utils.expandObject(formData.object);
-    const raw = obj.elements ? Object.values(obj.elements) : [];
     const seen = new Set();
-    const elements = [];
-    for (const e of raw) {
+    const out = [];
+    for (const e of (obj.elements ? Object.values(obj.elements) : [])) {
       const key = slugify(e.key || e.label);
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      elements.push({ key, label: (e.label || "").trim() || key, icon: (e.icon || "").trim() });
+      out.push({ key, label: (e.label || "").trim() || key, icon: (e.icon || "").trim() });
     }
-    await game.settings.set("project-anime", ELEMENTS_SETTING, elements);
+    await game.settings.set("project-anime", ELEMENTS_SETTING, out);
     ui.notifications.info(game.i18n.localize("PROJECTANIME.Settings.elements.saved"));
   }
 }
 
 /** Register the world setting + the GM-only settings menu. Call from `init`. */
 export function registerElementSettings() {
+  // Re-render open Project: Anime apps so element labels/icons refresh live.
+  const reRenderAll = () => {
+    for (const app of foundry.applications.instances.values()) {
+      if (app.element?.classList?.contains("project-anime")) app.render(false);
+    }
+  };
+
   game.settings.register("project-anime", ELEMENTS_SETTING, {
     scope: "world",
     config: false,
     type: Array,
     default: [],
-    onChange: () => {
-      // Re-render open Project: Anime sheets so labels/icons refresh live.
-      for (const app of foundry.applications.instances.values()) {
-        if (app.element?.classList?.contains("project-anime")) app.render(false);
-      }
-    }
+    onChange: reRenderAll
   });
 
   game.settings.registerMenu("project-anime", "elementConfigMenu", {

@@ -85,7 +85,8 @@ export function naturalAttackData() {
     img: NATURAL_ATTACK_IMG,
     system: {
       accuracy: { attrA: "might", attrB: "agility", mod: 0 },
-      damage: { mod: 0, type: "physical" },
+      // Unarmed strikes hit at full Accuracy but land light (weapon table: Unarmed DMG −2).
+      damage: { mod: -2, type: "physical" },
       range: { type: "melee", tiles: 1 },
       size: 0, cost: 0, equipped: false, hand: "main", grip: "one"
     },
@@ -144,6 +145,9 @@ export class ProjectAnimeActor extends Actor {
   getRollData() {
     const data = this.system.getRollData?.() ?? { ...this.system };
     data.name = this.name;
+    // Initiative tiebreak fraction (rules: an enemy acts before any player it ties with) — read
+    // by the initiative formula as `@tiebreak.npc`.
+    data.tiebreak = { npc: this.type === "npc" ? 1 : 0 };
     return data;
   }
 
@@ -230,7 +234,17 @@ export class ProjectAnimeActor extends Actor {
       case "energy": return item.update({ "system.energyReduction": Math.max(0, (sys.energyReduction ?? 0) - 1) });
       case "range": return item.update({ "system.range.tiles": Math.max(0, (sys.range?.tiles ?? 0) - 1) });
       case "modifier": {
+        // A multi-take Modifier (Affinity Damage/Status) refunds ONE take — the newest; the key
+        // itself only goes when this was the last take.
+        if (key === "affinityDamage" && (sys.affinityDamages ?? []).length > 1) {
+          return item.update({ "system.affinityDamages": sys.affinityDamages.slice(0, -1) });
+        }
+        if (key === "affinityStatus" && (sys.affinityStatusIds ?? []).length > 1) {
+          return item.update({ "system.affinityStatusIds": sys.affinityStatusIds.slice(0, -1) });
+        }
         const upd = { "system.modifiers": (sys.modifiers ?? []).filter((m) => m !== key) };
+        if (key === "affinityDamage") upd["system.affinityDamages"] = [];
+        if (key === "affinityStatus") upd["system.affinityStatusIds"] = [];
         if (key && sys.modifierGrowth?.[key] != null) upd[`system.modifierGrowth.-=${key}`] = null;
         return item.update(upd);
       }
@@ -244,7 +258,7 @@ export class ProjectAnimeActor extends Actor {
     const sys = this.system;
     switch (entry.ref) {
       case "hp": { const max = Math.max(0, (sys.hp?.max ?? 0) - 2); return { "system.hp.max": max, "system.hp.value": Math.min(sys.hp?.value ?? 0, max) }; }
-      case "energy": { const max = Math.max(0, (sys.energy?.max ?? 0) - 2); return { "system.energy.max": max, "system.energy.value": Math.min(sys.energy?.value ?? 0, max) }; }
+      case "energy": { const max = Math.max(0, (sys.energy?.base ?? sys.energy?.max ?? 0) - 2); return { "system.energy.max": max, "system.energy.value": Math.min(sys.energy?.value ?? 0, max) }; }
       case "carryingCapacity": return { "system.carryingCapacity.bonus": Math.max(0, (sys.carryingCapacity?.bonus ?? 0) - 1) };
       case "movement": return { "system.movement.bonus": Math.max(0, (sys.movement?.bonus ?? 0) - 1) };
     }

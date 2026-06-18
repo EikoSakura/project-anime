@@ -1,4 +1,4 @@
-import { PROJECTANIME } from "../helpers/config.mjs";
+import { PROJECTANIME, modifiersBudget, effectModifierCap } from "../helpers/config.mjs";
 
 const fields = foundry.data.fields;
 const requiredInteger = { required: true, nullable: false, integer: true };
@@ -68,8 +68,18 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
       attrA: attrChoice("might"),
       attrB: attrChoice("spirit"),
       // Optional third Attribute — only used by a ⭐⭐⭐⭐⭐ Bolster/Hinder (which affects 3). Blank otherwise.
+      // Legacy: superseded by `effectAttrs` below; kept as a fallback target for old skills.
       attrC: new fields.StringField({ required: false, blank: true, initial: "" })
     });
+    // Which Attributes an Empower/Weaken/Transform Skill changes — chosen INDEPENDENTLY of the
+    // roll Attributes (attrA/attrB). Rules v0.01: ONE Attribute for Empower/Weaken, one or two for
+    // Transform (config.mjs effectAttrCount); skills built under the older rank-scaled rule may
+    // hold more — grandfathered, still applied. Values validated at read in bolsterHinderRules.
+    schema.effectAttrs = new fields.ArrayField(new fields.StringField({ required: true, blank: true }), { required: false, initial: [] });
+    // Which Status Effects a legacy Weaken inflicts on a hit. Rules v0.01 removed the built-in
+    // rider (the Inflict Modifier is the status path), so the Builder no longer authors these —
+    // stored lists keep working (validated at read in hinderStatusIds).
+    schema.hinderStatuses = new fields.ArrayField(new fields.StringField({ required: true, blank: true }), { required: false, initial: [] });
     // For damage/heal Effects (Strike / Mend): which of the two Attributes' die to
     // roll for the amount (rules: "choose one of its two Attributes").
     schema.damageAttr = new fields.StringField({ required: true, blank: false, initial: "attrA", choices: ["attrA", "attrB"] });
@@ -83,19 +93,86 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     schema.effect = new fields.StringField({
       required: true, blank: false, initial: "strike", choices: PROJECTANIME.skillEffects
     });
+    // Who the Skill may affect (rules v0.01: Targets) — Self / Foe / Ally / Any. Every pre-v0.01
+    // Skill fills "any" (the open behavior it was built under); the doc's "an Ally Skill can't be
+    // used on yourself" rule is enforced at use (dice.mjs), not stored.
+    schema.target = new fields.StringField({ required: true, blank: false, initial: "any", choices: PROJECTANIME.skillTargets });
+    // Effective Duration (rules v0.01): Instant / Standard are the intrinsic choices; "channeled"
+    // and "scene" are set by their Duration Modifiers (the Builder keeps field and Modifier in
+    // sync; config.mjs skillDuration re-derives defensively). Legacy skills are seeded by
+    // migrateData from their effectDuration: a set turn count → standard, blank → scene (exactly
+    // the old blank-duration behavior), so nothing changes for existing actors.
+    schema.duration = new fields.StringField({ required: true, blank: false, initial: "standard", choices: PROJECTANIME.skillDurations });
+    // Skill Evasion (rules v0.01): the Attribute the DEFENDER swaps in for Agility when evading
+    // this Skill (Mind / Charm / Spirit; all other Evasion bonuses still apply). Blank = the
+    // target defends with normal Evasion. Validated at read (config.mjs skillEvasionAttr).
+    schema.skillEvasion = new fields.StringField({ required: false, blank: true, initial: "" });
     // Optional (free-form) — only some Skills deal typed damage or are Reactions.
     schema.damageType = new fields.StringField({ required: false, blank: true, initial: "" });
+    // Elemental Control's element — FREE TEXT, deliberately untied to the game's Damage Types
+    // (any element the player can imagine). Only meaningful while an Effect slot holds
+    // Elemental Control; migrateData folds a legacy damageType pick into it.
+    schema.controlElement = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.trigger = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.modifiers = new fields.ArrayField(new fields.StringField({ blank: false }), { initial: [] });
     // Per-Modifier numeric growth from the "Tune a Modifier" advancement (e.g. Burst radius,
     // Chain target count). Keyed by modifier id; effective value = base + this (see
     // config.mjs modifierValue / PROJECTANIME.growableModifiers).
     schema.modifierGrowth = new fields.TypedObjectField(new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }));
+    // The free-form "Custom" Modifier can be flagged Heavy per-skill (the Builder checkbox), making
+    // it count as two Modifiers toward the Rank budget. Meaningless unless "custom" is selected.
+    schema.customModifierHeavy = new fields.BooleanField({ initial: false });
+    // Re-equip Modifier: normal = swap one or two weapons / an armor / one accessory around the
+    // Skill's activation; flagged Heavy (two Modifiers) it swaps the ENTIRE loadout. Meaningless
+    // unless "reequip" is selected.
+    schema.reequipHeavy = new fields.BooleanField({ initial: false });
+
+    // Affinity (Damage) Modifier — one entry PER TAKE (rules: "This Modifier can be selected
+    // more than once"): the Element the target(s) gain an Affinity to, and the level granted
+    // (Resist; ⭐⭐⭐ may pick Immune; ⭐⭐⭐⭐⭐ may pick Absorb — config.mjs
+    // affinityModifierLevels). Element keys follow the GM's Elements setting (no fixed choices).
+    // Each take weighs on the Modifier budget (config.mjs modifierTakes). Only meaningful while
+    // the "affinityDamage" Modifier is selected; migrateData folds the old single pick in.
+    schema.affinityDamages = new fields.ArrayField(new fields.SchemaField({
+      type: new fields.StringField({ required: false, blank: true, initial: "" }),
+      level: new fields.StringField({ required: true, blank: false, initial: "resist", choices: ["resist", "immune", "absorb"] })
+    }), { initial: [] });
+    // Affinity (Status) Modifier — one Status Effect PER TAKE; the target(s) become IMMUNE to
+    // each (rules: status affinities only grant Immune — no Resist/Absorb ladder). Display-first:
+    // the status-affinity engine isn't automated yet, so these drive the rules text on the card.
+    // Only meaningful while the "affinityStatus" Modifier is selected.
+    schema.affinityStatusIds = new fields.ArrayField(new fields.StringField({ blank: true }), { initial: [] });
     // A Strike can deal Hit Point or Energy damage; default Hit Points.
     schema.damagePool = new fields.StringField({ required: true, blank: false, initial: "hp", choices: PROJECTANIME.damagePools });
     // How long an ACTIVE Bolster/Hinder effect lasts, in combat rounds. Null/blank = "the scene"
-    // (auto-expires when combat ends). Ignored by Passive Skills — their effect is always-on.
+    // (auto-expires when combat ends). Ignored by Passive Skills — their effect is always-on. An
+    // ACTIVE Aura reuses this as the field's lifetime (when it elapses, the aura ends).
     schema.effectDuration = new fields.NumberField({ required: false, nullable: true, integer: true, min: 1, initial: null });
+
+    // LEGACY — the Aura Modifier's old ally/enemy switch. The aura's audience now derives from the
+    // Skill's explicit `target` (config.mjs auraAudience); migrateData seeds `target` from this on
+    // pre-v0.01 aura skills. Kept only so stored data validates; nothing live reads it anymore.
+    schema.auraTarget = new fields.StringField({ required: true, blank: false, initial: "ally", choices: PROJECTANIME.auraTargets });
+
+    // Inflict Modifier — the Status Effect this Skill inflicts on a hit (rules: "choose a Status
+    // Effect"), picked in the Builder while "inflict" is selected. Validated at read against the
+    // condition list. The old "decay" Modifier migrated into Inflict with Lingering chosen.
+    schema.inflictStatus = new fields.StringField({ required: false, blank: true, initial: "" });
+    // The pool a VALUED inflicted Status protects/restores (rules v0.01 Inflict: "If a Status
+    // Effect has a choice between Hit Points or Energy, you make the selection during Skill
+    // Creation") — only meaningful while Inflict carries Barrier or Regen.
+    schema.inflictPool = new fields.StringField({ required: true, blank: false, initial: "hp", choices: PROJECTANIME.damagePools });
+    // Lingering element — the damage type of an inflicted Lingering's end-of-turn tick, chosen
+    // from the game's Elements. Blank = untyped. Only meaningful while Inflict carries Lingering.
+    schema.decayType = new fields.StringField({ required: false, blank: true, initial: "" });
+
+    // Analyze Modifier — which category a successful hit reveals (chosen at creation).
+    schema.analyzeCategory = new fields.StringField({ required: true, blank: false, initial: "vitals", choices: PROJECTANIME.analyzeCategories });
+    // Infuse Modifier — imbue the target's weapons with a Damage Type or a Status Effect: the
+    // kind, plus the specific Element / Status (each only meaningful while "infuse" is selected).
+    schema.infuseKind = new fields.StringField({ required: true, blank: false, initial: "element", choices: PROJECTANIME.infuseKinds });
+    schema.infuseElement = new fields.StringField({ required: false, blank: true, initial: "" });
+    schema.infuseStatus = new fields.StringField({ required: false, blank: true, initial: "" });
 
     // "Secondary Effect" Modifier: an optional SECOND Effect the Skill also resolves on use (a
     // Strike that also Mends, a Mend that also Bolsters, …). Only meaningful while the
@@ -125,6 +202,73 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     return schema;
   }
 
+  /**
+   * Legacy migrations, oldest first. (One combined override — an earlier build declared
+   * migrateData twice, so the second silently shadowed the first.)
+   *  1. Range was a bare scope string → the { scope, tiles } object.
+   *  2. Before `effectAttrs` existed, a Bolster/Hinder raised/lowered its ROLL Attributes
+   *     (attrA/attrB/attrC) directly — seed `effectAttrs` from them to preserve behavior.
+   *  3. v0.01 folded the old "decay" Modifier into Inflict: swap the key and choose Lingering
+   *     as the inflicted Status (its element field `decayType` carries over unchanged).
+   *  4. Before the `duration` field existed, lifetime was only `effectDuration`: a set turn
+   *     count → Standard; blank meant "lasts the scene" → Scene (grandfathered WITHOUT the
+   *     Scene Modifier slot the Builder now charges — re-editing re-justifies it).
+   *  5. An aura's audience was its own `auraTarget` switch before the explicit Target existed —
+   *     seed `target` from it (ally → Ally, enemy → Foe) so old auras keep their exact audience
+   *     (a bare "any" seed would suddenly include everyone).
+   *  6. v0.01 moved Reflect from a Modifier to a beneficial STATUS: like decay, the key folds
+   *     into Inflict with Reflect as the chosen Status (an already-chosen Inflict Status wins —
+   *     the same one-status-per-Inflict concession the decay migration made).
+   */
+  static migrateData(source) {
+    if (typeof source?.range === "string") {
+      const scope = source.range;
+      source.range = { scope, tiles: PROJECTANIME.rangeTiles?.[scope] ?? 0 };
+    }
+    if (source && source.effectAttrs === undefined && (source.effect === "bolster" || source.effect === "hinder")) {
+      const at = source.attributes ?? {};
+      source.effectAttrs = [at.attrA, at.attrB, at.attrC].filter(Boolean);
+    }
+    if (Array.isArray(source?.modifiers) && source.modifiers.includes("decay")) {
+      source.modifiers = source.modifiers.filter((m) => m !== "decay");
+      if (!source.modifiers.includes("inflict")) source.modifiers.push("inflict");
+      if (!source.inflictStatus) source.inflictStatus = "decay";
+    }
+    if (Array.isArray(source?.modifiers) && source.modifiers.includes("reflect")) {
+      source.modifiers = source.modifiers.filter((m) => m !== "reflect");
+      if (!source.modifiers.includes("inflict")) source.modifiers.push("inflict");
+      if (!source.inflictStatus) source.inflictStatus = "reflect";
+    }
+    if (source && source.duration === undefined && source.effect !== undefined) {
+      source.duration = source.effectDuration != null ? "standard" : "scene";
+    }
+    // The Affinity Modifiers are multi-take now (arrays, one entry per take) — fold the old
+    // single-pick fields in as the first take.
+    if (source && !Array.isArray(source.affinityDamages) && typeof source.affinityType === "string" && source.affinityType) {
+      source.affinityDamages = [{ type: source.affinityType, level: source.affinityLevel || "resist" }];
+    }
+    if (source && !Array.isArray(source.affinityStatusIds) && typeof source.affinityStatusId === "string" && source.affinityStatusId) {
+      source.affinityStatusIds = [source.affinityStatusId];
+    }
+    // Elemental Control's element moved off the Damage Type field into free-text controlElement —
+    // fold a legacy pick in (the stored element KEY, capitalized; i18n isn't safe here). The
+    // primary slot vacates damageType; a secondary EC vacates secondaryDamageType.
+    if (source && !source.controlElement) {
+      const cap = (s) => (typeof s === "string" && s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+      if (source.effect === "elementalControl" && source.damageType) {
+        source.controlElement = cap(source.damageType);
+        source.damageType = "";
+      } else if (source.secondaryEffect === "elementalControl" && source.secondaryDamageType) {
+        source.controlElement = cap(source.secondaryDamageType);
+        source.secondaryDamageType = "";
+      }
+    }
+    if (source && source.target === undefined && Array.isArray(source.modifiers) && source.modifiers.includes("aura")) {
+      source.target = source.auraTarget === "enemy" ? "foe" : "ally";
+    }
+    return super.migrateData(source);
+  }
+
   prepareDerivedData() {
     const rank = PROJECTANIME.skillRanks[this.rank] ?? PROJECTANIME.skillRanks[1];
     this.spCost = rank.sp;
@@ -138,21 +282,15 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     this.energyCost = this.actionType === "passive"
       ? 0
       : Math.max(rank.energy - (this.energyReduction ?? 0), this.minEnergy);
-    this.maxModifiers = rank.maxModifiers;
-    // Heavy modifiers (Devour, Mass) count as two toward the Rank's budget.
-    const heavy = PROJECTANIME.heavyModifiers;
-    this.modifiersUsed = (this.modifiers ?? []).reduce((n, m) => n + (heavy.includes(m) ? 2 : 1), 0);
+    // A Passive Skill spends no Energy on use; instead, while known it permanently taxes the
+    // bearer's MAXIMUM Energy by half its nominal cost (rank×2), floored — a Rank 1 passive
+    // (2 EP) lowers max Energy by 1. The actor sums this across owned Skills (actor-models.mjs).
+    this.passiveEnergyTax = this.actionType === "passive" ? Math.floor(this.baseEnergy / 2) : 0;
+    // Animate / Companion can carry NO Modifiers (rules v0.01) — their budget is zero.
+    this.maxModifiers = effectModifierCap(this.effect, this.rank);
+    // Heavy modifiers (Devour, Mass, or a Custom flagged Heavy) count as two toward the Rank budget.
+    this.modifiersUsed = modifiersBudget(this.modifiers, this);
     this.modifiersOver = this.modifiersUsed > this.maxModifiers;
-  }
-
-  /** Range used to be a bare scope string; migrate it to { scope, tiles } using
-   *  the scope's recommended tile count. */
-  static migrateData(source) {
-    if (typeof source?.range === "string") {
-      const scope = source.range;
-      source.range = { scope, tiles: PROJECTANIME.rangeTiles?.[scope] ?? 0 };
-    }
-    return super.migrateData(source);
   }
 }
 
@@ -171,8 +309,17 @@ export class ProjectAnimeWeapon extends ProjectAnimeItemBase {
     schema.equipped = equippedField();
     schema.hand = new fields.StringField({ required: true, blank: false, initial: "main", choices: PROJECTANIME.hands });
     schema.grip = new fields.StringField({ required: true, blank: false, initial: "one", choices: PROJECTANIME.grips });
+    // A weapon that can ONLY be wielded in two hands (rules: bows). Its listed Damage already IS
+    // the two-handed profile, so it never gains the two-handed Step-Up — and it always occupies
+    // both hands (grip is coerced below, which the equip-exclusivity and dual-wield checks read).
+    schema.twoHandedOnly = new fields.BooleanField({ initial: false });
     schema.container = containerField();
     return schema;
+  }
+
+  /** A Two-Handed-Only weapon is always gripped in both hands, whatever was stored. */
+  prepareDerivedData() {
+    if (this.twoHandedOnly) this.grip = "two";
   }
 
   /** Legacy `hand:"two"` cached two-handedness; `grip` is now the single source. */
