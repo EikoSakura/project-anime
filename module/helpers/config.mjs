@@ -654,9 +654,16 @@ PROJECTANIME.affinityDamage = { weak: 2, resist: -2, immune: null, absorb: null 
 PROJECTANIME.conditionKeys = ["barrier", "blinded", "bound", "curse", "decay", "exhausted", "prone", "reflect", "regen", "slowed", "stunned", "vanished"];
 
 /** The conditions that carry a VALUE on a chosen pool (rules v0.01: Barrier absorbs that much
- *  damage to the pool; Regen restores that much at the start of each turn). Inflicting one rolls
- *  the Skill Die for the value and the Builder asks which pool (Hit Points / Energy). */
+ *  damage to the pool; Regen restores that much at the start of each turn). The value is the
+ *  Skill's Rank × 2 (see valuedStatusValue) and the Builder asks which pool (Hit Points / Energy). */
 PROJECTANIME.valuedStatuses = ["barrier", "regen"];
+
+/** The value a Skill's VALUED status (Regen / Barrier) carries: the Skill's Rank × 2 (rules) —
+ *  Regen heals that much HP/Energy at the start of each of the bearer's turns, Barrier absorbs that
+ *  much. Min 1. Single source of truth, shared by the inflict, aura, and on-use paths. */
+export function valuedStatusValue(rank) {
+  return Math.max(1, (Number(rank) || 1) * 2);
+}
 
 /** Conditions whose Inflict carries an HP/Energy POOL choice made at Skill creation (rules v0.01
  *  Inflict: "If a Status Effect has a choice between Hit Points or Energy, you make the selection

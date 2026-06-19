@@ -1,4 +1,4 @@
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
@@ -2697,13 +2697,6 @@ function skillStatusDuration(item) {
   return Number.isInteger(d) && d >= 1 ? d : 2;
 }
 
-/** The value a Skill's VALUED status (Regen / Barrier) carries: the Skill's Rank × 2 (rules: a
- *  Rank-N Skill grants N×2 — Regen heals that much HP/Energy at the start of each of the bearer's
- *  turns, Barrier absorbs that much). Was a 1d{Skill-Die} roll; now the flat Rank-scaled value. */
-function valuedStatusValue(item) {
-  return Math.max(1, (Number(item?.system?.rank) || 1) * 2);
-}
-
 /** True if an item-borne effect grants `status` — via its native statuses set OR a condition rule
  *  authored on it (either way the status lands on whoever the effect is applied to). */
 function effectGrantsStatus(effect, status) {
@@ -2812,7 +2805,7 @@ async function applyConditionFromItem(actor, item, targetActor, c, lines) {
     if ((PROJECTANIME.valuedStatuses ?? []).includes(c.id)) {
       // Regen / Barrier carry the Skill's Rank × 2 (rules), not a die roll: a Rank-N Skill grants
       // N×2 into the chosen pool — Regen heals it each turn (collectSustain), Barrier absorbs it.
-      opts.value = valuedStatusValue(item);
+      opts.value = valuedStatusValue(item.system?.rank);
       opts.pool = item.system?.inflictPool === "energy" ? "energy" : "hp";
       label = `${c.label} ${opts.value} (${i18n(`PROJECTANIME.Stat.${opts.pool}`)})`;
     } else if (c.id === "curse") {
@@ -3143,7 +3136,7 @@ async function applySkillEffects(actor, item, recipients = null, { landed = true
       if (effectGrantsStatus(effect, "regen")) {
         foundry.utils.setProperty(data, "flags.project-anime.regenValue", {
           pool: item.system?.inflictPool === "energy" ? "energy" : "hp",
-          value: valuedStatusValue(item)
+          value: valuedStatusValue(item.system?.rank)
         });
       }
       if (await routeEffectApply(ta, data)) names.push(effect.name);

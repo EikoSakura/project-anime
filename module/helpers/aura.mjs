@@ -22,7 +22,7 @@
  * the tokens on the GM's currently-viewed scene.
  */
 
-import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
+import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue, valuedStatusValue } from "./config.mjs";
 import {
   effectCopyData, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect,
   skillModifierRules
@@ -139,20 +139,44 @@ function auraEffectDataFor(skill, sourceToken) {
     const list = skillModifierRules(skill);
     if (list.length) raw.push({ name: skill.name, img: skill.img, flags: { [FLAG_SCOPE]: { rules: { version: 1, list } } } });
   }
-  if (!raw.length) return null;
+  // 4) The Inflict Modifier's Status — projected as its OWN aura entry (separate key/recipients) so a
+  //    "Regen field" (or any inflicted condition aura) grants that status to its audience, AND reaches
+  //    the bearer even for a PASSIVE aura (the in-memory passive path never grants an inflicted status,
+  //    so the caster's own field wouldn't heal them otherwise). A valued Regen rides a `sustain` rule
+  //    worth the Skill's Rank × 2 so collectSustain regenerates it each turn (Barrier's absorb isn't an
+  //    aura yet — it needs the per-pool actor flag). Lingering keeps its own element-aware on-hit path.
+  const statusRaw = [];
+  const inflictSt = (skill.system?.modifiers ?? []).includes("inflict") ? skill.system.inflictStatus : "";
+  if (inflictSt && inflictSt !== "decay" && (PROJECTANIME.conditionKeys ?? []).includes(inflictSt)) {
+    const sd = { name: skill.name, img: skill.img, statuses: [inflictSt] };
+    if (inflictSt === "regen") {
+      const pool = skill.system?.inflictPool === "energy" ? "energy" : "hp";
+      foundry.utils.setProperty(sd, `flags.${FLAG_SCOPE}.rules`,
+        { version: 1, list: [{ type: "sustain", pool, value: valuedStatusValue(skill.system?.rank) }] });
+    }
+    statusRaw.push(sd);
+  }
 
-  const auraKey = `${sourceToken.id}:${skill.id}`;
-  // Content signature — refreshes the ally copies whenever the Skill's projected content changes
-  // (its rules, name, icon, native changes/statuses). Stored on each copy; compared on reconcile.
-  const sig = JSON.stringify(raw.map((d) => ({
+  if (!raw.length && !statusRaw.length) return null;
+
+  // Content signature — refreshes the projected copies whenever the Skill's content changes (its
+  // rules, name, icon, native changes/statuses). Stored on each copy; compared on reconcile.
+  const sigOf = (arr) => JSON.stringify(arr.map((d) => ({
     n: d.name ?? "",
     i: d.img ?? "",
     r: foundry.utils.getProperty(d, `flags.${FLAG_SCOPE}.rules`) ?? null,
     c: d.changes ?? null,
     s: d.statuses ?? null
   })));
+  const auraKey = `${sourceToken.id}:${skill.id}`;
+  const sig = sigOf(raw);
   const dataList = raw.map((d) => stampAura(d, { auraKey, sourceId: sourceToken.id, skillId: skill.id, skillUuid: skill.uuid, sig }));
-  return { auraKey, sig, dataList };
+  // The inflicted-status field is a sibling aura keyed `<auraKey>:status` — its own recipient set
+  // (computed in reconcileCanvas) lets it include the bearer when the main effects don't.
+  const statusKey = `${auraKey}:status`;
+  const statusSig = sigOf(statusRaw);
+  const statusList = statusRaw.map((d) => stampAura(d, { auraKey: statusKey, sourceId: sourceToken.id, skillId: skill.id, skillUuid: skill.uuid, sig: statusSig }));
+  return { auraKey, sig, dataList, statusKey, statusSig, statusList };
 }
 
 /* -------------------------------------------- */
@@ -260,8 +284,18 @@ async function reconcileCanvas() {
       // effects.mjs isEnemyAura; not projected here).
       const audience = auraAudience(skill.system);
       const recips = inRange.filter((r) => isAuraRecipient(src, r, audience)).map((r) => r.actor);
-      if (audience !== "foe" && skill.system?.actionType !== "passive") recips.push(actor);
-      for (const ra of recips) addDesired(ra, built.auraKey, built.sig, built.dataList);
+      // Main effects (Bolster/Hinder/Protection/…): allies in range, plus the bearer only for an
+      // ACTIVE ally/any aura — a PASSIVE bearer already gets these in-memory (effects.mjs).
+      if (built.dataList.length) {
+        const mainRecips = audience !== "foe" && skill.system?.actionType !== "passive" ? [...recips, actor] : recips;
+        for (const ra of mainRecips) addDesired(ra, built.auraKey, built.sig, built.dataList);
+      }
+      // Inflicted status (e.g. Regen): allies in range, plus the bearer for ANY ally/any aura —
+      // passive OR active — since the in-memory path never grants an inflicted status to the bearer.
+      if (built.statusList?.length) {
+        const stRecips = audience !== "foe" ? [...recips, actor] : recips;
+        for (const ra of stRecips) addDesired(ra, built.statusKey, built.statusSig, built.statusList);
+      }
     }
   }
 
