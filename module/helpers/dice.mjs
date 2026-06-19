@@ -1,7 +1,7 @@
 import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation } from "./effects.mjs";
+import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
@@ -264,29 +264,81 @@ const CT_PRESETS = [
  * Open the roll-configuration dialog.
  * @returns {Promise<object|null>} `{ attrA?, attrB?, mod, ct? }` or null if cancelled.
  */
-async function promptRoll({ title, actor, attrA, attrB, showAttrs = true, showCT = true, infoHTML = "", ct = null }) {
+async function promptRoll({ title, actor, attrA, attrB, selector = "check", showAttrs = true, showCT = true, infoHTML = "", ct = null }) {
   // No <form> wrapper: DialogV2 supplies the form, so a nested one would break
   // `button.form` field reading. The class lives on a plain <div> for styling.
   const ctOptions = CT_PRESETS
     .map(([key, value]) => `<option value="${value}">${i18n(`PROJECTANIME.Roll.ctPreset.${key}`)} (${value})</option>`)
     .join("");
+  // Player toggles (PF2e-style): the actor's flippable Active Effects, switched on/off for this roll
+  // right in the dialog. Each starts at its current state; a change persists on the actor (the roll
+  // collectors gate on it via effectGateOpen), so it carries to later rolls and the Effects tab. Only
+  // toggles RELEVANT to this roll show (effectAffectsRoll) — the rest would do nothing here, so they
+  // stay hidden; the list re-filters live as the Attributes change (see the render hook below).
+  const toggles = collectToggles(actor);
+  const relevant = (t, a, b) => effectAffectsRoll(t.effect, { selector, attrA: a, attrB: b });
+  const anyRelevant = toggles.some((t) => relevant(t, attrA, attrB));
+  const togglesHTML = toggles.length ? `
+    <div class="roll-toggles${anyRelevant ? "" : " hidden"}">
+      <div class="roll-toggles-label">${i18n("PROJECTANIME.Roll.toggles")}</div>
+      ${toggles.map((t) => `
+        <label class="roll-toggle${relevant(t, attrA, attrB) ? "" : " hidden"}${t.on ? " on" : ""}" data-effect-id="${t.id}">
+          <input type="checkbox" name="toggle.${t.id}"${t.on ? " checked" : ""} />
+          ${t.img ? `<img src="${t.img}" alt="" />` : ""}<span>${t.label}</span>
+        </label>`).join("")}
+    </div>` : "";
+  // Two-column grid (PF2e-style): paired Attribute selects and CT fields sit side by side so the
+  // dialog reads wide rather than as a tall stack; the Modifier and the toggles span the full width.
   const content = `
     <div class="project-anime roll-dialog">
       ${infoHTML}
-      ${showAttrs ? `
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.attrA")}</label>${attrSelect("attrA", actor, attrA)}</div>
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.attrB")}</label>${attrSelect("attrB", actor, attrB)}</div>` : ""}
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.modifier")}</label>
-        <input type="number" name="mod" value="0" step="1" /></div>
-      ${showCT ? `
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.ct")}</label>
-        <select name="ctPreset"><option value="">—</option>${ctOptions}</select></div>
-      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.ctCustom")}</label>
-        <input type="number" name="ct" value="${ct ?? ""}" placeholder="—" step="1" /></div>` : ""}
+      <div class="roll-grid">
+        ${showAttrs ? `
+        <div class="form-group"><label>${i18n("PROJECTANIME.Roll.attrA")}</label>${attrSelect("attrA", actor, attrA)}</div>
+        <div class="form-group"><label>${i18n("PROJECTANIME.Roll.attrB")}</label>${attrSelect("attrB", actor, attrB)}</div>` : ""}
+        <div class="form-group span2"><label>${i18n("PROJECTANIME.Roll.modifier")}</label>
+          <input type="number" name="mod" value="0" step="1" /></div>
+        ${showCT ? `
+        <div class="form-group"><label>${i18n("PROJECTANIME.Roll.ct")}</label>
+          <select name="ctPreset"><option value="">—</option>${ctOptions}</select></div>
+        <div class="form-group"><label>${i18n("PROJECTANIME.Roll.ctCustom")}</label>
+          <input type="number" name="ct" value="${ct ?? ""}" placeholder="—" step="1" /></div>` : ""}
+      </div>
+      ${togglesHTML}
     </div>`;
+
+  // Live re-filter: as the player changes the Attributes (Checks only — attacks use fixed weapon
+  // Attrs), re-evaluate which toggles still affect the roll and hide the rest. The hook self-targets
+  // by the presence of `.roll-toggles`, then removes itself so it fires for this dialog only.
+  let toggleHookId = null;
+  if (toggles.length && showAttrs) {
+    toggleHookId = Hooks.on("renderDialogV2", (app) => {
+      const root = app?.element;
+      if (!root?.querySelector?.(".roll-toggles")) return;
+      Hooks.off("renderDialogV2", toggleHookId);
+      const aEl = root.querySelector('select[name="attrA"]');
+      const bEl = root.querySelector('select[name="attrB"]');
+      const refresh = () => {
+        const a = aEl?.value ?? attrA, b = bEl?.value ?? attrB;
+        let anyShown = false;
+        for (const t of toggles) {
+          const row = root.querySelector(`.roll-toggle[data-effect-id="${t.id}"]`);
+          if (!row) continue;
+          const show = relevant(t, a, b);
+          row.classList.toggle("hidden", !show);
+          if (show) anyShown = true;
+        }
+        root.querySelector(".roll-toggles")?.classList.toggle("hidden", !anyShown);
+      };
+      aEl?.addEventListener("change", refresh);
+      bEl?.addEventListener("change", refresh);
+      refresh();
+    });
+  }
 
   const result = await foundry.applications.api.DialogV2.wait({
     window: { title },
+    position: { width: 480 },
     content,
     buttons: [
       {
@@ -294,14 +346,33 @@ async function promptRoll({ title, actor, attrA, attrB, showAttrs = true, showCT
         label: i18n("PROJECTANIME.Roll.roll"),
         icon: "fas fa-dice",
         default: true,
-        callback: (event, button) => readForm(button.form)
+        callback: (event, button) => {
+          const data = readForm(button.form);
+          // Read each toggle's checkbox straight off the form (robust regardless of how
+          // FormDataExtended folds the dotted names) — keyed by effect id.
+          data._toggles = Object.fromEntries(toggles.map((t) => {
+            const el = button.form.elements[`toggle.${t.id}`];
+            return [t.id, el ? el.checked : t.on];
+          }));
+          return data;
+        }
       },
       { action: "cancel", label: i18n("Cancel"), icon: "fas fa-times" }
     ],
     rejectClose: false
   });
+  if (toggleHookId != null) Hooks.off("renderDialogV2", toggleHookId);   // no-op if it already self-removed
 
   if (!result || result === "cancel") return null;
+  // Persist any flipped toggles before the caller reads the modifiers (they gate on this state).
+  if (toggles.length && result._toggles) {
+    const updates = {};
+    for (const t of toggles) {
+      const next = !!result._toggles[t.id];
+      if (next !== t.on) updates[`flags.project-anime.toggles.${t.id}`] = next;
+    }
+    if (Object.keys(updates).length) await actor.update(updates);
+  }
   // A typed custom CT wins; otherwise the chosen preset; otherwise no threshold.
   const custom = result.ct === "" || result.ct == null ? null : Number(result.ct);
   const preset = result.ctPreset === "" || result.ctPreset == null ? null : Number(result.ctPreset);
@@ -397,7 +468,7 @@ export function skillMeta(sys) {
   if (effectLabel) chips.push(effectLabel);
   // Target + Duration (rules v0.01) read at a glance on the card; passives are always-on.
   chips.push(i18n(PROJECTANIME.skillTargets[skillTarget(sys)] ?? ""));
-  if (sys.actionType !== "passive" && sys.effect !== "passive") {
+  if (sys.actionType !== "passive") {
     chips.push(i18n(PROJECTANIME.skillDurations[skillDuration(sys)] ?? ""));
   }
   if (sys.actionType !== "passive" && Number(sys.energyCost) > 0) {
@@ -575,7 +646,7 @@ export async function rollAttack(actor, item, { event } = {}) {
     const info = evasion != null
       ? `<p class="hint">${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}</p>`
       : `<p class="hint">${i18n("PROJECTANIME.Roll.noTarget")}</p>`;
-    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.attack"), actor, showAttrs: false, showCT: false, infoHTML: info });
+    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.attack"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, infoHTML: info });
     if (!choice) return null;
     mod += choice.mod;
   }
@@ -826,9 +897,15 @@ function damageAppliedRow(row, i) {
     ? `<img class="dmg-portrait" src="${row.img}" alt="" />`
     : `<span class="dmg-portrait"><i class="fas fa-user"></i></span>`;
   const calc = row.calc ? `<div class="dmg-calc">${row.calc}</div>` : "";
-  const action = row.undone
+  // Cover (the Skill Modifier): redirect a damage row to whoever throws themselves in front of it.
+  // Offered on live damage rows only — covering a heal or an already-undone hit is meaningless.
+  const cover = (row.undone || row.heal)
+    ? ""
+    : `<button type="button" class="dmg-cover" data-action="coverDamage" data-row="${i}" data-tooltip="${i18n("PROJECTANIME.Roll.cover")}"><i class="fas fa-bullseye"></i></button>`;
+  const undo = row.undone
     ? `<span class="dmg-undone"><i class="fas fa-check"></i> ${i18n("PROJECTANIME.Roll.undone")}</span>`
     : `<button type="button" class="dmg-undo" data-action="undoDamage" data-row="${i}" data-tooltip="${i18n("PROJECTANIME.Roll.undo")}"><i class="fas fa-rotate-left"></i></button>`;
+  const action = `<span class="dmg-actions">${cover}${undo}</span>`;
   return `<div class="dmg-row${row.undone ? " is-undone" : ""}">
     ${portrait}
     <div class="dmg-body">
@@ -1260,8 +1337,11 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   // Charged release: note the double power when it lands, or that the charge dissipated on a miss.
   if (charged) lines.push(`<em class="muted">${i18n(landed ? "PROJECTANIME.Roll.charged" : "PROJECTANIME.Roll.chargeDissipated")}</em>`);
 
-  // On-hit (enemy) riders land only when the Skill landed: inflicted conditions + Decay.
-  if (landed) await applyOnHitConditions(actor, item, targetActor, lines);
+  // Inflicted conditions + Decay land when the Skill landed. A Self / Self-range Skill inflicts on
+  // the CASTER (rules: it targets you) — so a self-buff Inflict (e.g. Regen / Barrier) lands on you
+  // even with no creature targeted; otherwise they land on the targeted creature.
+  const inflictTarget = (skillTarget(sys) === "self" || sys.range?.scope === "self") ? actor : targetActor;
+  if (landed) await applyOnHitConditions(actor, item, inflictTarget, lines);
 
   // Vanish (rules v0.01): a landed cast shrouds the CASTER — "you cannot be seen".
   if (effects.includes("vanish") && landed) await applyVanish(actor, item, lines);
@@ -1277,8 +1357,8 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   }
 
   // A Skill applies its Active Effect(s) whenever it carries any non-die Effect (Bolster / Hinder /
-  // Affinity / Sustain / Move / Sense) in EITHER slot — to the targeted tokens, or the caster if
-  // none are targeted. Supportive effects always apply; an auto-Hinder lands only on a hit (`landed`).
+  // Affinity / Sense / Custom) in EITHER slot — to the targeted tokens, or the caster if none are
+  // targeted. Supportive effects always apply; an auto-Hinder lands only on a hit (`landed`).
   if (hasOther) lines.push(...(await applySkillEffects(actor, item, null, { landed })));
 
   const buttons = [];
@@ -2429,6 +2509,7 @@ export function onRenderChatMessage(message, html) {
   html.querySelectorAll("[data-action='rollDamage']").forEach((btn) => { btn.onclick = onRollDamageButton; });
   // Undo arrows need the message (to read the stored rows + persist the undone state), so close over it.
   html.querySelectorAll("[data-action='undoDamage']").forEach((btn) => { btn.onclick = (e) => onUndoDamageButton(e, message); });
+  html.querySelectorAll("[data-action='coverDamage']").forEach((btn) => { btn.onclick = (e) => onCoverDamageButton(e, message); });
   html.querySelectorAll("[data-action='releaseCharge']").forEach((btn) => { btn.onclick = onReleaseChargeButton; });
   html.querySelectorAll("[data-action='useConsumable']").forEach((btn) => { btn.onclick = onUseConsumableButton; });
   html.querySelectorAll("[data-action='spendLuck']").forEach((btn) => { btn.onclick = onSpendLuckButton; });
@@ -2614,6 +2695,20 @@ function skillStatusDuration(item) {
   return Number.isInteger(d) && d >= 1 ? d : 2;
 }
 
+/** The value a Skill's VALUED status (Regen / Barrier) carries: the Skill's Rank × 2 (rules: a
+ *  Rank-N Skill grants N×2 — Regen heals that much HP/Energy at the start of each of the bearer's
+ *  turns, Barrier absorbs that much). Was a 1d{Skill-Die} roll; now the flat Rank-scaled value. */
+function valuedStatusValue(item) {
+  return Math.max(1, (Number(item?.system?.rank) || 1) * 2);
+}
+
+/** True if an item-borne effect grants `status` — via its native statuses set OR a condition rule
+ *  authored on it (either way the status lands on whoever the effect is applied to). */
+function effectGrantsStatus(effect, status) {
+  if ([...(effect?.statuses ?? [])].includes(status)) return true;
+  return effectRules(effect).some((r) => r?.type === "condition" && r.status === status);
+}
+
 /**
  * Apply (or remove) a status condition on a target. Runs on whichever client owns the target.
  * Exported for the GM-side socket relay in project-anime.mjs. For a timed condition (see
@@ -2713,9 +2808,9 @@ async function applyConditionFromItem(actor, item, targetActor, c, lines) {
   if (item?.type === "skill") {
     opts.overcomeCT = attrValue(actor, skillDieAttr(item));
     if ((PROJECTANIME.valuedStatuses ?? []).includes(c.id)) {
-      const roll = new Roll(`1d${attrValue(actor, skillDieAttr(item))}`);
-      await roll.evaluate();
-      opts.value = roll.total;
+      // Regen / Barrier carry the Skill's Rank × 2 (rules), not a die roll: a Rank-N Skill grants
+      // N×2 into the chosen pool — Regen heals it each turn (collectSustain), Barrier absorbs it.
+      opts.value = valuedStatusValue(item);
       opts.pool = item.system?.inflictPool === "energy" ? "energy" : "hp";
       label = `${c.label} ${opts.value} (${i18n(`PROJECTANIME.Stat.${opts.pool}`)})`;
     } else if (c.id === "curse") {
@@ -2791,6 +2886,25 @@ function skillEffectTargets(actor, item, recipients = null) {
   return targeted.length ? targeted : [actor];
 }
 
+/** The lifetime a Skill's USE grants to everything it applies — its auto Bolster/Hinder effects AND
+ *  its authored Active Effect copies — derived from the Skill's single authored Duration (rules
+ *  v0.01): Instant → this round only; Standard → its turn count (default 2 rounds); Scene/Channeled
+ *  → no round timer (swept when the scene/channel ends). Returns { duration, scene }. This is the
+ *  same "2 turns, or whatever the Skill set" rule the inflicted-status timer uses
+ *  (skillStatusDuration), so a Skill's Duration governs every status/effect it hands out the same
+ *  way — a Regen / Barrier the Skill grants counts down for the Skill's Duration, not its own. */
+function skillAppliedDuration(item) {
+  const mode = skillDuration(item.system);
+  const scene = mode === "scene" || mode === "channeled";
+  const duration = {};
+  if (!scene) {
+    duration.rounds = mode === "instant" ? 1 : (item.system?.effectDuration ?? PROJECTANIME.standardDurationTurns);
+    duration.startTime = game.time?.worldTime ?? 0;
+    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
+  }
+  return { duration, scene };
+}
+
 /** Auto-built effects for a Skill's on-use application — one ActiveEffect per Empower/Weaken/
  *  Transform Effect it carries (primary AND the Secondary-Effect slot), plus one bundling its
  *  auto Modifier rules (Protection / Affinity Damage — effects.mjs skillModifierRules), so the
@@ -2802,18 +2916,8 @@ function skillEffectTargets(actor, item, recipients = null) {
  *  (`<skillId>:<mode>`) so re-casting REFRESHES rather than stacks. */
 function autoBolsterHinderEffects(item, { channelKey = null } = {}) {
   if (item?.type !== "skill" || item.system?.actionType === "passive") return [];
-  const mode = skillDuration(item.system);
-  const scene = mode === "scene" || mode === "channeled";
-  const rounds = mode === "instant" ? 1 : (item.system?.effectDuration ?? PROJECTANIME.standardDurationTurns);
-  const buildDuration = () => {
-    const duration = {};
-    if (!scene) {
-      duration.rounds = rounds;
-      duration.startTime = game.time?.worldTime ?? 0;
-      if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-    }
-    return duration;
-  };
+  const scene = ["scene", "channeled"].includes(skillDuration(item.system));
+  const buildDuration = () => skillAppliedDuration(item).duration;
   const baseFlags = () => (channelKey ? { scene, channelKey } : { scene });
   const out = [];
   if (!hasAuthoredAttributeEffect(item)) {
@@ -2989,7 +3093,9 @@ async function applySkillEffects(actor, item, recipients = null, { landed = true
   // Passive Skills apply their effect always-on (the effects.mjs gate) — never as an on-use
   // copy, so clicking a Passive in the quick panel can't double up the buff.
   if (item.system?.actionType === "passive") return [];
-  const enabled = (item.effects ?? []).filter((e) => !e.disabled && effectRules(e).length);
+  // Apply an authored effect that has rules OR carries a status condition (a "grant Regen/Barrier/…"
+  // effect needs no rule — its status IS its payload), so a status-only effect isn't silently dropped.
+  const enabled = (item.effects ?? []).filter((e) => !e.disabled && (effectRules(e).length || (e.statuses?.size ?? 0) > 0));
   // A Channeled Skill's copies belong to the cast's open channel: each carries its key so they
   // sweep together when the channel ends (the marker was stamped in rollSkill before resolution;
   // a Luck flip-to-hit re-applies under the same still-open channel).
@@ -3017,6 +3123,26 @@ async function applySkillEffects(actor, item, recipients = null, { landed = true
         data.duration = {};
         foundry.utils.setProperty(data, "flags.project-anime.channelKey", channelKey);
         foundry.utils.setProperty(data, "flags.project-anime.scene", true);
+      } else {
+        // The Skill's Duration governs how long everything it applies lasts (rules v0.01): the copy
+        // takes the Skill's authored Duration — 2 turns by default, or whatever the Skill set — not
+        // the effect's own authored lifetime, so a status it carries (Regen / Barrier / …) counts
+        // down for the Skill's Duration exactly like an inflicted status. Scene → no round timer
+        // (swept at combat end via the scene flag).
+        const { duration, scene } = skillAppliedDuration(item);
+        data.duration = duration;
+        foundry.utils.setProperty(data, "flags.project-anime.scene", scene);
+      }
+      // A Skill effect that GRANTS the Regen status heals the bearer the Skill's Rank × 2 each turn
+      // (rules: Sustain) — like the old Sustain rule did. The value rides the granting effect's
+      // `regenValue` flag so collectSustain folds it in for as long as the effect (and its Regen
+      // status) lives; the pool is the Skill's inflictPool (HP default). Self-contained on the copy,
+      // so it works whether the recipient is owned (direct) or applied via the GM relay.
+      if (effectGrantsStatus(effect, "regen")) {
+        foundry.utils.setProperty(data, "flags.project-anime.regenValue", {
+          pool: item.system?.inflictPool === "energy" ? "energy" : "hp",
+          value: valuedStatusValue(item)
+        });
       }
       if (await routeEffectApply(ta, data)) names.push(effect.name);
     }
@@ -3080,6 +3206,61 @@ async function onUndoDamageButton(event, message) {
   }
   ui.notifications.info(i18n("PROJECTANIME.Roll.reverted", {
     n: row.amount, unit: row.pool === "energy" ? "EN" : "HP", name: target.name
+  }));
+}
+
+/** Cover (the Skill Modifier): redirect one damage row to whoever throws themselves in front of it.
+ *  The clicker designates the covering creature by TARGETING it (a single target), then clicks the
+ *  bullseye — the hit is reversed on the original target and re-applied to the coverer, who "takes
+ *  the damage for the target". The coverer's own Barrier soaks its share first (same split the
+ *  original apply uses). The row is rewritten to the coverer and tagged "Covered for {name}", so the
+ *  undo arrow now reverses the coverer's hit and the row can even be covered again (passed along).
+ *  Routes through the owner/GM relay like undo; persisted on the message flag so everyone sees it. */
+async function onCoverDamageButton(event, message) {
+  event.preventDefault();
+  const el = event.currentTarget;
+  if (el.disabled) return;
+  const card = message?.flags?.["project-anime"]?.damageCard;
+  const i = Number(el.dataset.row);
+  const row = card?.rows?.[i];
+  if (!row || row.undone || row.heal) return;
+
+  // The covering creature is the clicker's single current target.
+  const coverer = firstTargetActor();
+  if (!coverer || (game.user?.targets?.size ?? 0) !== 1) return ui.notifications.warn(i18n("PROJECTANIME.Roll.coverNoTarget"));
+  if (coverer.uuid === row.uuid) return ui.notifications.warn(i18n("PROJECTANIME.Roll.coverSame"));
+  const original = await fromUuid(row.uuid);
+  if (!original) return ui.notifications.warn(i18n("PROJECTANIME.Roll.targetGone"));
+
+  el.disabled = true;   // guard against a double-click landing the transfer twice
+  // 1) Reverse the hit on the original target — heal back exactly what landed (bookkeeping, so the
+  //    Barrier doesn't absorb the refund), mirroring undo.
+  if (!(await routeApply(original, row.uuid, row.amount, true, row.pool, { ignoreBarrier: true }))) {
+    el.disabled = false;
+    return ui.notifications.warn(i18n("PROJECTANIME.Roll.noGM"));
+  }
+  // 2) The coverer takes the blow. routeApply lets their Barrier eat its share; we split here only
+  //    for the row's display amount + note (same pattern as the original apply's barrierCalc).
+  const split = barrierSplit(coverer, row.amount, row.pool);
+  if (!(await routeApply(coverer, coverer.uuid, row.amount, false, row.pool))) {
+    await routeApply(original, row.uuid, row.amount, false, row.pool, { ignoreBarrier: true });   // put it back
+    el.disabled = false;
+    return ui.notifications.warn(i18n("PROJECTANIME.Roll.noGM"));
+  }
+
+  // 3) Rewrite the row to the coverer, tagging it "Covered for {original}".
+  const baseCalc = row.baseCalc ?? row.calc ?? "";
+  const tag = i18n("PROJECTANIME.Roll.coveredFor", { name: original.name });
+  const barrierNote = split.absorbed ? ` · ${i18n("PROJECTANIME.Roll.barrierAbsorbed", { n: split.absorbed })}` : "";
+  const next = { ...row, uuid: coverer.uuid, name: coverer.name, img: coverer.img, amount: split.through, baseCalc, calc: `${tag}${baseCalc ? " · " + baseCalc : ""}${barrierNote}` };
+  const rows = card.rows.map((r, idx) => (idx === i ? next : r));
+  if (message.canUserModify(game.user, "update")) {
+    await message.update({ "flags.project-anime.damageCard.rows": rows });   // render hook redraws
+  } else {
+    el.disabled = false;   // couldn't persist; let another owner/GM redraw it
+  }
+  ui.notifications.info(i18n("PROJECTANIME.Roll.covered", {
+    coverer: coverer.name, target: original.name, n: split.through, unit: row.pool === "energy" ? "EN" : "HP"
   }));
 }
 

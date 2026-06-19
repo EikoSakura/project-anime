@@ -1572,6 +1572,19 @@ async function purgeOrphanedMaterialItems() {
 /*  Ready                                       */
 /* -------------------------------------------- */
 
+/** Enable any disabled effect that is marked Toggleable (own or on an owned item): its player toggle
+ *  is the on/off, so it must stay live to appear and apply. Idempotent — a no-op once everything's
+ *  clean. Mirrors the Effect Builder, which now force-enables toggleable effects on save. */
+async function enableToggleableEffects(actor) {
+  const broken = (effs) => (effs ?? []).filter((e) => e.disabled && e.flags?.["project-anime"]?.toggle);
+  const own = broken(actor?.effects);
+  if (own.length) await actor.updateEmbeddedDocuments("ActiveEffect", own.map((e) => ({ _id: e.id, disabled: false })));
+  for (const item of actor?.items ?? []) {
+    const fix = broken(item.effects);
+    if (fix.length) await item.updateEmbeddedDocuments("ActiveEffect", fix.map((e) => ({ _id: e.id, disabled: false })));
+  }
+}
+
 Hooks.once("ready", function () {
   console.log("Project: Anime | System ready");
 
@@ -1616,6 +1629,11 @@ Hooks.once("ready", function () {
 
   // Initial pass for bond-rank effects too (same GM-gated, idempotent no-op for bondless actors).
   if (paIsActiveGM()) for (const a of game.actors ?? []) reconcileBonds(a);
+
+  // Self-heal: a Toggleable effect is switched by its player toggle, so it must stay ENABLED to be
+  // live (the collectors read appliedEffects, which drops disabled effects). Enable any effect saved
+  // disabled+toggleable so it shows up in the roll dialog / Effects tab. GM-gated + idempotent.
+  if (paIsActiveGM()) for (const a of game.actors ?? []) enableToggleableEffects(a);
 
   // Enforce the rules' "skip the Defeated" turn order (p.14) — defeated enemies/PCs at 0 HP
   // are stepped over in the encounter tracker.

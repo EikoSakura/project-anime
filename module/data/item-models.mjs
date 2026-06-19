@@ -244,6 +244,23 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
       if (!source.modifiers.includes("inflict")) source.modifiers.push("inflict");
       if (!source.inflictStatus) source.inflictStatus = "reflect";
     }
+    // The Sustain EFFECT was removed (per-turn regen is now Inflict → Regen, like Barrier). Fold a
+    // legacy Sustain-effect Skill into a Custom effect that Inflicts the Regen status on the pool it
+    // used to regenerate, so it still grants regeneration (collectSustain reads the Regen flag). A
+    // Sustain secondary just vacates (one Inflict slot holds the Regen).
+    if (source && (source.effect === "sustain" || source.secondaryEffect === "sustain")) {
+      if (!Array.isArray(source.modifiers)) source.modifiers = [];
+      if (!source.modifiers.includes("inflict")) source.modifiers.push("inflict");
+      if (!source.inflictStatus) source.inflictStatus = "regen";
+      if (!source.inflictPool && (source.damagePool === "energy" || source.damagePool === "hp")) {
+        source.inflictPool = source.damagePool;
+      }
+      if (source.effect === "sustain") source.effect = "custom";
+      if (source.secondaryEffect === "sustain") {
+        source.secondaryEffect = "";
+        source.modifiers = source.modifiers.filter((m) => m !== "secondaryEffect");
+      }
+    }
     // The Move EFFECT was removed (movement is now the Move / Push / Pull MODIFIERS only). Fold a
     // legacy Move-effect Skill into a Custom effect carrying the Move Modifier so it still
     // repositions; a Move secondary just vacates (the Move Modifier covers the movement once).

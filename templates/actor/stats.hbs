@@ -95,18 +95,6 @@
     {{/each}}
   </div>
 
-  {{#if toggles.length}}
-  <div class="toggles-bar">
-    {{#each toggles as |t|}}
-    <button type="button" class="pa-toggle{{#if t.on}} on{{/if}}" data-action="flipToggle" data-effect-id="{{t.id}}" title="{{t.label}}">
-      <img class="pa-toggle-icon" src="{{t.img}}" alt="" />
-      <span class="pa-toggle-label">{{t.label}}</span>
-      <i class="pa-toggle-switch fa-solid {{#if t.on}}fa-toggle-on{{else}}fa-toggle-off{{/if}}"></i>
-    </button>
-    {{/each}}
-  </div>
-  {{/if}}
-
   <div class="quickbar">
     <section class="quick-block weapons">
       <div class="qs-head"><h3>{{localize "PROJECTANIME.Quick.weapons"}}</h3></div>

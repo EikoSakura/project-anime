@@ -3,7 +3,7 @@ import { enhanceSelects } from "../helpers/select.mjs";
 import { rangeLabel, physicalRangeLabel, skillEffectKeys } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
-import { summarizeRules, narrateRule, normalizeRule, collectToggles, applyEffectCopy } from "../helpers/effects.mjs";
+import { summarizeRules, narrateRule, normalizeRule, applyEffectCopy } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 import { AdvancementApp } from "../apps/advancement.mjs";
 import { RestApp } from "../apps/rest.mjs";
@@ -138,7 +138,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       buildSkill: ProjectAnimeActorSheet.#onBuildSkill,
       openCreator: ProjectAnimeActorSheet.#onOpenCreator,
       openSkillLog: ProjectAnimeActorSheet.#onOpenSkillLog,
-      flipBond: ProjectAnimeActorSheet.#onFlipBond,
+      openBond: ProjectAnimeActorSheet.#onOpenBond,
+      closeBond: ProjectAnimeActorSheet.#onCloseBond,
       newBond: ProjectAnimeActorSheet.#onNewBond,
       deleteBond: ProjectAnimeActorSheet.#onDeleteBond,
       deepenBond: ProjectAnimeActorSheet.#onDeepenBond,
@@ -174,9 +175,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
    *  Transient UI state; re-applied on render so it survives re-renders. */
   #openSection = null;
 
-  /** Bond cards currently flipped to their detail face (set of bond ids). Transient UI state,
-   *  re-applied on render so a flip survives the re-render an edit triggers. */
-  #flippedBonds = new Set();
+  /** The bond whose detail book is currently open (id), or null. Transient UI state, re-applied on
+   *  render so the open book survives the re-render an edit triggers. */
+  #openBond = null;
 
   /** Queued "bond deepened" flourish: { rank, id }, set by Deepen and consumed once in _onRender
    *  after the data-driven re-render (so the gala + star-pop fire exactly once). */
@@ -299,15 +300,20 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       img: c.img,
       active: this.actor.statuses.has(c.id)
     }));
-    // Player-flippable toggle effects → switches on the Stats view.
-    context.toggles = collectToggles(this.actor);
     // Active Effects affecting this actor (own + item-transferred), for the Effects drawer.
-    // allApplicableEffects() includes disabled ones, so they can be re-enabled from here.
+    // allApplicableEffects() includes disabled ones, so they can be re-enabled from here. A
+    // "toggleable" effect (flagged in the Effect Builder) shows a player on/off switch instead of
+    // the enable/disable — its state lives on the actor (flags.project-anime.toggles), the same
+    // state the roll dialog flips, and every roll-time/passive collector gates on it.
+    const toggleStates = this.actor.flags?.["project-anime"]?.toggles ?? {};
     context.activeEffects = Array.from(this.actor.allApplicableEffects()).map((e) => ({
       uuid: e.uuid,
+      id: e.id,
       name: e.name,
       img: e.img,
       disabled: e.disabled,
+      toggleable: !!e.flags?.["project-anime"]?.toggle,
+      toggleOn: !!toggleStates[e.id],
       source: e.parent?.documentName === "Item" ? e.parent.name : "—",
       durationLabel: e.isTemporary ? (e.duration?.label ?? "") : "",
       removable: e.parent?.documentName === "Actor",
@@ -407,9 +413,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const { rank, id } = this.#bondGala;
       this.#bondGala = null;
       ProjectAnimeActorSheet.#playBondGala(rank);
-      const card = this.element?.querySelector?.(`.bond-flip[data-bond-id="${id}"]`);
-      card?.querySelector?.(`.b-stars .st[data-star="${rank - 1}"]`)?.classList.add("pop");
-      card?.querySelector?.(`.ability[data-ar="${rank}"]`)?.classList.add("just");
+      const book = this.element?.querySelector?.(`.bond-overlay[data-bond-book="${id}"]`);
+      book?.querySelectorAll?.(`.st[data-star="${rank - 1}"]`).forEach((s) => s.classList.add("pop"));
+      book?.querySelector?.(`.ability[data-ar="${rank}"]`)?.classList.add("just");
     }
     // The Monster⇄NPC crest flips once, right after a role toggle's re-render.
     if (this.#roleFlip) {
@@ -1415,10 +1421,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     this.#applyDrawers();
   }
 
-  /** Close whichever section drawer is open. */
+  /** Close whichever section drawer is open (also dismisses any open bond book). */
   static #onCloseDrawer() {
     this.#openSection = null;
+    this.#openBond = null;
     this.#applyDrawers();
+    this.#applyBondBooks();
   }
 
   /** Reflect #openSection on the live DOM so the slide transition plays without a
@@ -1433,9 +1441,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /*  Bonds drawer (per-character relationships)  */
   /* -------------------------------------------- */
 
-  /** Build the flip-card view-model for every bond on this character: the front (tarot art) plus
-   *  the full detail face (stars, dossier, vitals, quote, per-rank abilities) carried on each card,
-   *  since the back holds the whole write-up. Mirrors the old Covenant bond detail. */
+  /** Build the view-model for every bond on this character: the tarot card (HQ-style art) plus the
+   *  codex detail book (stars, dossier, vitals, quote, per-rank abilities) shown when the card is
+   *  opened. `isOpen` reflects which book is open so it survives the re-render an edit triggers. */
   async #bondContext() {
     const factions = getFactions();
     const accentFor = (b) => b.accent || factions.find((f) => f.id === b.faction)?.accent || "#8a6fc0";
@@ -1490,9 +1498,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         quote: b.quote,
         abilities,
         factionOptions: factions.map((x) => ({ id: x.id, name: x.name, sel: x.id === b.faction })),
-        flipped: this.#flippedBonds.has(b.id)
+        isOpen: this.#openBond === b.id
       });
     }
+    // Display the cards (and their books) alphabetically by name — case-insensitive, natural number
+    // order. Display-only: the stored bonds array keeps its order so forge/reward matching is unaffected.
+    out.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base", numeric: true }));
     return out;
   }
 
@@ -1565,6 +1576,23 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         this.#onBondActorDrop(ev, zone.dataset.bdrop);
       });
     }
+    // Right-click a bond card → context menu (open / open NPC sheet / delete).
+    for (const card of drawer.querySelectorAll(".bond-tcard[data-bond-id]")) {
+      card.addEventListener("contextmenu", (ev) => { ev.preventDefault(); this.#openBondContext(card, ev); });
+    }
+  }
+
+  /** Bond-card right-click menu: open the detail book, open a linked NPC's sheet, and delete the bond.
+   *  Row actions reuse the existing handlers (delete confirms via #onDeleteBond). */
+  #openBondContext(card, ev) {
+    const id = card?.dataset.bondId;
+    const bond = getBonds(this.actor).find((b) => b.id === id);
+    if (!bond) return;
+    const { add, show } = this.#contextMenu(ev);
+    add("fa-book-open", "PROJECTANIME.Covenant.openBond", () => { this.#openBond = id; this.#applyBondBooks(); });
+    if (bond.actorUuid) add("fa-up-right-from-square", "PROJECTANIME.Covenant.openSheet", () => ProjectAnimeActorSheet.#onOpenBondActor.call(this, ev, card));
+    if (this.isEditable) add("fa-trash", "PROJECTANIME.Covenant.delete", () => ProjectAnimeActorSheet.#onDeleteBond.call(this, ev, card), "danger");
+    show();
   }
 
   /** Drop an Actor onto a bond zone: "new-bond" forges a fresh bond from it; "bond-actor:<id>"
@@ -1586,7 +1614,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const bonds = getBonds(this.actor);
       const bond = blankBond({ name: actor.name, img: actor.img || "", actorUuid: actor.uuid });
       bonds.unshift(bond);
-      this.#flippedBonds.add(bond.id);
+      this.#openBond = bond.id;
       await saveBonds(this.actor, bonds);
       return;
     }
@@ -1600,14 +1628,26 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     }
   }
 
-  /** Flip a bond card between its art (front) and detail (back) — instant, no re-render. */
-  static #onFlipBond(event, target) {
-    const card = target.closest("[data-bond-id]");
-    const id = card?.dataset.bondId;
+  /** Open a bond's codex detail book — instant, no re-render (the template also reflects #openBond
+   *  via `isOpen`, so the open book survives the re-render an edit triggers). */
+  static #onOpenBond(event, target) {
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
     if (!id) return;
-    if (this.#flippedBonds.has(id)) this.#flippedBonds.delete(id);
-    else this.#flippedBonds.add(id);
-    card.classList.toggle("flipped", this.#flippedBonds.has(id));
+    this.#openBond = id;
+    this.#applyBondBooks();
+  }
+
+  /** Close the open bond book (backdrop / close button). */
+  static #onCloseBond() {
+    this.#openBond = null;
+    this.#applyBondBooks();
+  }
+
+  /** Reflect #openBond on the live DOM so a book opens/closes without a full re-render. */
+  #applyBondBooks() {
+    for (const el of this.element?.querySelectorAll?.(".bond-overlay") ?? []) {
+      el.classList.toggle("open", el.dataset.bondBook === this.#openBond);
+    }
   }
 
   static async #onNewBond() {
@@ -1615,7 +1655,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const bonds = getBonds(this.actor);
     const bond = blankBond();
     bonds.unshift(bond);
-    this.#flippedBonds.add(bond.id); // open the new card to its editable back
+    this.#openBond = bond.id; // open the new bond's book to its editable form
     await saveBonds(this.actor, bonds);
   }
 
@@ -1630,7 +1670,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       content: `<p>${game.i18n.format("PROJECTANIME.Covenant.deleteConfirm", { name: b.name })}</p>`
     }).catch(() => false);
     if (!ok) return;
-    this.#flippedBonds.delete(id);
+    if (this.#openBond === id) this.#openBond = null;
     await saveBonds(this.actor, bonds.filter((x) => x.id !== id));
   }
 
@@ -1953,9 +1993,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       name: row.abilityName || "",
       img: actor.img || DEFAULT_TRAIT_IMG,
       rules: row.rules ?? [],
-      onSave: ({ name, rules }) => this.#mutateNpcBond((b) => {
+      toggle: !!row.toggle,
+      allowToggle: true,   // a bond boon can be player-toggleable (e.g. "+1 Charm vs nobles")
+      onSave: ({ name, rules, toggle }) => this.#mutateNpcBond((b) => {
         const r = b.ranks.find((x) => x.rank === rank);
-        if (r) { r.abilityName = name; r.rules = rules; }
+        if (r) { r.abilityName = name; r.rules = rules; r.toggle = !!toggle; }
       })
     }).render(true);
   }

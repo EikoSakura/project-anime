@@ -84,6 +84,11 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   #rules = null;
   #desc = ""; // optional flavor line (data mode + withDesc — e.g. a Signature Trait's prose)
 
+  /** Grant-item snapshots (uuid → self-contained item data), seeded from existing rules + each drop.
+   *  Held on the instance because the form round-trip only carries uuid/name/img; reattached at submit
+   *  so a grant survives its source Item being deleted (see #onDropGrant / #onSubmit). */
+  #grantSnapshots = new Map();
+
   constructor(effect, options = {}) {
     const data = options.dataMode ?? null;
     super({ ...options, id: `pa-effect-builder-${data ? data.id : effect.id}` });
@@ -98,8 +103,8 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
    * controls (enabled / toggleable / duration) are hidden — a stored effect is reconciled always-on
    * by whatever projects it (e.g. helpers/trait-effect.mjs).
    */
-  static forData({ id, title, name = "", img = "icons/svg/aura.svg", rules = [], desc = "", withDesc = false, onSave }) {
-    return new EffectBuilder(null, { dataMode: { id, title, name, img, rules, desc, withDesc, onSave } });
+  static forData({ id, title, name = "", img = "icons/svg/aura.svg", rules = [], desc = "", withDesc = false, toggle = false, allowToggle = false, onSave }) {
+    return new EffectBuilder(null, { dataMode: { id, title, name, img, rules, desc, withDesc, toggle, allowToggle, onSave } });
   }
 
   get title() {
@@ -110,11 +115,18 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Seed the working copy from the effect (or the data descriptor) on first render. */
   #initState() {
     if (this.#rules !== null) return;
+    // Seed the snapshot map from any grant rules that already carry a self-contained `data` snapshot,
+    // so re-saving an existing grant preserves it (the form round-trip would otherwise drop it).
+    const srcRules = this.#data ? (this.#data.rules ?? []) : effectRules(this.#effect);
+    for (const r of srcRules) {
+      if (r?.type !== "grant") continue;
+      for (const it of r.items ?? []) if (it?.uuid && it?.data) this.#grantSnapshots.set(it.uuid, it.data);
+    }
     if (this.#data) {
       this.#name = this.#data.name ?? "";
       this.#img = this.#data.img ?? "icons/svg/aura.svg";
       this.#enabled = true;     // a stored Trait effect is reconciled always-on
-      this.#toggle = false;
+      this.#toggle = !!this.#data.toggle;   // but it MAY be a player-toggle (allowToggle consumers, e.g. bonds)
       this.#durUnit = "none";
       this.#durValue = 0;
       this.#rules = (this.#data.rules ?? []).map(seedRule);
@@ -140,6 +152,9 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
       // (enabled / toggleable / duration) — the projector keeps it always-on. `withDesc` adds an
       // optional flavor textarea (the Signature Trait's prose for not-yet-codeable abilities).
       rulesOnly: !!this.#data,
+      // The toggleable checkbox shows in full mode always, and in data mode only when the consumer
+      // opts in (allowToggle) — e.g. bond rank effects, so a boon can be flipped on situationally.
+      showToggle: !this.#data || !!this.#data?.allowToggle,
       withDesc: !!this.#data?.withDesc,
       desc: this.#desc,
       name: this.#name,
@@ -224,7 +239,12 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!rule || rule.type !== "grant") return;
     if (!Array.isArray(rule.items)) rule.items = [];
     if (rule.items.some((it) => it.uuid === doc.uuid)) return; // already granted
-    rule.items.push({ uuid: doc.uuid, name: doc.name, img: doc.img });
+    // Snapshot the source NOW (it definitely exists at drop time) so the grant survives the
+    // source being deleted/renamed later — the delivery path prefers this over re-resolving uuid.
+    const snap = doc.toObject();
+    delete snap._id; delete snap.folder; delete snap.sort;
+    this.#grantSnapshots.set(doc.uuid, snap);   // reattached at submit (form round-trip drops `data`)
+    rule.items.push({ uuid: doc.uuid, name: doc.name, img: doc.img, data: snap });
     this.render();
   }
 
@@ -290,6 +310,12 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onSubmit(event, form, formData) {
     const data = foundry.utils.expandObject(formData.object);
     const list = (data.rules ? Object.values(data.rules) : []).map(normalizeRule).filter(Boolean);
+    // Reattach grant snapshots dropped from the form round-trip (the form carries only uuid/name/img),
+    // so a saved grant stays self-contained and survives its source Item being deleted.
+    for (const rule of list) {
+      if (rule.type !== "grant") continue;
+      for (const it of rule.items ?? []) if (!it.data && this.#grantSnapshots.has(it.uuid)) it.data = this.#grantSnapshots.get(it.uuid);
+    }
     // Data mode: hand the cleaned rules + name/icon (+ optional flavor) back to the owner; no document
     // is written.
     if (this.#data) {
@@ -298,6 +324,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
         img: (data.img || "").trim() || this.#data.img,
         rules: list
       };
+      if (this.#data.allowToggle) payload.toggle = !!data.toggle;
       if (this.#data.withDesc) payload.desc = (data.desc || "").trim();
       return this.#data.onSave(payload);
     }
@@ -310,7 +337,10 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#effect.update({
       name: (data.name || "").trim() || this.#effect.name,
       img: (data.img || "").trim() || this.#effect.img,
-      disabled: !data.enabled,
+      // A toggleable effect is switched by its PLAYER toggle (flags.project-anime.toggles), so it must
+      // stay enabled to be live — otherwise it's excluded from appliedEffects and never shows up to be
+      // toggled (in the roll dialog or Effects tab). The toggle is its on/off, not the enabled flag.
+      disabled: data.toggle ? false : !data.enabled,
       duration,
       "flags.project-anime.toggle": !!data.toggle,
       "flags.project-anime.rules": { version: 1, list }

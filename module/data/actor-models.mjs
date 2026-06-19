@@ -76,7 +76,10 @@ function bondField() {
       // The no-code Effect this rank unlocks (Grant Items/Skills + buffs + Skill adjustments), authored in
       // the shared Effect Builder on the NPC offer and copied here on forge. Projected as an always-on
       // AE while the bond holds this rank — and its Grant rules delivered once — by helpers/bond-effect.mjs.
-      rules: new fields.ArrayField(new fields.ObjectField(), { initial: [] })
+      rules: new fields.ArrayField(new fields.ObjectField(), { initial: [] }),
+      // When true, the projected effect is a PLAYER toggle (off by default) rather than always-on — for a
+      // situational boon like "+1 Charm vs nobles" the player flips on when relevant (effects.mjs toggle gate).
+      toggle: new fields.BooleanField({ initial: false })
     }), { initial: [] })
   });
 }
@@ -428,8 +431,12 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
         // The mechanical Effect this rank grants — no-code Effect-Builder rules (Grant Items/Skills,
         // passive buffs, Skill adjustments). Authored via the rank's "Edit Effect" button; copied onto the
         // player's bond and projected/delivered as they deepen the bond (helpers/bond-effect.mjs).
-        rules: new fields.ArrayField(new fields.ObjectField(), { initial: [] })
-      }), { initial: () => [1, 2, 3, 4, 5].map((r) => ({ rank: r, abilityName: "", abilityDesc: "", rewardGold: 0, rewardSP: 0, rewardItems: [], rules: [] })) })
+        rules: new fields.ArrayField(new fields.ObjectField(), { initial: [] }),
+        // Mark this rank's effect a PLAYER toggle (off by default) instead of always-on — for a
+        // situational boon like "+1 Charm vs nobles". Copied to the player's bond + projected with the
+        // toggle flag (helpers/bond-effect.mjs); flipped by the player at roll time (effects.mjs gate).
+        toggle: new fields.BooleanField({ initial: false })
+      }), { initial: () => [1, 2, 3, 4, 5].map((r) => ({ rank: r, abilityName: "", abilityDesc: "", rewardGold: 0, rewardSP: 0, rewardItems: [], rules: [], toggle: false })) })
     });
 
     // ---- HQ work profile (roster mechanics; see the Codex Home / HQ tab) ----------------------

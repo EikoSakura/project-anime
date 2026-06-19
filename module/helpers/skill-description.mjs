@@ -91,16 +91,23 @@ export function skillRulesHTML(item) {
   if (has("pull")) riders.push(N("pull", { n: mv("pull") }));
   if (has("chain")) riders.push(N("chain", { n: mv("chain") }));
   // The Move Modifier repositions the target up to the Skill's Rank in tiles (grown by Tune a
-  // Modifier), in a direction the user chooses — its value reads like Push/Pull's.
-  if (has("move")) riders.push(N("moveMod", { n: mv("move") }));
+  // Modifier), or moves the caster up to their own Movement when they're the target — so the
+  // auto-text shows BOTH numbers. Movement is actor-derived; without an actor we name it instead.
+  if (has("move")) {
+    const selfMv = actor?.system?.movement?.value;
+    riders.push(selfMv
+      ? N("moveMod", { self: numSpan(selfMv), n: mv("move") })
+      : N("moveModNoActor", { n: mv("move") }));
+  }
 
   // ---- Lead sentence: subject + the core predicate + any inline riders, joined naturally
   // ("This attack deals d8 fire damage to a target within Near and pushes the target 2 spaces away.")
-  // The Passive carrier Effect (rules v0.01) has no action of its own — its lead just says its
-  // Modifiers run continuously; their stand-alone sentences below carry the substance.
+  // An always-on "None" Effect (effect None + Passive Action Type) has no action of its own — its
+  // lead just says its Modifiers run continuously; their stand-alone sentences below carry the
+  // substance. An Action/React "None" Effect gets the normal lead so its Modifier riders read inline.
   const subject = hasStrike ? N("subjAttack") : N("subjSkill");
   const firstPred = core.length ? `${joinClauses(core)} ${N("toTarget", { target })}` : N("affects", { target });
-  const sentences = sys.effect === "passive"
+  const sentences = (sys.effect === "passive" && sys.actionType === "passive")
     ? [N("passiveCarrier")]
     : [`${subject} ${joinClauses([firstPred, ...riders])}.`];
 
@@ -225,6 +232,7 @@ export function skillRulesHTML(item) {
       : N("decay", { dmg: numSpan(1) }));
   }
   if (has("cleanse")) sentences.push(N("cleanse"));
+  if (has("cover")) sentences.push(N("cover"));
   if (has("charge")) sentences.push(N("charge"));
   if (has("protection")) sentences.push(N("protection", { n: numSpan("+" + modifierValue(item, "protection")) }));
   if (has("retaliation")) {
@@ -271,8 +279,9 @@ export function skillRulesHTML(item) {
   // ---- Closing: duration / action economy / Energy / Aura field / React trigger. ----
   // Duration (rules v0.01): Channeled always announces its upkeep; Scene / Standard only when the
   // Skill leaves something behind to time (an attribute change, authored effects, or an aura) —
-  // an instant Strike doesn't need "lasts 2 turns" noise.
-  if (sys.actionType !== "passive" && sys.effect !== "passive") {
+  // an instant Strike doesn't need "lasts 2 turns" noise. Always-on (Passive) Skills skip it
+  // entirely — including a Passive "None"; an Action/React "None" still times its lasting Modifiers.
+  if (sys.actionType !== "passive") {
     const LASTING_EFFECTS = ["bolster", "hinder", "transform", "vanish", "disguise", "illusion", "telepathy", "gate", "conjure"];
     const lasting = skillEffectKeys(sys).some((e) => LASTING_EFFECTS.includes(e))
       || (item.effects ?? []).some((e) => !e.disabled && effectRules(e).length) || has("aura");

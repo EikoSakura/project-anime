@@ -192,10 +192,9 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       context.rangeHasTiles = rangeHasTiles(sys.range?.scope);
       context.rangeRec = cfg.rangeTiles[sys.range?.scope] ?? 0;
       context.damagePoolChoices = cfg.damagePools;
-      // The HP/Energy pool field shows for Strike (which pool its damage hits) and Sustain
-      // (which pool it regenerates); the label adapts (Damage Pool vs Regen Pool).
+      // The HP/Energy pool field shows for Strike (which pool its damage hits).
       context.showDamagePool = cfg.poolEffects.includes(sys.effect);
-      context.poolLabel = sys.effect === "sustain" ? "PROJECTANIME.Skill.field.regenPool" : "PROJECTANIME.Skill.field.damagePool";
+      context.poolLabel = "PROJECTANIME.Skill.field.damagePool";
       context.rankInfo = cfg.skillRanks[sys.rank] ?? {};
       context.rankChoices = Object.fromEntries(
         Object.entries(cfg.skillRanks).map(([k, v]) => [k, `${v.stars} ${game.i18n.localize(v.label)}`])
@@ -288,7 +287,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         push("PROJECTANIME.Skill.field.effect", skillEffectKeys(sys).map((k) => L(cfg.skillEffects[k])).join(" + "));
         push("PROJECTANIME.Skill.field.target", L(cfg.skillTargets[skillTarget(sys)]));
         // Duration (rules v0.01): Standard shows its turn count; passives are always-on (no row).
-        if (sys.actionType !== "passive" && sys.effect !== "passive") {
+        if (sys.actionType !== "passive") {
           const dur = skillDuration(sys);
           push("PROJECTANIME.Skill.field.duration", dur === "standard"
             ? `${L(cfg.skillDurations.standard)} · ${sys.effectDuration ?? cfg.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`

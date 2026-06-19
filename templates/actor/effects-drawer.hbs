@@ -26,7 +26,11 @@
         </div>
         {{#if @root.editable}}
         <div class="effect-actions">
+          {{#if e.toggleable}}
+          <a class="effect-toggle player{{#if e.toggleOn}} on{{/if}}" data-action="flipToggle" data-effect-id="{{e.id}}" title="{{localize 'PROJECTANIME.Effect.toggleRolls'}}"><i class="fa-solid {{#if e.toggleOn}}fa-toggle-on{{else}}fa-toggle-off{{/if}}"></i></a>
+          {{else}}
           <a class="effect-toggle" data-action="toggleEffectEnabled" title="{{localize 'PROJECTANIME.Effect.toggle'}}"><i class="fa-solid {{#if e.disabled}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i></a>
+          {{/if}}
           {{#if e.removable}}
           <a data-action="editActorEffect" title="{{localize 'PROJECTANIME.Effect.edit'}}"><i class="fa-solid fa-pen-to-square"></i></a>
           <a data-action="deleteActorEffect" title="{{localize 'PROJECTANIME.Effect.remove'}}"><i class="fa-solid fa-trash"></i></a>

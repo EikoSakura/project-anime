@@ -145,7 +145,6 @@ PROJECTANIME.skillEffects = {
   sense: "PROJECTANIME.Skill.effect.sense",
   steal: "PROJECTANIME.Skill.effect.steal",
   strike: "PROJECTANIME.Skill.effect.strike",
-  sustain: "PROJECTANIME.Skill.effect.sustain",
   telepathy: "PROJECTANIME.Skill.effect.telepathy",
   transform: "PROJECTANIME.Skill.effect.transform",
   vanish: "PROJECTANIME.Skill.effect.vanish"
@@ -153,12 +152,12 @@ PROJECTANIME.skillEffects = {
 
 /** Each Effect's Base Rank — the minimum Rank a Skill must be to take it (rules v0.01: Effects
  *  have a Base Rank). Doc values for the Effects the doc defines; the system-side Effects
- *  (Affinity / Custom / Sustain) stay open at ⭐. Skills created before the gate are
+ *  (Affinity / Custom) stay open at ⭐. Skills created before the gate are
  *  grandfathered: the Builder blocks NEW picks below the Base Rank, stored ones keep working. */
 PROJECTANIME.effectBaseRanks = {
   affinity: 1, animate: 2, bolster: 3, companion: 2, conjure: 1, custom: 1,
   disguise: 1, elementalControl: 1, gate: 1, hinder: 1, illusion: 2, mend: 1,
-  passive: 1, sense: 2, steal: 1, strike: 1, sustain: 1,
+  passive: 1, sense: 2, steal: 1, strike: 1,
   telepathy: 2, transform: 2, vanish: 1
 };
 
@@ -294,9 +293,9 @@ PROJECTANIME.damageEffects = ["strike", "affinity"];
  *  one of its two Attributes. You roll that Attribute's die"). */
 PROJECTANIME.dieEffects = ["strike", "mend"];
 
-/** Effects that choose a pool (Hit Points / Energy): Strike (which pool its damage hits) and
- *  Sustain (which pool it regenerates each turn). Other Effects hide the pool field. */
-PROJECTANIME.poolEffects = ["strike", "sustain"];
+/** Effects that choose a pool (Hit Points / Energy): Strike (which pool its damage hits). Other
+ *  Effects hide the pool field. */
+PROJECTANIME.poolEffects = ["strike"];
 
 /** Optional Modifiers that shape a Skill (count toward the Rank's max). */
 PROJECTANIME.skillModifiers = {
@@ -310,6 +309,7 @@ PROJECTANIME.skillModifiers = {
   channeled: "PROJECTANIME.Skill.modifier.channeled",
   charge: "PROJECTANIME.Skill.modifier.charge",
   cleanse: "PROJECTANIME.Skill.modifier.cleanse",
+  cover: "PROJECTANIME.Skill.modifier.cover",
   custom: "PROJECTANIME.Skill.modifier.custom",
   devour: "PROJECTANIME.Skill.modifier.devour",
   drainEnergy: "PROJECTANIME.Skill.modifier.drainEnergy",
@@ -347,6 +347,19 @@ export function isHeavyModifier(key, sys) {
   if (PROJECTANIME.heavyModifiers.includes(key)) return true;
   if (key === "custom") return !!sys?.customModifierHeavy;
   return key === "reequip" && !!sys?.reequipHeavy;
+}
+
+/** A Modifier barred by a Skill's Action Type / Effect alone (before the Aura and Channeled↔Scene
+ *  cross-checks each site layers on). A Passive (always-on) Skill can take neither Secondary Effect
+ *  nor a Duration Modifier (Channeled/Scene — it has no duration to alter). The "None" Effect bars
+ *  Secondary Effect on ANY Action Type (rules v0.01: "This Effect cannot have the Secondary Effect
+ *  Modifier"), but — unlike a Passive — an Action/React "None" may still be Channeled/Scene. Pass the
+ *  Skill data OR the Builder draft (both carry `actionType` / `effect`). */
+export function modifierBarredByType(key, sys) {
+  const passiveAction = sys?.actionType === "passive";
+  if (key === "secondaryEffect") return passiveAction || sys?.effect === "passive";
+  if (key === "channeled" || key === "scene") return passiveAction;
+  return false;
 }
 
 /** Modifiers the rules let a Skill select MORE THAN ONCE ("This Modifier can be selected more
@@ -522,7 +535,7 @@ export function skillDieSpecs(sys) {
  *  Steal is resisted; Disguise / Illusion / Telepathy roll against the target's Skill Evasion
  *  (rules v0.01 — their per-Effect Check). The Target still gates first (skillNeedsAccuracy):
  *  a Self/Ally aim never rolls (willing), a Foe aim always does — this list decides "Any".
- *  Every supportive Effect (Empower/Heal/Sustain/Affinity/Sense) takes effect with no roll. */
+ *  Every supportive Effect (Empower/Heal/Affinity/Sense) takes effect with no roll. */
 PROJECTANIME.offensiveEffects = ["strike", "hinder", "steal", "disguise", "illusion", "telepathy"];
 
 /** Modifiers that on their own land something hostile (a condition / a stolen secret / an ended

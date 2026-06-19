@@ -291,12 +291,18 @@ export function normalizeRule(raw) {
       // The dragged-in Item references this effect grants when its carrier lands on an
       // actor. NOT a passive in-memory rule — applied event-driven by syncGrants (below).
       const items = Object.values(raw.items ?? {})
-        .map((it) => ({
-          uuid: String(it?.uuid ?? "").trim(),
-          name: String(it?.name ?? "").trim(),
-          img: String(it?.img ?? "").trim()
-        }))
-        .filter((it) => it.uuid);
+        .map((it) => {
+          const out = {
+            uuid: String(it?.uuid ?? "").trim(),
+            name: String(it?.name ?? "").trim(),
+            img: String(it?.img ?? "").trim()
+          };
+          // Self-contained snapshot captured at author time, so the grant still delivers after
+          // its source Item is deleted/renamed (mirrors bond rewardItems). Preserved verbatim.
+          if (it?.data && typeof it.data === "object") out.data = it.data;
+          return out;
+        })
+        .filter((it) => it.uuid || it.data);
       rule = { type: "grant", items };
       break;
     }
@@ -403,25 +409,6 @@ export function hasAuthoredAttributeEffect(item) {
   return (item?.effects ?? []).some((e) => !e.disabled && effectRules(e).some((r) => r.type === "attribute"));
 }
 
-/** Sustain regen per turn by Skill Rank (rules: ★ 2 · ★★★ 4 · ★★★★★ 6 → +2 per tier). */
-export function sustainAmount(rank) {
-  return 2 * Math.ceil((Number(rank) || 1) / 2);
-}
-
-/** The `sustain` rule a Sustain-effect Skill contributes automatically (like bolsterHinderRules):
- *  regenerate its Rank amount into its chosen pool each turn. [] unless the Skill's Effect is Sustain. */
-export function sustainRules(item) {
-  if (item?.type !== "skill" || item.system?.effect !== "sustain") return [];
-  const pool = item.system?.damagePool === "energy" ? "energy" : "hp";
-  return [{ type: "sustain", pool, value: sustainAmount(item.system?.rank) }];
-}
-
-/** True if the Skill carries a hand-authored sustain-rule effect — so the auto Sustain rule isn't
- *  also generated (it would double the designer's own). */
-export function hasAuthoredSustainEffect(item) {
-  return (item?.effects ?? []).some((e) => !e.disabled && effectRules(e).some((r) => r.type === "sustain"));
-}
-
 /** The rules a Skill's MODIFIERS contribute automatically (like bolsterHinderRules, but driven by
  *  the Modifier list instead of the Effect): Protection grants the target(s) +1 Defense (more if
  *  Tuned — config.mjs modifierValue); Retaliation wards the target so a foe that damages it takes
@@ -507,7 +494,7 @@ export function collectToggles(actor) {
   try { effects = actor?.appliedEffects ?? []; } catch (_) { return out; }
   for (const effect of effects) {
     if (!effectIsLive(effect) || !isToggleEffect(effect)) continue;
-    out.push({ id: effect.id, label: effect.name, img: effect.img, on: toggleState(actor, effect) });
+    out.push({ id: effect.id, label: effect.name, img: effect.img, on: toggleState(actor, effect), effect });
   }
   return out;
 }
@@ -670,6 +657,25 @@ function rollRuleApplies(ruleSelector, query) {
   if (query === "damage") return ruleSelector === "damage";
   if (query === "attack") return ruleSelector === "check" || ruleSelector === "attack";
   return ruleSelector === "check";
+}
+
+/** Would any of an effect's rules actually change a roll of this context? Used to show only the
+ *  RELEVANT player toggles in the roll dialog (a non-combat-Check Might bonus is hidden on an attack,
+ *  and on an Agility+Charm Check). `ctx` = {selector: "check"|"attack"|"damage", attrA, attrB}. A
+ *  `roll` rule matches by selector; `ncCheck` only on Checks and only when the rolled Attribute
+ *  matches; an `attribute` die-step when its Attribute is rolled; `weaponMod` on attacks. Effects
+ *  carrying only off-roll rules (sustain, stat, resource, …) are never relevant, so their toggle
+ *  stays out of the roll dialog (it still lives in the Effects tab). */
+export function effectAffectsRoll(effect, { selector = "check", attrA = null, attrB = null } = {}) {
+  for (const rule of effectRules(effect)) {
+    switch (rule?.type) {
+      case "roll": if (rollRuleApplies(rule.selector, selector)) return true; break;
+      case "ncCheck": if (selector === "check" && (rule.key === attrA || rule.key === attrB)) return true; break;
+      case "attribute": if (rule.key === attrA || rule.key === attrB) return true; break;
+      case "weaponMod": if (selector === "attack") return true; break;
+    }
+  }
+  return false;
 }
 
 /**
@@ -865,10 +871,9 @@ export function collectLuckSteps(actor) {
 /**
  * The per-turn pool regeneration an actor's live effects grant — the "Sustain" total, summed across
  * every live `sustain` rule (authored effects on gear / skills / drag-ons / aura projections) PLUS
- * the actor's own passive Sustain-effect Skills (their auto rule, mirroring how applyStructuredRules
- * folds in passive Bolster/Hinder). Equip-gated + toggle-gated + self-predicate-gated like the other
- * collectors. Read at the combat turn-tick (project-anime.mjs); the caller gates whether the actor
- * may regen at all (e.g. not while defeated) and clamps to each pool's max.
+ * the Regen status. Equip-gated + toggle-gated + self-predicate-gated like the other collectors.
+ * Read at the combat turn-tick (project-anime.mjs); the caller gates whether the actor may regen at
+ * all (e.g. not while defeated) and clamps to each pool's max.
  * @returns {{hp:number, energy:number}}
  */
 export function collectSustain(actor) {
@@ -885,12 +890,11 @@ export function collectSustain(actor) {
       if (rule?.type !== "sustain" || !predicatePasses(rule.pred, actor, null)) continue;
       add(rule);
     }
-  }
-  // A passive Sustain-effect Skill auto-contributes (unless it authored its own sustain rule, counted above).
-  for (const item of actor?.items ?? []) {
-    if (item.type !== "skill" || item.system?.actionType !== "passive" || hasAuthoredSustainEffect(item)) continue;
-    if (isEnemyAura(item)) continue;                 // an enemy aura's regen goes to enemies, not the bearer
-    for (const rule of sustainRules(item)) add(rule);
+    // A Skill effect that GRANTS the Regen status heals the bearer the Skill's Rank × 2 each turn
+    // (rules: Sustain) — the value rides the granting effect's `regenValue` flag (dice.mjs
+    // applySkillEffects), folded in like a sustain rule and gone the moment the effect expires.
+    const rv = effect.flags?.["project-anime"]?.regenValue;
+    if (rv) add(rv);
   }
   // The Regen STATUS (rules v0.01, beneficial): the bearer regains its value into the chosen
   // pool at the start of each turn — the value rides flags.project-anime.regen (stamped by

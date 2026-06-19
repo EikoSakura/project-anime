@@ -23,7 +23,7 @@
  */
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, effectAttrCount, effectBaseRank, effectModifierCap, affinityModifierLevels, clampAffinityLevel, skillEvasionKeys, skillEvasionLabel, isSelfCenteredArea } from "../helpers/config.mjs";
+import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, modifierBarredByType, effectAttrCount, effectBaseRank, effectModifierCap, affinityModifierLevels, clampAffinityLevel, skillEvasionKeys, skillEvasionLabel, isSelfCenteredArea } from "../helpers/config.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -39,7 +39,7 @@ const STEPS = ["concept", "rank", "roll", "range", "modifiers", "review"];
  *  the Standard 2 turns. */
 const EFFECT_TARGET_DEFAULTS = {
   strike: "foe", hinder: "foe", steal: "foe", illusion: "foe",
-  transform: "self", passive: "self", sustain: "self", vanish: "self", conjure: "self", companion: "self"
+  transform: "self", passive: "self", vanish: "self", conjure: "self", companion: "self"
 };
 const EFFECT_DURATION_DEFAULTS = {
   strike: "instant", mend: "instant", custom: "instant",
@@ -398,9 +398,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showControlElement = d.effect === "elementalControl";
     // The damage/heal die choice shows for Strike / Mend.
     ctx.showDamageDie = cfg.dieEffects.includes(d.effect);
-    // The HP/Energy pool field shows for Strike (damage pool) and Sustain (regen pool).
+    // The HP/Energy pool field shows for Strike (which pool its damage hits).
     ctx.showDamagePool = cfg.poolEffects.includes(d.effect);
-    ctx.poolLabel = d.effect === "sustain" ? "PROJECTANIME.Skill.field.regenPool" : "PROJECTANIME.Skill.field.damagePool";
+    ctx.poolLabel = "PROJECTANIME.Skill.field.damagePool";
     ctx.showEffectExtras = ctx.showDamageDie || ctx.showDamageType || ctx.showDamagePool || ctx.showControlElement;
     // Empower/Weaken/Transform: pick which Attributes change (rules v0.01 — ONE for
     // Empower/Weaken; Transform offers two slots: fill one for +2 steps, both for +1 each).
@@ -418,7 +418,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // intrinsic Duration choices are Instant/Standard; a Duration MODIFIER (Channeled/Scene)
     // overrides — the select locks to it while the Modifier is on. Standard shows its turn count
     // (blank = the default 2).
-    ctx.isPassiveCarrier = d.effect === "passive";
+    // "Always-on" behaviour (Target locks to Self, no Duration field) follows the ACTION TYPE, not
+    // the Effect — a "None" Effect can be an Action/React Skill whose substance is its Modifiers.
+    ctx.isPassiveCarrier = d.actionType === "passive";
     const auraOn = d.modifiers.includes("aura");
     // A self-centered Burst (Self Range + Burst) emanates from you and needs a real audience — like
     // an Aura, its Target (Foe/Ally/Any) stays free and Self isn't offered (it would hit only you).
@@ -473,16 +475,16 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.modUsed = used;
     ctx.modMax = max;
     ctx.modOver = used > max;
-    const isPassiveSkill = d.actionType === "passive" || d.effect === "passive";
     ctx.modifierList = Object.entries(cfg.skillModifiers).map(([key, label]) => {
       const selected = d.modifiers.includes(key);
       const isCustom = key === "custom";
       const isReequip = key === "reequip";
       const cost = isHeavyModifier(key, d) ? 2 : 1;     // Custom's / Re-equip's weight follows its Heavy checkbox
-      // An always-on Skill can't take Secondary Effect (rules v0.01) or a Duration Modifier; an
+      // An always-on Skill can't take Secondary Effect (rules v0.01) or a Duration Modifier, and a
+      // "None" Effect can't take Secondary Effect on any Action Type (modifierBarredByType); an
       // Aura field can't be Channeled (its lifetime is its marker's). Channeled↔Scene swap freely
       // (mutually exclusive — toggling one releases the other), so neither blocks the other here.
-      const incompatible = (isPassiveSkill && ["secondaryEffect", "channeled", "scene"].includes(key))
+      const incompatible = modifierBarredByType(key, d)
         || (key === "channeled" && d.modifiers.includes("aura"))
         || (key === "aura" && d.modifiers.includes("channeled"));
       const swapMate = key === "channeled" ? "scene" : key === "scene" ? "channeled" : null;
@@ -544,7 +546,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showSecondaryControlElement = secEffect === "elementalControl";
     ctx.showSecondaryExtras = ctx.showSecondaryDie || ctx.showSecondaryType || ctx.showSecondaryPool || ctx.showSecondaryControlElement;
     ctx.secondaryDieLabel = secEffect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie";
-    ctx.secondaryPoolLabel = secEffect === "sustain" ? "PROJECTANIME.Skill.field.regenPool" : "PROJECTANIME.Skill.field.damagePool";
+    ctx.secondaryPoolLabel = "PROJECTANIME.Skill.field.damagePool";
 
     // Aura Modifier — its field's audience is the Skill's Target (the Range & Target step's picker); an
     // ACTIVE aura's lifetime follows the Duration there too. A passive aura is always-on.
@@ -759,7 +761,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         // Modifier on an always-on Skill, no Channeled Aura, and Channeled↔Scene stay exclusive
         // (Improve can't remove a Modifier, so the other one being present blocks outright).
         const mods = sys.modifiers ?? [];
-        const incompatible = ((sys.actionType === "passive" || sys.effect === "passive") && ["secondaryEffect", "channeled", "scene"].includes(key))
+        const incompatible = modifierBarredByType(key, sys)
           || (key === "channeled" && (mods.includes("aura") || mods.includes("scene")))
           || (key === "scene" && mods.includes("channeled"))
           || (key === "aura" && mods.includes("channeled"));
@@ -913,24 +915,26 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if ((d.modifiers ?? []).some((m) => (CONFIG.PROJECTANIME.passiveOnlyModifiers ?? []).includes(m))) {
       d.actionType = "passive";
     }
-    // The Passive carrier Effect IS the doc's always-on, modifiers-only Skill: it locks the
-    // Action Type. A Self-Range Skill (or that carrier) can only Target Self — UNLESS it's an
-    // Aura: the field is centered on you, its Range/carrier don't confine it to you, so the
-    // Target (the field's audience — Ally/Foe/Any) stays free and a Self value collapses to
-    // Ally. An always-on Skill sheds the Modifiers it can't hold — Secondary Effect (rules
-    // v0.01: the Passive Effect cannot take it) and the Duration Modifiers (no duration to alter).
-    if (d.effect === "passive") d.actionType = "passive";
+    // An always-on (Passive Action Type) Skill rides the bearer, so a Self-Range Skill or any
+    // passive one Targets Self — UNLESS it's an Aura: the field is centered on you, its Range/carrier
+    // don't confine it to you, so the Target (the field's audience — Ally/Foe/Any) stays free and a
+    // Self value collapses to Ally. A passive Skill also sheds the Modifiers it can't hold — Secondary
+    // Effect and the Duration Modifiers (no duration to alter). The "None" Effect no longer forces
+    // Passive: it can be an Action/React Skill, so these locks key off the Action Type, not the Effect.
     const auraOn = (d.modifiers ?? []).includes("aura");
     // A self-centered Burst (Self Range + Burst) emanates from you, so Self Range doesn't pin its
-    // Target to Self — only a passive carrier still does (its effect rides the bearer). A leftover
+    // Target to Self — only a passive Skill still does (its effect rides the bearer). A leftover
     // Self target on such a Burst (it would hit only the caster) collapses to Any, like an Aura's.
     const selfArea = isSelfCenteredArea(d);
-    if (!auraOn && ((d.range.scope === "self" && !selfArea) || d.effect === "passive")) d.target = "self";
+    if (!auraOn && ((d.range.scope === "self" && !selfArea) || d.actionType === "passive")) d.target = "self";
     if (auraOn && d.target === "self") d.target = "ally";
-    if (selfArea && d.effect !== "passive" && d.target === "self") d.target = "any";
+    if (selfArea && d.actionType !== "passive" && d.target === "self") d.target = "any";
     if (d.actionType === "passive") {
       d.modifiers = (d.modifiers ?? []).filter((m) => !["secondaryEffect", "channeled", "scene"].includes(m));
     }
+    // A "None" Effect can never carry the Secondary Effect Modifier, whatever its Action Type — drop
+    // a stale one left from before the Effect was switched to None.
+    if (d.effect === "passive") d.modifiers = (d.modifiers ?? []).filter((m) => m !== "secondaryEffect");
     // Animate / Companion allow NO Modifiers (rules v0.01) — switching to one sheds them all.
     if ((CONFIG.PROJECTANIME.noModifierEffects ?? []).includes(d.effect)) d.modifiers = [];
   }
@@ -1061,9 +1065,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (key === "affinityDamage") d.affinityDamages = [];
       if (key === "affinityStatus") d.affinityStatusIds = [];
     } else {
-      // An always-on Skill can't take Secondary Effect (rules v0.01) or a Duration Modifier; an
-      // Aura field can't be Channeled (its lifetime is its marker's, not an EP-fed channel).
-      if ((d.actionType === "passive" || d.effect === "passive") && ["secondaryEffect", "channeled", "scene"].includes(key)) {
+      // An always-on Skill can't take Secondary Effect (rules v0.01) or a Duration Modifier, and a
+      // "None" Effect can't take Secondary Effect on any Action Type; an Aura field can't be
+      // Channeled (its lifetime is its marker's, not an EP-fed channel).
+      if (modifierBarredByType(key, d)) {
         return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.passiveNoMod"));
       }
       if ((key === "channeled" && mods.includes("aura")) || (key === "aura" && mods.includes("channeled"))) {
@@ -1177,11 +1182,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Aura (and any passive-only Modifier) locks the Skill to Passive — enforce before validating /
     // writing, in case the Action Type was changed after the Modifier was picked.
     if (d.modifiers.some((m) => (cfg.passiveOnlyModifiers ?? []).includes(m))) d.actionType = "passive";
-    // The Passive carrier Effect locks the Action Type; an always-on Skill sheds the Modifiers it
-    // can't hold (mirrors #sync — re-asserted here in case steps were jumped). Animate / Companion
-    // shed every Modifier (rules v0.01: they can have none).
-    if (d.effect === "passive") d.actionType = "passive";
+    // An always-on (Passive) Skill sheds the Modifiers it can't hold (mirrors #sync — re-asserted
+    // here in case steps were jumped). A "None" Effect additionally sheds Secondary Effect on any
+    // Action Type (it can never carry it). Animate / Companion shed every Modifier (rules v0.01).
     if (d.actionType === "passive") d.modifiers = d.modifiers.filter((m) => !["secondaryEffect", "channeled", "scene"].includes(m));
+    if (d.effect === "passive") d.modifiers = d.modifiers.filter((m) => m !== "secondaryEffect");
     if ((cfg.noModifierEffects ?? []).includes(d.effect)) d.modifiers = [];
     // A React Skill must carry a Trigger (re-check in case steps were jumped).
     if (d.actionType === "react" && !d.trigger) {
@@ -1233,11 +1238,12 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       effect: d.effect,
       // Target (rules v0.01): an Aura — or a self-centered Burst (Self Range + Burst) — keeps a real
       // audience (Ally/Foe/Any; Self collapses to a sensible default since it would hit only the
-      // caster). A passive carrier / plain passive normalizes to Self FIRST (its effect rides the
-      // bearer, ahead of any area read); otherwise a non-area Self-Range Skill is Self too.
+      // caster). A Passive (always-on) Skill normalizes to Self FIRST (its effect rides the bearer,
+      // ahead of any area read); otherwise a non-area Self-Range Skill is Self too. A "None" Effect
+      // no longer forces this — an Action/React None keeps its chosen Target.
       target: d.modifiers.includes("aura")
         ? (d.target in cfg.skillTargets && d.target !== "self" ? d.target : "ally")
-        : (d.effect === "passive" || d.actionType === "passive")
+        : (d.actionType === "passive")
           ? "self"
           : isSelfCenteredArea(d)
             ? (d.target in cfg.skillTargets && d.target !== "self" ? d.target : "any")
@@ -1448,7 +1454,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Compatibility (mirrors the build wizard): no Secondary Effect / Duration Modifier on an
     // always-on Skill; no Channeled Aura; Channeled↔Scene exclusive (Improve can't remove one).
     const sys = item.system;
-    if ((sys.actionType === "passive" || sys.effect === "passive") && ["secondaryEffect", "channeled", "scene"].includes(key)) {
+    if (modifierBarredByType(key, sys)) {
       return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.passiveNoMod"));
     }
     if ((key === "channeled" && (mods.includes("aura") || mods.includes("scene")))

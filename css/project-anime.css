@@ -2942,6 +2942,30 @@
   background: color-mix(in srgb, var(--pa-gold) 32%, transparent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 38%, transparent);
 }
+.project-anime.chat-card .dmg-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+.project-anime.chat-card .dmg-cover {
+  flex: 0 0 auto;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 5px;
+  color: var(--pa-accent);
+  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line));
+  font-size: 0.8rem;
+  transition: background 0.1s, box-shadow 0.1s;
+}
+.project-anime.chat-card .dmg-cover:hover {
+  background: color-mix(in srgb, var(--pa-accent) 32%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 38%, transparent);
+}
 .project-anime.chat-card .dmg-row.is-undone { opacity: 0.5; }
 .project-anime.chat-card .dmg-row.is-undone .dmg-name,
 .project-anime.chat-card .dmg-row.is-undone .dmg-amount { text-decoration: line-through; }
@@ -2989,6 +3013,67 @@
 .project-anime.roll-dialog .form-group input,
 .project-anime.roll-dialog .form-group select { flex: 0 0 60%; }
 .project-anime.roll-dialog .hint { font-size: 0.85rem; margin: 0 0 0.4rem; color: var(--pa-ink-soft); }
+/* PF2e-style two-column grid: paired fields side by side (label over input) so the dialog reads
+   wide, not as a tall stack. The Modifier + toggles span both columns. */
+.project-anime.roll-dialog .roll-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.9rem;
+  margin-bottom: 0.3rem;
+}
+.project-anime.roll-dialog .roll-grid .form-group {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+  margin: 0;
+}
+.project-anime.roll-dialog .roll-grid .form-group.span2 { grid-column: 1 / -1; }
+.project-anime.roll-dialog .roll-grid .form-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  color: var(--pa-ink-soft);
+}
+.project-anime.roll-dialog .roll-grid .form-group input,
+.project-anime.roll-dialog .roll-grid .form-group select { flex: none; width: 100%; }
+/* Player toggles (PF2e-style) listed in the roll dialog — flip an Active Effect on/off for the roll. */
+.project-anime.roll-dialog .roll-toggles {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--pa-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.project-anime.roll-dialog .roll-toggles-label {
+  font-weight: 700;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--pa-ink-soft);
+}
+.project-anime.roll-dialog .roll-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 5px;
+  border: 1px solid var(--pa-line);
+  background: color-mix(in srgb, var(--pa-accent) 5%, transparent);
+  cursor: pointer;
+}
+.project-anime.roll-dialog .roll-toggle.on {
+  border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
+}
+.project-anime.roll-dialog .roll-toggle img { flex: 0 0 auto; width: 20px; height: 20px; object-fit: contain; border-radius: 3px; }
+.project-anime.roll-dialog .roll-toggle span { font-weight: 600; font-size: 0.85rem; }
+.project-anime.roll-dialog .roll-toggle input { flex: 0 0 auto; width: auto; margin: 0; }
+/* A toggle (or the whole section) irrelevant to the current roll hides itself. */
+.project-anime.roll-dialog .roll-toggle.hidden,
+.project-anime.roll-dialog .roll-toggles.hidden { display: none; }
 
 /* ------------------------------------------------------------
    12. Custom dropdown widget (themed dark-purple <select> replacement)
@@ -3279,6 +3364,8 @@
 .project-anime .effect-toggle { cursor: pointer; color: var(--pa-ink-soft); }
 .project-anime .effect-actions a:hover,
 .project-anime .effect-toggle:hover { color: var(--pa-accent); }
+/* A toggleable effect's player switch glows when it's on for rolls. */
+.project-anime .effect-toggle.player.on { color: var(--pa-accent); }
 
 /* ===== Floating Effects Panel (PF2e-style live readout) =====
    Frameless ApplicationV2 inserted as a flex item just LEFT of #sidebar inside #ui-right (a
@@ -5917,53 +6004,58 @@ body.pa-combat-shown #chat-notifications { display: none; }
    but its pa-cov-* keyframes are reused by .pa-bond-gala below.)
    ============================================================ */
 
-/* ---- Bonds drawer: a grid of flip cards ---- */
+/* ---- Bonds drawer: a grid of Headquarters-style tarot cards (pa-hq supplies .tgrid/.hq-tcard/
+       .hq-book); clicking a card opens a codex-style detail book (character left, info right). ---- */
 .pa-bonds .drawer-content { padding: 14px; }
 .pa-bonds .bonds-head-actions { display: flex; align-items: center; gap: 10px; }
 .pa-bonds .bond-new { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer; font-weight: 700; font-size: 12px; color: #1a1622; border: 0; border-radius: 7px; background: linear-gradient(180deg, var(--pa-gold-soft), var(--pa-gold)); box-shadow: 0 2px 8px color-mix(in srgb, var(--pa-gold) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.4); }
 .pa-bonds .bond-new:hover { filter: brightness(1.06); }
-.pa-bonds .bonds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 16px; align-items: start; }
 .pa-bonds .bonds-empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 0; color: var(--pa-ink-soft); }
 .pa-bonds .bonds-empty i { font-size: 38px; opacity: .3; }
 
-/* the 3D flip */
-.pa-bonds .bond-flip { height: 358px; perspective: 1300px; --acc: var(--pa-accent-2); }
-.pa-bonds .bond-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2,.75,.2,1); }
-.pa-bonds .bond-flip.flipped .bond-inner { transform: rotateY(180deg); }
-.pa-bonds .bond-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--acc) 40%, var(--pa-line)); background: var(--pa-panel); box-shadow: 0 8px 22px rgba(0,0,0,.4); }
-.pa-bonds .bond-face.back { transform: rotateY(180deg); display: flex; }
-
-/* front: portrait + caption */
-.pa-bonds .bond-face.front { cursor: pointer; }
-.pa-bonds .bond-portrait { position: absolute; inset: 0; background-size: cover; background-position: center; display: grid; place-items: center; }
-.pa-bonds .bond-portrait .p-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.pa-bonds .bond-portrait .ph { font-family: var(--pa-font-display); font-size: 92px; font-weight: 800; color: rgba(255,255,255,.9); text-shadow: 0 3px 12px rgba(0,0,0,.6); }
-.pa-bonds .bond-portrait .watermark { position: absolute; right: -8px; top: -24px; font-size: 150px; line-height: 1; opacity: .12; transform: rotate(-8deg); pointer-events: none; color: #fff; }
-.pa-bonds .bond-portrait .p-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,7,16,.05) 0%, rgba(8,7,16,.15) 40%, rgba(8,7,16,.9) 100%); }
-.pa-bonds .rank-pip { position: absolute; right: 10px; top: 9px; min-width: 26px; height: 26px; padding: 0 6px; display: grid; place-items: center; border-radius: 7px; font-family: var(--pa-font-display); font-weight: 800; font-size: 16px; color: #1a1622; background: linear-gradient(180deg, var(--pa-gold-soft), var(--pa-gold)); box-shadow: 0 2px 8px rgba(0,0,0,.5); }
-.pa-bonds .bond-flip.maxed .rank-pip { box-shadow: 0 0 12px var(--pa-gold-soft); }
-.pa-bonds .p-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 13px 13px; z-index: 2; }
-.pa-bonds .p-cap .bn { font-family: var(--pa-font-display); font-size: 18px; font-weight: 800; color: #fff; line-height: 1.1; text-shadow: 0 2px 5px rgba(0,0,0,.7); }
-.pa-bonds .p-cap .bt { font-size: 11.5px; font-style: italic; color: rgba(255,255,255,.85); text-shadow: 0 1px 3px rgba(0,0,0,.8); margin-top: 2px; }
-.pa-bonds .b-stars.mini { display: flex; gap: 2px; margin-top: 6px; font-size: 12px; }
+/* card grid — HQ tarot cards, sized to read in the narrow drawer; rank shown in the corner crest */
+.pa-bonds .bonds-grid.tgrid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+.pa-bonds .bond-rankcrest b { display: block; transform: rotate(-45deg); font-family: var(--pa-font-display); font-weight: 800; font-size: 12px; line-height: 1; color: #fff; }
+.pa-bonds .bond-tcard.maxed .hq-tcrest { box-shadow: 0 0 11px var(--pa-gold-soft); }
+.pa-bonds .bond-tcard.locked .r-img, .pa-bonds .bond-tcard.locked .r-ph { filter: grayscale(.7) brightness(.7); }
 .pa-bonds .b-stars .st.full { color: var(--pa-gold-soft); text-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 70%, transparent); }
-.pa-bonds .p-cap .b-stars .st.empty { color: rgba(255,255,255,.4); }
-.pa-bonds .p-cap .bf { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.8); }
-.pa-bonds .p-cap .bf .crest { color: var(--acc); font-size: 11px; }
-.pa-bonds .flip-hint { position: absolute; right: 9px; bottom: 9px; z-index: 3; display: flex; align-items: center; gap: 5px; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.75); padding: 3px 8px; border-radius: 12px; background: rgba(0,0,0,.42); opacity: 0; transition: opacity .15s; }
-.pa-bonds .bond-face.front:hover .flip-hint { opacity: 1; }
 
-/* back: scrollable detail */
-.pa-bonds .back-scroll { flex: 1; overflow-y: auto; padding: 12px 13px 13px; display: flex; flex-direction: column; gap: 12px; }
-.pa-bonds .flip-back { position: absolute; right: 7px; top: 7px; z-index: 5; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer; border-radius: 7px; color: var(--pa-ink-soft); background: var(--pa-field); border: 1px solid var(--pa-line); }
-.pa-bonds .flip-back:hover { color: var(--acc); border-color: var(--acc); }
-.pa-bonds .back-head .bn { font-family: var(--pa-font-display); font-size: 17px; font-weight: 800; color: var(--pa-ink); line-height: 1.1; }
-.pa-bonds .back-head .bt { font-size: 12px; font-style: italic; color: var(--pa-ink-soft); }
-.pa-bonds .back-head .bf { display: flex; align-items: center; gap: 5px; margin-top: 3px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--pa-ink-soft); }
-.pa-bonds .back-head .bf .crest { color: var(--acc); }
-.pa-bonds .bn-edit, .pa-bonds .bt-edit { width: 100%; background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink); padding: 3px 7px; outline: none; }
-.pa-bonds .bn-edit { font-family: var(--pa-font-display); font-weight: 800; font-size: 15px; }
-.pa-bonds .bt-edit { margin-top: 4px; font-style: italic; font-size: 12px; }
+/* ---- detail BOOK overlay (codex-like; reuses .hq-book from pa-hq). It lives INSIDE the open bonds
+       .section-drawer, so its own backdrop is named .bond-backdrop (not .drawer-backdrop) to dodge the
+       ancestor rule `.section-drawer.open .drawer-backdrop{opacity:1}`, and a high-specificity
+       `:not(.open) .hq-book.bb` override re-hides the closed books that `.section-drawer.open .hq-book`
+       would otherwise force visible. Visibility is thus gated by the overlay's OWN open class. ---- */
+.pa-bonds .bond-overlay { position: absolute; inset: 0; z-index: 45; pointer-events: none; }
+.pa-bonds .bond-overlay .bond-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.5); opacity: 0; transition: opacity .25s ease; }
+.pa-bonds .bond-overlay.open { pointer-events: auto; }
+.pa-bonds .bond-overlay.open .bond-backdrop { opacity: 1; }
+.pa-bonds .bond-overlay.open .hq-book { opacity: 1; transform: none; }
+.pa-bonds .bond-overlay:not(.open) .hq-book.bb { opacity: 0; transform: scale(.95) translateY(8px); pointer-events: none; }
+.pa-bonds .hq-book.bb { grid-template-columns: 0.92fr 1.08fr; }
+.pa-bonds .hq-book.bb .hq-bk-banner i { color: var(--acc); }
+
+/* LEFT page = the character (portrait + identity), stacked on the dark vignette */
+.pa-bonds .hq-book.bb .hq-page.right { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 14px; }
+.pa-bonds .bb-char .hq-bk-portrait { flex: 1 1 auto; min-height: 170px; }
+.pa-bonds .bb-rankpip { position: absolute; right: 9px; top: 9px; min-width: 26px; height: 26px; padding: 0 6px; display: grid; place-items: center; border-radius: 7px; font-family: var(--pa-font-display); font-weight: 800; font-size: 15px; color: #1a1622; background: linear-gradient(180deg, var(--pa-gold-soft), var(--pa-gold)); box-shadow: 0 2px 8px rgba(0,0,0,.5); z-index: 3; }
+.pa-bonds .bb-rankpip.maxed { box-shadow: 0 0 12px var(--pa-gold-soft); }
+.pa-bonds .bb-id { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; flex: 0 0 auto; }
+.pa-bonds .bb-name { font-family: var(--pa-font-display); font-size: 19px; font-weight: 800; color: #fff; line-height: 1.1; text-shadow: 0 2px 5px rgba(0,0,0,.6); }
+.pa-bonds .bb-title { font-size: 12px; font-style: italic; color: var(--pa-gold-soft); }
+.pa-bonds .bb-faction { display: flex; align-items: center; gap: 5px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.7); }
+.pa-bonds .bb-faction .crest { color: var(--acc); font-size: 12px; }
+.pa-bonds .bb-stars { display: flex; gap: 3px; font-size: 17px; }
+.pa-bonds .bb-stars .st.full { color: var(--pa-gold-soft); text-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 70%, transparent); }
+.pa-bonds .bb-stars .st.empty { color: rgba(255,255,255,.3); }
+.pa-bonds .bb-stars .st.pop { animation: pa-cov-star .5s cubic-bezier(.2,.9,.2,1.4); }
+.pa-bonds .bb-quote { margin-top: 2px; font-family: var(--pa-font-display); font-style: italic; font-size: 12.5px; color: rgba(255,255,255,.85); line-height: 1.4; }
+.pa-bonds .bb-name-edit, .pa-bonds .bb-title-edit { width: 100%; box-sizing: border-box; text-align: center; background: rgba(0,0,0,.32); border: 1px solid color-mix(in srgb, var(--pa-gold) 30%, transparent); border-radius: 6px; color: #fff; padding: 4px 8px; outline: none; }
+.pa-bonds .bb-name-edit { font-family: var(--pa-font-display); font-weight: 800; font-size: 16px; }
+.pa-bonds .bb-title-edit { font-style: italic; font-size: 12px; }
+.pa-bonds .bb-name-edit:focus, .pa-bonds .bb-title-edit:focus { border-color: var(--pa-gold); }
+
+/* RIGHT page = the info (rank meter / vitals / dossier / abilities / owner controls below) */
+.pa-bonds .hq-book.bb .hq-bk-body { display: flex; flex-direction: column; gap: 10px; padding: 2px 16px 16px; }
 
 /* rank meter (back) */
 .pa-bonds .b-meter { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 9px; background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 8%, var(--pa-panel)), var(--pa-panel)); border: 1px solid color-mix(in srgb, var(--acc) 30%, var(--pa-line)); }
@@ -6033,12 +6125,11 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-bonds .b-actions .link-drop { padding: 5px 10px; border: 1.5px dashed var(--pa-line); border-radius: 6px; color: var(--pa-ink-soft); font-size: 10.5px; }
 .pa-bonds .b-actions .link-drop.drag-over { border-color: var(--pa-gold); color: var(--pa-gold-soft); background: color-mix(in srgb, var(--pa-gold) 10%, transparent); }
 
-/* forge new bond */
-.pa-bonds .bond-forge { min-height: 358px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; cursor: pointer; text-align: center; padding: 16px; border: 2px dashed var(--pa-line); border-radius: 14px; color: var(--pa-ink-soft); }
-.pa-bonds .bond-forge i { font-size: 30px; opacity: .5; }
+/* forge new bond — slim full-width drop bar beneath the card grid */
+.pa-bonds .bond-forge { grid-column: 1 / -1; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; cursor: pointer; text-align: center; padding: 12px; border: 2px dashed var(--pa-line); border-radius: 12px; color: var(--pa-ink-soft); }
+.pa-bonds .bond-forge i { font-size: 22px; opacity: .5; }
 .pa-bonds .bond-forge span { font-size: 11px; }
 .pa-bonds .bond-forge:hover, .pa-bonds .bond-forge.drag-over { border-color: var(--pa-gold); color: var(--pa-gold-soft); background: color-mix(in srgb, var(--pa-gold) 8%, transparent); }
-.pa-bonds .bond-flip.locked .bond-portrait .p-img, .pa-bonds .bond-flip.locked .bond-portrait .ph { filter: grayscale(.7) brightness(.7); }
 
 /* ---- Factions tab (Codex) — ornate dark+gold to match the Home/HQ surfaces: a relationship MATRIX +
    faction CARD grid in the scrolling body; clicking a card opens a two-page detail BOOK overlay. ---- */

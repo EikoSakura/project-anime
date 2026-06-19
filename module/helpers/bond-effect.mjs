@@ -31,18 +31,21 @@ function abilityWant(bond, ability) {
   const key = `${bond.id}:${ability.rank}`;
   const nm = (ability.name || "").trim() || game.i18n.format("PROJECTANIME.Covenant.abilityUnnamed", { rank: ability.rank });
   const im = (bond.img || "").trim() || "icons/svg/aura.svg";
-  const sig = JSON.stringify({ key, nm, im, rules });
-  return { key, name: nm, img: im, rules, sig };
+  const toggle = !!ability.toggle;   // a player-flippable boon (off by default) vs always-on
+  const sig = JSON.stringify({ key, nm, im, rules, toggle });
+  return { key, name: nm, img: im, rules, toggle, sig };
 }
 
-/** The ActiveEffect data for a bond ability's projection (a direct, non-transferring, always-on effect). */
+/** The ActiveEffect data for a bond ability's projection (a direct, non-transferring effect). When the
+ *  rank is marked toggleable it carries the `toggle` flag, so it's off until the player flips it on
+ *  (effects.mjs gate) — for a situational boon like "+1 Charm vs nobles"; otherwise it's always-on. */
 function bondEffectData(w) {
   return {
     name: w.name,
     img: w.img,
-    disabled: false,
+    disabled: false,   // a toggle effect stays enabled (live) so it's available to be flipped on
     transfer: false,
-    flags: { [FLAG_SCOPE]: { bondKey: w.key, bondSig: w.sig, rules: { version: 1, list: w.rules } } }
+    flags: { [FLAG_SCOPE]: { bondKey: w.key, bondSig: w.sig, toggle: !!w.toggle, rules: { version: 1, list: w.rules } } }
   };
 }
 
@@ -73,7 +76,8 @@ export async function reconcileBonds(actor) {
       if (w) want.set(w.key, w);
       for (const rule of ability.rules ?? []) {
         if (rule?.type === "grant")
-          for (const it of rule.items ?? []) if (it?.uuid) grantWants.push({ bondId: bond.id, rank: Number(ability.rank) || 0, uuid: it.uuid });
+          for (const it of rule.items ?? []) if (it?.uuid || it?.data)
+            grantWants.push({ bondId: bond.id, rank: Number(ability.rank) || 0, uuid: it.uuid, name: it.name, data: it.data });
       }
     }
   }
@@ -128,10 +132,17 @@ async function deliverBondGrants(actor, grantWants) {
     const tag = `${g.bondId}:${g.rank}:${g.uuid}`;
     if (present.has(tag) || seen.has(tag)) continue;
     seen.add(tag);
-    let src = null;
-    try { src = await fromUuid(g.uuid); } catch (_) { /* unresolved ref — skip */ }
-    if (!src || src.documentName !== "Item") continue;
-    const data = src.toObject();
+    // Prefer the self-contained snapshot captured at author time (survives source deletion); only
+    // re-resolve the uuid when a legacy grant carries no snapshot. A grant whose source is gone and
+    // carries no snapshot is silently skipped (by design).
+    let data = null;
+    if (g.data && typeof g.data === "object") data = foundry.utils.deepClone(g.data);
+    else {
+      let src = null;
+      try { src = await fromUuid(g.uuid); } catch (_) { /* unresolved ref */ }
+      if (src?.documentName === "Item") data = src.toObject();
+    }
+    if (!data) continue;   // source gone + no snapshot — skip silently
     delete data._id;
     delete data.folder;
     delete data.sort;

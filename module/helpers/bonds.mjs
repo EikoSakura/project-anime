@@ -60,7 +60,7 @@ export function blankBond(overrides = {}) {
     vitals: [], // { id, k, v }
     dossier: "", // rich write-up (HTML)
     quote: "",
-    abilities: Array.from({ length: BOND_MAX_RANK }, (_v, i) => ({ rank: i + 1, name: "", desc: "", rules: [] })),
+    abilities: Array.from({ length: BOND_MAX_RANK }, (_v, i) => ({ rank: i + 1, name: "", desc: "", rules: [], toggle: false })),
     ...overrides
   };
 }
@@ -89,7 +89,8 @@ export function npcBondRanks(npc) {
       rewardGold: Number(r.rewardGold) || 0,
       rewardSP: Number(r.rewardSP) || 0,
       rewardItems: Array.isArray(r.rewardItems) ? r.rewardItems : [],
-      rules: Array.isArray(r.rules) ? r.rules : []
+      rules: Array.isArray(r.rules) ? r.rules : [],
+      toggle: !!r.toggle
     };
   });
 }
@@ -103,7 +104,8 @@ function bondFromNpc(npc, existing = null) {
     rank: r.rank,
     name: r.abilityName,
     desc: r.abilityDesc,
-    rules: foundry.utils.deepClone(r.rules ?? [])   // the rank's mechanical Effect rides onto the PC bond
+    rules: foundry.utils.deepClone(r.rules ?? []),   // the rank's mechanical Effect rides onto the PC bond
+    toggle: !!r.toggle                                // ...and whether it's a player toggle
   }));
   const base = existing ? { ...existing } : blankBond();
   base.name = npc.name;

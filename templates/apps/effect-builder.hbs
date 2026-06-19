@@ -18,11 +18,13 @@
       <input type="checkbox" name="enabled" {{#if enabled}}checked{{/if}} />
       <span>{{localize "PROJECTANIME.Effect.enabled"}}</span>
     </label>
-    <label class="eb-enabled">
+    {{/unless}}
+    {{#if showToggle}}
+    <label class="eb-enabled" title="{{localize 'PROJECTANIME.Effect.toggleableHint'}}">
       <input type="checkbox" name="toggle" {{#if toggle}}checked{{/if}} />
       <span>{{localize "PROJECTANIME.Effect.toggleable"}}</span>
     </label>
-    {{/unless}}
+    {{/if}}
   </div>
 
   {{#unless rulesOnly}}

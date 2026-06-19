@@ -24,7 +24,7 @@
 
 import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
 import {
-  effectCopyData, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect, sustainRules, hasAuthoredSustainEffect,
+  effectCopyData, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect,
   skillModifierRules
 } from "./effects.mjs";
 import { tokensInRange } from "./templates.mjs";
@@ -133,13 +133,7 @@ function auraEffectDataFor(skill, sourceToken) {
       raw.push({ name: skill.name, img: skill.img, flags: { [FLAG_SCOPE]: { rules: { version: 1, list } } } });
     }
   }
-  // 3) Auto Sustain — a Sustain-effect aura projects its per-turn regen as a `sustain` rule (the ally's
-  //    turn-tick reads it via collectSustain). Skipped if the designer authored their own sustain rule.
-  if (!hasAuthoredSustainEffect(skill)) {
-    const list = sustainRules(skill);
-    if (list.length) raw.push({ name: skill.name, img: skill.img, flags: { [FLAG_SCOPE]: { rules: { version: 1, list } } } });
-  }
-  // 4) Auto Modifier rules — Protection (+1 Defense) / Affinity (Damage) project to the aura's
+  // 3) Auto Modifier rules — Protection (+1 Defense) / Affinity (Damage) project to the aura's
   //    recipients exactly as they apply to the bearer (effects.mjs skillModifierRules).
   {
     const list = skillModifierRules(skill);
