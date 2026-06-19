@@ -1337,10 +1337,12 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   // Charged release: note the double power when it lands, or that the charge dissipated on a miss.
   if (charged) lines.push(`<em class="muted">${i18n(landed ? "PROJECTANIME.Roll.charged" : "PROJECTANIME.Roll.chargeDissipated")}</em>`);
 
-  // Inflicted conditions + Decay land when the Skill landed. A Self / Self-range Skill inflicts on
-  // the CASTER (rules: it targets you) — so a self-buff Inflict (e.g. Regen / Barrier) lands on you
-  // even with no creature targeted; otherwise they land on the targeted creature.
-  const inflictTarget = (skillTarget(sys) === "self" || sys.range?.scope === "self") ? actor : targetActor;
+  // Inflicted conditions + Decay land when the Skill landed. A SUPPORTIVE Skill (no Accuracy Check —
+  // Self / Ally, or a beneficial Inflict like Regen / Barrier) inflicts on whoever its effects target
+  // (the caster for a Self / untargeted self-buff, the chosen ally otherwise), so a Regen / Barrier
+  // buff actually lands on you even with nothing targeted; an offensive Skill inflicts on the creature
+  // it hit.
+  const inflictTarget = needsAccuracy ? targetActor : (skillEffectTargets(actor, item, null)[0] ?? actor);
   if (landed) await applyOnHitConditions(actor, item, inflictTarget, lines);
 
   // Vanish (rules v0.01): a landed cast shrouds the CASTER — "you cannot be seen".

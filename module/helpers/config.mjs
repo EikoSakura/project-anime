@@ -589,7 +589,11 @@ export function skillNeedsAccuracy(sys, { enemyTarget } = {}) {
   const effects = skillEffectKeys(sys);
   if (effects.some((e) => PROJECTANIME.offensiveEffects.includes(e))) return true;
   const mods = sys.modifiers ?? [];
-  if (PROJECTANIME.offensiveModifiers.some((m) => mods.includes(m))) return true;
+  // Inflict is offensive — EXCEPT when it inflicts a BENEFICIAL valued status (Regen / Barrier):
+  // that's a buff you put on yourself or an ally, not an attack, so it makes no Accuracy Check
+  // (and so a Self / Any beneficial Inflict applies straight to you, with no target needed).
+  const beneficialInflict = (PROJECTANIME.valuedStatuses ?? []).includes(sys.inflictStatus);
+  if (PROJECTANIME.offensiveModifiers.some((m) => mods.includes(m) && !(m === "inflict" && beneficialInflict))) return true;
   const hasMovement = PROJECTANIME.movementModifiers.some((m) => mods.includes(m));
   if (hasMovement) return enemyTarget !== false;
   return false;
