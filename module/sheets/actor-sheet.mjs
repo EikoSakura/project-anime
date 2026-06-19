@@ -988,14 +988,16 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   /** Attach Foundry rich tooltips to every item element on the sheet. */
-  #bindTooltips() {
+  async #bindTooltips() {
     const root = this.element;
     if (!root) return;
     const cache = new Map();
     for (const el of root.querySelectorAll("[data-item-id]")) {
       const item = this.actor.items.get(el.dataset.itemId);
       if (!item) continue;
-      if (!cache.has(item.id)) cache.set(item.id, this.#itemTooltip(item));
+      if (!cache.has(item.id)) cache.set(item.id, await this.#itemTooltip(item));
+      // The sheet can re-render while we await enrichment — bail if our element is stale.
+      if (!root.isConnected) return;
       el.dataset.tooltip = cache.get(item.id);
       el.dataset.tooltipClass = "pa-tooltip";
       el.dataset.tooltipDirection = "RIGHT";
@@ -1005,7 +1007,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   /** Build the rich-tooltip HTML for one item (header + stat rows + description). */
-  #itemTooltip(item) {
+  async #itemTooltip(item) {
     const sys = item.system ?? {};
     const cfg = CONFIG.PROJECTANIME;
     const i18n = (k) => game.i18n.localize(k);
@@ -1056,7 +1058,14 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
 
     const head = `<div class='pa-tt-head'><img class='pa-tt-img' src='${esc(item.img)}' /><div class='pa-tt-heads'><div class='pa-tt-title'>${esc(item.name)}</div><div class='pa-tt-type'>${esc(typeLabel)}</div></div></div>`;
     const rowsHtml = rows.length ? `<div class='pa-tt-rows'>${rows.join("")}</div>` : "";
-    const desc = sys.description ? `<div class='pa-tt-desc'>${sys.description}</div>` : "";
+    // Enrich so embedded @UUID references (e.g. a weapon granting a Skill) render as
+    // content links with their icon instead of raw `@UUID[...]` text.
+    let descHtml = "";
+    if (sys.description && String(sys.description).trim()) {
+      const TE = foundry.applications.ux.TextEditor?.implementation ?? globalThis.TextEditor;
+      descHtml = await TE.enrichHTML(String(sys.description), { relativeTo: item, secrets: false });
+    }
+    const desc = descHtml ? `<div class='pa-tt-desc'>${descHtml}</div>` : "";
     return `${head}<div class='pa-tt-body'>${rowsHtml}${desc}</div>`;
   }
 

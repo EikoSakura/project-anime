@@ -105,6 +105,13 @@
       <input type="number" class="eb-num" name="rules.{{i}}.value" value="{{rule.value}}" step="1" />
       {{/if}}
 
+      {{#if rule.isNcCheck}}
+      <select name="rules.{{i}}.key">{{selectOptions ../choices.attributes selected=rule.key}}</select>
+      <select name="rules.{{i}}.mode">{{selectOptions ../choices.ncCheckModes selected=rule.mode}}</select>
+      <input type="number" class="eb-num" name="rules.{{i}}.value" value="{{rule.value}}" step="1" />
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.ncCheckTag"}}</span>
+      {{/if}}
+
       {{#if rule.isCondition}}
       <select name="rules.{{i}}.scope">{{selectOptions ../choices.conditionScopes selected=rule.scope}}</select>
       <select name="rules.{{i}}.status">{{selectOptions ../choices.conditions selected=rule.status}}</select>
@@ -138,7 +145,7 @@
       {{#if rule.isWeaponMod}}
       <select class="rule-wscope" name="rules.{{i}}.scope">{{selectOptions ../choices.weaponModScopes selected=rule.scope}}</select>
       {{#if rule.wScopeType}}
-      <input type="text" class="eb-text" name="rules.{{i}}.typeName" value="{{rule.typeName}}" list="pa-eb-weapon-types" placeholder="{{localize 'PROJECTANIME.Field.weaponTypePlaceholder'}}" />
+      <input type="text" class="eb-text" name="rules.{{i}}.typeName" value="{{rule.typeName}}" list="pa-eb-weapon-types" />
       {{/if}}
       <input type="number" class="eb-num" name="rules.{{i}}.attack" value="{{rule.attack}}" step="1" />
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.weaponModAtk"}}</span>

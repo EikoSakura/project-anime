@@ -166,6 +166,7 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
           isSustain: r.type === "sustain",
           isAffinity: r.type === "affinity",
           isRoll: r.type === "roll",
+          isNcCheck: r.type === "ncCheck",
           isCondition: r.type === "condition",
           isLuck: r.type === "luck",
           isTrade: r.type === "trade",

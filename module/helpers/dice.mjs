@@ -1,7 +1,7 @@
 import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation } from "./effects.mjs";
+import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
@@ -36,6 +36,14 @@ function stepDownValue(value) {
 function stepUpValue(value) {
   const i = DIE_SIZES.indexOf(value);
   return i >= 0 && i < DIE_SIZES.length - 1 ? DIE_SIZES[i + 1] : DIE_SIZES[DIE_SIZES.length - 1];
+}
+
+/** Step a die size `n` rungs along the d4–d12 ladder: up for positive `n`, down for negative. */
+function stepDie(value, n) {
+  let v = value;
+  const k = Math.round(Number(n) || 0);
+  for (let i = 0; i < Math.abs(k); i++) v = k > 0 ? stepUpValue(v) : stepDownValue(v);
+  return v;
 }
 
 /** True if the actor wields a weapon/shield in BOTH the main and off hand (dual wielding). */
@@ -490,7 +498,13 @@ export async function rollCheck(actor, { attrA = "might", attrB = "might", mod =
 export async function performCheck(actor, { attrA = "might", attrB = "might", modifier = 0, ct = null } = {}) {
   const rmods = collectRollModifiers(actor, "check");
   modifier += rmods.flat;
-  const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB));
+  // Non-combat-only Attribute boosts (ncCheck effects): Step the matching die(s) and/or add a flat
+  // bonus to the total. Applied to Checks/Tests only — attacks & skills never read this.
+  const ncc = collectNonCombatCheckMods(actor, attrA, attrB);
+  modifier += ncc.flat;
+  let { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB));
+  dieA = stepDie(dieA, ncc.stepsA);
+  dieB = stepDie(dieB, ncc.stepsB);
   const roll = new Roll(checkFormula(dieA, dieB, modifier));
   await roll.evaluate();
   const [r1, r2] = dieResults(roll);
@@ -504,6 +518,7 @@ export async function performCheck(actor, { attrA = "might", attrB = "might", mo
   else if (combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
   const lines = [`<strong>${labelA} + ${labelB}</strong>`, ...stepNotes(reasons)];
   const checkModLine = rollModLine(rmods); if (checkModLine) lines.push(checkModLine);
+  if (ncc.sources.length) lines.push(`<em class="muted">${ncc.sources.map((s) => `${s.name}: ${s.label}`).join(", ")}</em>`);
   if (ct != null) {
     const success = roll.total >= ct;
     badges.push({ cls: success ? "success" : "failure", text: success ? i18n("PROJECTANIME.Roll.success") : i18n("PROJECTANIME.Roll.failure") });

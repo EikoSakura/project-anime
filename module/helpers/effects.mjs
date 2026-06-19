@@ -62,6 +62,11 @@ export const RULE_TYPES = {
   sustain: "PROJECTANIME.Effect.type.sustain",
   affinity: "PROJECTANIME.Effect.type.affinity",
   roll: "PROJECTANIME.Effect.type.roll",
+  // Improve (or worsen) ONE Attribute for NON-COMBAT Checks only — the general two-die Check/Test
+  // (dice.mjs performCheck), never attacks / skills / damage. Either Steps the matching die(s) or
+  // adds a flat bonus to the total. NOT a passive prepare rule (it must NOT change the attribute's
+  // die size, which would leak into combat) — read at check time via collectNonCombatCheckMods.
+  ncCheck: "PROJECTANIME.Effect.type.ncCheck",
   condition: "PROJECTANIME.Effect.type.condition",
   luck: "PROJECTANIME.Effect.type.luck",
   trade: "PROJECTANIME.Effect.type.trade",
@@ -131,6 +136,14 @@ export const DURATION_UNITS = {
 export const ATTRIBUTE_MODES = {
   bolster: "PROJECTANIME.Effect.mode.bolster",
   hinder: "PROJECTANIME.Effect.mode.hinder"
+};
+
+/** How a `ncCheck` rule improves its Attribute on non-combat Checks: Step the die(s) up/down, or add
+ *  a flat bonus to the total. Stored values stay `step`/`bonus`; a signed magnitude carries the
+ *  direction (e.g. value −1 in `step` mode Steps the die DOWN). */
+export const NCCHECK_MODES = {
+  step: "PROJECTANIME.Effect.ncMode.step",
+  bonus: "PROJECTANIME.Effect.ncMode.bonus"
 };
 
 /** Derived stats an effect can flat-modify (all carry a `.bonus` field). */
@@ -246,6 +259,15 @@ export function normalizeRule(raw) {
     case "roll":
       rule = { type: "roll", selector: raw.selector in ROLL_SELECTORS ? raw.selector : "check", value: Math.round(Number(raw.value) || 0) };
       break;
+    case "ncCheck": {
+      const mode = raw.mode === "step" ? "step" : "bonus";
+      let value = Math.round(Number(raw.value) || 0);
+      // Step magnitude is a die-ladder count (signed, ±1..4); a flat bonus is a wider signed range.
+      if (mode === "step") { value = Math.max(-4, Math.min(4, value)); if (value === 0) value = 1; }
+      else value = Math.max(-20, Math.min(20, value));
+      rule = { type: "ncCheck", key: raw.key in PROJECTANIME.attributes ? raw.key : "might", mode, value };
+      break;
+    }
     case "luck":
       rule = { type: "luck", steps: Math.max(1, Math.min(4, Math.round(Number(raw.steps) || 1))) };
       break;
@@ -328,7 +350,7 @@ export function scaleRuleByTier(rule, tier) {
   const r = { ...rule };
   switch (r.type) {
     case "attribute": case "talent": case "luck": r.steps = Math.max(1, Math.round((Number(r.steps) || 1) * t)); break;
-    case "stat": case "resource": case "roll": case "hq": case "sustain": case "gather": r.value = Math.round((Number(r.value) || 0) * t); break;
+    case "stat": case "resource": case "roll": case "hq": case "sustain": case "gather": case "ncCheck": r.value = Math.round((Number(r.value) || 0) * t); break;
     case "trade": r.pct = Math.round((Number(r.pct) || 0) * t); break;
     // skillMod / weaponMod are NOT tier-scaled (a flat ± stays flat across facility tiers) — same as before.
   }
@@ -668,6 +690,45 @@ export function collectRollModifiers(actor, selector, { target = null } = {}) {
       if (!v) continue;
       out.flat += v;
       out.sources.push({ name: effect.name, value: v });
+    }
+  }
+  return out;
+}
+
+/**
+ * The Attribute improvements an actor's live effects grant to ONE non-combat Check — the two-die
+ * Check/Test in dice.mjs performCheck, NEVER attacks / skills / damage (which is why this is its
+ * own collector instead of an `attribute`/`roll` rule: those leak into combat). `attrA`/`attrB` are
+ * the Attributes the Check rolls. Each live `ncCheck` rule whose Attribute matches a rolled die
+ * contributes either die Steps (to that specific die — both, if the Check rolls the Attribute twice)
+ * or a flat bonus to the total. Equip-/toggle-/self-predicate-gated like the sibling collectors
+ * (no target context in a Check). Read at check time.
+ * @returns {{stepsA:number, stepsB:number, flat:number, sources:{name:string, label:string}[]}}
+ */
+export function collectNonCombatCheckMods(actor, attrA, attrB) {
+  const out = { stepsA: 0, stepsB: 0, flat: 0, sources: [] };
+  let effects;
+  try { effects = actor?.appliedEffects ?? []; } catch (_) { return out; }
+  for (const effect of effects) {
+    if (!effectGateOpen(actor, effect)) continue;
+    for (const rule of effectRules(effect)) {
+      if (rule?.type !== "ncCheck") continue;
+      if (!predicatePasses(rule.pred, actor, null)) continue;
+      const v = Math.round(Number(rule.value) || 0);
+      if (!v) continue;
+      const hitA = rule.key === attrA;
+      const hitB = rule.key === attrB;
+      if (!hitA && !hitB) continue;
+      const attr = game.i18n.localize(PROJECTANIME.attributes[rule.key] ?? "") || rule.key;
+      if (rule.mode === "step") {
+        if (hitA) out.stepsA += v;
+        if (hitB) out.stepsB += v;
+        const n = Math.abs(v);
+        out.sources.push({ name: effect.name, label: `${attr} ${v > 0 ? "+" : "−"}${n} ${n === 1 ? "step" : "steps"}` });
+      } else {
+        out.flat += v;
+        out.sources.push({ name: effect.name, label: `${attr} ${v > 0 ? "+" : ""}${v}` });
+      }
     }
   }
   return out;
@@ -1146,6 +1207,16 @@ export function summarizeRule(rule) {
       return `${elementLabel(rule.element) || rule.element} → ${L(PROJECTANIME.affinityLevels[rule.level]) || rule.level}`;
     case "roll":
       return `${signed(rule.value)} ${L(ROLL_SELECTORS[rule.selector]) || rule.selector}`;
+    case "ncCheck": {
+      const attr = L(PROJECTANIME.attributes[rule.key]) || rule.key;
+      const v = Math.round(Number(rule.value) || 0);
+      const tag = L("PROJECTANIME.Effect.ncCheckTag");
+      if (rule.mode === "step") {
+        const n = Math.abs(v);
+        return `${attr} ${v >= 0 ? "+" : "−"}${n} ${n === 1 ? "step" : "steps"} · ${tag}`;
+      }
+      return `${signed(v)} ${attr} · ${tag}`;
+    }
     case "luck": {
       const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
       const base = L("PROJECTANIME.Effect.luckStepUp");
@@ -1230,6 +1301,15 @@ export function narrateRule(rule) {
         : "";
     case "roll":
       return `grants ${signed(rule.value)} to ${L(ROLL_SELECTORS[rule.selector]) || rule.selector} rolls`;
+    case "ncCheck": {
+      const a = L(PROJECTANIME.attributes[rule.key]) || rule.key;
+      const v = Math.round(Number(rule.value) || 0);
+      if (rule.mode === "step") {
+        const n = Math.abs(v);
+        return `${v >= 0 ? "raises" : "lowers"} ${a} by ${n} ${n === 1 ? "step" : "steps"} on non-combat checks`;
+      }
+      return `grants ${signed(v)} to ${a} on non-combat checks`;
+    }
     case "luck": {
       const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
       return steps > 1 ? `steps up the Luck die by ${steps}` : "steps up the Luck die";
@@ -1292,6 +1372,7 @@ export function ruleChoices() {
     elements: elementChoices(), // already sorted by label at its source
     levels: sortChoices(map(PROJECTANIME.affinityLevels), ["none"]),
     rollSelectors: sortChoices(map(ROLL_SELECTORS)),
+    ncCheckModes: map(NCCHECK_MODES),         // Die Steps / Flat Bonus — NOT alphabetized (Steps first)
     // Skill-adjustment scopes: "Any Skill" pinned first, then every Skill Modifier (sorted).
     modScopes: { ...map(SKILLMOD_SCOPES), ...sortChoices(map(PROJECTANIME.skillModifiers)) },
     // Weapon-adjustment scopes: Any weapon / Unarmed / By type (canonical order, not alphabetized).

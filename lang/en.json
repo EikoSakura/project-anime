@@ -824,8 +824,7 @@
       "grip": "Grip",
       "twoHandedOnly": "Two-Handed Only",
       "shieldUse": "Wield As",
-      "weaponType": "Type",
-      "weaponTypePlaceholder": "e.g. Sword"
+      "weaponType": "Type"
     },
     "Skill": {
       "field": {
@@ -1207,6 +1206,7 @@
         "sustain": "Sustain",
         "affinity": "Affinity",
         "roll": "Roll",
+        "ncCheck": "Non-Combat Check",
         "condition": "Condition",
         "luck": "Luck",
         "trade": "Trade",
@@ -1242,6 +1242,11 @@
         "bolster": "Step Up",
         "hinder": "Step Down"
       },
+      "ncMode": {
+        "step": "Die Steps",
+        "bonus": "Flat Bonus"
+      },
+      "ncCheckTag": "non-combat",
       "selector": {
         "check": "All Checks",
         "attack": "Attack rolls",

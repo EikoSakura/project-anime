@@ -87,6 +87,9 @@ export function naturalAttackData() {
       accuracy: { attrA: "might", attrB: "agility", mod: 0 },
       // Unarmed strikes hit at full Accuracy but land light (weapon table: Unarmed DMG −2).
       damage: { mod: -2, type: "physical" },
+      // Base Type "Unarmed" — so a "By weapon type: Unarmed" Weapon Adjustment matches it too
+      // (alongside the dedicated "Unarmed" scope, which keys off the `natural` flag).
+      weaponType: "Unarmed",
       range: { type: "melee", tiles: 1 },
       size: 0, cost: 0, equipped: false, hand: "main", grip: "one"
     },

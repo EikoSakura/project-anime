@@ -48,6 +48,10 @@ const BARS_BACKFILLED_SETTING = "barsBackfilled";
 // Unarmed DMG −2 (v0.01).
 const UNARMED_DMG_SETTING = "unarmedDmgV001";
 
+// Hidden world flag — set once after existing weapons/shields seed their Type from their name (the
+// game's weapons were all named after their type before the Weapon Type field existed).
+const WEAPON_TYPE_BACKFILL_SETTING = "weaponTypeFromName";
+
 // Hidden client flag — set once after this client defaults chat bubbles + pan-to-speaker off.
 const CHAT_DEFAULTS_SETTING = "chatBubbleDefaultsApplied";
 
@@ -270,7 +274,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, UNARMED_DMG_SETTING, DEFAULT_PARTY_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, UNARMED_DMG_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -1422,6 +1426,46 @@ async function backfillUnarmedDamage() {
 }
 
 /* -------------------------------------------- */
+/*  Weapon Type from name backfill (one-time)   */
+/* -------------------------------------------- */
+
+// Seed each existing weapon/shield's Type — the game's weapons were all named after their type (a
+// "Sword" item IS a Sword) before the Weapon Type field existed, so a "Weapon Adjustment" scoped
+// "By weapon type" can match them out of the box: a normal weapon/shield takes its NAME, the innate
+// Natural Attack takes "Unarmed". Only fills a BLANK weaponType (a deliberately-set one is left
+// alone). Covers world Items and every actor's embedded gear. GM-side, once per world.
+async function backfillWeaponTypes() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", WEAPON_TYPE_BACKFILL_SETTING)) return;
+
+  // The Type to seed onto an item, or null if it shouldn't be touched.
+  const desiredType = (i) => {
+    if (i.type !== "weapon" && i.type !== "shield") return null;
+    if (String(i.system?.weaponType ?? "").trim()) return null;          // already set — leave alone
+    if (i.getFlag("project-anime", "natural")) return "Unarmed";          // the innate strike
+    const nm = String(i.name ?? "").trim();
+    return nm || null;                                                    // named after its type
+  };
+  const buildUpdates = (coll) => coll.reduce((acc, i) => {
+    const t = desiredType(i);
+    if (t) acc.push({ _id: i.id, "system.weaponType": t });
+    return acc;
+  }, []);
+
+  // World Items directory (standalone weapons/shields, e.g. an unequipped stash item).
+  const worldUpdates = buildUpdates(game.items);
+  if (worldUpdates.length) await Item.updateDocuments(worldUpdates);
+
+  // Embedded gear on every actor (where the Natural Attacks live).
+  for (const actor of game.actors) {
+    const updates = buildUpdates(actor.items);
+    if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+  }
+
+  await game.settings.set("project-anime", WEAPON_TYPE_BACKFILL_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Always-on token bars backfill (one-time)    */
 /* -------------------------------------------- */
 
@@ -1542,6 +1586,9 @@ Hooks.once("ready", function () {
 
   // One-time (v0.01): Unarmed strikes land at DMG −2 per the weapon table.
   backfillUnarmedDamage();
+
+  // One-time: seed each weapon/shield's Type from its name (they were named after their type).
+  backfillWeaponTypes();
 
   // One-time (v0.01): reconcile the gear compendiums to the rules doc's tables.
   if (paIsActiveGM() && !game.settings.get("project-anime", PACK_AUDIT_SETTING)) {
