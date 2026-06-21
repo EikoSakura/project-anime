@@ -1316,21 +1316,54 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * Save the wizard back onto the edited Skill and reconcile its Skill Points. A full re-edit
-   * rebuilds the Skill in place: its whole ledger (base "skill" entry + any "improve" entries)
-   * is replaced by one new Rank-cost entry — prior Improve upgrades are refunded, and the
-   * advancement-only fields they bought (Sharpen / Lower Energy / Turn) reset to defaults.
+   * rebuilds the Skill's INTRINSIC design from the wizard, but CARRIES OVER the Improve-bought
+   * advancements that still apply to the rebuilt Skill — Sharpen Accuracy / Sharpen Damage·Healing /
+   * Lower Energy / Tune a Modifier — so a small edit (e.g. Near → Melee) no longer wipes them.
+   * An advancement that no longer fits (Sharpen Damage on a Skill that stopped rolling a die, a Tune
+   * on a Modifier that was removed, …) is dropped and, for a PC, its SP refunded; the structural
+   * Rank/Range/Modifier Improves fold back into the recomputed Rank cost as before.
    * Granted Skills are package-managed and free, so their fields are rewritten without SP changes.
    */
   async #commitEdit(name, system, rankCost) {
     const item = this.item ?? this.actor.items.get(this.#editId);
     if (!item) { this.#mode = "hub"; this.#draft = null; this.#editId = null; return this.render(); }
 
-    // Rewrite the Skill (flattened so any removed Modifier-growth keys can be deleted cleanly).
+    const cfg = CONFIG.PROJECTANIME;
+    const prev = item.system ?? {};
+    // Which advancement-only fields still apply to the rebuilt Skill? (The data model re-clamps each
+    // on save: Energy never below half base, Tune ≤ ceiling, Sharpen ≤ +3.)
+    const keepAccuracy = skillNeedsAccuracy(system);
+    const keepDamage = (cfg.dieEffects ?? []).includes(system.effect);
+    const growable = cfg.growableModifiers ?? {};
+    const keptGrowth = {};
+    for (const [k, v] of Object.entries(prev.modifierGrowth ?? {})) {
+      if (Number(v) > 0 && (system.modifiers ?? []).includes(k) && growable[k]) keptGrowth[k] = v;
+    }
+    const preserved = {
+      accuracyMod: keepAccuracy ? (prev.accuracyMod ?? 0) : 0,
+      damageMod: keepDamage ? (prev.damageMod ?? 0) : 0,
+      energyReduction: prev.energyReduction ?? 0
+    };
+    // Does an Improve ledger entry still earn its keep on the rebuilt Skill? Structural Improves
+    // (Rank/Range/Modifier) always fold into the recomputed Rank cost, so they never carry over.
+    const improveSurvives = (e) => {
+      switch (e.data?.op) {
+        case "accuracy": return keepAccuracy;
+        case "damage": return keepDamage;
+        case "growth": return !!keptGrowth[e.data?.key];
+        case "energy": return true;
+        default: return false;
+      }
+    };
+
+    // Rewrite the Skill (flattened so removed Modifier-growth keys can be deleted cleanly), carrying
+    // the surviving advancements forward.
     const update = foundry.utils.flattenObject({
       name, img: this.#draft.img || DEFAULT_SKILL_IMG,
-      system: { ...system, accuracyMod: 0, damageMod: 0, energyReduction: 0 }
+      system: { ...system, ...preserved }
     });
-    for (const key of Object.keys(item.system.modifierGrowth ?? {})) update[`system.modifierGrowth.-=${key}`] = null;
+    for (const key of Object.keys(prev.modifierGrowth ?? {})) update[`system.modifierGrowth.-=${key}`] = null;
+    for (const [key, val] of Object.entries(keptGrowth)) update[`system.modifierGrowth.${key}`] = val;
 
     // SP reconciliation is an actor concern — a standalone (world/compendium) Skill has no
     // ledger, and granted Skills are package-managed and free.
@@ -1338,20 +1371,23 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const sp = this.actor.system.skillPoints ?? {};
       const value = sp.value ?? 0;
       if (Array.isArray(sp.log)) {
-        // PC: log-based reconciliation — refund this Skill's prior entries (base + Improves), charge
-        // the new Rank cost, and replace its entries with one fresh base-cost entry.
-        const logged = this.#loggedFor(this.#editId);
-        const newValue = value + logged - rankCost;
+        // PC: log-based reconciliation — drop this Skill's prior entries, re-add one fresh base-cost
+        // entry plus the surviving Improves; the rest are refunded (their SP returns to the pool).
+        const entries = sp.log.filter((e) => e.ref === this.#editId);
+        const kept = entries.filter((e) => e.kind === "improve" && improveSurvives(e));
+        const logged = entries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const newSkillTotal = rankCost + kept.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const newValue = value + logged - newSkillTotal;
         if (newValue < 0) {
-          return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: rankCost - logged, sp: value }));
+          return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: newSkillTotal - logged, sp: value }));
         }
         const log = sp.log.filter((e) => e.ref !== this.#editId);
-        log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() });
+        log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() }, ...kept);
         await this.actor.update({ "system.skillPoints.value": newValue, "system.skillPoints.log": log });
       } else {
         // NPC: no per-Skill ledger — reconcile by the Rank-cost DELTA (refund the Skill's current
-        // cost, charge the new) and mirror it into the `spent` scalar. A rebuild also resets the
-        // Skill's Improve fields; NPC Improve spends aren't separately refundable (no ledger).
+        // cost, charge the new) and mirror it into the `spent` scalar. Surviving advancement fields
+        // are kept (already paid via `spent`); ones that no longer fit aren't separately refundable.
         const oldCost = Number(item.system.spCost) || 0;
         const delta = rankCost - oldCost;
         const newValue = value - delta;
