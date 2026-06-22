@@ -1,4 +1,4 @@
-import { monsterSPCost, memberPower, partyPower, effectivePartyPower, encounterBudget, actionEconomy, resolveActor } from "../helpers/encounter.mjs";
+import { monsterSPCost, monsterStarCost, memberPower, partyPower, effectivePartyPower, encounterBudget, actionEconomy, resolveActor } from "../helpers/encounter.mjs";
 import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -147,19 +147,23 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       }));
 
       let spent = 0;
+      let minionSpent = 0; // minion-tier share, for the AoE-swing cap warning
       context.encounter = (sys.encounter ?? []).map((entry) => {
         const a = resolveActor(entry.uuid);
         const qty = Math.max(1, entry.qty ?? 1);
         if (!a) return { uuid: entry.uuid, name: "—", img: "icons/svg/mystery-man.svg", qty, costLabel: "0", missing: true };
-        const cost = monsterSPCost(a);
+        const cost = monsterStarCost(a);
         const total = cost * qty;
         spent += total;
+        if (a.system?.tier === "minion") minionSpent += total;
         const tier = a.system?.tier ? cfg.monsterTiers[a.system.tier] : null;
+        const stars = Number(a.system?.stars) || 0;
         return {
           uuid: a.uuid, name: a.name, img: a.img, qty,
           costLabel: qty > 1 ? `${cost} ×${qty} = ${total}` : `${cost}`,
           tierLabel: tier ? game.i18n.localize(tier.label) : "",
-          tierColor: tier?.color ?? "var(--pa-line)"
+          tierColor: tier?.color ?? "var(--pa-line)",
+          stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null
         };
       });
       context.spent = spent;
@@ -172,6 +176,11 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       const econKey = { heavy: "actionEconHeavy", light: "actionEconLight", ok: "actionEconOk" }[econ.tone];
       context.actionEcon = econKey
         ? { tone: econ.tone, label: game.i18n.format(`PROJECTANIME.Party.${econKey}`, econ) }
+        : null;
+      // Minion-cap valve: if minions eat more than half the fight's SP, one AoE can vaporise the
+      // budget — flag it (the SP sum alone can't see that swing). Only when there's real spend.
+      context.minionWarn = (spent > 0 && minionSpent > spent * 0.5)
+        ? game.i18n.format("PROJECTANIME.Party.minionCapWarn", { pct: Math.round((minionSpent / spent) * 100) })
         : null;
     }
 

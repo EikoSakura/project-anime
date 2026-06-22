@@ -398,17 +398,27 @@ Hooks.once("init", function () {
     decimals: 0
   };
 
-  // Combo extra turn (rules p.13): "the moment it resolves you take an additional turn". A Combo
-  // scored on the roller's own turn flags the combat (dice.mjs maybeGrantComboTurn, GM-relayed);
-  // the next turn-advance consumes the flag and STAYS on that combatant — their extra turn — and
-  // marks the grant so a Combo during it can't chain another. Patched on the prototype so every
-  // advance path (tracker buttons, the HUD's End Turn relay) honors it.
+  // Extra-turn grants on `nextTurn` — patched on the prototype so every advance path (tracker
+  // buttons, the HUD's End Turn relay) honors them. Two stack on top of each other:
+  //   1. COMBO (rules p.13): "the moment it resolves you take an additional turn". A Combo scored on
+  //      the roller's own turn flags the combat (dice.mjs maybeGrantComboTurn, GM-relayed); the next
+  //      advance consumes the flag, STAYS on that combatant, and marks the grant so a Combo during it
+  //      can't chain another.
+  //   2. SOLO extra turns: an apex Solo monster acts multiple times per round (its Tier `turns`, +1
+  //      at ★4+). Each End-Turn while a Solo has turns left STAYS on it (a fresh turn) and ticks a
+  //      per-round counter; only the final one advances. The counter resets each round (the flag is
+  //      keyed to combat.round). A forced advance (`_paSkipExtra`, set by the Stunned skip) bypasses
+  //      BOTH so a stunned Solo still loses its turn instead of being handed an extra one.
   const CombatClass = CONFIG.Combat.documentClass ?? Combat;
-  if (!CombatClass.prototype._paComboPatched) {
+  if (!CombatClass.prototype._paNextTurnPatched) {
     const baseNextTurn = CombatClass.prototype.nextTurn;
     CombatClass.prototype.nextTurn = async function () {
-      const pending = this.getFlag("project-anime", "comboTurn");
+      // Forced advance (Stunned skip) — no extra turns, just pass.
+      if (this._paSkipExtra) { delete this._paSkipExtra; return baseNextTurn.call(this); }
       const cur = this.combatant;
+
+      // 1) Combo extra turn.
+      const pending = this.getFlag("project-anime", "comboTurn");
       if (pending && cur && pending === `${cur.id}:${this.round}`) {
         await this.update({
           "flags.project-anime.-=comboTurn": null,
@@ -424,9 +434,29 @@ Hooks.once("init", function () {
       }
       // A stale pending grant (the turn moved on some other way) dies with the advance.
       if (pending) await this.unsetFlag("project-anime", "comboTurn");
+
+      // 2) Solo extra turns — stay on a Solo until it has used its per-round turn allotment.
+      if (cur && this.started) {
+        const turns = soloTurnsPerRound(cur);
+        if (turns > 1) {
+          const tracker = this.getFlag("project-anime", "soloTurn");
+          const used = (tracker && tracker.round === this.round) ? (Number(tracker.used) || 0) : 0;
+          if (used < turns - 1) {
+            await this.setFlag("project-anime", "soloTurn", { round: this.round, used: used + 1 });
+            if (cur.actor) {
+              ChatMessage.create({
+                speaker: ChatMessage.getSpeaker({ actor: cur.actor }),
+                content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.soloTurn", { name: cur.actor.name, n: used + 2, total: turns })}</em></div></div>`
+              });
+            }
+            return this; // hold the turn on the Solo — its next action
+          }
+          if (tracker) await this.unsetFlag("project-anime", "soloTurn"); // allotment spent → advance
+        }
+      }
       return baseNextTurn.call(this);
     };
-    CombatClass.prototype._paComboPatched = true;
+    CombatClass.prototype._paNextTurnPatched = true;
   }
 
   // Document classes.
@@ -791,6 +821,18 @@ async function tickStatusDurations(actor) {
   }
 }
 
+/** How many combat turns a combatant takes per round (action economy). A Monster-role Solo takes its
+ *  Tier's `turns` (2), bumped to 3 at the apex ★4+; everything else takes 1. Drives the Solo extra-turn
+ *  logic in the `nextTurn` patch — tunable via PROJECTANIME.monsterTiers[…].turns. */
+function soloTurnsPerRound(combatant) {
+  const a = combatant?.actor;
+  if (a?.type !== "npc" || (a.system?.role ?? "monster") === "npc") return 1;
+  const tier = PROJECTANIME.monsterTiers?.[a.system?.tier];
+  let turns = tier?.turns ?? 1;
+  if (a.system?.tier === "solo" && (Number(a.system?.stars) || 0) >= 4) turns += 1;
+  return Math.max(1, turns);
+}
+
 /** Runaway guard: bounds the chain of consecutive Stunned skips so a status that somehow can't be
  *  cleared can never spin the tracker forever. Reset whenever the turn lands on a non-Stunned actor. */
 let stunnedSkipChain = 0;
@@ -807,6 +849,9 @@ async function tickStunned(combat, started) {
   stunnedSkipChain += 1;
   tickCard(actor, game.i18n.format("PROJECTANIME.Effect.stunnedSkip", { name: actor.name }));
   await actor.toggleStatusEffect?.("stunned", { active: false });
+  // Force a real advance: this is a SKIP, so the extra-turn grants (Combo / Solo) must not fire and
+  // hand a stunned creature another turn. The flag is consumed at the top of the nextTurn patch.
+  combat._paSkipExtra = true;
   await combat.nextTurn();   // re-enters combatTurnTick for the now-current combatant (chains if also Stunned)
   return true;
 }
@@ -1386,6 +1431,47 @@ async function backfillSkillPointLog() {
 }
 
 /* -------------------------------------------- */
+/*  NPC Skill-Point ledger backfill (one-time)  */
+/* -------------------------------------------- */
+
+// Give existing NPCs the SAME refundable Skill-Point ledger PCs carry, synthesised from current
+// state so "Spent" stays correct once the ledger view takes over: one refundable "skill" entry per
+// self-built Skill, plus one non-refundable "legacy" lump for the remainder of the old `spent`
+// scalar (the attribute / stat advancement). GM-side, once per NPC (flag "npcStarLogBackfilled").
+// NOTE: we deliberately do NOT auto-stamp a ★ star rating here — a legacy NPC was built against the
+// global Encounter Power dial, not a known star, so guessing a star would both mislabel it and shift
+// its encounter-tally cost (monsterStarCost prices off the star). Unrated NPCs (stars 0) keep the
+// legacy monsterSPCost pricing → existing prepped fights are unchanged. The GM rates a monster when
+// they choose, via the Monster Creator's star picker (or the sheet).
+async function backfillNpcSkillLog() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  const updates = [];
+  for (const actor of game.actors) {
+    if (actor.type !== "npc") continue;
+    if (actor.getFlag("project-anime", "npcStarLogBackfilled")) continue;
+    const sys = actor.system ?? {};
+    const upd = { _id: actor.id, "flags.project-anime.npcStarLogBackfilled": true };
+    // Ledger seed: skip NPCs already on the log (created after this feature).
+    const sp = sys.skillPoints ?? {};
+    if (!Array.isArray(sp.log) || !sp.log.length) {
+      const log = [];
+      let skillsTotal = 0;
+      for (const item of actor.items) {
+        if (item.type !== "skill" || item.getFlag("project-anime", "granted")) continue;
+        const amount = Number(item.system?.spCost ?? 0) || 0;
+        if (amount > 0) { log.push({ id: foundry.utils.randomID(), label: item.name, amount, kind: "skill", ref: item.id, data: {}, time: null }); skillsTotal += amount; }
+      }
+      // The old `spent` scalar tracked skills + advancement; the non-skill remainder is the legacy lump.
+      const advance = Math.max(0, (Number(sp.spent) || 0) - skillsTotal);
+      if (advance > 0) log.push({ id: foundry.utils.randomID(), label: game.i18n.localize("PROJECTANIME.SkillLog.legacy"), amount: advance, kind: "legacy", ref: "", data: {}, time: null });
+      upd["system.skillPoints.log"] = log;
+    }
+    updates.push(upd);
+  }
+  if (updates.length) await Actor.updateDocuments(updates);
+}
+
+/* -------------------------------------------- */
 /*  Natural Attack backfill (one-time)          */
 /* -------------------------------------------- */
 
@@ -1593,6 +1679,9 @@ Hooks.once("ready", function () {
 
   // One-time: seed the Skill-Point ledger from existing skills + past advancement.
   backfillSkillPointLog();
+
+  // One-time: give pre-existing NPCs their own refundable Skill-Point ledger (left unrated by ★).
+  backfillNpcSkillLog();
 
   // One-time: give pre-existing creatures their innate Natural Attack.
   backfillNaturalAttacks();

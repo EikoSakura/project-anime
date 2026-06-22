@@ -1295,7 +1295,8 @@
       "statusExpired": "{status} wears off {name}.",
       "defeated": "{name} is Defeated!",
       "recovered": "{name} recovers to {hp} HP as combat ends.",
-      "comboTurn": "{name} takes an extra turn from the Combo!"
+      "comboTurn": "{name} takes an extra turn from the Combo!",
+      "soloTurn": "{name} acts again — turn {n} of {total}!"
     },
     "Dossier": {
       "title": "Dossier",
@@ -1655,7 +1656,8 @@
       "tierStepUps": "Step-Ups",
       "tierVital": "HP / Energy",
       "tierEvaDef": "Eva / Def",
-      "encounterPower": "Encounter Power",
+      "stars": "Star Rating",
+      "encounterPower": "Power",
       "pickTierFirst": "Pick a Tier first.",
       "stepsLeft": "Step-Ups left",
       "stepsRemaining": "Distribute all Step-Ups first ({n} left).",
@@ -1706,6 +1708,7 @@
       "actionEconOk": "Action economy looks balanced — {monsters} monsters vs {players} players.",
       "actionEconHeavy": "{monsters} monsters vs {players} players — they'll out-act the party (aim {low}–{high}).",
       "actionEconLight": "Only {monsters} for {players} players — lean on Elite/Solo threats (aim {low}–{high}).",
+      "minionCapWarn": "Minions are {pct}% of this budget — one AoE could clear the field.",
       "dropPCs": "Drag Player Characters here.",
       "dropMonsters": "Drag monsters here.",
       "dropItems": "Drag items here.",

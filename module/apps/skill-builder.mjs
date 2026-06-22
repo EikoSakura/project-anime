@@ -1385,9 +1385,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() }, ...kept);
         await this.actor.update({ "system.skillPoints.value": newValue, "system.skillPoints.log": log });
       } else {
-        // NPC: no per-Skill ledger — reconcile by the Rank-cost DELTA (refund the Skill's current
-        // cost, charge the new) and mirror it into the `spent` scalar. Surviving advancement fields
-        // are kept (already paid via `spent`); ones that no longer fit aren't separately refundable.
+        // Fallback for an actor with no ledger (NPCs now carry one, so this is rarely hit): reconcile
+        // by the Rank-cost DELTA (refund the Skill's current cost, charge the new) and mirror it into
+        // the `spent` scalar. Surviving advancement fields are kept; ones that no longer fit aren't
+        // separately refundable.
         const oldCost = Number(item.system.spCost) || 0;
         const delta = rankCost - oldCost;
         const newValue = value - delta;

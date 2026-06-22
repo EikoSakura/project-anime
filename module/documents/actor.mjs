@@ -49,7 +49,8 @@ export function enforceEquipExclusivity(actor, item) {
  * removing a Skill by ANY path (drawer trash, Skill-Builder, creator, drag-out) returns the
  * SP that was logged against it and prunes its ledger entries — the ledger never dangles, and
  * a Skill's SP is always recoverable (matching the "remove = refund" creation behaviour).
- * Only the user who made the deletion runs it (they own the actor); a no-op for NPCs (no log).
+ * Only the user who made the deletion runs it (they own the actor). Works for Characters AND NPCs
+ * now that both carry the ledger; a no-op only for an actor that genuinely has no `log` array.
  */
 export function refundSkillOnDelete(item, userId) {
   if (game.user.id !== userId) return;
@@ -159,12 +160,12 @@ export class ProjectAnimeActor extends Actor {
   /* -------------------------------------------- */
 
   /**
-   * Spend Skill Points and record the transaction. Deducts `amount` from the unspent pool; an
-   * actor WITH a ledger (a PC) appends a refundable `log` entry describing the purchase, while an
-   * actor WITHOUT one (an NPC) tallies the spend into the legacy `spent` scalar instead — the
-   * derived SP readout (skill-points.mjs) already adds that scalar, so the Total stays balanced
-   * either way. Any additional document changes for the purchase (the raised attribute, the bought
-   * stat) are passed in `changes` and written in the same atomic update. Callers check affordability.
+   * Spend Skill Points and record the transaction. Deducts `amount` from the unspent pool and appends
+   * a refundable `log` entry describing the purchase. Characters AND NPCs both carry the ledger now, so
+   * both take the log path; the `spent`-scalar branch is a defensive fallback for any actor that somehow
+   * lacks a `log` array (it shouldn't happen post-migration). Any additional document changes for the
+   * purchase (the raised attribute, the bought stat) are passed in `changes` and written in the same
+   * atomic update. Callers check affordability.
    * @param {{amount:number, label:string, kind:string, ref?:string, data?:object, changes?:object}} entry
    */
   async recordSkillPointSpend({ amount, label, kind, ref = "", data = {}, changes = {} }) {

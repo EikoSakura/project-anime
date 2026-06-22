@@ -809,33 +809,72 @@ PROJECTANIME.npcRoles = {
 PROJECTANIME.encounterPowerDefault = 6;
 
 /**
- * Monster "Tier" — the anime power-ranking the Monster Creator stamps on an NPC. A monster
- * is built on the same rules as a Player Character (the five Attributes start at d4 and you
- * spend Step-Ups; HP = ⟪Might⟫×2, Energy = ⟪Spirit⟫×2); the Tier scales that baseline up.
- *
- * Two knobs SCALE with the GM's Encounter Power dial (see getEncounterPower / tierScaling),
- * so monsters keep pace as the party accumulates Skill Points over a campaign — bump the
- * dial and newly-built monsters rescale:
- *   • `spFactor`  — Skill Points granted = round(EncounterPower × spFactor). Read the factor
- *                   as "how many PCs' worth of skills": Elite 1 (a peer), Solo 2.5.
- *   • `vitalBase` — base HP/Energy multiplier on ⟪Might⟫×2 / ⟪Spirit⟫×2; the EFFECTIVE
- *                   multiplier grows with the dial = vitalBase × (EncounterPower / default).
- * The other knobs are FIXED per Tier — Attributes cap at d12 for everyone, so a Tier's dice
- * already top out near a maxed PC's and need no runaway scaling:
- *   • `stepUps`   — the Attribute Step-Up budget (a starting PC gets 5).
+ * Monster "Tier" — the anime combat ROLE / shape an NPC plays (minion / standard / elite / solo),
+ * INDEPENDENT of its power level (that's the per-NPC ★ star rating — see PROJECTANIME.starPower).
+ * A monster is built on the same rules as a Player Character (the five Attributes start at d4 and
+ * you spend Step-Ups; HP = ⟪Might⟫×2, Energy = ⟪Spirit⟫×2); the ★ rating sets the build BUDGET and
+ * the Tier sets the SHAPE it's spent in. So a "★1 Solo" and a "★5 Minion" are both legal and mean
+ * something different. Stars own MAGNITUDE; the Tier owns the split + frame + role:
+ *   • `spFactor`  — Skill Points granted = round(power × spFactor), where `power` = the ★ rating's
+ *                   local Encounter Power (starPower) or the global dial when unstarred. Read the
+ *                   factor as "how many PCs' worth of skills": Elite 1 (a peer), Solo 2.5.
+ *   • `vitalBase` — base HP/Energy multiplier on ⟪Might⟫×2 / ⟪Spirit⟫×2; the EFFECTIVE multiplier
+ *                   grows with the power = vitalBase × (power / default).
+ *   • `stepUps`   — the Attribute Step-Up budget (a starting PC gets 5). Attributes cap at d12 for
+ *                   everyone, so a Tier's dice top out near a maxed PC's and need no star scaling.
  *   • `evasion` / `defense` — flat bonuses written to the NPC's Evasion / Defense Bonus.
- * All plain, easily-tuned numbers (like `skillRanks`) — a starting point to iterate on, not
- * a finished balance pass. `icon` / `color` drive the Tier badge on the NPC sheet header.
+ *   • `evaDefCost` — what those flat Eva/Def are worth in Skill Points for ENCOUNTER PRICING only
+ *                    (monsterStarCost). PCs can't buy flat Eva/Def, so it isn't a build cost — but a
+ *                    boss's +2/+2 is real threat and must be priced into the budget.
+ *   • `turns` — combat turns this Tier takes PER ROUND (action economy). Solo takes 2 (3 at ★4+),
+ *               the rest take 1. Wired into the turn loop (see project-anime.mjs nextTurn patch).
+ * All plain, easily-tuned numbers (like `skillRanks`) — a starting point to iterate on, not a
+ * finished balance pass. `icon` / `color` drive the ★-Tier badge on the NPC sheet header.
+ * NOTE: `vitalBase` only affects NEW derivations (the Monster Creator); a built NPC stores concrete
+ * HP/EN, so retuning these never moves an existing statblock.
  */
 PROJECTANIME.monsterTiers = {
-  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5 },
-  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75 },
-  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.5,  evasion: 1, defense: 1, spFactor: 1 },
-  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3,    evasion: 2, defense: 2, spFactor: 2.5 }
+  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5,  evaDefCost: 0, turns: 1 },
+  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75, evaDefCost: 0, turns: 1 },
+  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.75, evasion: 1, defense: 1, spFactor: 1,    evaDefCost: 1, turns: 1 },
+  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3.5,  evasion: 2, defense: 2, spFactor: 2.5,  evaDefCost: 3, turns: 2 }
 };
 
 /** Iteration order for monster Tiers (weakest → strongest). */
 PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
+
+/* -------------------------------------------- */
+/*  Star rating (per-NPC power level)           */
+/* -------------------------------------------- */
+
+/**
+ * A monster's per-NPC ★ star rating (1–5) → its LOCAL Encounter Power, substituted for the global
+ * dial when building and pricing THAT one NPC. This is the single new magnitude knob the star
+ * system introduces. GEOMETRIC (~1.5×/step) so each rank is a felt "wall" (the anime / gacha rank
+ * jump), and ANCHORED so ★2 = the default dial of 6 — which means an unrated NPC left at the
+ * on-level ★2 reproduces today's numbers exactly (zero-break migration). ★0 / unrated = fall back
+ * to the global getEncounterPower() dial. Plain, tunable numbers.
+ */
+PROJECTANIME.starPower = { 1: 4, 2: 6, 3: 9, 4: 14, 5: 22 };
+
+/** Highest star rating offered (the picker + clamp ceiling). */
+PROJECTANIME.maxStars = 5;
+
+/** The ★ a legacy tier-only NPC reads as "on level" — used ONLY for the one-time cosmetic star seed
+ *  and as the Monster Creator's default star when a Tier is first picked. Never auto-derived after. */
+PROJECTANIME.tierOnLevelStar = { minion: 1, standard: 2, elite: 3, solo: 4 };
+
+/** A star rating's local Encounter Power, or 0 if it's outside the 1..maxStars band (unrated). */
+export function starPowerValue(stars) {
+  const s = Number(stars) || 0;
+  return (s >= 1 && s <= PROJECTANIME.maxStars) ? (PROJECTANIME.starPower[s] ?? 0) : 0;
+}
+
+/** The power an NPC is built/priced against: its ★ rating's local power, else the global dial. The
+ *  ONE substitution that makes stars a per-NPC override of the campaign Encounter Power. */
+export function starOrDialPower(actor) {
+  return starPowerValue(actor?.system?.stars) || getEncounterPower();
+}
 
 /** World-setting key for the Monster Creator's Encounter Power dial. */
 export const ENCOUNTER_POWER_SETTING = "encounterPower";

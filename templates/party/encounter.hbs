@@ -48,11 +48,14 @@
     {{#if actionEcon}}
     <p class="party-econ {{actionEcon.tone}}"><i class="fas fa-users-between-lines"></i> {{actionEcon.label}}</p>
     {{/if}}
+    {{#if minionWarn}}
+    <p class="party-econ heavy"><i class="fas fa-skull"></i> {{minionWarn}}</p>
+    {{/if}}
     <div class="party-drop" data-drop="encounter">
       {{#each encounter as |m|}}
       <div class="party-row{{#if m.missing}} missing{{/if}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.tierColor}}">
         <img src="{{m.img}}" alt="" data-action="openActor" />
-        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{m.tierLabel}}</span>{{/if}}</span>
+        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{#if m.stars}}<span class="party-row-stars">{{#each m.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}{{m.tierLabel}}</span>{{/if}}</span>
         <span class="party-row-cost"><i class="fas fa-star"></i> {{m.costLabel}}</span>
         {{#if @root.editable}}
         <span class="party-qty">

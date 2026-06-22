@@ -45,8 +45,9 @@
           <span class="sp-stat total"><span class="sp-val">{{spInfo.total}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.total"}}</span></span>
         </div>
 
-        {{#if @root.isCharacter}}
-        {{!-- Opens the Skill Point Log dialog (the scrollable, refundable transaction ledger). --}}
+        {{#if @root.showSpLog}}
+        {{!-- Opens the Skill Point Log dialog (the scrollable, refundable transaction ledger).
+              Characters + Monster-role NPCs (both carry the ledger). --}}
         <a class="sp-log-open" data-action="openSkillLog">
           <i class="fas fa-scroll"></i> {{localize "PROJECTANIME.SkillLog.title"}}
           {{#if spLogCount}}<span class="sp-log-count">{{spLogCount}}</span>{{/if}}

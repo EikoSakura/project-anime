@@ -43,6 +43,15 @@
   {{!-- ===================== 2 · TIER ===================== --}}
   {{#if onTier}}
   <section class="cc-step-body cc-tier">
+    <div class="cc-star-row">
+      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.stars"}}</span>
+      <div class="cc-star-pick" role="radiogroup">
+        {{#each starButtons as |s|}}
+        <button type="button" class="cc-star{{#if s.filled}} on{{/if}}" data-action="pickStars" data-stars="{{s.n}}"
+                title="{{s.n}}" aria-label="{{s.n}}"><i class="fas fa-star"></i></button>
+        {{/each}}
+      </div>
+    </div>
     <div class="cc-tier-power">
       <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.encounterPower"}}</span>
       <span class="cc-tier-power-val">{{encounterPower}}</span>
@@ -209,7 +218,7 @@
         <span class="cc-review-name">{{name}}</span>
         {{#if tierBadge}}
         <span class="cc-tier-badge" style="--tier-color: {{tierBadge.color}}">
-          <i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}
+          {{#if tierBadge.stars}}<span class="cc-badge-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}<i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}
         </span>
         {{/if}}
       </div>

@@ -385,16 +385,39 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
       choices: PROJECTANIME.dispositions
     });
 
-    // Monster "Tier" — the anime power-ranking the Monster Creator stamps on (see
+    // Monster "Tier" — the anime combat ROLE / shape the Monster Creator stamps on (see
     // PROJECTANIME.monsterTiers). A free StringField (not `choices`-locked) so the Tier
     // table can be renamed/retuned freely and hand-editing stays valid; "" = an untiered
     // NPC (a plain NPC the GM didn't run through the Monster Creator).
     schema.tier = new fields.StringField({ required: false, blank: true, initial: "" });
 
-    // Tracked so the Scouter accessory can reveal an NPC's Skill Points.
+    // Star rating (1–5) — the NPC's per-monster POWER LEVEL, the partner to its Tier (role). It is a
+    // LOCAL Encounter Power: substituted for the global dial when the Monster Creator builds/scales
+    // this NPC and when the encounter budget prices it (see helpers/config.mjs starPower /
+    // starOrDialPower). 0 = unrated → fall back to the global dial (and the badge hides the stars).
+    schema.stars = new fields.NumberField({ required: false, integer: true, initial: 0, min: 0, max: 5 });
+
+    // Tracked so the Scouter accessory can reveal an NPC's Skill Points. NPCs now carry the SAME
+    // refundable ledger PCs do: `log` is the source of truth for "Spent" once present, so the Skill
+    // Point Log dialog + recordSkillPointSpend treat NPCs and PCs identically (documents/actor.mjs
+    // routes a spend to the log when it's an array). The `spent` scalar is LEGACY — kept so old data
+    // validates and the one-time NPC backfill (project-anime.mjs) can read pre-ledger spend from it.
     schema.skillPoints = new fields.SchemaField({
       value: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
-      spent: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
+      spent: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
+      log: new fields.ArrayField(
+        new fields.SchemaField({
+          id: new fields.StringField({ required: true, blank: false }),
+          label: new fields.StringField({ required: true, blank: true }),
+          amount: new fields.NumberField({ ...requiredInteger, initial: 0 }),
+          // "skill" | "improve" | "attribute" | "stat" | "legacy" — drives the icon + how Refund reverses it.
+          kind: new fields.StringField({ required: true, blank: false, initial: "skill" }),
+          ref: new fields.StringField({ required: false, blank: true, initial: "" }),
+          data: new fields.ObjectField({ required: false }),
+          time: new fields.NumberField({ required: false, nullable: true, initial: null })
+        }),
+        { initial: [] }
+      )
     });
 
     // Role — "monster" (the combat statblock: Tier + Monster Creator, hostile) or "npc" (a social

@@ -6,7 +6,7 @@
  * fight (Budget = Party SP × difficulty). Kept free of any ApplicationV2 import so the Party
  * sheet, its data model, and anything else can read it.
  */
-import { PROJECTANIME } from "./config.mjs";
+import { PROJECTANIME, starPowerValue } from "./config.mjs";
 import { skillPointLedger } from "./skill-points.mjs";
 import { partyMembers } from "./party-folder.mjs";
 
@@ -59,6 +59,26 @@ export function monsterSPCost(actor) {
     if (item.type === "skill") cost += Number(item.system?.spCost ?? item.system?.rank ?? 0) || 0;
   }
   return Math.max(0, Math.round(cost));
+}
+
+/**
+ * Price a STAR-RATED monster for the encounter tally. A star-built NPC is costed by what it was
+ * GRANTED — its star power × the Tier's spFactor (the SP budget the Monster Creator built it on),
+ * plus the Tier's flat Eva/Def surcharge (`evaDefCost`, what a boss's untouchable +1/+1 or +2/+2 is
+ * worth, since PCs can't buy it and monsterSPCost prices it at zero). We do NOT re-derive a star
+ * NPC's cost from its sheet: the geometric star multiplier (up to ×22) would let monsterSPCost's
+ * light HP weighting (÷6) and zero-priced Eva/Def under-count a beefy boss, so an under-built ★5
+ * Solo could be smuggled into a fight cheap. Pricing from the grant keeps the creator and the tally
+ * in agreement — a Solo costs its full threat whether or not the GM spent every point. UNRATED NPCs
+ * (stars 0, or no Tier) keep the exact legacy monsterSPCost path → existing fights are unchanged.
+ */
+export function monsterStarCost(actor) {
+  const sys = actor?.system ?? {};
+  const power = starPowerValue(sys.stars);
+  const tier = PROJECTANIME.monsterTiers?.[sys.tier];
+  if (!power || !tier) return monsterSPCost(actor);
+  const grant = Math.round(power * (tier.spFactor ?? 0));
+  return Math.max(0, grant + (tier.evaDefCost ?? 0));
 }
 
 /** Resolve a stored actor reference (UUID) synchronously; null if it's gone. */

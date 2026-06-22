@@ -18,7 +18,7 @@
  * class (plus `monster-creator` for the Tier-specific bits).
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
-import { tierScaling, getEncounterPower } from "../helpers/config.mjs";
+import { tierScaling, starOrDialPower } from "../helpers/config.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -52,6 +52,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       gotoStep: MonsterCreatorApp.#onGotoStep,
       pickImage: MonsterCreatorApp.#onPickImage,
       pickTier: MonsterCreatorApp.#onPickTier,
+      pickStars: MonsterCreatorApp.#onPickStars,
       raiseAttr: MonsterCreatorApp.#onRaiseAttr,
       lowerAttr: MonsterCreatorApp.#onLowerAttr,
       recalcVitals: MonsterCreatorApp.#onRecalcVitals,
@@ -79,10 +80,16 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /*  Tier helpers                                */
   /* -------------------------------------------- */
 
-  /** The selected Tier's EFFECTIVE entry at the current Encounter Power (scaled Skill
-   *  Points + HP multiplier, fixed knobs spread through), or null while untiered. */
+  /** The local power this monster builds against: its ★ rating's power, else the global dial. The
+   *  whole build pipeline (SP grant, HP/EN multiplier) keys off this one number. */
+  #power() {
+    return starOrDialPower(this.actor);
+  }
+
+  /** The selected Tier's EFFECTIVE entry at this monster's local power (scaled Skill Points + HP
+   *  multiplier, fixed knobs spread through), or null while untiered. */
   #tier() {
-    return this.actor.system.tier ? tierScaling(this.actor.system.tier) : null;
+    return this.actor.system.tier ? tierScaling(this.actor.system.tier, this.#power()) : null;
   }
 
   /** Attribute Step-Up budget = the selected Tier's allotment (0 until one is picked). */
@@ -140,10 +147,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.biography = sys.biography ?? "";
     ctx.disposition = sys.disposition ?? "hostile";
 
-    // Tier — the cards (Skill Points + HP multiplier scaled to the current Encounter
-    // Power) + the selected key. The dial readout shows the basis for those numbers.
-    const power = getEncounterPower();
+    // Star rating — the per-NPC power LEVEL (1..maxStars). It drives the local power that scales the
+    // Tier cards below; 0 = unrated, in which case the build falls back to the global dial.
+    const stars = Number(sys.stars) || 0;
+    ctx.stars = stars;
+    ctx.starButtons = Array.from({ length: cfg.maxStars }, (_, i) => ({ n: i + 1, filled: i < stars }));
+
+    // Tier — the cards (Skill Points + HP multiplier scaled to THIS monster's local power: its ★
+    // rating's power, else the global dial) + the selected key. The readout shows the basis.
+    const power = this.#power();
     ctx.encounterPower = power;
+    ctx.starRated = stars >= 1;
     ctx.tierKey = sys.tier ?? "";
     ctx.tiers = cfg.monsterTierKeys.map((k) => {
       const t = cfg.monsterTiers[k];
@@ -198,7 +212,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       carry: sys.carryingCapacity.max
     };
     ctx.vitalNote = game.i18n.format("PROJECTANIME.MonsterCreator.vitalNote", { mult: ctx.mult, tier: ctx.tierName });
-    ctx.vitalsStale = sys.hp.max !== Math.round(might * 2 * rawMult) || (sys.energy.base ?? sys.energy.max) !== Math.round(spirit * 2 * rawMult);
+    ctx.vitalsStale = sys.hp.max !== Math.max(4, Math.round(might * 2 * rawMult)) || (sys.energy.base ?? sys.energy.max) !== Math.max(4, Math.round(spirit * 2 * rawMult));
 
     // Basic Attacks — natural weapons. The rules' "Basic Attack" strikes with an equipped
     // weapon and costs NO Energy (and no Skill Points); these roll through rollAttack from
@@ -226,7 +240,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
 
     // Review (last step) — a compact summary card.
     ctx.tierBadge = this.#tier()
-      ? { label: ctx.tierName, icon: this.#tier().icon, color: this.#tier().color }
+      ? { label: ctx.tierName, icon: this.#tier().icon, color: this.#tier().color, stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null }
       : null;
     ctx.skillCount = ctx.skills.length;
 
@@ -345,12 +359,13 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     }
   }
 
-  /** Set HP and Energy to full from the current attributes × the Tier multiplier. */
+  /** Set HP and Energy to full from the current attributes × the Tier multiplier. Floored at a small
+   *  minimum so a ★1 Minion (multiplier well under 1) never derives a degenerate sub-4 pool. */
   async #applyVitals() {
     const a = this.actor.system.attributes;
     const mult = this.#mult();
-    const hp = Math.round(a.might.base * 2 * mult);
-    const energy = Math.round(a.spirit.base * 2 * mult);
+    const hp = Math.max(4, Math.round(a.might.base * 2 * mult));
+    const energy = Math.max(4, Math.round(a.spirit.base * 2 * mult));
     await this.actor.update({
       "system.hp.max": hp,
       "system.hp.value": hp,
@@ -383,22 +398,51 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
    *  re-fit the Step-Up budget, and re-derive HP/Energy (all while still creating). */
   static async #onPickTier(event, target) {
     const key = target.closest("[data-tier]")?.dataset.tier;
-    const tier = tierScaling(key);   // scaled to the current Encounter Power
-    if (!tier) return;
+    if (!CONFIG.PROJECTANIME.monsterTiers[key]) return;
     const creating = !this.actor.getFlag("project-anime", "creationComplete");
+    const update = { "system.tier": key };
+    // An unrated monster gets its Tier's "on-level" star by default the first time a Tier is picked
+    // (minion ★1 … solo ★4), so the rating reads sensibly out of the box; the picker overrides it.
+    if (!(Number(this.actor.system.stars) >= 1)) update["system.stars"] = CONFIG.PROJECTANIME.tierOnLevelStar[key] ?? 2;
+    await this.actor.update(update);
+    await this.#applyTierBuild(creating);
+    this.render();
+  }
+
+  /** Pick a Star rating (the per-NPC power level): stamp it, then re-grant SP / re-derive vitals
+   *  against the new local power (only while creating, so a finished monster keeps its spent SP). */
+  static async #onPickStars(event, target) {
+    const n = Number(target.closest("[data-stars]")?.dataset.stars);
+    if (!(n >= 1 && n <= CONFIG.PROJECTANIME.maxStars)) return;
+    // Click the current top star again to clear the rating back to unrated (fall to the global dial).
+    const next = (n === Number(this.actor.system.stars)) ? 0 : n;
+    await this.actor.update({ "system.stars": next });
+    await this.#applyTierBuild(!this.actor.getFlag("project-anime", "creationComplete"));
+    this.render();
+  }
+
+  /** Re-apply the Tier build at this monster's current local power: flat Eva/Def, the (re-)granted
+   *  Skill-Point pool while creating, the re-fit Step-Up budget, and the re-derived HP/Energy. Shared
+   *  by Tier and Star picks so the two axes always recompute together. No-op without a Tier. */
+  async #applyTierBuild(creating) {
+    const tier = this.#tier();   // scaled to the current local power (star or dial)
+    if (!tier) return;
     const update = {
-      "system.tier": key,
       "system.evasion.bonus": tier.evasion,
       "system.defense.bonus": tier.defense
     };
-    // Seed the Skill-Point pool to the Tier's (scaled) grant — only while creating, so
-    // re-opening the creator on a finished monster never wipes points it has already spent.
-    if (creating) update["system.skillPoints.value"] = tier.skillPoints;
+    // Re-seed the unspent Skill-Point pool to the (scaled) grant MINUS what's already on the ledger —
+    // only while creating, so changing Tier/★ rescales the budget without refunding skills already
+    // built this session (and re-opening a finished monster never wipes its spent points at all).
+    if (creating) {
+      const sp = this.actor.system.skillPoints ?? {};
+      const spent = Array.isArray(sp.log) ? sp.log.reduce((s, e) => s + (Number(e.amount) || 0), 0) : (sp.spent ?? 0);
+      update["system.skillPoints.value"] = Math.max(0, tier.skillPoints - spent);
+    }
     await this.actor.update(update);
-    // If the new Tier has a smaller budget than what's already spent, trim the excess.
+    // If the Tier's budget is smaller than what's already spent on dice, trim the excess.
     await this.#fitStepUps(tier.stepUps);
     if (creating) await this.#applyVitals();
-    this.render();
   }
 
   /** Lower the largest dice (one step at a time) until spent Step-Ups fit `budget`. */

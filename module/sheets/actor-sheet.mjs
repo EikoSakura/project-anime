@@ -245,11 +245,15 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.isMonster = context.isNPC && context.npcRole !== "npc";
     // A social NPC's combat statblock is collapsible (default folded) — see stats.hbs.
     context.statblockOpen = this.#statblockOpen;
-    // Monster Tier badge — only on a Monster-role NPC (a social NPC isn't Tiered). null otherwise.
+    // Monster ★-Tier badge — only on a Monster-role NPC (a social NPC isn't Tiered). The star count
+    // is the per-NPC power rating; rendered as N filled stars before the tier label ("★★★ Elite").
     const tierKey = context.isMonster ? this.actor.system.tier : null;
     const tierCfg = tierKey ? CONFIG.PROJECTANIME.monsterTiers?.[tierKey] : null;
+    const tierStars = context.isMonster ? (Number(this.actor.system.stars) || 0) : 0;
     context.tierBadge = tierCfg
-      ? { label: game.i18n.localize(tierCfg.label), icon: tierCfg.icon, color: tierCfg.color }
+      ? { label: game.i18n.localize(tierCfg.label), icon: tierCfg.icon, color: tierCfg.color,
+          stars: tierStars >= 1 ? Array.from({ length: tierStars }, (_, i) => i) : null,
+          apex: tierStars >= CONFIG.PROJECTANIME.maxStars }
       : null;
     // The toggled <prose-mirror> shows enriched HTML while collapsed and loads the raw
     // value (+ this UUID, for content links) when editing — the PF2e click-to-edit
@@ -581,6 +585,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const { spInfo, spLog } = skillPointLedger(this.actor);
     context.spInfo = spInfo;
     context.spLogCount = spLog?.length ?? 0;
+    // The refundable Skill Point Log dialog opens for Characters and Monster-role NPCs (which now
+    // carry the same ledger); social NPCs stay excluded — they don't build a statblock.
+    context.showSpLog = context.isCharacter || context.isMonster;
 
     // Packages (ability bundles, e.g. a chosen Race) carried by the actor — shown as chips
     // at the top of the Skills drawer; each grants its abilities via the Grant engine.

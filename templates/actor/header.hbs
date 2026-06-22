@@ -51,7 +51,8 @@
     {{#if isNPC}}
     <select name="system.disposition">{{selectOptions config.dispositions selected=system.disposition localize=true}}</select>
     {{#if tierBadge}}
-    <span class="tier-badge" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
+    <span class="tier-badge{{#if tierBadge.apex}} apex{{/if}}" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
+      {{#if tierBadge.stars}}<span class="tier-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span>{{/if}}
       <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>
     </span>
     {{/if}}

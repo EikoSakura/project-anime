@@ -4143,6 +4143,31 @@
 }
 .project-anime.sheet.actor .tier-badge i { color: var(--tier-color); }
 .project-anime.sheet.actor .tier-badge span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ★ rating before the tier label ("★★★ Elite") — gold, snug. */
+.project-anime.sheet.actor .tier-badge .tier-stars { display: inline-flex; gap: 0.05rem; color: var(--pa-gold); font-size: 0.6rem; }
+.project-anime.sheet.actor .tier-badge .tier-stars i { color: var(--pa-gold); }
+/* Apex (★max) telegraphs a top threat in red-gold. */
+.project-anime.sheet.actor .tier-badge.apex { background: color-mix(in srgb, #c0392b 18%, var(--pa-field)); border-color: color-mix(in srgb, #c0392b 55%, var(--pa-line)); }
+.project-anime.sheet.actor .tier-badge.apex .tier-stars,
+.project-anime.sheet.actor .tier-badge.apex .tier-stars i { color: #f1c40f; }
+
+/* Star rating picker (Monster Creator, Tier step) — a row of toggle stars above the power readout. */
+.project-anime.monster-creator .cc-star-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.35rem 0.7rem; margin-bottom: 0.5rem; border-radius: 7px;
+  background: var(--pa-panel); border: 1px solid var(--pa-line);
+}
+.project-anime.monster-creator .cc-star-pick { display: inline-flex; gap: 0.15rem; }
+.project-anime.monster-creator button.cc-star {
+  background: none; border: none; cursor: pointer; padding: 0.1rem; line-height: 1;
+  font-size: 1.05rem; color: color-mix(in srgb, var(--pa-ink-soft) 55%, transparent);
+  transition: color 0.1s ease, transform 0.1s ease;
+}
+.project-anime.monster-creator button.cc-star:hover { transform: scale(1.15); color: var(--pa-gold); }
+.project-anime.monster-creator button.cc-star.on { color: var(--pa-gold); text-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 45%, transparent); }
+/* ★ in the Review badge + the encounter-tally row. */
+.project-anime.monster-creator .cc-tier-badge .cc-badge-stars { display: inline-flex; gap: 0.05rem; color: var(--pa-gold); }
+.project-anime.party-sheet .party-row-stars { color: var(--pa-gold); font-size: 0.58rem; margin-right: 0.1rem; }
 
 /* -------------------------------------------------------------------------- */
 /*  14d. Party sheet (encounter-budget planner)                               */
