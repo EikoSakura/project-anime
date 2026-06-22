@@ -37,6 +37,7 @@ import { reconcileHQBoons } from "./helpers/hq-boons.mjs";
 import { reconcileTraits } from "./helpers/trait-effect.mjs";
 import { reconcileBonds } from "./helpers/bond-effect.mjs";
 import { registerPartySettings } from "./apps/party-config.mjs";
+import { isMinionTier, setSquadSize, isSquad, squadMembers, squadSize } from "./helpers/squad.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
 const { ActorSheet, ItemSheet } = foundry.appv1.sheets;
@@ -62,6 +63,11 @@ const ROTATION_DEFAULTS_SETTING = "tokenRotationDefaultsApplied";
 // Hidden world flag — set once after the world is seeded with its starter Party, so every game
 // ships with one. Guarding it means a GM who later deletes the party isn't fighting a respawn.
 const DEFAULT_PARTY_SETTING = "defaultPartyProvisioned";
+
+// Hidden world flag — set once after legacy Encounter-Builder lines (the old per-entry "× qty"
+// multiplier) migrate to the squad model: a minion's qty becomes its squad SIZE, a non-minion's
+// qty becomes that many individual lines. See migrateEncounterSquads.
+const ENCOUNTER_SQUAD_MIGRATION_SETTING = "encounterSquadsMigrated";
 
 /* -------------------------------------------- */
 /*  Init                                        */
@@ -274,7 +280,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, UNARMED_DMG_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, UNARMED_DMG_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ENCOUNTER_SQUAD_MIGRATION_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -1183,7 +1189,14 @@ function paDrawBar(number, bar, data) {
     }
   }
 
-  paBarLabel(bar, `${data.value} / ${data.max}`, innerW, bh);
+  // A Minion Squad pools its HP; the HP bar (number 0) appends its living-member count so the GM
+  // reads "12 / 24 · 3◊" — three of the squad still standing — straight off the token.
+  let labelText = `${data.value} / ${data.max}`;
+  if (number === 0) {
+    const actor = doc.actor;
+    if (actor && isSquad(actor)) labelText += ` · ${squadMembers(actor)}/${squadSize(actor)}◊`;
+  }
+  paBarLabel(bar, labelText, innerW, bh);
   return true;
 }
 
@@ -1552,6 +1565,40 @@ async function backfillWeaponTypes() {
 }
 
 /* -------------------------------------------- */
+/*  Encounter squad migration (one-time)        */
+/* -------------------------------------------- */
+
+// Retire the old Encounter-Builder "× quantity" multiplier. Each legacy line carried a `qty`; under
+// the new squad model a Minion fields as ONE pooled squad (qty → its squad SIZE) and a Standard /
+// Elite / Solo is one body per line (qty → that many individual lines). Consumes `qty` (it is a
+// transitional field) and normalizes every party's encounter array. GM-side, once per world.
+async function migrateEncounterSquads() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", ENCOUNTER_SQUAD_MIGRATION_SETTING)) return;
+  for (const party of game.actors) {
+    if (party.type !== "party") continue;
+    const list = party.system?.encounter ?? [];
+    if (!list.length || !list.some((e) => e?.qty != null)) continue;   // nothing legacy to consume
+    const next = [];
+    for (const e of list) {
+      const qty = Number(e?.qty);
+      const n = Number.isFinite(qty) && qty > 1 ? Math.floor(qty) : 1;
+      const actor = e?.uuid ? (fromUuidSync(e.uuid) ?? null) : null;
+      if (actor && isMinionTier(actor)) {
+        if (n > 1) await setSquadSize(actor, n);                       // a stack → one squad of n
+        next.push({ id: e.id || foundry.utils.randomID(), uuid: e.uuid });
+      } else if (n > 1) {
+        for (let i = 0; i < n; i++) next.push({ id: foundry.utils.randomID(), uuid: e.uuid }); // n bodies
+      } else {
+        next.push({ id: e.id || foundry.utils.randomID(), uuid: e.uuid });
+      }
+    }
+    await party.update({ "system.encounter": next });
+  }
+  await game.settings.set("project-anime", ENCOUNTER_SQUAD_MIGRATION_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Always-on token bars backfill (one-time)    */
 /* -------------------------------------------- */
 
@@ -1691,6 +1738,10 @@ Hooks.once("ready", function () {
 
   // One-time: seed each weapon/shield's Type from its name (they were named after their type).
   backfillWeaponTypes();
+
+  // One-time: migrate legacy Encounter-Builder "× qty" lines to the squad model (minion qty → squad
+  // size; non-minion qty → individual lines).
+  migrateEncounterSquads();
 
   // One-time (v0.01): reconcile the gear compendiums to the rules doc's tables.
   if (paIsActiveGM() && !game.settings.get("project-anime", PACK_AUDIT_SETTING)) {

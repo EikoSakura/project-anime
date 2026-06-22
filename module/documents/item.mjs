@@ -1,4 +1,5 @@
-import { rollAttack, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
+import { rollAttack, rollSquadStrike, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
+import { isSquad } from "../helpers/squad.mjs";
 
 /**
  * Extends the base Item with Project: Anime behaviour: roll data and a
@@ -19,7 +20,11 @@ export class ProjectAnimeItem extends Item {
    */
   async roll(options = {}) {
     if (this.actor) {
-      if (this.type === "weapon" || this.type === "shield") return rollAttack(this.actor, this, options);
+      if (this.type === "weapon" || this.type === "shield") {
+        // A Minion Squad's Basic Attack strikes once per living member, as one consolidated volley.
+        if (isSquad(this.actor)) return rollSquadStrike(this.actor, this, options);
+        return rollAttack(this.actor, this, options);
+      }
       if (this.type === "skill") return rollSkill(this.actor, this, options);
       if (this.type === "consumable") return postConsumableCard(this.actor, this);
     }

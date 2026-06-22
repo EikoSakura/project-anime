@@ -844,6 +844,34 @@ PROJECTANIME.monsterTiers = {
 PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
 
 /* -------------------------------------------- */
+/*  Minion Squads (pooled-unit hordes)          */
+/* -------------------------------------------- */
+
+/**
+ * A MINION is the only Tier that fields in numbers, and it does so as a SQUAD — a single
+ * combat unit (one token, one initiative, one pooled HP bar), NOT N independent bodies. This
+ * is the 13th-Age mob / Draw-Steel squad / Genesys minion-group model, and it replaces the old
+ * per-row "× quantity" multiplier on the Encounter Builder. The squad's max HP is its per-member
+ * HP × its size (so area damage spills naturally across the unit), and a Basic Attack strikes
+ * once per living member (dice.mjs rollSquadStrike) — durability AND output scale with the count,
+ * which is what keeps the unit's encounter price honest. Standard / Elite / Solo never squad: each
+ * is its own body (drag the actor again to field another).
+ */
+
+/** Squad pricing is SUB-LINEAR: a pooled, one-initiative swarm threatens less than the same number
+ *  of independent monsters (it acts once, dies to one good AoE), so its Skill-Point cost is the
+ *  single minion's price × size × this factor. ~0.5 = "a party-sized wave ≈ one real threat". */
+PROJECTANIME.squadSwarmFactor = 0.5;
+
+/** Default size a freshly-dropped minion squad takes when the party size is unknown (manual mode):
+ *  Draw Steel buys minions four at a time; we mirror that. The Encounter Builder prefers the live
+ *  player count when it has one. */
+PROJECTANIME.squadDefaultSize = 4;
+
+/** Hard ceiling on a squad's member count (the +/- stepper and the size clamp). */
+PROJECTANIME.squadMaxSize = 12;
+
+/* -------------------------------------------- */
 /*  Star rating (per-NPC power level)           */
 /* -------------------------------------------- */
 

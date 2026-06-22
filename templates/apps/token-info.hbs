@@ -20,6 +20,12 @@
       </div>
       <div class="bar"><div class="fill hp-fill" style="width: {{hp.pct}}%"></div></div>
     </div>
+    {{#if squad}}
+    <div class="ti-stat ti-squad">
+      <span class="k"><i class="fas fa-people-group"></i> {{localize "PROJECTANIME.Party.squadMembers"}}</span>
+      <span class="v">{{squad.members}} / {{squad.max}}</span>
+    </div>
+    {{/if}}
     <div class="resource energy">
       <div class="resource-top">
         <label>{{localize "PROJECTANIME.Stat.energy"}}</label>

@@ -248,6 +248,8 @@ export class TokenInfoPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       badge,
       vitals,
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, pct: pct(hp.value, hp.max) },
+      // Minion Squad: living / total members (the pooled-HP unit reads "3 / 6 standing").
+      squad: sys.squad?.isSquad ? { members: sys.squad.members ?? 0, max: sys.squad.maxMembers ?? 0 } : null,
       energy: { value: energy.value ?? 0, max: energy.max ?? 0, pct: pct(energy.value, energy.max) },
       sp: { show: hasSkillPoints && can("skillPoints"), value: totalSkillPoints(actor) },
       customFields: customFieldRows(actor, { full: view.owner, reveals, surface: "panel" })

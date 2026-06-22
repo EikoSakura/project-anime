@@ -1,5 +1,6 @@
-import { monsterSPCost, monsterStarCost, memberPower, partyPower, effectivePartyPower, encounterBudget, actionEconomy, resolveActor } from "../helpers/encounter.mjs";
+import { memberPower, partyPower, effectivePartyPower, encounterBudget, encounterLines, actionEconomy, effectivePlayers } from "../helpers/encounter.mjs";
 import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
+import { isMinionTier, setSquadSize } from "../helpers/squad.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
@@ -126,7 +127,10 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
         return { id: i.id, name: i.name, img: i.img, qty: qty > 1 ? qty : null, cost: Number(i.system?.cost) || 0 };
       });
 
-    // Encounter tab (GM only) — difficulty, budget, and the monster tally.
+    // Encounter tab (GM only) — difficulty, the SP "Power" budget, and the planned threats. The fight
+    // is read on TWO gauges: Power (Skill-Point threat vs the budget) and Bodies (turns/round vs the
+    // players, the action-economy axis the SP sum can't see). Minions field as one pooled Squad line
+    // (a size stepper, not a quantity multiplier); Standard/Elite/Solo are individual lines.
     if (isGM) {
       // Budget basis: typed total Skill Points in manual-estimate mode (plan a fight with no
       // built roster), else the live roster's summed power.
@@ -146,41 +150,30 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
         active: context.difficulty === k
       }));
 
-      let spent = 0;
-      let minionSpent = 0; // minion-tier share, for the AoE-swing cap warning
-      context.encounter = (sys.encounter ?? []).map((entry) => {
-        const a = resolveActor(entry.uuid);
-        const qty = Math.max(1, entry.qty ?? 1);
-        if (!a) return { uuid: entry.uuid, name: "—", img: "icons/svg/mystery-man.svg", qty, costLabel: "0", missing: true };
-        const cost = monsterStarCost(a);
-        const total = cost * qty;
-        spent += total;
-        if (a.system?.tier === "minion") minionSpent += total;
-        const tier = a.system?.tier ? cfg.monsterTiers[a.system.tier] : null;
-        const stars = Number(a.system?.stars) || 0;
-        return {
-          uuid: a.uuid, name: a.name, img: a.img, qty,
-          costLabel: qty > 1 ? `${cost} ×${qty} = ${total}` : `${cost}`,
-          tierLabel: tier ? game.i18n.localize(tier.label) : "",
-          tierColor: tier?.color ?? "var(--pa-line)",
-          stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null
-        };
-      });
+      const lines = encounterLines(this.actor);
+      context.encounter = lines.map((l) => ({
+        ...l,
+        starsArr: l.stars >= 1 ? Array.from({ length: l.stars }, (_, i) => i) : null,
+        // Squad lines read "Squad ×N · cost" with living/total members; individuals read a flat cost.
+        squadLabel: l.isMinion ? game.i18n.format("PROJECTANIME.Party.squadOf", { n: l.size }) : "",
+        membersLabel: (l.isMinion && l.maxMembers > 1) ? `${l.members}/${l.maxMembers}` : "",
+        costLabel: `${l.cost}`
+      }));
+      const spent = lines.reduce((s, l) => s + (l.cost || 0), 0);
       context.spent = spent;
-      context.budgetTotal = context.budget;
       context.over = spent > context.budget;
       context.usePct = context.budget > 0 ? Math.clamp(Math.round((spent / context.budget) * 100), 0, 100) : 0;
 
-      // Action-economy guide — head-count vs players (the SP budget can't see action economy).
+      // Bodies gauge — turns/round vs the players (a Squad is 1 body whatever its size; a Solo is 2–3).
       const econ = actionEconomy(this.actor);
+      context.players = econ.players;
+      context.bodies = econ.bodies;
+      context.bodiesTarget = econ.players;
+      context.bodiesTone = econ.tone;
+      context.bodiesPct = Math.clamp(Math.round((econ.bodies / Math.max(1, econ.high)) * 100), 0, 100);
       const econKey = { heavy: "actionEconHeavy", light: "actionEconLight", ok: "actionEconOk" }[econ.tone];
       context.actionEcon = econKey
         ? { tone: econ.tone, label: game.i18n.format(`PROJECTANIME.Party.${econKey}`, econ) }
-        : null;
-      // Minion-cap valve: if minions eat more than half the fight's SP, one AoE can vaporise the
-      // budget — flag it (the SP sum alone can't see that swing). Only when there's real spend.
-      context.minionWarn = (spent > 0 && minionSpent > spent * 0.5)
-        ? game.i18n.format("PROJECTANIME.Party.minionCapWarn", { pct: Math.round((minionSpent / spent) * 100) })
         : null;
     }
 
@@ -246,9 +239,18 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     } else if (slot === "encounter") {
       if (actor.type !== "npc") return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.encounterAreMonsters"));
       const list = foundry.utils.deepClone(this.actor.system.encounter ?? []);
-      const existing = list.find((e) => e.uuid === actor.uuid);
-      if (existing) existing.qty = (existing.qty ?? 1) + 1;
-      else list.push({ uuid: actor.uuid, qty: 1 });
+      if (isMinionTier(actor)) {
+        // Minions field as ONE pooled Squad line — re-dropping the same minion doesn't stack lines;
+        // its numbers are the squad SIZE, not a count of lines. First time fielded, size it to the
+        // party (Daggerheart "a group ≈ party size"), so a dropped wave is a real squad straight away.
+        if (!list.some((e) => e.uuid === actor.uuid)) {
+          list.push({ id: foundry.utils.randomID(), uuid: actor.uuid });
+          if ((Number(actor.system?.squad?.size) || 1) < 2) await setSquadSize(actor, Math.max(2, effectivePlayers(this.actor)));
+        }
+      } else {
+        // Standard / Elite / Solo are individuals — each drop is its own body (its own line).
+        list.push({ id: foundry.utils.randomID(), uuid: actor.uuid });
+      }
       await this.actor.update({ "system.encounter": list });
     }
   }
@@ -294,24 +296,24 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     if (actor) await actor.update({ folder: null }); // leaving the folder = leaving the party
   }
 
+  /** Remove one encounter LINE by its stable id (duplicates of the same NPC are distinct lines). */
   static async #onRemoveMonster(event, target) {
-    const uuid = target.closest("[data-uuid]")?.dataset.uuid;
-    if (!uuid) return;
-    await this.actor.update({ "system.encounter": (this.actor.system.encounter ?? []).filter((e) => e.uuid !== uuid) });
+    const id = target.closest("[data-line-id]")?.dataset.lineId;
+    if (!id) return;
+    await this.actor.update({ "system.encounter": (this.actor.system.encounter ?? []).filter((e) => e.id !== id) });
   }
 
-  static async #onIncMonster(event, target) { await this.#bumpMonster(target, +1); }
-  static async #onDecMonster(event, target) { await this.#bumpMonster(target, -1); }
+  static async #onIncMonster(event, target) { await this.#resizeSquad(target, +1); }
+  static async #onDecMonster(event, target) { await this.#resizeSquad(target, -1); }
 
-  /** Change a monster entry's quantity (clamped to ≥ 1). */
-  async #bumpMonster(target, delta) {
+  /** Grow/shrink a Minion line's SQUAD (its pooled member count lives on the NPC — helpers/squad.mjs).
+   *  Resizing the actor doesn't re-render the party sheet on its own, so force a redraw afterward. */
+  async #resizeSquad(target, delta) {
     const uuid = target.closest("[data-uuid]")?.dataset.uuid;
-    if (!uuid) return;
-    const list = foundry.utils.deepClone(this.actor.system.encounter ?? []);
-    const entry = list.find((e) => e.uuid === uuid);
-    if (!entry) return;
-    entry.qty = Math.max(1, (entry.qty ?? 1) + delta);
-    await this.actor.update({ "system.encounter": list });
+    const actor = uuid ? await fromUuid(uuid) : null;
+    if (!actor || !isMinionTier(actor)) return;
+    await setSquadSize(actor, (Number(actor.system?.squad?.size) || 1) + delta);
+    this.render();
   }
 
   static async #onRemoveStashItem(event, target) {

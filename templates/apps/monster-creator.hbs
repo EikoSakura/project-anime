@@ -143,6 +143,19 @@
       <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.MonsterCreator.recalc"}}
     </button>
     {{/if}}
+    {{#if isMinion}}
+    <div class="cc-squad">
+      <div class="cc-squad-head">
+        <span class="cc-v-label"><i class="fas fa-people-group"></i> {{localize "PROJECTANIME.MonsterCreator.squad"}}</span>
+        <span class="cc-squad-stepper">
+          <button type="button" class="party-q" data-action="decSquad"><i class="fas fa-minus"></i></button>
+          <span class="party-q-n">{{squadSize}}</span>
+          <button type="button" class="party-q" data-action="incSquad"><i class="fas fa-plus"></i></button>
+        </span>
+      </div>
+      <p class="cc-squad-note muted">{{localize "PROJECTANIME.MonsterCreator.squadNote"}} — <strong>{{squadMemberHp}}</strong> × {{squadSize}} = <strong>{{squadTotalHp}}</strong> {{localize "PROJECTANIME.Stat.hp"}}</p>
+    </div>
+    {{/if}}
   </section>
   {{/if}}
 

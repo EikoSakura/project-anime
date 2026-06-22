@@ -65,13 +65,26 @@
     <div class="resource hp">
       <div class="resource-top">
         <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
+        {{#if system.squad.isSquad}}
+        {{!-- Minion Squad: HP is pooled (per-member × members, derived) — the max is read-only here so
+              a sheet edit can't be silently overwritten; size it in the Monster Creator / Encounter Builder. --}}
+        <span class="resource-vals">
+          <input type="number" name="system.hp.value" value="{{system.hp.value}}" min="0" />
+          <span class="sep">/</span>
+          <span class="num" data-tooltip="{{localize 'PROJECTANIME.MonsterCreator.squadNote'}}">{{system.hp.max}}</span>
+        </span>
+        {{else}}
         <span class="resource-vals">
           <input type="number" name="system.hp.value" value="{{system.hp.value}}" min="0" />
           <span class="sep">/</span>
           <input type="number" name="system.hp.max" value="{{system.hp.max}}" min="0" />
         </span>
+        {{/if}}
       </div>
       <div class="bar"><div class="fill hp-fill" style="width: {{hpPct}}%"></div></div>
+      {{#if system.squad.isSquad}}
+      <div class="squad-line muted"><i class="fas fa-people-group"></i> {{system.squad.members}} / {{system.squad.maxMembers}} {{localize "PROJECTANIME.Party.squadMembers"}}</div>
+      {{/if}}
     </div>
     <div class="resource energy">
       <div class="resource-top">

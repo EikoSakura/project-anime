@@ -19,6 +19,7 @@
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
 import { tierScaling, starOrDialPower } from "../helpers/config.mjs";
+import { setSquadSize } from "../helpers/squad.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -56,6 +57,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       raiseAttr: MonsterCreatorApp.#onRaiseAttr,
       lowerAttr: MonsterCreatorApp.#onLowerAttr,
       recalcVitals: MonsterCreatorApp.#onRecalcVitals,
+      incSquad: MonsterCreatorApp.#onIncSquad,
+      decSquad: MonsterCreatorApp.#onDecSquad,
       addAttack: MonsterCreatorApp.#onAddAttack,
       editAttack: MonsterCreatorApp.#onEditAttack,
       removeAttack: MonsterCreatorApp.#onRemoveAttack,
@@ -212,7 +215,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       carry: sys.carryingCapacity.max
     };
     ctx.vitalNote = game.i18n.format("PROJECTANIME.MonsterCreator.vitalNote", { mult: ctx.mult, tier: ctx.tierName });
-    ctx.vitalsStale = sys.hp.max !== Math.max(4, Math.round(might * 2 * rawMult)) || (sys.energy.base ?? sys.energy.max) !== Math.max(4, Math.round(spirit * 2 * rawMult));
+    // A Minion is a SQUAD member: its derived HP is the PER-MEMBER pool, so "stale" compares the
+    // per-member value (memberHp) rather than the pooled max; everyone else compares hp.max directly.
+    const isMinion = sys.tier === "minion";
+    const perMemberHP = Math.max(4, Math.round(might * 2 * rawMult));
+    const storedPer = isMinion ? (Number(sys.squad?.memberHp) || sys.hp.max) : sys.hp.max;
+    ctx.vitalsStale = storedPer !== perMemberHP || (sys.energy.base ?? sys.energy.max) !== Math.max(4, Math.round(spirit * 2 * rawMult));
+    // Squad controls (Minion Tier only): size stepper + the pooled-HP breakdown (per-member × size).
+    ctx.isMinion = isMinion;
+    ctx.squadSize = Math.max(1, Number(sys.squad?.size) || 1);
+    ctx.squadMemberHp = Number(sys.squad?.memberHp) || perMemberHP;
+    ctx.squadTotalHp = ctx.squadMemberHp * ctx.squadSize;
 
     // Basic Attacks — natural weapons. The rules' "Basic Attack" strikes with an equipped
     // weapon and costs NO Energy (and no Skill Points); these roll through rollAttack from
@@ -366,12 +379,22 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     const mult = this.#mult();
     const hp = Math.max(4, Math.round(a.might.base * 2 * mult));
     const energy = Math.max(4, Math.round(a.spirit.base * 2 * mult));
-    await this.actor.update({
+    const update = {
       "system.hp.max": hp,
-      "system.hp.value": hp,
       "system.energy.max": energy,
       "system.energy.value": energy
-    });
+    };
+    // A Minion fields as a SQUAD: the derived HP is its PER-MEMBER pool. Record it (the data model
+    // derives the EFFECTIVE max = memberHp × size at size ≥ 2) and fill the pooled bar; non-minions
+    // store HP straight. So re-deriving vitals rescales the whole squad without losing its size.
+    if (this.actor.system.tier === "minion") {
+      const size = Math.max(1, Number(this.actor.system.squad?.size) || 1);
+      update["system.squad.memberHp"] = hp;
+      update["system.hp.value"] = hp * size;
+    } else {
+      update["system.hp.value"] = hp;
+    }
+    await this.actor.update(update);
   }
 
   /* -------------------------------------------- */
@@ -486,6 +509,18 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
 
   static async #onRecalcVitals() {
     await this.#applyVitals();
+  }
+
+  static async #onIncSquad() { await this.#resizeSquad(+1); }
+  static async #onDecSquad() { await this.#resizeSquad(-1); }
+
+  /** Grow/shrink the Minion's squad: ensure the per-member pool is recorded first (so the very first
+   *  resize on a fresh minion derives from its current HP), then setSquadSize refills the pooled bar. */
+  async #resizeSquad(delta) {
+    if (this.actor.system.tier !== "minion") return;
+    if (!(Number(this.actor.system.squad?.memberHp) > 0)) await this.#applyVitals();
+    await setSquadSize(this.actor, (Number(this.actor.system.squad?.size) || 1) + delta);
+    this.render();
   }
 
   /* -------------------------------------------- */

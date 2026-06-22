@@ -1,4 +1,5 @@
-{{!-- Encounter tab (GM-only part): difficulty → budget, and the monster tally vs that budget. --}}
+{{!-- Encounter tab (GM-only part): difficulty → budget, read on two gauges (Power = SP threat,
+      Bodies = action economy), and the planned threats — Minion squads + individual Standard/Elite/Solo. --}}
 <section class="party-pane{{#if onEncounter}} active{{/if}}" data-pane="encounter">
   <div class="party-section party-budget">
     <label class="party-manual-toggle">
@@ -42,27 +43,43 @@
   <div class="party-section">
     <h3 class="party-title">
       <i class="fas fa-skull"></i> {{localize "PROJECTANIME.Party.encounter"}}
-      <span class="party-spent{{#if over}} over{{/if}}">{{spent}} / {{budget}}</span>
     </h3>
-    <div class="party-meter"><div class="party-meter-fill{{#if over}} over{{/if}}" style="width: {{usePct}}%"></div></div>
+
+    {{!-- Two gauges: Power (SP threat vs budget) and Bodies (turns/round vs players). --}}
+    <div class="party-gauges">
+      <div class="party-gauge">
+        <div class="party-gauge-head">
+          <span class="party-gauge-label"><i class="fas fa-bolt"></i> {{localize "PROJECTANIME.Party.powerGauge"}}</span>
+          <span class="party-gauge-val{{#if over}} over{{/if}}">{{spent}} / {{budget}}</span>
+        </div>
+        <div class="party-meter"><div class="party-meter-fill{{#if over}} over{{/if}}" style="width: {{usePct}}%"></div></div>
+      </div>
+      <div class="party-gauge">
+        <div class="party-gauge-head">
+          <span class="party-gauge-label"><i class="fas fa-users-between-lines"></i> {{localize "PROJECTANIME.Party.bodiesGauge"}}</span>
+          <span class="party-gauge-val {{bodiesTone}}">{{bodies}} / {{bodiesTarget}}</span>
+        </div>
+        <div class="party-meter"><div class="party-meter-fill {{bodiesTone}}" style="width: {{bodiesPct}}%"></div></div>
+      </div>
+    </div>
     {{#if actionEcon}}
     <p class="party-econ {{actionEcon.tone}}"><i class="fas fa-users-between-lines"></i> {{actionEcon.label}}</p>
     {{/if}}
-    {{#if minionWarn}}
-    <p class="party-econ heavy"><i class="fas fa-skull"></i> {{minionWarn}}</p>
-    {{/if}}
+
     <div class="party-drop" data-drop="encounter">
       {{#each encounter as |m|}}
-      <div class="party-row{{#if m.missing}} missing{{/if}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.tierColor}}">
+      <div class="party-row{{#if m.missing}} missing{{/if}}{{#if m.isMinion}} is-squad{{/if}}" data-line-id="{{m.id}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.tierColor}}">
         <img src="{{m.img}}" alt="" data-action="openActor" />
-        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{#if m.stars}}<span class="party-row-stars">{{#each m.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}{{m.tierLabel}}</span>{{/if}}</span>
+        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{#if m.starsArr}}<span class="party-row-stars">{{#each m.starsArr}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}{{m.tierLabel}}</span>{{/if}}{{#if m.isMinion}}<span class="party-row-squad">{{m.squadLabel}}{{#if m.membersLabel}} · <i class="fas fa-heart-pulse"></i> {{m.membersLabel}}{{/if}}</span>{{/if}}</span>
         <span class="party-row-cost"><i class="fas fa-star"></i> {{m.costLabel}}</span>
         {{#if @root.editable}}
-        <span class="party-qty">
+        {{#if m.isMinion}}
+        <span class="party-qty" data-tooltip="{{localize 'PROJECTANIME.Party.squadSizeHint'}}">
           <button type="button" class="party-q" data-action="decMonster"><i class="fas fa-minus"></i></button>
-          <span class="party-q-n">{{m.qty}}</span>
+          <span class="party-q-n">{{m.size}}</span>
           <button type="button" class="party-q" data-action="incMonster"><i class="fas fa-plus"></i></button>
         </span>
+        {{/if}}
         <button type="button" class="party-x" data-action="removeMonster" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
         {{/if}}
       </div>

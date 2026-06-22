@@ -6,6 +6,7 @@ import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
 } from "./templates.mjs";
+import { squadMembers } from "./squad.mjs";
 
 /**
  * Project: Anime dice engine — Checks/Tests, attacks, damage and skill rolls,
@@ -710,6 +711,80 @@ export async function rollAttack(actor, item, { event } = {}) {
     buttons
   }), roll, { combo });
   return roll;
+}
+
+/**
+ * A MINION SQUAD's Basic Attack (helpers/squad.mjs): the unit strikes once per LIVING member, so a
+ * squad's output scales with its size exactly as its durability does (pooled HP) — which is what keeps
+ * its sub-linear encounter price honest. Each member rolls its own to-hit against the single target's
+ * Evasion and, on a hit, its own damage (so per-hit Defense / affinity apply — a tough, armoured target
+ * shrugs off chaff, the swarm's built-in counter). The whole volley resolves to ONE consolidated,
+ * undoable chat card. Combo extra-turns and Luck are intentionally NOT offered to a chaff swarm. Falls
+ * back to a single rollAttack outside a real squad or with no target to resolve hits against.
+ */
+export async function rollSquadStrike(actor, weapon, { event } = {}) {
+  const members = squadMembers(actor);
+  const target = firstTargetActor();
+  if (members < 2 || !target) return rollAttack(actor, weapon, { event });
+
+  const acc = weapon.system?.accuracy ?? {};
+  const attrA = acc.attrA ?? "might";
+  const attrB = acc.attrB ?? "agility";
+  let mod = Number(acc.mod) || 0;
+  const evasion = Number(target.system?.evasion?.value) || 0;
+
+  // One situational-modifier prompt for the whole volley (Shift-click skips it).
+  if (!event?.shiftKey) {
+    const info = `<p class="hint">${i18n("PROJECTANIME.Roll.squadStrikeHint", { n: members, name: target.name, eva: evasion })}</p>`;
+    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.squadStrike"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, infoHTML: info });
+    if (!choice) return null;
+    mod += choice.mod;
+  }
+  // Shared roll / weapon Attack modifiers, read once for the unit.
+  const rmods = collectRollModifiers(actor, "attack", { target });
+  mod += rmods.flat;
+  const wmods = collectWeaponModBonuses(actor, weapon, { src: weapon, target });
+  if (wmods.attack) mod += wmods.attack;
+  const { dieA, dieB } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true, target });
+
+  let hits = 0;
+  let total = 0;
+  let lastDtype = "physical";
+  let pool = "hp";
+  const strip = [];
+  for (let i = 0; i < members; i++) {
+    const r = new Roll(checkFormula(dieA, dieB, mod));
+    await r.evaluate();
+    const hit = r.total >= evasion;
+    strip.push(`<span class="squad-die ${hit ? "hit" : "miss"}">${r.total}</span>`);
+    if (!hit) continue;
+    hits += 1;
+    const dmg = await computeDamageRoll(actor, weapon, { target });
+    const adj = adjustForTarget(dmg.raw, dmg.dtype, target, { ignoresDefense: dmg.ignoresDefense, heal: false, pool: dmg.pool });
+    total += Math.max(0, adj.amount);
+    lastDtype = dmg.dtype;
+    pool = dmg.pool;
+  }
+
+  // Apply the volley as one barrier-aware lump, recorded as an undoable damage row.
+  const rows = [];
+  const notes = [`<div class="squad-volley">${strip.join("")}</div>`];
+  if (total > 0) {
+    const bc = barrierCalc(target, { amount: total, heal: false, line: `<strong>${total}</strong> ${elementLabel(lastDtype)}` }, pool);
+    await routeApply(target, target.uuid, total, false, pool);
+    rows.push({ uuid: target.uuid, name: target.name, img: target.img, amount: bc.amount, heal: false, pool, calc: bc.calc, undone: false });
+  }
+  notes.push(i18n("PROJECTANIME.Roll.squadResult", { hits, members, n: total, name: target.name }));
+
+  await postCard(actor, cardHTML({
+    title: weapon.name,
+    subtitle: i18n("PROJECTANIME.Roll.squadStrike"),
+    icon: weapon.img,
+    badges: [{ cls: hits ? "success" : "failure", text: i18n("PROJECTANIME.Roll.squadHits", { hits, members }) }],
+    lines: notes,
+    rows
+  }), null, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
+  return { hits, members, total };
 }
 
 /** A "Weapon"-range Skill borrows the equipped weapon's accuracy & damage. Returns that weapon

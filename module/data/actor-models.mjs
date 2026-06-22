@@ -397,6 +397,16 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
     // starOrDialPower). 0 = unrated → fall back to the global dial (and the badge hides the stars).
     schema.stars = new fields.NumberField({ required: false, integer: true, initial: 0, min: 0, max: 5 });
 
+    // MINION SQUAD — a Minion-Tier NPC fields as a pooled unit (helpers/squad.mjs). `size` is the
+    // member count (1 = a lone minion / not yet a squad); `memberHp` is the per-member HP pool,
+    // recorded the first time the unit becomes a squad so resizing recomputes cleanly. The EFFECTIVE
+    // max HP is derived (memberHp × size) below, but only at size ≥ 2 — so a size-1 minion keeps its
+    // authored HP and every non-Minion is untouched. Squad behaviour is inert outside the Minion Tier.
+    schema.squad = new fields.SchemaField({
+      size: new fields.NumberField({ ...requiredInteger, initial: 1, min: 1 }),
+      memberHp: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
+    });
+
     // Tracked so the Scouter accessory can reveal an NPC's Skill Points. NPCs now carry the SAME
     // refundable ledger PCs do: `log` is the source of truth for "Spent" once present, so the Skill
     // Point Log dialog + recordSkillPointSpend treat NPCs and PCs identically (documents/actor.mjs
@@ -507,16 +517,53 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
   }
 
   /** Seed each Talent's current `value` from its `base`, before Active Effects run (so a `talent`
-   *  rule can Bolster/Hinder the work die, mirroring how attributes are handled on the base). */
+   *  rule can Bolster/Hinder the work die), and pool a Minion Squad's max HP. */
   prepareBaseData() {
     super.prepareBaseData();
     for (const t of Object.values(this.talents ?? {})) t.value = t.base;
+    this.#poolSquadHp();
   }
 
-  /** Clamp each Talent's post-effect `value` to a legal die size (d4–d12), after Active Effects. */
+  /** Clamp each Talent's post-effect `value` to a legal die size (d4–d12), after Active Effects, then
+   *  read back the squad's living-member count. */
   prepareDerivedData() {
     super.prepareDerivedData();
     for (const t of Object.values(this.talents ?? {})) t.value = Math.clamp(t.value, 4, 12);
+    this.#deriveSquadMembers();
+  }
+
+  /** Minion Squad pooling (helpers/squad.mjs): at size ≥ 2 the EFFECTIVE max HP becomes the per-member
+   *  pool × the member count, so single-target AND area damage simply drain one shared bar (free
+   *  "spill-over"). This MUST run in prepareBaseData — BEFORE the base prepareDerivedData clamps
+   *  hp.value to hp.max — or a full squad's pooled current HP would be clamped down to one member's
+   *  worth. Stashes the per-member pool on `squad.per` for the member read-back. Engages only for the
+   *  Minion Tier at size ≥ 2; a size-1 minion and every other NPC keep their authored HP untouched. */
+  #poolSquadHp() {
+    const sq = this.squad ?? (this.squad = {});
+    const size = Math.max(1, Math.floor(Number(sq.size) || 1));
+    if (this.tier === "minion" && size >= 2) {
+      // Per-member pool: the recorded value, else the current (still per-member) max as one member's worth.
+      const per = Math.max(1, Number(sq.memberHp) || Number(this.hp.max) || 1);
+      sq.per = per;
+      sq.maxMembers = size;
+      sq.isSquad = true;
+      this.hp.max = per * size;
+    } else {
+      sq.per = Math.max(1, Number(this.hp.max) || 1);
+      sq.maxMembers = 1;
+      sq.isSquad = false;
+    }
+  }
+
+  /** Living members = ceil(current HP / per-member pool), clamped to the squad size (ad-hoc derived,
+   *  read by the bars, the token panel, the Encounter Builder, and the squad-strike). Runs in
+   *  prepareDerivedData, after the base has clamped hp.value to the (already pooled) max. */
+  #deriveSquadMembers() {
+    const sq = this.squad ?? (this.squad = {});
+    const per = Math.max(1, Number(sq.per) || 1);
+    sq.members = sq.isSquad
+      ? Math.min(sq.maxMembers, Math.ceil(this.hp.value / per))
+      : (this.hp.value > 0 ? 1 : 0);
   }
 
   /**
@@ -570,11 +617,17 @@ export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
       choices: PROJECTANIME.encounterDifficultyKeys
     });
 
-    // Planned encounter — monster (NPC) UUIDs, each with a quantity (for "3 of these").
+    // Planned encounter — one LINE per fielded threat (each a stable `id` so duplicates are distinct:
+    // dragging the same Elite twice = two bodies = two lines). A Minion line is a SQUAD whose member
+    // count lives on the NPC itself (system.squad.size, helpers/squad.mjs) — there is no per-line
+    // quantity any more, which retires the old "× N" multiplier. `qty` is a DEPRECATED transitional
+    // field: the one-time world migration (project-anime.mjs) turns a legacy minion's qty into its
+    // squad size and a non-minion's qty into that many individual lines, then clears it.
     schema.encounter = new fields.ArrayField(
       new fields.SchemaField({
+        id: new fields.StringField({ required: true, blank: false, initial: () => foundry.utils.randomID() }),
         uuid: new fields.StringField({ required: true, blank: false }),
-        qty: new fields.NumberField({ ...requiredInteger, initial: 1, min: 1 })
+        qty: new fields.NumberField({ required: false, nullable: true, integer: true, initial: null })
       }),
       { initial: [] }
     );
@@ -591,5 +644,14 @@ export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
     schema.gold = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
     return schema;
+  }
+
+  /** Give every legacy encounter line a stable `id` (older data stored only {uuid, qty}); the one-time
+   *  world migration then consumes `qty` into squad sizes / split lines. Idempotent. */
+  static migrateData(source) {
+    if (Array.isArray(source?.encounter)) {
+      for (const e of source.encounter) if (e && !e.id) e.id = foundry.utils.randomID();
+    }
+    return super.migrateData(source);
   }
 }
