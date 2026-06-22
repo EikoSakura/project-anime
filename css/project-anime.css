@@ -6996,6 +6996,9 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-hq .m-pct { font-family: var(--pa-font-display); font-size: 17px; font-weight: 800; color: var(--pa-gold-soft); }
 .pa-hq .m-bar { height: 9px; border-radius: 6px; background: rgba(0,0,0,.34); border: 1px solid var(--pa-line); overflow: hidden; }
 .pa-hq .m-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--pa-accent), var(--pa-gold)); transition: width .18s; }
+.pa-hq .m-ready { margin-top: 6px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--pa-ink-soft); }
+.pa-hq .m-ready i { opacity: .7; margin-right: 3px; }
+.pa-hq .m-ready .m-readyn { font-family: var(--pa-font-mono); font-size: 12px; color: var(--pa-gold-soft); }
 .pa-hq .m-cand-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 9px; }
 .pa-hq .m-cand { position: relative; height: 172px; cursor: pointer; --acc: var(--pa-gold-soft); transition: transform .14s; }
 .pa-hq .m-cand:hover { transform: translateY(-2px); }
@@ -7431,10 +7434,12 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .project-anime.actor .statblock.foldable .statblock-body { display: none; padding: 12px; }
 .project-anime.actor .statblock.foldable.open .statblock-body { display: flex; }
 
-/* A social NPC's portrait reads as a tarot CARD (chamfered gold frame, portrait orientation) instead
-   of the combat diamond — matching the Bond cards. Characters + Monsters keep the diamond. The
-   chamfered octagon clip mirrors the bond/covenant tarot frame; corner studs move to the 4 corners. */
-.project-anime.actor .portrait.portrait-card { width: 118px; height: 156px; margin-bottom: 1.6rem; }
+/* Every actor's portrait reads as a tarot CARD (chamfered gold frame, portrait orientation) — matching
+   the Bond cards — rather than the base combat diamond. The chamfered octagon clip mirrors the
+   bond/covenant tarot frame; corner studs move to the 4 corners. A Monster/NPC also nests a role crest
+   on the bottom edge (Characters don't), so the extra bottom clearance is gated to that crest below. */
+.project-anime.actor .portrait.portrait-card { width: 118px; height: 156px; }
+.project-anime.actor .portrait.portrait-card:has(.role-crest.nested) { margin-bottom: 1.6rem; }
 /* The Monster/NPC role crest nestled into the middle of the card's bottom line, straddling the edge. */
 .project-anime.actor .portrait.portrait-card .role-crest.nested { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); width: auto; min-width: 0; padding: 0; gap: 0; background: transparent; border: 0; z-index: 4; }
 .project-anime.actor .portrait.portrait-card .role-crest.nested:hover { background: transparent; border-color: transparent; }

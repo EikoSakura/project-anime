@@ -346,6 +346,7 @@
       "dispatch": "Dispatch",
       "durationLabel": "Duration",
       "turnsUnit": "turns",
+      "returnsIn": "Returns in",
       "testedBy": "Tested by",
       "rewardLabel": "Reward",
       "sendSquad": "Send squad",
@@ -692,7 +693,7 @@
       "commerce":    { "long": "Commerce" },
       "lore":        { "long": "Lore" },
       "medicine":    { "long": "Medicine" },
-      "hq": { "gold": "Gold yield", "sp": "SP yield", "success": "Mission success" }
+      "hq": { "gold": "Gold yield", "sp": "SP yield", "success": "Mission success", "haste": "Mission haste" }
     },
     "Stat": {
       "hp": "Hit Points",

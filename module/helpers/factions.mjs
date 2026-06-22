@@ -256,6 +256,28 @@ export function hqRewardBonus(actor, key) {
   return Math.max(0, total);
 }
 
+/** A backing actor's total Mission-haste — HQ turns this agent shaves off a dispatch's duration. Mirrors
+ *  hqRewardBonus: every `hq.haste` Trait Bonus row PLUS any `hq` effect rule's haste output (from a Trait
+ *  / Signature Trait / gear effect, via collectHQOutputs). Never negative. */
+export function hqHasteBonus(actor) {
+  const rows = Array.isArray(actor?.system?.traitBonuses) ? actor.system.traitBonuses : [];
+  let total = 0;
+  for (const b of rows) if (b?.target === "hq.haste") total += Math.round(Number(b.value) || 0);
+  total += Math.round(Number(collectHQOutputs(actor).haste) || 0);
+  return Math.max(0, total);
+}
+
+/** The effective dispatch duration for `mission` given the squad of backing actors being sent — the
+ *  posted `durationTurns` shaved by the squad's COMBINED Mission-haste (sum of hqHasteBonus), floored at
+ *  1 (a mission always takes at least one HQ turn). So a hastening agent (e.g. a Trait granting hq.haste)
+ *  brings the WHOLE squad home earlier. `agents` may contain nulls (a missing backing actor adds 0). */
+export function effectiveMissionDuration(mission, agents) {
+  const base = Math.max(1, Math.round(Number(mission?.durationTurns) || 1));
+  let haste = 0;
+  for (const a of (agents ?? [])) haste += hqHasteBonus(a);
+  return Math.max(1, base - Math.max(0, Math.round(haste)));
+}
+
 /** Localized label for a mission stat key ("talent.<k>" | "attr.<k>"). */
 export function statLabelFor(stat) {
   const C = globalThis.CONFIG?.PROJECTANIME ?? {};

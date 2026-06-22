@@ -965,12 +965,13 @@ export function collectReveals(actor) {
 /**
  * The flat HQ bonuses an actor's live effects grant — summed across every live `hq` rule (e.g. on a
  * Signature Trait, a Trait, or gear). Read by the HQ dispatch math (helpers/factions.mjs) at mission
- * resolve: `gold` / `sp` boost a won mission's payout, `success` adds to the mission roll total.
+ * resolve: `gold` / `sp` boost a won mission's payout, `success` adds to the mission roll total, and
+ * `haste` shaves HQ turns off the dispatch's duration (see effectiveMissionDuration in factions.mjs).
  * Equip- + toggle- + self-predicate-gated like the other collectors (no target context at HQ time).
- * @returns {{gold:number, sp:number, success:number}}
+ * @returns {{gold:number, sp:number, success:number, haste:number}}
  */
 export function collectHQOutputs(actor) {
-  const out = { gold: 0, sp: 0, success: 0 };
+  const out = { gold: 0, sp: 0, success: 0, haste: 0 };
   let effects;
   try { effects = actor?.appliedEffects ?? []; } catch (_) { return out; }
   for (const effect of effects) {

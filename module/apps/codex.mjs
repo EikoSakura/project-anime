@@ -30,7 +30,7 @@ import {
 import {
   getFactions, saveFactions, blankFaction, tierForStanding, clampStanding, STANDING_TIERS,
   setFactionStanding, setFactionRelation, factionById, recruitAvailable, recruitMember, getHQ, saveHQ, advanceHQTurn, blankMission,
-  statDieFor, statBonusFor, statLabelFor, hqLevel
+  statDieFor, statBonusFor, statLabelFor, hqLevel, hqHasteBonus, effectiveMissionDuration
 } from "../helpers/factions.mjs";
 import { getBonds, BOND_MAX_RANK } from "../helpers/bonds.mjs";
 import { partyMembers, resolveParty } from "../helpers/party-folder.mjs";
@@ -1565,6 +1565,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         const npc = e.npcUuid ? fromUuidSync(e.npcUuid) : null;
         const d = statDieFor(npc, m.stat);
         const bonus = statBonusFor(npc, m.stat);
+        const haste = hqHasteBonus(npc); // HQ turns this agent would shave off the run (hq.haste Trait/effect)
         return {
           id: e.id,
           name: e.name,
@@ -1574,10 +1575,16 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
           die: `d${d.faces}`,
           bonus,
           bonusStr: bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : "",
+          haste,
           selected: picking && this.#squadPick.has(e.id)
         };
       });
-      const picked = candidates.filter((c) => c.selected).map((c) => ({ faces: c.faces, bonus: c.bonus }));
+      const chosen = candidates.filter((c) => c.selected);
+      const picked = chosen.map((c) => ({ faces: c.faces, bonus: c.bonus }));
+      // Effective return time for the currently-assembled squad — base duration minus the squad's
+      // combined Mission-haste (floored at 1). Drives the "Returns in N turns" readout in the picker.
+      const pickedHaste = chosen.reduce((s, c) => s + Math.max(0, c.haste || 0), 0);
+      const squadReadyTurns = Math.max(1, (Math.max(1, Number(m.durationTurns) || 1)) - pickedHaste);
       const away = hq.people.filter((e) => e.status === "away" && e.assignedMissionId === m.id);
       const agentsOut = away.map((e) => ({ name: e.name, initial: initialOf(e.name), img: e.img || "", returnsTurn: e.returnsTurn || 0 }));
       const rewardItems = (m.rewardItems ?? []).map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" }));
@@ -1594,6 +1601,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         tierStars: [1, 2, 3, 4, 5].map((n) => ({ on: n <= tier })),
         tierPips: [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= tier })),
         durationTurns: m.durationTurns,
+        squadReadyTurns,
         difficulty: dc,
         statLabel: statLabelFor(m.stat),
         statEmblem: missionStatIcon(m.stat),
@@ -2565,6 +2573,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     if (sv) sv.textContent = val;
     const gd = drawer?.querySelector(".m-gd");
     if (gd) gd.textContent = `${val} ${game.i18n.localize("PROJECTANIME.HQ.turnsUnit")}`;
+    this.#recomputeSquadOdds(drawer); // refresh the "Returns in N turns" readout off the new base
     await this.#mutateMission(id, (m) => { m.durationTurns = val; }, { quiet: true });
   }
 
@@ -2581,12 +2590,17 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#mutateHQ((hq) => {
       const m = (hq.missions ?? []).find((x) => x.id === missionId);
       if (!m) return;
-      const returnsTurn = (Number(hq.turn) || 0) + Math.max(1, Number(m.durationTurns) || 1);
-      for (const aid of ids) {
-        // Re-check the full idle gate at commit time (the transient pick could have gone stale — e.g. the
-        // agent got posted to a facility in the Structures window while the squad was being assembled).
-        const a = hq.people.find((e) => e.id === aid && e.recruited && e.role === "dispatch" && !e.status && !e.facilityId);
-        if (!a) continue;
+      // Re-check the full idle gate at commit time (the transient pick could have gone stale — e.g. an
+      // agent got posted to a facility in the Structures window while the squad was being assembled).
+      const sent = ids
+        .map((aid) => hq.people.find((e) => e.id === aid && e.recruited && e.role === "dispatch" && !e.status && !e.facilityId))
+        .filter(Boolean);
+      if (!sent.length) return;
+      // The squad's combined Mission-haste (hq.haste Trait/effect) shortens the run, floored at 1 turn —
+      // so a hastening agent brings the WHOLE squad home earlier. Resolve from the backing actors.
+      const actors = sent.map((a) => (a.npcUuid ? fromUuidSync(a.npcUuid) : null));
+      const returnsTurn = (Number(hq.turn) || 0) + effectiveMissionDuration(m, actors);
+      for (const a of sent) {
         a.status = "away";
         a.assignedMissionId = m.id;
         a.returnsTurn = returnsTurn;
@@ -2608,9 +2622,11 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       const m = (hq.missions ?? []).find((x) => x.id === mid);
       const a = hq.people.find((e) => e.id === pid && e.recruited && e.role === "dispatch" && !e.status && !e.facilityId);
       if (!m || !a) return;
+      // This agent's own Mission-haste (hq.haste Trait/effect) shortens their run, floored at 1 turn.
+      const npc = a.npcUuid ? fromUuidSync(a.npcUuid) : null;
       a.status = "away";
       a.assignedMissionId = m.id;
-      a.returnsTurn = (Number(hq.turn) || 0) + Math.max(1, Number(m.durationTurns) || 1);
+      a.returnsTurn = (Number(hq.turn) || 0) + effectiveMissionDuration(m, [npc]);
     });
   }
 
@@ -2635,11 +2651,19 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     const dcEl = scope.querySelector('[data-mission-field="difficulty"]');
     const dc = Math.max(1, Math.round(Number(dcEl?.value) || 1));
     const entries = [];
-    for (const c of scope.querySelectorAll(".m-cand.sel-on")) entries.push({ faces: Number(c.dataset.faces) || 1, bonus: Number(c.dataset.bonus) || 0 });
+    let haste = 0;
+    for (const c of scope.querySelectorAll(".m-cand.sel-on")) {
+      entries.push({ faces: Number(c.dataset.faces) || 1, bonus: Number(c.dataset.bonus) || 0 });
+      haste += Math.max(0, Number(c.dataset.haste) || 0);
+    }
     const pct = entries.length ? teamSuccessPct(entries, dc) : 0;
     const pctEl = scope.querySelector(".m-pct"); if (pctEl) pctEl.textContent = entries.length ? `${pct}%` : "—";
     const barEl = scope.querySelector(".m-bar > i"); if (barEl) barEl.style.width = `${pct}%`;
     const nEl = scope.querySelector(".m-sendn"); if (nEl) nEl.textContent = entries.length ? `(${entries.length})` : "";
+    // "Returns in N turns": base duration (read live from the stepper) shaved by the picked squad's
+    // combined Mission-haste, floored at 1 — so the readout matches what dispatch will actually commit.
+    const base = Math.max(1, Math.round(Number(scope.querySelector(".m-stepval")?.textContent) || 1));
+    const readyEl = scope.querySelector(".m-readyn"); if (readyEl) readyEl.textContent = Math.max(1, base - haste);
   }
 
   /** Recall an away agent early — back to idle, no reward (GM). */

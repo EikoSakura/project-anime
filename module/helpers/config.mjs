@@ -52,13 +52,15 @@ PROJECTANIME.talentIcons = {
   medicine: "fa-solid fa-staff-snake"
 };
 
-/** HQ outputs a Trait Bonus can boost (besides a Talent or an Attribute). */
+/** HQ outputs a Trait Bonus can boost (besides a Talent or an Attribute). `haste` is the odd one out:
+ *  it shaves HQ turns off a dispatch mission's duration rather than feeding the roll / payout. */
 PROJECTANIME.hqOutputs = {
   gold: "PROJECTANIME.Talent.hq.gold",
   sp: "PROJECTANIME.Talent.hq.sp",
-  success: "PROJECTANIME.Talent.hq.success"
+  success: "PROJECTANIME.Talent.hq.success",
+  haste: "PROJECTANIME.Talent.hq.haste"
 };
-PROJECTANIME.hqOutputKeys = ["gold", "sp", "success"];
+PROJECTANIME.hqOutputKeys = ["gold", "sp", "success", "haste"];
 
 /* -------------------------------------------- */
 /*  Skills                                      */

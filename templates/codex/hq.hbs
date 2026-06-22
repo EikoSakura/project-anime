@@ -296,11 +296,12 @@
         <div class="m-odds">
           <div class="m-odds-head"><span class="m-odds-l">{{statLabel}} · {{localize "PROJECTANIME.HQ.dcShort"}} {{difficulty}}</span><span class="m-pct">{{#if hasPick}}{{squadPct}}%{{else}}—{{/if}}</span></div>
           <div class="m-bar"><i style="width:{{#if hasPick}}{{squadPct}}{{else}}0{{/if}}%"></i></div>
+          <div class="m-ready"><i class="fas fa-hourglass-half"></i> {{localize "PROJECTANIME.HQ.returnsIn"}} <b class="m-readyn">{{squadReadyTurns}}</b> {{localize "PROJECTANIME.HQ.turnsUnit"}}</div>
         </div>
         {{#if hasCandidates}}
         <div class="m-cand-grid" data-mission-id="{{id}}">
           {{#each candidates}}
-          <div class="m-cand{{#if selected}} sel-on{{/if}}" data-agent-id="{{id}}" data-faces="{{faces}}" data-bonus="{{bonus}}">
+          <div class="m-cand{{#if selected}} sel-on{{/if}}" data-agent-id="{{id}}" data-faces="{{faces}}" data-bonus="{{bonus}}" data-haste="{{haste}}">
             <div class="r-frame"></div>
             <div class="r-face">
               <div class="m-cface">{{#if img}}<img src="{{img}}" alt="">{{else}}<span class="r-ph">{{initial}}</span>{{/if}}<div class="r-scrim"></div><div class="m-cnm">{{name}}</div></div>
