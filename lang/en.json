@@ -251,6 +251,7 @@
       "title": "Bond Offer",
       "tab": "Bond",
       "ranks": "Ranks · Abilities & Rewards",
+      "ability": "Ability",
       "rewards": "Rewards",
       "dropItem": "Drag an item here to add it as a reward",
       "author": "Author bond",

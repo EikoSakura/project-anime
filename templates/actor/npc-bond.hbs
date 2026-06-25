@@ -1,6 +1,7 @@
 {{!-- NPC Bond-offer editor: the bond this social NPC offers + its per-rank rewards. The GM authors
-      it here; dragging the NPC onto a Player forges/syncs the bond and delivers each rank's rewards. --}}
-<aside class="section-drawer pa-npcbond{{#if open.npcbond}} open{{/if}}" data-section="npcbond">
+      it here; dragging the NPC onto a Player forges/syncs the bond and delivers each rank's rewards.
+      Each rank is a CARD; clicking one opens a codex-style detail book (pa-hq supplies .hq-book). --}}
+<aside class="section-drawer pa-npcbond pa-hq{{#if open.npcbond}} open{{/if}}" data-section="npcbond">
   <div class="drawer-backdrop" data-action="closeDrawer"></div>
   <div class="drawer-panel">
     <div class="drawer-headbar">
@@ -33,49 +34,19 @@
 
         <div class="nb-sec">
           <h4>{{localize "PROJECTANIME.NpcBond.ranks"}}</h4>
-          <div class="nb-ranks">
+          <div class="nb-rankgrid">
             {{#each ranks}}
-            <div class="nb-rank" data-rank="{{rank}}">
-              <div class="nb-rank-head"><span class="medal">{{rank}}</span> {{rankLabel}}</div>
-              <div class="nb-rank-body">
-                {{#if @root.editable}}
-                <input class="nb-abil-name" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="abilityName" value="{{abilityName}}">
-                <textarea class="nb-abil-desc" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="abilityDesc" rows="2">{{abilityDesc}}</textarea>
-                {{else}}
-                {{#if abilityName}}<div class="an">{{abilityName}}</div>{{/if}}
-                {{#if abilityDesc}}<div class="ad">{{abilityDesc}}</div>{{/if}}
-                {{/if}}
-
-                <div class="nb-fx">
-                  {{#if @root.editable}}
-                  <button type="button" class="add-line nb-fx-edit" data-action="editBondRankEffect" data-rank="{{rank}}">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.NpcBond.editEffect"}}
-                  </button>
-                  {{/if}}
-                  {{#if rulesHTML}}<div class="nb-fx-sum">{{{rulesHTML}}}</div>{{/if}}
-                </div>
-
-                <div class="nb-rewards">
-                  <div class="nb-rew-line">
-                    <span class="rew-lab">{{localize "PROJECTANIME.NpcBond.rewards"}}</span>
-                    {{#if @root.editable}}
-                    <label class="rew-num"><i class="fas fa-coins"></i><input type="number" min="0" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="rewardGold" value="{{rewardGold}}"></label>
-                    <label class="rew-num"><i class="fas fa-star"></i><input type="number" min="0" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="rewardSP" value="{{rewardSP}}"></label>
-                    {{else}}
-                    {{#if rewardGold}}<span class="rew-num"><i class="fas fa-coins"></i> {{rewardGold}}</span>{{/if}}
-                    {{#if rewardSP}}<span class="rew-num"><i class="fas fa-star"></i> {{rewardSP}}</span>{{/if}}
-                    {{/if}}
-                  </div>
-                  <div class="nb-rew-items{{#if @root.editable}} drop{{/if}}"{{#if @root.editable}} data-reward-drop="{{rank}}"{{/if}}>
-                    {{#each rewardItems}}
-                    <div class="rew-item" title="{{name}}">
-                      <img src="{{img}}" alt=""><span>{{name}}</span>
-                      {{#if @root.editable}}<a class="rew-x" data-action="removeRewardItem" data-npcbond-rank="{{../rank}}" data-reward-item="{{idx}}">✕</a>{{/if}}
-                    </div>
-                    {{/each}}
-                  </div>
-                </div>
+            <div class="nbr-card{{#if hasRules}} has-fx{{/if}}" style="--acc:{{@root.npcBond.accent}}"
+                 data-action="openNpcBondRank" data-rank="{{rank}}" title="{{rankLabel}}">
+              <span class="nbr-medal">{{rank}}</span>
+              <div class="nbr-title">{{#if abilityName}}{{abilityName}}{{else}}{{rankLabel}}{{/if}}</div>
+              <div class="nbr-meta">
+                {{#if hasRules}}<span class="nbr-tag fx" title="{{localize 'PROJECTANIME.NpcBond.editEffect'}}"><i class="fa-solid fa-wand-magic-sparkles"></i></span>{{/if}}
+                {{#if rewardGold}}<span class="nbr-tag"><i class="fas fa-coins"></i>{{rewardGold}}</span>{{/if}}
+                {{#if rewardSP}}<span class="nbr-tag"><i class="fas fa-star"></i>{{rewardSP}}</span>{{/if}}
+                {{#if rewardCount}}<span class="nbr-tag"><i class="fas fa-gift"></i>{{rewardCount}}</span>{{/if}}
               </div>
+              <i class="nbr-go fa-solid fa-chevron-right"></i>
             </div>
             {{/each}}
           </div>
@@ -85,4 +56,61 @@
       </div>
     </div>
   </div>
+
+  {{!-- ===================== RANK DETAIL BOOKS (codex-like overlay; one open at a time) ===================== --}}
+  {{#with npcBond}}
+  {{#each ranks}}
+  <div class="nbr-overlay{{#if isOpen}} open{{/if}}" data-rank-book="{{rank}}" data-rank="{{rank}}">
+    <div class="nbr-backdrop" data-action="closeNpcBondRank"></div>
+    <div class="hq-book rb" style="--acc:{{../accent}}">
+      <a class="hq-book-close" data-action="closeNpcBondRank" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+      <div class="hq-page rb-page">
+        <div class="hq-bk-banner"><span class="nbr-bmedal">{{rank}}</span> {{rankLabel}}</div>
+        <div class="hq-bk-body">
+
+          <span class="hq-bk-sec">{{localize "PROJECTANIME.NpcBond.ability"}}</span>
+          {{#if @root.editable}}
+          <input class="nb-abil-name" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="abilityName" value="{{abilityName}}">
+          <textarea class="nb-abil-desc" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="abilityDesc" rows="3">{{abilityDesc}}</textarea>
+          {{else}}
+          {{#if abilityName}}<div class="an">{{abilityName}}</div>{{/if}}
+          {{#if abilityDesc}}<div class="ad">{{abilityDesc}}</div>{{/if}}
+          {{/if}}
+
+          <div class="nb-fx">
+            {{#if @root.editable}}
+            <button type="button" class="add-line nb-fx-edit" data-action="editBondRankEffect" data-rank="{{rank}}">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.NpcBond.editEffect"}}
+            </button>
+            {{/if}}
+            {{#if rulesHTML}}<div class="nb-fx-sum">{{{rulesHTML}}}</div>{{/if}}
+          </div>
+
+          <span class="hq-bk-sec">{{localize "PROJECTANIME.NpcBond.rewards"}}</span>
+          <div class="nb-rewards">
+            <div class="nb-rew-line">
+              {{#if @root.editable}}
+              <label class="rew-num"><i class="fas fa-coins"></i><input type="number" min="0" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="rewardGold" value="{{rewardGold}}"></label>
+              <label class="rew-num"><i class="fas fa-star"></i><input type="number" min="0" data-npcbond-rank="{{rank}}" data-npcbond-rank-field="rewardSP" value="{{rewardSP}}"></label>
+              {{else}}
+              {{#if rewardGold}}<span class="rew-num"><i class="fas fa-coins"></i> {{rewardGold}}</span>{{/if}}
+              {{#if rewardSP}}<span class="rew-num"><i class="fas fa-star"></i> {{rewardSP}}</span>{{/if}}
+              {{/if}}
+            </div>
+            <div class="nb-rew-items{{#if @root.editable}} drop{{/if}}"{{#if @root.editable}} data-reward-drop="{{rank}}"{{/if}}>
+              {{#each rewardItems}}
+              <div class="rew-item" title="{{name}}">
+                <img src="{{img}}" alt=""><span>{{name}}</span>
+                {{#if @root.editable}}<a class="rew-x" data-action="removeRewardItem" data-npcbond-rank="{{../rank}}" data-reward-item="{{idx}}">✕</a>{{/if}}
+              </div>
+              {{/each}}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  {{/each}}
+  {{/with}}
 </aside>

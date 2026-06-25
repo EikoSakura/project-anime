@@ -7521,3 +7521,36 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-bonds .ab-fx { margin-top: 4px; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--pa-line) 70%, transparent); }
 .pa-npcbond .nb-fx-sum .nd-rules, .pa-bonds .ab-fx .nd-rules { color: var(--pa-ink); }
 .pa-npcbond .nb-fx-sum .nd-num, .pa-bonds .ab-fx .nd-num { color: var(--pa-gold-soft); font-family: var(--pa-font-mono); }
+
+/* ---- Bond-offer ranks: a grid of compact CARDS. Clicking a card opens that rank's detail book
+       (ability + effect + rewards), reusing the .hq-book overlay machinery pa-hq supplies. ---- */
+.pa-npcbond .nb-rankgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 9px; }
+.pa-npcbond .nbr-card { position: relative; display: flex; flex-direction: column; gap: 6px; cursor: pointer; min-height: 66px; padding: 11px 26px 10px 42px; border-radius: 9px; background: var(--pa-panel); border: 1px solid var(--pa-line); transition: transform .13s, border-color .13s, box-shadow .13s; }
+.pa-npcbond .nbr-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--acc) 55%, var(--pa-gold)); box-shadow: 0 6px 14px rgba(0,0,0,.4); }
+.pa-npcbond .nbr-card.has-fx { border-left: 3px solid color-mix(in srgb, var(--acc) 70%, var(--pa-gold)); }
+.pa-npcbond .nbr-medal { position: absolute; top: 10px; left: 10px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold)); color: #1a1622; font-family: var(--pa-font-mono); font-weight: 800; font-size: 13px; }
+.pa-npcbond .nbr-title { font-family: var(--pa-font-display); font-weight: 700; font-size: 12.5px; line-height: 1.25; color: var(--pa-ink); }
+.pa-npcbond .nbr-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; }
+.pa-npcbond .nbr-tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 700; color: var(--pa-ink-soft); background: color-mix(in srgb, var(--pa-accent) 8%, var(--pa-field)); border: 1px solid var(--pa-line); }
+.pa-npcbond .nbr-tag i { font-size: 9px; color: var(--pa-gold-soft); }
+.pa-npcbond .nbr-tag.fx i { color: color-mix(in srgb, var(--acc) 75%, var(--pa-gold)); }
+.pa-npcbond .nbr-go { position: absolute; top: 50%; right: 11px; transform: translateY(-50%); font-size: 10px; color: var(--pa-ink-soft); opacity: .5; transition: opacity .13s, color .13s; }
+.pa-npcbond .nbr-card:hover .nbr-go { opacity: 1; color: var(--pa-gold-soft); }
+
+/* rank detail BOOK overlay (single page). Backdrop is .nbr-backdrop (not .drawer-backdrop) so it
+   dodges the drawer's close-on-backdrop; `:not(.open)` re-hides the closed books that the inherited
+   `.section-drawer.open .hq-book` rule would otherwise reveal. */
+.pa-npcbond .nbr-overlay { position: absolute; inset: 0; z-index: 45; pointer-events: none; }
+.pa-npcbond .nbr-overlay .nbr-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.5); opacity: 0; transition: opacity .25s ease; }
+.pa-npcbond .nbr-overlay.open { pointer-events: auto; }
+.pa-npcbond .nbr-overlay.open .nbr-backdrop { opacity: 1; }
+.pa-npcbond .nbr-overlay.open .hq-book { opacity: 1; transform: none; }
+.pa-npcbond .nbr-overlay:not(.open) .hq-book.rb { opacity: 0; transform: scale(.95) translateY(8px); pointer-events: none; }
+.pa-npcbond .hq-book.rb { display: block; width: min(440px, 94%); height: min(440px, 92%); }
+.pa-npcbond .hq-book.rb .rb-page { height: 100%; }
+.pa-npcbond .hq-book.rb .hq-bk-body { padding-bottom: 16px; }
+.pa-npcbond .hq-book.rb .nbr-bmedal { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 2px; border-radius: 7px; background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold)); color: #1a1622; font-family: var(--pa-font-mono); font-weight: 800; font-size: 13px; vertical-align: middle; }
+.pa-npcbond .hq-book.rb .nb-abil-name, .pa-npcbond .hq-book.rb .nb-abil-desc { margin-bottom: 7px; }
+.pa-npcbond .hq-book.rb .an { font-family: var(--pa-font-display); font-weight: 700; font-size: 14px; color: var(--pa-ink); }
+.pa-npcbond .hq-book.rb .ad { margin-top: 3px; font-size: 12px; line-height: 1.45; color: var(--pa-ink-soft); }
+.pa-npcbond .hq-book.rb .nb-fx { margin-top: 4px; }

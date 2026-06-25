@@ -155,6 +155,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       removeRewardItem: ProjectAnimeActorSheet.#onRemoveRewardItem,
       editBondRankEffect: ProjectAnimeActorSheet.#onEditBondRankEffect,
       pickNpcBondBanner: ProjectAnimeActorSheet.#onPickNpcBondBanner,
+      openNpcBondRank: ProjectAnimeActorSheet.#onOpenNpcBondRank,
+      closeNpcBondRank: ProjectAnimeActorSheet.#onCloseNpcBondRank,
       dismissServant: ProjectAnimeActorSheet.#onDismissServant
     }
   };
@@ -178,6 +180,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /** The bond whose detail book is currently open (id), or null. Transient UI state, re-applied on
    *  render so the open book survives the re-render an edit triggers. */
   #openBond = null;
+
+  /** The NPC bond-offer RANK whose detail book is currently open (rank number), or null. Transient UI
+   *  state, re-applied on render so the open rank book survives the re-render an edit triggers. */
+  #openNpcRank = null;
 
   /** Queued "bond deepened" flourish: { rank, id }, set by Deepen and consumed once in _onRender
    *  after the data-driven re-render (so the gala + star-pop fire exactly once). */
@@ -1432,8 +1438,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   static #onCloseDrawer() {
     this.#openSection = null;
     this.#openBond = null;
+    this.#openNpcRank = null;
     this.#applyDrawers();
     this.#applyBondBooks();
+    this.#applyNpcRankBooks();
   }
 
   /** Reflect #openSection on the live DOM so the slide transition plays without a
@@ -1875,10 +1883,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         rewardGold: r.rewardGold,
         rewardSP: r.rewardSP,
         rewardItems: r.rewardItems.map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" })),
+        rewardCount: (r.rewardItems ?? []).length,
         // The rank's mechanical Effect, auto-summarized (Grants / buffs / Skill adjustments) — same colored
         // rules line as the Signature Trait cards; "" when the rank has no Effect authored yet.
         rulesHTML: traitCardDescHTML(r.rules, ""),
-        hasRules: (r.rules ?? []).length > 0
+        hasRules: (r.rules ?? []).length > 0,
+        // Which rank's detail book is open survives the re-render an edit triggers (mirrors bonds' isOpen).
+        isOpen: this.#openNpcRank === r.rank
       }))
     };
   }
@@ -2014,6 +2025,28 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
     const cur = this.actor.system.bond?.banner ?? "";
     new FP({ type: "image", current: cur, callback: (path) => this.#mutateNpcBond((b) => { b.banner = path; }) }).browse();
+  }
+
+  /** Open a bond RANK's detail book — instant, no re-render (the template also reflects #openNpcRank
+   *  via `isOpen`, so the open book survives the re-render an edit triggers). */
+  static #onOpenNpcBondRank(event, target) {
+    const rank = Number(target.closest("[data-rank]")?.dataset.rank);
+    if (!(rank >= 1)) return;
+    this.#openNpcRank = rank;
+    this.#applyNpcRankBooks();
+  }
+
+  /** Close the open bond-rank book (backdrop / close button). */
+  static #onCloseNpcBondRank() {
+    this.#openNpcRank = null;
+    this.#applyNpcRankBooks();
+  }
+
+  /** Reflect #openNpcRank on the live DOM so a rank book opens/closes without a full re-render. */
+  #applyNpcRankBooks() {
+    for (const el of this.element?.querySelectorAll?.(".nbr-overlay") ?? []) {
+      el.classList.toggle("open", Number(el.dataset.rankBook) === this.#openNpcRank);
+    }
   }
 
   /* -------------------------------------------- */
