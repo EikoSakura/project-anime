@@ -22,7 +22,7 @@
       {{#each quests}}
       <div class="q-card {{#if selected}}sel{{/if}} {{#if isDone}}done{{/if}}" data-action="selectQuest"
            data-id="{{id}}" data-title="{{title}}" style="--cat:{{color}}">
-        {{#if banner}}<div class="q-card-bg" style="background-image:url('{{banner}}'); background-position:{{bannerPos}}"></div>{{/if}}
+        {{#if banner}}<div class="q-card-bg" style="background-image:url('{{banner}}'); background-position:{{bannerPos}}; background-size:{{bannerSize}}"></div>{{/if}}
         {{#if isNew}}<div class="q-flag">{{localize 'PROJECTANIME.Chronicle.new'}}</div>{{/if}}
         <div class="q-thumb">{{#if icon}}<img src="{{icon}}" alt="">{{else}}◆{{/if}}</div>
         <div class="q-cmid">
@@ -43,7 +43,7 @@
       {{#if detail}}
       {{#with detail}}
 
-      <div class="q-hero{{#if @root.editMode}}{{#if hasBanner}} repos{{/if}}{{/if}}" style="{{bannerStyle}}; --cat:{{color}}">
+      <div class="q-hero{{#if @root.isGM}} q-edit{{#if hasBanner}} repos{{/if}}{{/if}}" style="{{bannerStyle}}; --cat:{{color}}"{{#if @root.isGM}} title="{{localize 'PROJECTANIME.Chronicle.bannerHint'}}"{{/if}}>
         {{#if icon}}<div class="glyph"><img src="{{icon}}" alt=""></div>{{/if}}
         <div class="scrim"></div><div class="shimmer"></div><div class="speed"></div>
         <div class="q-stamp {{#if isDone}}done{{else}}active{{/if}}">{{statusLabel}}</div>
@@ -75,7 +75,6 @@
         <div class="art-pickers">
           {{#if icon}}<img class="icon-preview" src="{{icon}}" alt="">{{/if}}
           <button type="button" class="gbtn" data-action="pickIcon">🖼 {{localize 'PROJECTANIME.Chronicle.icon'}}</button>
-          <button type="button" class="gbtn" data-action="pickBanner">🖼 {{localize 'PROJECTANIME.Chronicle.banner'}}</button>
         </div>
         <button type="button" class="gbtn danger" data-action="deleteQuest">🗑 {{localize 'PROJECTANIME.Chronicle.delete'}}</button>
       </div>

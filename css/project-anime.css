@@ -5567,6 +5567,7 @@ body.pa-combat-shown #chat-notifications { display: none; }
 
 /* hero */
 .chronicle-app .q-hero { position: relative; height: 184px; padding: 18px 22px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; background-size: cover; background-position: center; --cat: var(--pa-gold); }
+.chronicle-app .q-hero.q-edit { cursor: pointer; }      /* GM: click the banner to choose an image */
 .chronicle-app .q-hero.repos { cursor: grab; }
 .chronicle-app .q-hero.repos.dragging { cursor: grabbing; }
 .chronicle-app .q-hero .glyph { position: absolute; right: -6px; top: -26px; font-size: 168px; line-height: 1; opacity: .13; transform: rotate(-8deg); pointer-events: none; }

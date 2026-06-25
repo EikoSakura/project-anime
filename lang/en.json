@@ -27,6 +27,7 @@
       "level": "Difficulty",
       "icon": "Icon",
       "banner": "Banner",
+      "bannerHint": "Click to set the banner image · drag to reposition · scroll to zoom",
       "delete": "Delete",
       "deleteTitle": "Delete Quest",
       "deleteConfirm": "Delete \"{name}\"? This cannot be undone.",
@@ -693,7 +694,7 @@
       "commerce":    { "long": "Commerce" },
       "lore":        { "long": "Lore" },
       "medicine":    { "long": "Medicine" },
-      "hq": { "gold": "Gold yield", "sp": "SP yield", "success": "Mission success", "haste": "Mission haste" }
+      "hq": { "gold": "Gold yield", "sp": "SP yield", "success": "Mission Success", "haste": "Mission Haste" }
     },
     "Stat": {
       "hp": "Hit Points",

@@ -59,6 +59,10 @@ const BANNER_GRAD = {
   personal: "radial-gradient(120% 120% at 50% 14%, #43b88a55, transparent 55%), linear-gradient(150deg,#1e3a34,#142824 60%,#0e1a17)"
 };
 
+/** Banner zoom factor (scroll-wheel on the hero), clamped to 1–4× (1 = cover / no zoom). */
+const BANNER_ZOOM_MIN = 1, BANNER_ZOOM_MAX = 4;
+const bannerZoomOf = (q) => Math.max(BANNER_ZOOM_MIN, Math.min(BANNER_ZOOM_MAX, Number(q?.bannerZoom) || 1));
+
 /** Escape text before injecting into innerHTML (GM-authored text, but be safe). */
 const escHtml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -272,7 +276,6 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       setLevel: Codex.#onSetLevel,
       clearGiver: Codex.#onClearGiver,
       openGiver: Codex.#onOpenGiver,
-      pickBanner: Codex.#onPickBanner,
       pickIcon: Codex.#onPickIcon,
       complete: Codex.#onComplete,
       distribute: Codex.#onDistribute,
@@ -406,6 +409,11 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
    *  on → the selected quest reveals its inline edit fields. Transient; reset when navigating away. */
   #editMode = false;
 
+  /** Live banner-zoom while the GM is scrolling the hero (null between gestures), + its debounce-save
+   *  timer — so rapid wheel ticks update the DOM but persist to the setting only once they settle. */
+  #bannerZoom = null;
+  #bannerZoomTimer = null;
+
   get isGM() {
     return game.user.isGM;
   }
@@ -501,6 +509,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       const cat = QUEST_CATEGORIES[q.category] ?? QUEST_CATEGORIES.main;
       const prog = questProgress(q);
       const levelNum = Math.max(0, Math.min(5, Math.round(Number(q.level) || 0)));
+      const bz = bannerZoomOf(q);
       return {
         id: q.id,
         title: q.title,
@@ -515,6 +524,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         levelStars: [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= levelNum })),
         banner: q.banner || "",
         bannerPos: `${Number.isFinite(q.bannerPos?.x) ? q.bannerPos.x : 50}% ${Number.isFinite(q.bannerPos?.y) ? q.bannerPos.y : 50}%`,
+        bannerSize: bz > 1 ? `${(bz * 100).toFixed(2)}%` : "cover",
         pct: prog.pct,
         progLabel: q.status === "done" ? "✓" : `${prog.done}/${prog.total}`,
         selected: q.id === this._selId
@@ -544,6 +554,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     const prog = questProgress(q);
     const bannerX = Number.isFinite(q.bannerPos?.x) ? q.bannerPos.x : 50;
     const bannerY = Number.isFinite(q.bannerPos?.y) ? q.bannerPos.y : 50;
+    const bannerZoom = bannerZoomOf(q);
     const levelNum = Math.max(0, Math.min(5, Math.round(Number(q.level) || 0)));
     const levelStars = [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= levelNum }));
     const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
@@ -578,7 +589,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       color: cat.color,
       hasBanner: !!q.banner,
       bannerStyle: q.banner
-        ? `background-image:url('${q.banner}'); background-position:${bannerX}% ${bannerY}%`
+        ? `background-image:url('${q.banner}'); background-position:${bannerX}% ${bannerY}%${bannerZoom > 1 ? `; background-size:${(bannerZoom * 100).toFixed(2)}%` : ""}`
         : `background:${BANNER_GRAD[q.category] ?? BANNER_GRAD.main}`,
       levelNum,
       levelStars,
@@ -688,17 +699,24 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         this.#openQuestContext(card.dataset.id, ev);
       });
     }
-    // GM in edit mode: drag the hero banner to reposition its focal point (the `.repos` class is only
-    // present when this quest actually has a banner image).
-    const heroRepos = root.querySelector(".q-hero.repos");
-    if (heroRepos) heroRepos.addEventListener("pointerdown", (ev) => this.#startBannerDrag(ev, heroRepos));
+    // GM (any view, not just edit mode): the hero banner is interactive — a plain click opens the
+    // image FilePicker; a drag repositions its focal point (only when a banner image exists — `.repos`);
+    // the scroll wheel zooms the image in/out (`bannerZoom`, 1–4×).
+    const hero = root.querySelector(".q-hero");
+    if (hero) {
+      hero.addEventListener("pointerdown", (ev) => this.#startBannerDrag(ev, hero));
+      hero.addEventListener("wheel", (ev) => this.#onBannerWheel(ev, hero), { passive: false });
+    }
   }
 
-  /** Drag the hero banner to set its `background-position` (focal point), persisted as `bannerPos`
-   *  ({x,y} percentages). Skips when the grab starts on an input/button so titles stay editable. */
+  /** GM: the quest hero banner is interactive — a plain click opens the image FilePicker; a drag
+   *  repositions the banner's focal point (`bannerPos`, {x,y} %), but only when a banner image
+   *  exists (the hero carries `.repos`). Grabs on the title/meta inputs, the stars, or the hero
+   *  tools are ignored so those stay usable. Mirrors #startHqBannerDrag. */
   #startBannerDrag(ev, hero) {
-    if (ev.button !== 0 || ev.target.closest("input, select, textarea, button, label, a")) return;
+    if (ev.button !== 0 || ev.target.closest("input, select, textarea, button, label, a, [data-action]")) return;
     ev.preventDefault();
+    const canRepos = hero.classList.contains("repos");
     const rect = hero.getBoundingClientRect();
     const startX = ev.clientX, startY = ev.clientY;
     const q0 = getQuests().find((x) => x.id === this._selId);
@@ -706,23 +724,52 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       x: Number.isFinite(q0?.bannerPos?.x) ? q0.bannerPos.x : 50,
       y: Number.isFinite(q0?.bannerPos?.y) ? q0.bannerPos.y : 50
     };
-    let pos = { ...start };
-    hero.classList.add("dragging");
+    let pos = { ...start }, moved = false;
     const move = (e) => {
+      if (!canRepos) return;                                // no image yet → pointerup opens the picker
+      if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) > 4) moved = true;
+      if (!moved) return;
       pos = {
         x: Math.max(0, Math.min(100, start.x - ((e.clientX - startX) / rect.width) * 100)),
         y: Math.max(0, Math.min(100, start.y - ((e.clientY - startY) / rect.height) * 100))
       };
+      hero.classList.add("dragging");
       hero.style.backgroundPosition = `${pos.x}% ${pos.y}%`;
     };
     const up = async () => {
       hero.classList.remove("dragging");
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      if (!moved) return this.#openQuestBannerPicker();     // plain click → choose / replace the image
       if (pos.x !== start.x || pos.y !== start.y) await this._mutateSelected((q) => { q.bannerPos = pos; });
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+  }
+
+  /** Open the image FilePicker for the quest hero banner (GM only). */
+  #openQuestBannerPicker() {
+    if (!this.isGM) return;
+    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
+    const cur = getQuests().find((x) => x.id === this._selId)?.banner ?? "";
+    new FP({ type: "image", current: cur, callback: (path) => this._mutateSelected((q) => { q.banner = path; }) }).browse();
+  }
+
+  /** GM: scroll the hero banner to zoom the image (`bannerZoom`, 1–4× of cover). Updates the DOM
+   *  live and debounce-saves so a flurry of wheel events doesn't thrash the world setting / re-render. */
+  #onBannerWheel(ev, hero) {
+    const q = getQuests().find((x) => x.id === this._selId);
+    if (!q?.banner) return;                                 // nothing to zoom without an image
+    ev.preventDefault();
+    const cur = this.#bannerZoom ?? bannerZoomOf(q);
+    const next = Math.max(BANNER_ZOOM_MIN, Math.min(BANNER_ZOOM_MAX, +(cur + (ev.deltaY < 0 ? 0.08 : -0.08)).toFixed(2)));
+    this.#bannerZoom = next;
+    hero.style.backgroundSize = next > 1 ? `${(next * 100).toFixed(2)}%` : "cover";
+    clearTimeout(this.#bannerZoomTimer);
+    this.#bannerZoomTimer = setTimeout(() => {
+      this.#bannerZoom = null;
+      this._mutateSelected((x) => { x.bannerZoom = next; });
+    }, 350);
   }
 
   /** GM: the HQ hero banner is interactive — a plain click opens the image FilePicker; a drag
@@ -1107,19 +1154,6 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       current,
       callback: (path) => this._mutateSelected((q) => {
         q.icon = path;
-      })
-    }).render(true);
-  }
-
-  static async #onPickBanner() {
-    if (!this.isGM) return;
-    const current = getQuests().find((x) => x.id === this._selId)?.banner ?? "";
-    const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
-    new FP({
-      type: "image",
-      current,
-      callback: (path) => this._mutateSelected((q) => {
-        q.banner = path;
       })
     }).render(true);
   }
