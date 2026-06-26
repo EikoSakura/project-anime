@@ -6560,7 +6560,7 @@ body.pa-combat-shown #chat-notifications { display: none; }
 
 /* Home identity hero — the party's own built faction (editable crest / name / motto). Mirrors the
    faction hero on the Factions tab, but always-on (no collapse) and tinted by the HQ accent. */
-.pa-hq .hq-hero { position: relative; display: flex; gap: 14px; align-items: center; padding: 16px; border-radius: 12px; overflow: hidden; background-size: cover; background-position: center; border: 1px solid color-mix(in srgb, var(--pa-gold) 26%, var(--pa-line)); }
+.pa-hq .hq-hero { --acc: var(--pa-gold); position: relative; display: flex; gap: 14px; align-items: center; padding: 16px; border-radius: 12px; overflow: hidden; background-size: cover; background-position: center; border: 2px solid color-mix(in srgb, var(--acc) 60%, var(--pa-line)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 22%, transparent), 0 0 14px color-mix(in srgb, var(--acc) 22%, transparent); }
 .pa-hq .hq-hero.hq-edit { cursor: pointer; }            /* GM: click the banner to choose an image */
 .pa-hq .hq-hero.repos { cursor: grab; }                 /* …and drag to reposition once one is set */
 .pa-hq .hq-hero.repos.dragging { cursor: grabbing; }
@@ -6589,6 +6589,9 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-hq .hq-hero-tools { position: relative; z-index: 2; flex: 0 0 auto; display: flex; align-items: center; gap: 7px; }
 .pa-hq .hq-hero-tools .gbtn { display: inline-grid; place-items: center; width: 34px; height: 34px; cursor: pointer; color: #fff; background: rgba(0,0,0,.34); border: 1px solid rgba(255,255,255,.2); border-radius: 7px; }
 .pa-hq .hq-hero-tools .gbtn:hover { background: rgba(0,0,0,.5); }
+.pa-hq .hq-hero-tools .hq-color-edit { width: 34px; height: 34px; padding: 0; cursor: pointer; background: rgba(0,0,0,.34); border: 1px solid rgba(255,255,255,.2); border-radius: 7px; }
+.pa-hq .hq-hero-tools .hq-color-edit::-webkit-color-swatch-wrapper { padding: 3px; }
+.pa-hq .hq-hero-tools .hq-color-edit::-webkit-color-swatch { border: none; border-radius: 4px; }
 
 /* Home sections (Recruitment, Facilities). */
 .pa-hq .hq-sec { margin-top: 16px; }
@@ -6750,6 +6753,17 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-hq .rcard.locked .r-frame { filter: saturate(.2) brightness(.7); }
 .pa-hq .rcard.locked .r-name { color: rgba(255,255,255,.72); }
 .pa-hq .rcard-lock { position: absolute; inset: 5px; z-index: 5; display: grid; place-items: center; font-size: 22px; color: rgba(255,255,255,.82); text-shadow: 0 2px 6px rgba(0,0,0,.9); pointer-events: none; }
+/* GM lock/hidden symbols — click to lock⇄unlock a recruit or hide it from players entirely. */
+.pa-hq .rec-pip { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; color: #fff; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.25); font-size: 10px; transition: transform .12s, background .12s, color .12s; }
+.pa-hq .rec-pip:hover { background: rgba(0,0,0,.72); transform: translateY(-1px); }
+.pa-hq .rec-pip.lock.on { color: var(--pa-gold); border-color: color-mix(in srgb, var(--pa-gold) 60%, transparent); }
+.pa-hq .rec-pip.lock:not(.on) { color: #e9c977; }
+.pa-hq .rec-pip.hide.on { color: #ff8d8d; border-color: color-mix(in srgb, #ff8d8d 55%, transparent); }
+.pa-hq .rcard > .rec-pip { position: absolute; top: 6px; z-index: 6; }
+.pa-hq .rcard > .rec-pip.lock { left: 16px; }
+.pa-hq .rcard > .rec-pip.hide { right: 16px; }
+.pa-hq .rcard.is-hidden { opacity: .52; }
+.pa-hq .rcard.is-hidden .r-img { filter: grayscale(.5) brightness(.7); }
 .pa-hq .rcard-cfg { display: flex; flex-direction: column; gap: 5px; margin-top: 14px; }
 .pa-hq .rcard-cfg select, .pa-hq .rcard-cfg input { width: 100%; background: color-mix(in srgb, #000 28%, var(--pa-panel)); border: 1px solid var(--pa-line); border-radius: 6px; color: var(--pa-ink); padding: 4px 7px; font-size: 11px; outline: none; }
 .pa-hq .rcard-cfg select:focus, .pa-hq .rcard-cfg input:focus { border-color: var(--pa-accent); }

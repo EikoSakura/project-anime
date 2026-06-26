@@ -379,6 +379,8 @@ function normalizePerson(e) {
     facilityId: e.facilityId || "",                                // the facility this person staffs (if any)
     recruited: !!e.recruited,
     unlocked: !!e.unlocked,
+    hidden: !!e.hidden,                                            // GM-only "hide from players entirely" toggle
+
     // dispatch transient state (set while away on a mission / recovering)
     status: ["away", "wounded"].includes(e.status) ? e.status : "",
     assignedMissionId: e.assignedMissionId || "",

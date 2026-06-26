@@ -71,8 +71,8 @@ const initialOf = (name) => String(name || "?").trim().charAt(0).toUpperCase() |
 
 /** Fallback hero gradient when a faction has no banner — built from its accent colour. */
 const factionHeroGrad = (acc) =>
-  `radial-gradient(120% 120% at 78% 8%, color-mix(in srgb, ${acc} 42%, transparent), transparent 55%), ` +
-  `linear-gradient(150deg, #2c2340, #1c1730 60%, #120e1c)`;
+  `radial-gradient(135% 135% at 80% 10%, color-mix(in srgb, ${acc} 55%, transparent), transparent 62%), ` +
+  `linear-gradient(150deg, color-mix(in srgb, ${acc} 30%, #2c2340), color-mix(in srgb, ${acc} 12%, #1c1730) 60%, #120e1c)`;
 
 /** FA icon per relationship stance — shown on the matrix cells and the per-faction relation chips. */
 const RELATION_ICONS = { ally: "fa-handshake", rival: "fa-hand-fist" };
@@ -302,6 +302,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       openRecruitActor: Codex.#onOpenRecruitActorAction,
       recruitMember: Codex.#onRecruitMember,
       unlockRecruit: Codex.#onUnlockRecruit,
+      toggleRecruitLock: Codex.#onToggleRecruitLock,
+      toggleRecruitHidden: Codex.#onToggleRecruitHidden,
       advanceHQTurn: Codex.#onAdvanceHQTurn,
       exportHQ: Codex.#onExportHQ,
       importHQ: Codex.#onImportHQ,
@@ -1428,7 +1430,9 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Recruitment pool — only the not-yet-recruited candidate people; recruiting moves a person into
     // the Roster (and raises a facility, for a facility-vocation recruit), so it leaves the pool.
-    const recruits = hq.people.filter((e) => !e.recruited).map((e) => {
+    // Players never see recruits the GM has hidden; the GM sees them (dimmed, with a hidden marker) so
+    // they can tell the gating is working.
+    const recruits = hq.people.filter((e) => !e.recruited && (isGM || !e.hidden)).map((e) => {
       const available = recruitAvailable(e);
       const condType = e.condition?.type ?? "auto";
       const condFactionId = e.condition?.factionId ?? "";
@@ -1455,7 +1459,9 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         roleIcon: ROLE_ICONS[e.role] || "fa-user",
         roleOptions: roleOptionsFor(e.role),
         condType,
-        condTypeOptions: RECRUIT_COND_TYPES.map((k) => ({ key: k, label: game.i18n.localize(`PROJECTANIME.Covenant.cond.${k}`), sel: k === condType })),
+        condTypeOptions: RECRUIT_COND_TYPES
+          .map((k) => ({ key: k, label: game.i18n.localize(`PROJECTANIME.Covenant.cond.${k}`), sel: k === condType }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
         condFactionId,
         factionOptions: factionOpts.map((o) => ({ id: o.id, name: o.name, sel: o.id === condFactionId })),
         condTier,
@@ -1468,6 +1474,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         isManual: condType === "manual",
         available,
         locked: !available,
+        hidden: !!e.hidden,
         isOpen: this.#openHqDrawer === e.id
       };
     });
@@ -2294,6 +2301,23 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     return this.#mutateHQ((hq) => { const e = hq.people.find((x) => x.id === id); if (e) e.unlocked = true; });
   }
 
+  /** Click the lock symbol on a recruit (GM only): toggle locked⇄unlocked. Clicking takes manual control
+   *  of the gate (so the icon is a direct lock/unlock, independent of the auto conditions). */
+  #toggleRecruitLock(id) {
+    return this.#mutateHQ((hq) => {
+      const e = hq.people.find((x) => x.id === id);
+      if (!e) return;
+      const open = recruitAvailable(e);
+      e.condition = { ...(e.condition ?? {}), type: "manual" };
+      e.unlocked = !open;
+    });
+  }
+
+  /** Click the hidden symbol on a recruit (GM only): toggle whether players see the card at all. */
+  #toggleRecruitHidden(id) {
+    return this.#mutateHQ((hq) => { const e = hq.people.find((x) => x.id === id); if (e) e.hidden = !e.hidden; });
+  }
+
   /** Delete a recruit / roster member / facility from the HQ pool (GM only), confirming first like
    *  the quest-rail delete. The underlying NPC actor (and any party-folder membership) is untouched. */
   async #removeRecruit(id) {
@@ -2328,7 +2352,9 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     // (name / motto / accent) are free text. The input the GM is typing in already shows the value, so
     // save it quietly — no pane re-render (the seamless authoring path; mirrors #onResourceField).
     const val = field === "turn" ? Math.max(0, Math.round(Number(el.value) || 0)) : el.value;
-    return this.#mutateHQ((hq) => { hq[field] = val; }, { quiet: true });
+    // `accent` restyles the crest + every card's --acc, so it must re-render; name/motto/turn are
+    // already shown in their own field → save quietly (seamless authoring; mirrors #onResourceField).
+    return this.#mutateHQ((hq) => { hq[field] = val; }, { quiet: field !== "accent" });
   }
 
   /** Set a resource stockpile amount (GM only) — keyed by the Resource Type. Quiet: the number box the
@@ -2429,6 +2455,18 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onUnlockRecruit(event, target) {
     const id = target.closest("[data-recruit-id]")?.dataset.recruitId;
     if (id) await this.#unlockRecruit(id);
+  }
+
+  static async #onToggleRecruitLock(event, target) {
+    event.stopPropagation();
+    const id = target.closest("[data-recruit-id]")?.dataset.recruitId;
+    if (id) await this.#toggleRecruitLock(id);
+  }
+
+  static async #onToggleRecruitHidden(event, target) {
+    event.stopPropagation();
+    const id = target.closest("[data-recruit-id]")?.dataset.recruitId;
+    if (id) await this.#toggleRecruitHidden(id);
   }
 
   /** Advance the HQ one downtime turn: pay out every facility's per-turn output (saveHQ → re-render). */
