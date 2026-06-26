@@ -1365,7 +1365,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     name: "project-anime-codex",
     order: 99,
     title: "PROJECTANIME.Codex.open",
-    icon: "fa-solid fa-book-open",
+    icon: "fa-solid fa-house",
     button: true,
     onClick: () => Codex.open()
   };

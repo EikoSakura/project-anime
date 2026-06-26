@@ -478,11 +478,11 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
     // blurb). TRAIT BONUSES — a flat +N to a Talent / Attribute / HQ output (gold|sp|success) when
     // this NPC does the matching work. NPC-only for now (PCs stay combat-only).
     schema.talents = new fields.SchemaField({
-      exploration: talentField(),
-      craft: talentField(),
+      combat: talentField(),
       commerce: talentField(),
-      lore: talentField(),
-      medicine: talentField()
+      craft: talentField(),
+      exploration: talentField(),
+      lore: talentField()
     });
     // SIGNATURE TRAIT — the NPC's ONE unique, defining ability, shown as a skill-style card. `name` /
     // `img` are the card's title + icon; `desc` is optional flavor (for bespoke abilities the rule

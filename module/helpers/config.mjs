@@ -37,19 +37,19 @@ PROJECTANIME.attributeIcons = {
 
 /** The five NPC Talents — work dice the HQ taps (dispatch missions + facility output). */
 PROJECTANIME.talents = {
-  exploration: "PROJECTANIME.Talent.exploration.long",
-  craft: "PROJECTANIME.Talent.craft.long",
+  combat: "PROJECTANIME.Talent.combat.long",
   commerce: "PROJECTANIME.Talent.commerce.long",
-  lore: "PROJECTANIME.Talent.lore.long",
-  medicine: "PROJECTANIME.Talent.medicine.long"
+  craft: "PROJECTANIME.Talent.craft.long",
+  exploration: "PROJECTANIME.Talent.exploration.long",
+  lore: "PROJECTANIME.Talent.lore.long"
 };
-PROJECTANIME.talentKeys = ["exploration", "craft", "commerce", "lore", "medicine"];
+PROJECTANIME.talentKeys = ["combat", "commerce", "craft", "exploration", "lore"];
 PROJECTANIME.talentIcons = {
-  exploration: "fa-solid fa-compass",
-  craft: "fa-solid fa-hammer",
+  combat: "fa-solid fa-khanda",
   commerce: "fa-solid fa-scale-balanced",
-  lore: "fa-solid fa-book-open",
-  medicine: "fa-solid fa-staff-snake"
+  craft: "fa-solid fa-hammer",
+  exploration: "fa-solid fa-compass",
+  lore: "fa-solid fa-book-open"
 };
 
 /** HQ outputs a Trait Bonus can boost (besides a Talent or an Attribute). `haste` is the odd one out:
@@ -735,18 +735,18 @@ PROJECTANIME.consumableRestore = {
  *  build trio Wood/Stone, textile Cloth, the potion-economy Herbs, and Manacite — crystallized
  *  mana, the magical material the setting runs on. */
 PROJECTANIME.materialCategories = {
-  wood: "PROJECTANIME.MaterialCategory.wood",
-  stone: "PROJECTANIME.MaterialCategory.stone",
   cloth: "PROJECTANIME.MaterialCategory.cloth",
   herb: "PROJECTANIME.MaterialCategory.herb",
-  manacite: "PROJECTANIME.MaterialCategory.manacite"
+  manacite: "PROJECTANIME.MaterialCategory.manacite",
+  stone: "PROJECTANIME.MaterialCategory.stone",
+  wood: "PROJECTANIME.MaterialCategory.wood"
 };
 PROJECTANIME.materialCategoryIcons = {
-  wood: "fa-solid fa-tree",
-  stone: "fa-solid fa-mountain",
   cloth: "fa-solid fa-vest",
   herb: "fa-solid fa-leaf",
-  manacite: "fa-solid fa-gem"
+  manacite: "fa-solid fa-gem",
+  stone: "fa-solid fa-mountain",
+  wood: "fa-solid fa-tree"
 };
 
 /** Weapon/Skill physical range categories. */

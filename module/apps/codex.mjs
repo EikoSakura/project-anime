@@ -29,7 +29,7 @@ import {
 } from "../helpers/chronicle.mjs";
 import {
   getFactions, saveFactions, blankFaction, tierForStanding, clampStanding, STANDING_TIERS,
-  setFactionStanding, setFactionRelation, factionById, recruitAvailable, recruitMember, getHQ, saveHQ, advanceHQTurn, blankMission,
+  setFactionStanding, setFactionRelation, factionById, recruitAvailable, recruitMember, getHQ, saveHQ, normalizeHQ, advanceHQTurn, blankMission,
   statDieFor, statBonusFor, statLabelFor, hqLevel, hqHasteBonus, effectiveMissionDuration
 } from "../helpers/factions.mjs";
 import { getBonds, BOND_MAX_RANK } from "../helpers/bonds.mjs";
@@ -256,7 +256,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     // `chronicle-app` is kept so the quest-pane CSS (scoped under it) applies verbatim.
     classes: ["project-anime", "theme-dark", "pa-codex", "chronicle-app"],
     position: { width: 1080, height: 720 },
-    window: { title: "PROJECTANIME.Codex.title", icon: "fa-solid fa-book-open", resizable: true },
+    window: { title: "PROJECTANIME.Codex.title", icon: "fa-solid fa-house", resizable: true },
     actions: {
       // Nav
       selectTab: Codex.#onSelectTab,
@@ -303,6 +303,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       recruitMember: Codex.#onRecruitMember,
       unlockRecruit: Codex.#onUnlockRecruit,
       advanceHQTurn: Codex.#onAdvanceHQTurn,
+      exportHQ: Codex.#onExportHQ,
+      importHQ: Codex.#onImportHQ,
       hqLevelUp: Codex.#onHqLevelUp,
       hqLevelDown: Codex.#onHqLevelDown,
       visitShop: Codex.#onVisitShop,
@@ -2433,6 +2435,110 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onAdvanceHQTurn() {
     if (!game.user.isGM) return;
     await advanceHQTurn();
+  }
+
+  /** A safe filename stem for the current HQ (lower-kebab, never empty). */
+  #hqSlug(hq) {
+    return String(hq.name || "headquarters").trim().toLowerCase().replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "") || "headquarters";
+  }
+
+  /** Trigger a browser download of a Blob (used for the .zip export; saveDataToFile only takes strings). */
+  #downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  /** Export the ENTIRE Headquarters (identity, resources, roster/recruits, facilities, missions, craft
+   *  jobs) the GM can carry into another world. The HQ blob alone snapshots each card's name/img/role/
+   *  yields, but its actor LINKS (`npcUuid`) are world-local — so we bundle the FULL backing NPC actor
+   *  for every linked recruit/facility into a `.zip` (`hq.json` + `actors.json`), letting Import recreate
+   *  those actors in the destination world and re-point the links. Falls back to a bare JSON (HQ only) if
+   *  JSZip isn't available. */
+  static async #onExportHQ() {
+    if (!game.user.isGM) return;
+    const hq = getHQ();
+    const slug = this.#hqSlug(hq);
+    // Full data for every backing NPC actor a recruit/facility links to (deduped by uuid).
+    const uuids = [...new Set([...(hq.people ?? []), ...(hq.facilities ?? [])].map((e) => e?.npcUuid).filter(Boolean))];
+    const actors = {};
+    for (const uuid of uuids) {
+      try { const doc = await fromUuid(uuid); if (doc?.toObject) actors[uuid] = doc.toObject(); }
+      catch (_) { /* unresolved link — skip; the card snapshot still carries name/img */ }
+    }
+    const meta = { type: "project-anime-hq", version: game.system?.version ?? "" };
+    const JSZ = globalThis.JSZip;
+    if (JSZ) {
+      const zip = new JSZ();
+      zip.file("hq.json", JSON.stringify({ ...meta, hq }, null, 2));
+      zip.file("actors.json", JSON.stringify(actors, null, 2));
+      const blob = await zip.generateAsync({ type: "blob" });
+      this.#downloadBlob(blob, `pa-hq-${slug}.zip`);
+    } else {
+      // No zip support — fall back to a single JSON that still carries the bundled actors inline.
+      const fn = foundry.utils?.saveDataToFile ?? globalThis.saveDataToFile;
+      fn(JSON.stringify({ ...meta, hq, actors }, null, 2), "application/json", `pa-hq-${slug}.json`);
+    }
+  }
+
+  /** Import a Headquarters export, REPLACING the current HQ after a confirm. Accepts a `.zip` (from the
+   *  bundled export — recreates the packaged NPC actors and re-points each recruit/facility `npcUuid` at
+   *  its new copy) or a `.json` (wrapped `{hq,actors}`, a bare `{hq}`, or a bare HQ object). normalizeHQ
+   *  repairs/upgrades any older shape on the way in. */
+  static async #onImportHQ() {
+    if (!game.user.isGM) return;
+    const file = await new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".zip,.json,application/json,application/zip";
+      input.addEventListener("change", () => resolve(input.files?.[0] ?? null));
+      input.click();
+    });
+    if (!file) return;
+
+    let hqRaw = null, actors = {};
+    try {
+      if (/\.zip$/i.test(file.name) && globalThis.JSZip) {
+        const zip = await globalThis.JSZip.loadAsync(await file.arrayBuffer());
+        const hqStr = await zip.file("hq.json")?.async("string");
+        const acStr = await zip.file("actors.json")?.async("string");
+        const parsed = hqStr ? JSON.parse(hqStr) : null;
+        hqRaw = (parsed && parsed.hq) ? parsed.hq : parsed;
+        actors = acStr ? JSON.parse(acStr) : {};
+      } else {
+        const parsed = JSON.parse(await file.text());
+        hqRaw = (parsed && typeof parsed === "object" && parsed.hq) ? parsed.hq : parsed;
+        actors = (parsed && typeof parsed === "object" && parsed.actors) ? parsed.actors : {};
+      }
+    } catch (e) { ui.notifications.error(game.i18n.localize("PROJECTANIME.HQ.importBadFile")); return; }
+    if (!hqRaw || typeof hqRaw !== "object") { ui.notifications.error(game.i18n.localize("PROJECTANIME.HQ.importBadFile")); return; }
+
+    const hq = normalizeHQ(hqRaw);
+    const actorCount = actors && typeof actors === "object" ? Object.keys(actors).length : 0;
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("PROJECTANIME.HQ.importTitle") },
+      content: `<p>${game.i18n.format("PROJECTANIME.HQ.importConfirm", { name: hq.name || game.i18n.localize("PROJECTANIME.HQ.title"), actors: actorCount })}</p>`,
+      rejectClose: false, modal: true
+    });
+    if (!ok) return;
+
+    // Recreate the bundled NPC actors, then re-point every recruit/facility link at its new copy.
+    if (actorCount) {
+      const entries = Object.entries(actors).filter(([, d]) => d && typeof d === "object");
+      const datas = entries.map(([, d]) => { const c = foundry.utils.deepClone(d); delete c._id; return c; });
+      let created = [];
+      try { created = await Actor.createDocuments(datas, { keepId: false }); }
+      catch (e) { console.error("project-anime | HQ import: actor creation failed", e); }
+      const uuidMap = {};
+      created.forEach((doc, i) => { if (doc) uuidMap[entries[i][0]] = doc.uuid; });
+      for (const e of [...(hq.people ?? []), ...(hq.facilities ?? [])]) {
+        if (e?.npcUuid && uuidMap[e.npcUuid]) e.npcUuid = uuidMap[e.npcUuid];
+      }
+    }
+    await saveHQ(hq); // world setting onChange → notifyHQChanged re-renders every open Codex
+    ui.notifications.info(game.i18n.localize("PROJECTANIME.HQ.importDone"));
   }
 
   /** GM: nudge the HQ Level up / down. The Level is the facility-tier sum + a stored `levelAdjust`
