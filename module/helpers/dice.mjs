@@ -1,7 +1,7 @@
 import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
+import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
@@ -2873,6 +2873,11 @@ async function applyConditionFromItem(actor, item, targetActor, c, lines) {
     lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.overcomeImmune", { name: targetActor.name, condition: c.label })}</em>`);
     return;
   }
+  // A standing Status Immunity (from a live Active-Effect rule) shrugs off the inflict entirely.
+  if (statusImmunities(targetActor).has(c.id)) {
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.immune", { name: targetActor.name, condition: c.label })}</em>`);
+    return;
+  }
   const opts = {};
   let label = c.label;
   if (item?.type === "skill") {
@@ -2908,6 +2913,11 @@ async function inflictDecay(item, targetActor, lines) {
   // A target still immune from a successful Overcome shrugs the Lingering off like any condition.
   if (overcomeImmune(targetActor, item.uuid) || overcomeImmune(targetActor, "status:decay")) {
     lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.overcomeImmune", { name: targetActor.name, condition })}</em>`);
+    return;
+  }
+  // Immunity to Lingering (the `decay` status) blocks it like any other inflicted condition.
+  if (statusImmunities(targetActor).has("decay")) {
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.immune", { name: targetActor.name, condition })}</em>`);
     return;
   }
   const overcomeCT = item.actor ? attrValue(item.actor, skillDieAttr(item)) : 0;

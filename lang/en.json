@@ -649,7 +649,8 @@
       "overcame": "Overcome!",
       "overcomeMarker": "Overcame: {name}",
       "overcomeEnds": "{name} shakes off {effect} — immune to it for the next 2 turns.",
-      "overcomeImmune": "{name} is immune to {condition} (Overcome)"
+      "overcomeImmune": "{name} is immune to {condition} (Overcome)",
+      "immune": "{name} is immune to {condition}."
     },
     "SkillEvasion": {
       "mindCharm": "Mind or Charm",
@@ -1225,6 +1226,7 @@
         "roll": "Roll",
         "ncCheck": "Non-Combat Check",
         "condition": "Condition",
+        "immunity": "Status Immunity",
         "luck": "Luck",
         "trade": "Trade",
         "reveal": "Reveal",
@@ -1274,6 +1276,7 @@
         "target": "Target"
       },
       "inflict": "Inflict",
+      "immuneTo": "Immune to",
       "pred": {
         "always": "Always",
         "selfCondition": "If self",

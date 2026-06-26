@@ -68,6 +68,11 @@ export const RULE_TYPES = {
   // die size, which would leak into combat) — read at check time via collectNonCombatCheckMods.
   ncCheck: "PROJECTANIME.Effect.type.ncCheck",
   condition: "PROJECTANIME.Effect.type.condition",
+  // Status immunity: while live, the bearer can't be afflicted with the chosen Status Effect — any
+  // attempt to INFLICT it (a Skill/weapon on-hit, a Hinder status, the Inflict Modifier, Lingering)
+  // is shrugged off. A passive, self-only guard read at inflict time (statusImmunities, consulted in
+  // dice.mjs), NOT a prepare rule — it changes no stat, only blocks an incoming condition.
+  immunity: "PROJECTANIME.Effect.type.immunity",
   luck: "PROJECTANIME.Effect.type.luck",
   trade: "PROJECTANIME.Effect.type.trade",
   reveal: "PROJECTANIME.Effect.type.reveal",
@@ -282,6 +287,11 @@ export function normalizeRule(raw) {
     case "condition": {
       const keys = PROJECTANIME.conditionKeys ?? [];
       rule = { type: "condition", scope: raw.scope === "target" ? "target" : "self", status: keys.includes(raw.status) ? raw.status : (keys[0] ?? "") };
+      break;
+    }
+    case "immunity": {
+      const keys = PROJECTANIME.conditionKeys ?? [];
+      rule = { type: "immunity", status: keys.includes(raw.status) ? raw.status : (keys[0] ?? "") };
       break;
     }
     case "reveal":
@@ -1076,6 +1086,23 @@ export function collectInflictedConditions(item, target = null) {
   return out;
 }
 
+/**
+ * The set of Status Effect ids the actor is currently IMMUNE to — gathered from every live `immunity`
+ * rule on its applied effects (equip- + toggle- + gate-gated, exactly like the passive engine). An
+ * immune creature shrugs off any attempt to inflict that status (see dice.mjs applyConditionFromItem /
+ * inflictDecay). Self-only: immunity never reaches across to a target, so there's no scope field.
+ * @returns {Set<string>}
+ */
+export function statusImmunities(actor) {
+  const out = new Set();
+  for (const effect of liveEffects(actor)) {
+    for (const rule of effectRules(effect)) {
+      if (rule?.type === "immunity" && rule.status) out.add(rule.status);
+    }
+  }
+  return out;
+}
+
 /* -------------------------------------------- */
 /*  Grant Item (event-driven — NOT a passive rule)*/
 /* -------------------------------------------- */
@@ -1233,6 +1260,8 @@ export function summarizeRule(rule) {
       return rule.scope === "target"
         ? `${L("PROJECTANIME.Effect.inflict")} ${conditionLabelOf(rule.status)}`
         : conditionLabelOf(rule.status);
+    case "immunity":
+      return `${L("PROJECTANIME.Effect.immuneTo")} ${conditionLabelOf(rule.status)}`;
     case "reveal":
       return `${L(RULE_TYPES.reveal)} ${L(REVEAL_CATEGORIES[rule.category]) || rule.category}`;
     case "grant": {
@@ -1323,6 +1352,8 @@ export function narrateRule(rule) {
       return `shifts the ${L(TRADE_TARGETS[rule.target === "buy" ? "buy" : "sell"])} rate by ${signed(rule.pct)}%`;
     case "reveal":
       return `reveals ${L(REVEAL_CATEGORIES[rule.category]) || rule.category}`;
+    case "immunity":
+      return `grants immunity to ${conditionLabelOf(rule.status)}`;
     case "grant": {
       const names = (Array.isArray(rule.items) ? rule.items : []).map((i) => i?.name).filter(Boolean);
       return names.length ? `grants ${names.join(", ")}` : "";

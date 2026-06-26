@@ -119,6 +119,11 @@
       <select name="rules.{{i}}.status">{{selectOptions ../choices.conditions selected=rule.status}}</select>
       {{/if}}
 
+      {{#if rule.isImmunity}}
+      <span class="eb-unit">{{localize "PROJECTANIME.Effect.immuneTo"}}</span>
+      <select name="rules.{{i}}.status">{{selectOptions ../choices.conditions selected=rule.status}}</select>
+      {{/if}}
+
       {{#if rule.isLuck}}
       <span class="eb-unit">{{localize "PROJECTANIME.Effect.luckStepUp"}}</span>
       <input type="number" class="eb-num" name="rules.{{i}}.steps" value="{{rule.steps}}" min="1" max="4" step="1" />
