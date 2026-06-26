@@ -101,8 +101,8 @@
           <span class="cstud tl"></span><span class="cstud tr"></span><span class="cstud bl"></span><span class="cstud br"></span>
           <span class="hq-tcrest" title="{{roleLabel}}"><i class="fas {{roleIcon}}"></i></span>
           {{#if @root.isGM}}
-          <span class="rec-pip lock{{#if available}} on{{/if}}" data-action="toggleRecruitLock" data-recruit-id="{{id}}" title="{{#if available}}{{localize 'PROJECTANIME.Covenant.unlockTip'}}{{else}}{{localize 'PROJECTANIME.Covenant.lockTip'}}{{/if}}"><i class="fas {{#if available}}fa-lock-open{{else}}fa-lock{{/if}}"></i></span>
-          <span class="rec-pip hide{{#if hidden}} on{{/if}}" data-action="toggleRecruitHidden" data-recruit-id="{{id}}" title="{{#if hidden}}{{localize 'PROJECTANIME.Covenant.hiddenTip'}}{{else}}{{localize 'PROJECTANIME.Covenant.hideTip'}}{{/if}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></span>
+          <span class="rec-pip lock{{#if available}} on{{/if}}" data-action="toggleRecruitLock" data-recruit-id="{{id}}"><i class="fas {{#if available}}fa-lock-open{{else}}fa-lock{{/if}}"></i></span>
+          <span class="rec-pip hide{{#if hidden}} on{{/if}}" data-action="toggleRecruitHidden" data-recruit-id="{{id}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></span>
           {{/if}}
           {{#unless available}}<div class="rcard-lock"><i class="fas fa-lock"></i></div>{{/unless}}
         </div>
@@ -219,18 +219,18 @@
           {{!-- All condition pickers render always; CSS shows only those matching data-cond, so changing
                 the condition-type dropdown swaps pickers with no re-render (see #onRecruitFieldChange). --}}
           <div class="rcard-cfg" data-cond="{{condType}}">
-            <select data-recruit-id="{{id}}" data-recruit-field="role">{{#each roleOptions}}<option value="{{key}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
             <select data-recruit-id="{{id}}" data-recruit-field="condType">{{#each condTypeOptions}}<option value="{{key}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
             <select class="cfg-repTier" data-recruit-id="{{id}}" data-recruit-field="condFaction"><option value="">{{localize "PROJECTANIME.HQ.anyFaction"}}</option>{{#each factionOptions}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}</select>
             <select class="cfg-repTier" data-recruit-id="{{id}}" data-recruit-field="condTier">{{#each tierOptions}}<option value="{{key}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-            <input class="cfg-hqLevel" type="number" min="0" data-recruit-id="{{id}}" data-recruit-field="condLevel" value="{{condLevel}}" title="{{localize 'PROJECTANIME.Covenant.condHqLevelField'}}">
+            <input class="cfg-hqLevel" type="number" min="0" data-recruit-id="{{id}}" data-recruit-field="condLevel" value="{{condLevel}}">
+            <select class="cfg-quest" data-recruit-id="{{id}}" data-recruit-field="condQuest"><option value="">{{localize "PROJECTANIME.Covenant.condQuestNone"}}</option>{{#each questOptions}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{title}}</option>{{/each}}</select>
             <input class="cfg-manual" data-recruit-id="{{id}}" data-recruit-field="condLabel" value="{{condLabelRaw}}" placeholder="{{localize 'PROJECTANIME.Covenant.condManualPlaceholder'}}">
           </div>
           <div class="rcard-act">
             {{#if available}}<button type="button" class="rec-btn" data-action="recruitMember" data-recruit-id="{{id}}">{{localize "PROJECTANIME.Covenant.recruitBtn"}}</button>
             {{else}}<span class="rec-lock"><i class="fas fa-lock"></i> {{condLabel}}</span>{{/if}}
-            <span class="rec-pip lock{{#if available}} on{{/if}}" data-action="toggleRecruitLock" data-recruit-id="{{id}}" title="{{#if available}}{{localize 'PROJECTANIME.Covenant.unlockTip'}}{{else}}{{localize 'PROJECTANIME.Covenant.lockTip'}}{{/if}}"><i class="fas {{#if available}}fa-lock-open{{else}}fa-lock{{/if}}"></i></span>
-            <span class="rec-pip hide{{#if hidden}} on{{/if}}" data-action="toggleRecruitHidden" data-recruit-id="{{id}}" title="{{#if hidden}}{{localize 'PROJECTANIME.Covenant.hiddenTip'}}{{else}}{{localize 'PROJECTANIME.Covenant.hideTip'}}{{/if}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></span>
+            <span class="rec-pip lock{{#if available}} on{{/if}}" data-action="toggleRecruitLock" data-recruit-id="{{id}}"><i class="fas {{#if available}}fa-lock-open{{else}}fa-lock{{/if}}"></i></span>
+            <span class="rec-pip hide{{#if hidden}} on{{/if}}" data-action="toggleRecruitHidden" data-recruit-id="{{id}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></span>
           </div>
           {{else}}
           <div class="hq-bk-sec">{{localize "PROJECTANIME.HQ.recruitment"}}</div>

@@ -2,7 +2,7 @@
   "id": "project-anime",
   "title": "Project: Anime",
   "description": "A setting-agnostic anime TTRPG of attribute dice, player-built Skills, and cinematic scenes. Playtest implementation for Foundry Virtual Tabletop V13.",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "compatibility": {
     "minimum": "13",
     "verified": "13.351",

@@ -183,20 +183,8 @@
                 <input data-ar="rep" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
               </div>
             </div>
-            {{#if recruitChoices.length}}
-            <div class="ar-col ar-recruit">
-              <span class="ar-label"><span class="ar-glyph recruit">⚑</span>{{localize 'PROJECTANIME.Chronicle.recruitReward'}}</span>
-              <div class="ar-rec-cards">
-                {{#each recruitChoices}}
-                <button type="button" class="ar-rec-card{{#if picked}} picked{{/if}}" data-action="addRecruitReward" data-recruit-id="{{id}}" title="{{name}}">
-                  <span class="ar-rec-pic">{{#if img}}<img src="{{img}}" alt="">{{else}}<span>{{initial}}</span>{{/if}}</span>
-                  <span class="ar-rec-meta"><span class="ar-rec-name">{{name}}</span><span class="ar-rec-role">{{roleLabel}}</span></span>
-                  {{#if picked}}<span class="ar-rec-check"><i class="fas fa-check"></i></span>{{/if}}
-                </button>
-                {{/each}}
-              </div>
-            </div>
-            {{/if}}
+            {{!-- Recruit unlocks are now tied from the Recruitment setup (a recruit's "Quest Complete"
+                  condition), not authored on the quest. --}}
             <button type="button" class="gbtn ar-add" data-action="addReward">＋ {{localize 'PROJECTANIME.Chronicle.add'}}</button>
           </div>
           {{/if}}

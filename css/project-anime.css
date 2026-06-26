@@ -6770,15 +6770,14 @@ body.pa-combat-shown #chat-notifications { display: none; }
 /* Condition pickers all render; show only the ones matching the recruit's condition type via data-cond
    on .rcard-cfg, so the condition-type dropdown swaps pickers with no re-render. Fail-safe: an unknown
    data-cond hides nothing (everything shows) rather than hiding the controls the GM needs. */
-.pa-hq .rcard-cfg[data-cond="auto"] .cfg-repTier,
-.pa-hq .rcard-cfg[data-cond="auto"] .cfg-hqLevel,
-.pa-hq .rcard-cfg[data-cond="auto"] .cfg-manual,
-.pa-hq .rcard-cfg[data-cond="repTier"] .cfg-hqLevel,
-.pa-hq .rcard-cfg[data-cond="repTier"] .cfg-manual,
-.pa-hq .rcard-cfg[data-cond="hqLevel"] .cfg-repTier,
-.pa-hq .rcard-cfg[data-cond="hqLevel"] .cfg-manual,
-.pa-hq .rcard-cfg[data-cond="manual"] .cfg-repTier,
-.pa-hq .rcard-cfg[data-cond="manual"] .cfg-hqLevel { display: none; }
+.pa-hq .rcard-cfg .cfg-repTier,
+.pa-hq .rcard-cfg .cfg-hqLevel,
+.pa-hq .rcard-cfg .cfg-quest,
+.pa-hq .rcard-cfg .cfg-manual { display: none; }
+.pa-hq .rcard-cfg[data-cond="repTier"] .cfg-repTier,
+.pa-hq .rcard-cfg[data-cond="hqLevel"] .cfg-hqLevel,
+.pa-hq .rcard-cfg[data-cond="quest"] .cfg-quest,
+.pa-hq .rcard-cfg[data-cond="manual"] .cfg-manual { display: block; }
 .pa-hq .rcard-act { display: flex; align-items: center; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
 .pa-hq .rcard-state { margin-top: 14px; display: flex; justify-content: center; }
 .pa-hq .rcard-cond { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--pa-ink-soft); background: rgba(0,0,0,.28); border: 1px solid var(--pa-line); border-radius: 20px; padding: 3px 10px; }

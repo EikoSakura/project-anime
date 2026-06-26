@@ -151,19 +151,13 @@ function computeWebLayout(factions) {
   return P;
 }
 
-/** What a recruited PERSON does — the only two people vocations (a Mercenary joins the party to fight;
- *  a Dispatch agent goes on missions). Facilities are their OWN thing (GM-built), not a person role. */
-const PERSON_ROLES = ["party", "dispatch"];
+/** People are a single kind now: a recruit who can be dispatched on missions, staff a facility, etc.
+ *  (the old Mercenary/Dispatch split is gone). Facilities are their OWN thing (GM-built), not a role. */
+const PERSON_ROLES = ["party"];
 
 /** Crest icon per role/kind — person roles show on the roster tarot card's bottom diamond. */
 const ROLE_ICONS = { party: "fa-khanda", service: "fa-heart-pulse", vendor: "fa-store", passive: "fa-hand-sparkles", dispatch: "fa-compass", upgrade: "fa-hammer", workshop: "fa-screwdriver-wrench" };
-const RECRUIT_COND_TYPES = ["auto", "repTier", "hqLevel", "manual"];
-
-/** Person-role <select> options, alphabetical by label, `cur` marked selected (the recruit pool's role
- *  picker; facility KINDS are authored in the Structures window, not here). */
-const roleOptionsFor = (cur, roles = PERSON_ROLES) => roles
-  .map((k) => ({ key: k, label: game.i18n.localize(`PROJECTANIME.Covenant.role.${k}`), sel: k === cur }))
-  .sort((a, b) => a.label.localeCompare(b.label));
+const RECRUIT_COND_TYPES = ["auto", "repTier", "hqLevel", "quest", "manual"];
 
 /** Attributes a passive facility's boon can buff (`.value` is the safe, cascading AE target). */
 const BOON_ATTRS = ["might", "agility", "mind", "spirit", "charm"];
@@ -1432,22 +1426,15 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     // the Roster (and raises a facility, for a facility-vocation recruit), so it leaves the pool.
     // Players never see recruits the GM has hidden; the GM sees them (dimmed, with a hidden marker) so
     // they can tell the gating is working.
+    const questOpts = getQuests().map((q) => ({ id: q.id, title: q.title || game.i18n.localize("PROJECTANIME.HQ.missionUntitled") }));
     const recruits = hq.people.filter((e) => !e.recruited && (isGM || !e.hidden)).map((e) => {
       const available = recruitAvailable(e);
       const condType = e.condition?.type ?? "auto";
       const condFactionId = e.condition?.factionId ?? "";
       const condTier = e.condition?.tier ?? "";
       const condLevel = e.condition?.level ?? 0;
-      let condLabel;
-      if (condType === "repTier") {
-        const fac = factionById(condFactionId);
-        condLabel = game.i18n.format("PROJECTANIME.Covenant.condRepTierFaction", {
-          tier: game.i18n.localize(`PROJECTANIME.Covenant.tier.${condTier || "neutral"}`),
-          faction: fac?.name ?? game.i18n.localize("PROJECTANIME.HQ.anyFaction")
-        });
-      } else if (condType === "hqLevel") condLabel = game.i18n.format("PROJECTANIME.Covenant.condHqLevel", { level: condLevel });
-      else if (condType === "manual") condLabel = e.condition?.label || game.i18n.localize("PROJECTANIME.Covenant.condManual");
-      else condLabel = game.i18n.localize("PROJECTANIME.Covenant.condAuto");
+      const condQuestId = e.condition?.questId ?? "";
+      const condLabel = this.#recruitCondLabel(e);
       return {
         id: e.id,
         npcUuid: e.npcUuid,
@@ -1457,7 +1444,6 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         role: e.role,
         roleLabel: game.i18n.localize(`PROJECTANIME.Covenant.role.${e.role}`),
         roleIcon: ROLE_ICONS[e.role] || "fa-user",
-        roleOptions: roleOptionsFor(e.role),
         condType,
         condTypeOptions: RECRUIT_COND_TYPES
           .map((k) => ({ key: k, label: game.i18n.localize(`PROJECTANIME.Covenant.cond.${k}`), sel: k === condType }))
@@ -1466,6 +1452,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         factionOptions: factionOpts.map((o) => ({ id: o.id, name: o.name, sel: o.id === condFactionId })),
         condTier,
         tierOptions: STANDING_TIERS.map((t) => ({ key: t.key, label: game.i18n.localize(`PROJECTANIME.Covenant.tier.${t.key}`), sel: t.key === condTier })),
+        condQuestId,
+        questOptions: questOpts.map((o) => ({ id: o.id, title: o.title, sel: o.id === condQuestId })),
         condLabelRaw: e.condition?.label ?? "",
         condLabel,
         condLevel,
@@ -1479,10 +1467,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       };
     });
 
-    // Roster — EVERYONE recruited (fighters, facility staff, and dispatch agents). A `party`-role
-    // recruit is also filed into the party folder, but the party sheet shows only Characters, so the
-    // Roster is the single place every recruit surfaces. Dispatch agents show their away/wounded status
-    // + a GM Recall here (they're people now, not facility cards).
+    // Roster — EVERYONE recruited (fighters, facility staff, anyone out on a mission). The Roster is the
+    // single place every recruit surfaces; an away/wounded member shows that status + a GM Recall here.
     const TAL = CONFIG.PROJECTANIME;
     // Mission picks for the Roster-card "Send on mission" shortcut — id + title only (the live odds
     // preview stays on the Missions tab; from the Roster you just drop one idle agent onto a job).
@@ -1497,7 +1483,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       const postedFac = e.facilityId ? hq.facilities.find((f) => f.id === e.facilityId) : null;
       // An idle dispatch agent (recruited already filtered) can be sent on a mission from their card —
       // same gate as the Missions-tab squad picker: a dispatch vocation, not away/wounded, not posted.
-      const idleDispatch = e.role === "dispatch" && !e.status && !e.facilityId;
+      const idleDispatch = !e.status && !e.facilityId; // anyone recruited can be dispatched when idle (not posted / away / wounded)
       return {
         id: e.id,
         npcUuid: e.npcUuid,
@@ -1599,7 +1585,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     // their die for the mission's stat); the GM taps cards to assemble a squad whose combined odds (the
     // Sum rule) preview live above. Agents already out show as "away" chips. Tier = clickable pips.
     // A person posted to a facility (Phase-2 staffing) is on duty there, so they're not also dispatchable.
-    const idle = hq.people.filter((e) => e.recruited && e.role === "dispatch" && !e.status && !e.facilityId);
+    const idle = hq.people.filter((e) => e.recruited && !e.status && !e.facilityId);
     const missions = (hq.missions ?? []).map((m) => {
       const tier = Math.min(5, Math.max(1, Number(m.tier) || 1));
       const dc = Math.max(1, Math.round(Number(m.difficulty) || 1));
@@ -1726,7 +1712,12 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   #hqViewDigest() {
     const hq = getHQ();
     const facilities = (hq.facilities ?? []).map((f) => { const { recipes, stock, ...rest } = f; return rest; });
-    return JSON.stringify({ ...hq, facilities, crafting: undefined });
+    // Fold in the resolved availability of any quest-gated recruit so completing the gating quest (a change
+    // OUTSIDE the HQ object) moves the digest and the Home pane refreshes (see the quests-setting onChange).
+    const questGates = (hq.people ?? [])
+      .filter((p) => p.condition?.type === "quest")
+      .map((p) => `${p.id}:${recruitAvailable(p)}`);
+    return JSON.stringify({ ...hq, facilities, crafting: undefined, questGates });
   }
 
   /** The HQ world object changed — refresh the Home pane, but only if what it shows actually changed.
@@ -2302,20 +2293,101 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /** Click the lock symbol on a recruit (GM only): toggle locked⇄unlocked. Clicking takes manual control
-   *  of the gate (so the icon is a direct lock/unlock, independent of the auto conditions). */
-  #toggleRecruitLock(id) {
-    return this.#mutateHQ((hq) => {
+   *  of the gate (so the icon is a direct lock/unlock, independent of the auto conditions). Saves quietly
+   *  and patches the live DOM so the toggle is seamless — no pane re-render flash. */
+  async #toggleRecruitLock(id) {
+    let state = null;
+    await this.#mutateHQ((hq) => {
       const e = hq.people.find((x) => x.id === id);
       if (!e) return;
       const open = recruitAvailable(e);
       e.condition = { ...(e.condition ?? {}), type: "manual" };
       e.unlocked = !open;
-    });
+      state = { available: recruitAvailable(e), hidden: !!e.hidden, condLabel: this.#recruitCondLabel(e) };
+    }, { quiet: true });
+    if (state) this.#patchRecruitState(id, state);
   }
 
-  /** Click the hidden symbol on a recruit (GM only): toggle whether players see the card at all. */
-  #toggleRecruitHidden(id) {
-    return this.#mutateHQ((hq) => { const e = hq.people.find((x) => x.id === id); if (e) e.hidden = !e.hidden; });
+  /** Click the hidden symbol on a recruit (GM only): toggle whether players see the card at all. Seamless
+   *  (quiet save + DOM patch), like #toggleRecruitLock. */
+  async #toggleRecruitHidden(id) {
+    let state = null;
+    await this.#mutateHQ((hq) => {
+      const e = hq.people.find((x) => x.id === id);
+      if (!e) return;
+      e.hidden = !e.hidden;
+      state = { available: recruitAvailable(e), hidden: !!e.hidden, condLabel: this.#recruitCondLabel(e) };
+    }, { quiet: true });
+    if (state) this.#patchRecruitState(id, state);
+  }
+
+  /** The locked-state label for a recruit (mirrors the recruits view-model: rep-tier / HQ-level / manual
+   *  / auto). Used by #patchRecruitState to rebuild the drawer's locked affordance without a re-render. */
+  #recruitCondLabel(e) {
+    const c = e.condition ?? {};
+    if (c.type === "repTier") {
+      const fac = factionById(c.factionId);
+      return game.i18n.format("PROJECTANIME.Covenant.condRepTierFaction", {
+        tier: game.i18n.localize(`PROJECTANIME.Covenant.tier.${c.tier || "neutral"}`),
+        faction: fac?.name ?? game.i18n.localize("PROJECTANIME.HQ.anyFaction")
+      });
+    }
+    if (c.type === "hqLevel") return game.i18n.format("PROJECTANIME.Covenant.condHqLevel", { level: c.level ?? 0 });
+    if (c.type === "quest") {
+      const q = getQuests().find((x) => x.id === c.questId);
+      return game.i18n.format("PROJECTANIME.Covenant.condQuest", { quest: q?.title || game.i18n.localize("PROJECTANIME.Covenant.condQuestNone") });
+    }
+    if (c.type === "manual") return c.label || game.i18n.localize("PROJECTANIME.Covenant.condManual");
+    return game.i18n.localize("PROJECTANIME.Covenant.condAuto");
+  }
+
+  /** Patch the live DOM for one recruit's lock/hidden state so a toggle is seamless (no pane re-render).
+   *  Mirrors what hq.hbs renders for the pool card (locked/hidden classes + lock overlay), the drawer
+   *  action row (Recruit button ⇄ locked label), and both pip symbols — keep in lockstep with the template. */
+  #patchRecruitState(id, { available, hidden, condLabel }) {
+    const pane = this.element?.querySelector?.('.codex-pane[data-pane="hq"]');
+    if (!pane) return;
+    const L = (k) => game.i18n.localize(`PROJECTANIME.Covenant.${k}`);
+    const sel = `[data-recruit-id="${CSS.escape(id)}"]`;
+    // Pool cards: locked / hidden classes + the centered lock overlay.
+    for (const card of pane.querySelectorAll(`.rcard${sel}`)) {
+      card.classList.toggle("locked", !available);
+      card.classList.toggle("is-hidden", hidden);
+      let overlay = card.querySelector(":scope > .rcard-lock");
+      if (!available && !overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "rcard-lock";
+        overlay.innerHTML = '<i class="fas fa-lock"></i>';
+        card.appendChild(overlay);
+      } else if (available && overlay) overlay.remove();
+    }
+    // Drawer action row: swap the Recruit button ⇄ locked label to match availability.
+    for (const pip of pane.querySelectorAll(`.rcard-act .rec-pip.lock${sel}`)) {
+      const act = pip.closest(".rcard-act");
+      const aff = act.querySelector(":scope > .rec-btn, :scope > .rec-lock");
+      if (available && (!aff || !aff.classList.contains("rec-btn"))) {
+        const btn = document.createElement("button");
+        btn.type = "button"; btn.className = "rec-btn";
+        btn.dataset.action = "recruitMember"; btn.dataset.recruitId = id;
+        btn.textContent = L("recruitBtn");
+        aff ? aff.replaceWith(btn) : act.prepend(btn);
+      } else if (!available && (!aff || !aff.classList.contains("rec-lock"))) {
+        const lock = document.createElement("span");
+        lock.className = "rec-lock";
+        const i = document.createElement("i"); i.className = "fas fa-lock";
+        lock.append(i, ` ${condLabel ?? ""}`);
+        aff ? aff.replaceWith(lock) : act.prepend(lock);
+      }
+    }
+    // Both pip symbols (pool card + drawer kept in sync).
+    for (const pip of pane.querySelectorAll(`.rec-pip.lock${sel}`)) {
+      pip.classList.toggle("on", available);
+      const i = pip.querySelector("i"); if (i) i.className = `fas ${available ? "fa-lock-open" : "fa-lock"}`;
+    }
+    for (const pip of pane.querySelectorAll(`.rec-pip.hide${sel}`)) {
+      pip.classList.toggle("on", hidden);
+      const i = pip.querySelector("i"); if (i) i.className = `fas ${hidden ? "fa-eye-slash" : "fa-eye"}`;
+    }
   }
 
   /** Delete a recruit / roster member / facility from the HQ pool (GM only), confirming first like
@@ -2398,9 +2470,11 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
           if (!e.condition.factionId) e.condition.factionId = getFactions()[0]?.id || "";
         }
         if (val === "hqLevel" && !e.condition.level) e.condition.level = 3; // seed a usable HQ-level gate
+        if (val === "quest" && !e.condition.questId) e.condition.questId = getQuests()[0]?.id || ""; // seed the first quest
       } else if (field === "condFaction") e.condition = { ...(e.condition || {}), factionId: val };
       else if (field === "condTier") e.condition = { ...(e.condition || {}), tier: val };
       else if (field === "condLevel") e.condition = { ...(e.condition || {}), level: Math.max(0, Math.round(Number(val) || 0)) };
+      else if (field === "condQuest") e.condition = { ...(e.condition || {}), questId: val };
       else if (field === "condLabel") e.condition = { ...(e.condition || {}), label: val };
     }, { quiet: true });
     // condType swapped the gate kind → flip which pickers show (CSS, via data-cond) and sync the seeded
@@ -2413,6 +2487,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         const sync = (f, v) => { const ctl = cfg.querySelector(`[data-recruit-field="${f}"]`); if (ctl && v != null && v !== "") ctl.value = v; };
         if (val === "repTier") { sync("condFaction", c.factionId); sync("condTier", c.tier); }
         else if (val === "hqLevel") sync("condLevel", c.level);
+        else if (val === "quest") sync("condQuest", c.questId);
       }
     }
   }
@@ -2771,7 +2846,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       // Re-check the full idle gate at commit time (the transient pick could have gone stale — e.g. an
       // agent got posted to a facility in the Structures window while the squad was being assembled).
       const sent = ids
-        .map((aid) => hq.people.find((e) => e.id === aid && e.recruited && e.role === "dispatch" && !e.status && !e.facilityId))
+        .map((aid) => hq.people.find((e) => e.id === aid && e.recruited && !e.status && !e.facilityId))
         .filter(Boolean);
       if (!sent.length) return;
       // The squad's combined Mission-haste (hq.haste Trait/effect) shortens the run, floored at 1 turn —
@@ -2798,7 +2873,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!pid || !mid) return;
     await this.#mutateHQ((hq) => {
       const m = (hq.missions ?? []).find((x) => x.id === mid);
-      const a = hq.people.find((e) => e.id === pid && e.recruited && e.role === "dispatch" && !e.status && !e.facilityId);
+      const a = hq.people.find((e) => e.id === pid && e.recruited && !e.status && !e.facilityId);
       if (!m || !a) return;
       // This agent's own Mission-haste (hq.haste Trait/effect) shortens their run, floored at 1 turn.
       const npc = a.npcUuid ? fromUuidSync(a.npcUuid) : null;

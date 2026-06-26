@@ -16,7 +16,7 @@
  * per-faction in `rewardedTiers` so dropping and re-climbing standing never double-pays.
  */
 
-import { partyMembers, resolveParty, ensurePartyFolder } from "./party-folder.mjs";
+import { partyMembers, resolveParty } from "./party-folder.mjs";
 import { collectHQOutputs, collectGather } from "./effects.mjs";
 import { materialCategoryLabel, isImageIcon } from "./materials.mjs";
 import { cardHTML } from "./dice.mjs";
@@ -367,12 +367,15 @@ function normalizePerson(e) {
     npcUuid: e.npcUuid || "",
     name: e.name || "",
     img: e.img || "",
-    role: e.role || "party",                                       // vocation: party·service·vendor·passive·dispatch·upgrade
+    // People are a single kind now — every recruit can be dispatched, staff a facility, etc. The legacy
+    // "dispatch" role folds into "party"; the old Mercenary/Dispatch split is gone.
+    role: (e.role === "dispatch" || !e.role) ? "party" : e.role,
     condition: {
       type: e.condition?.type || "auto",
       factionId: e.condition?.factionId || "",
       tier: e.condition?.tier || "",
       level: Math.max(0, Math.round(Number(e.condition?.level) || 0)),
+      questId: e.condition?.questId || "",                          // quest gate: which Chronicle quest unlocks this on completion
       label: e.condition?.label || ""
     },
     effect: e.effect || "",                                        // roster flavour text
@@ -722,6 +725,13 @@ export function recruitAvailable(entry) {
   if (c.type === "hqLevel") {
     return hqLevel(getHQ()) >= (Number(c.level) || 0);
   }
+  if (c.type === "quest") {
+    // Tied to a Chronicle quest: opens when that quest is marked complete ("done"). Read the world
+    // setting directly to avoid importing the chronicle layer (which already imports this module).
+    if (!c.questId) return false;
+    const quests = game.settings.get("project-anime", "quests") ?? [];
+    return (Array.isArray(quests) ? quests : []).some((q) => q.id === c.questId && q.status === "done");
+  }
   if (c.type === "manual") return false; // opened only via the `unlocked` override above
   return true; // auto
 }
@@ -743,10 +753,9 @@ function recruitCard(hq, entry) {
 }
 
 /**
- * Recruit an HQ pool member (GM only) once its condition is met. Marks it recruited and, for a
- * `party`-role (Mercenary) recruit, files the NPC actor into the party's folder so it rides along with
- * the group. Recruiting is purely about PEOPLE now (Mercenaries + Dispatch agents) — facilities are
- * their own first-class thing the GM builds directly, so recruiting never raises one. Posts a chat card.
+ * Recruit an HQ pool member (GM only) once its condition is met — marks it recruited and posts a chat
+ * card. Recruiting is purely about PEOPLE (one kind of recruit, all dispatch-capable); facilities are
+ * their own first-class thing the GM builds directly, so recruiting never raises one.
  */
 export async function recruitMember(entryId) {
   if (!game.user.isGM) return null;
@@ -755,15 +764,6 @@ export async function recruitMember(entryId) {
   if (!person || person.recruited || !recruitAvailable(person)) return null;
   person.recruited = true;
   await saveHQ(hq);
-
-  if (person.role === "party" && person.npcUuid) {
-    const npc = await fromUuid(person.npcUuid).catch(() => null);
-    const party = npc ? await resolveParty() : null;
-    if (npc && party) {
-      const folder = await ensurePartyFolder(party);
-      if (folder && npc.folder?.id !== folder.id) await npc.update({ folder: folder.id });
-    }
-  }
   recruitCard(hq, person);
   return { name: person.name, role: person.role };
 }

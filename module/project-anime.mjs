@@ -97,7 +97,10 @@ Hooks.once("init", function () {
       // A quest edit only touches the Quests pane — scope the re-render so the Factions/Home panes
       // (and their prose enrichment) aren't rebuilt; rep/recruit side effects fire their own saves.
       for (const app of foundry.applications.instances.values()) {
-        if (app.id === "pa-codex") app.render({ parts: ["quests"] });
+        if (app.id === "pa-codex") {
+          app.render({ parts: ["quests"] });
+          app.notifyHQChanged?.(); // a completed quest may open a quest-gated recruit on the Home pane (digest-gated, no flash otherwise)
+        }
       }
       ChronicleTracker.refresh();
     }
