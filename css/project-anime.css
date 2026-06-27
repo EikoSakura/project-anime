@@ -4070,11 +4070,6 @@
 .project-anime .squad-line i { color: var(--pa-accent); }
 /* Token info — squad member stat */
 .project-anime .ti-squad i { color: var(--pa-accent); }
-/* Chat — Squad Strike volley */
-.project-anime.chat-card .squad-volley { display: flex; flex-wrap: wrap; gap: 0.22rem; margin: 0.2rem 0; }
-.project-anime.chat-card .squad-die { min-width: 1.4rem; padding: 0.05rem 0.25rem; text-align: center; font-family: var(--pa-font-mono); font-size: 0.74rem; border-radius: 4px; border: 1px solid var(--pa-line); }
-.project-anime.chat-card .squad-die.hit { color: var(--pa-good, #6fcf97); border-color: var(--pa-good, #6fcf97); }
-.project-anime.chat-card .squad-die.miss { color: var(--pa-ink-soft); opacity: 0.6; }
 .project-anime.character-creator .cc-icon-btn.danger:hover { border-color: var(--pa-danger); color: var(--pa-danger); }
 .project-anime.character-creator button.cc-primary {
   padding: 0.5rem 0.8rem; font-weight: 700;
@@ -4150,6 +4145,17 @@
   background: color-mix(in srgb, var(--tier-color) 16%, var(--pa-field));
   border: 1px solid color-mix(in srgb, var(--tier-color) 45%, var(--pa-line));
 }
+/* Review badges sit in a wrapping row (★-Tier + Role side by side). */
+.project-anime.monster-creator .cc-review-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.project-anime.monster-creator .cc-role-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  color: var(--pa-accent);
+  background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-field));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
+}
+/* The Frame step's finished stat card — a touch of separation under the Role picker. */
+.project-anime.monster-creator .cc-frame-stats { margin-top: 0.6rem; }
 
 /* Tier badge on the NPC sheet header (beside the disposition select). */
 .project-anime.sheet.actor .tier-badge {
@@ -4170,6 +4176,16 @@
 .project-anime.sheet.actor .tier-badge.apex { background: color-mix(in srgb, #c0392b 18%, var(--pa-field)); border-color: color-mix(in srgb, #c0392b 55%, var(--pa-line)); }
 .project-anime.sheet.actor .tier-badge.apex .tier-stars,
 .project-anime.sheet.actor .tier-badge.apex .tier-stars i { color: #f1c40f; }
+/* Role (archetype) badge on the NPC sheet header, beside the ★-Tier badge. */
+.project-anime.sheet.actor .role-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem; max-width: 100%;
+  padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700;
+  color: var(--pa-accent);
+  background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-field));
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
+}
+.project-anime.sheet.actor .role-badge i { color: var(--pa-accent); }
+.project-anime.sheet.actor .role-badge span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Star rating picker (Monster Creator, Tier step) — a row of toggle stars above the power readout. */
 .project-anime.monster-creator .cc-star-row {
@@ -4190,6 +4206,24 @@
 .project-anime.monster-creator .cc-tier-badge .cc-badge-worth { color: var(--pa-ink-soft); font-weight: 600; }
 /* "Worth" stat on a tier card, tinted to the tier colour (the headline encounter number). */
 .project-anime.monster-creator .cc-tier-worth .cc-tier-v { color: var(--tier-color); }
+/* Role (archetype) picker — a compact grid of icon+name cards under the Tier grid. */
+.project-anime.monster-creator .cc-role-row { margin-top: 0.6rem; }
+.project-anime.monster-creator .cc-role-row > .cc-label { display: block; margin-bottom: 0.35rem; }
+.project-anime.monster-creator .cc-role-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.project-anime.monster-creator button.cc-role-card {
+  display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+  padding: 0.5rem 0.3rem; cursor: pointer; border-radius: 7px;
+  background: var(--pa-panel); border: 1px solid var(--pa-line); color: var(--pa-ink-soft);
+  transition: border-color 0.1s ease, color 0.1s ease, transform 0.1s ease;
+}
+.project-anime.monster-creator button.cc-role-card i { font-size: 1.1rem; }
+.project-anime.monster-creator button.cc-role-card .cc-role-name { font-size: 0.74rem; font-weight: 600; }
+.project-anime.monster-creator button.cc-role-card:hover { transform: translateY(-1px); border-color: var(--pa-accent); color: var(--pa-ink); }
+.project-anime.monster-creator button.cc-role-card.selected {
+  border-color: var(--pa-accent); color: var(--pa-ink);
+  background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-panel));
+  box-shadow: 0 0 0 1px var(--pa-accent) inset;
+}
 .project-anime.party-sheet .party-row-stars { color: var(--pa-gold); font-size: 0.58rem; margin-right: 0.1rem; }
 
 /* -------------------------------------------------------------------------- */

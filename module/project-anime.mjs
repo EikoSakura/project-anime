@@ -38,6 +38,7 @@ import { reconcileTraits } from "./helpers/trait-effect.mjs";
 import { reconcileBonds } from "./helpers/bond-effect.mjs";
 import { registerPartySettings } from "./apps/party-config.mjs";
 import { isMinionTier, setSquadSize, isSquad, squadMembers, squadSize } from "./helpers/squad.mjs";
+import { combatPlayerCount } from "./helpers/encounter.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
 const { ActorSheet, ItemSheet } = foundry.appv1.sheets;
@@ -407,17 +408,17 @@ Hooks.once("init", function () {
     decimals: 0
   };
 
-  // Extra-turn grants on `nextTurn` — patched on the prototype so every advance path (tracker
-  // buttons, the HUD's End Turn relay) honors them. Two stack on top of each other:
-  //   1. COMBO (rules p.13): "the moment it resolves you take an additional turn". A Combo scored on
-  //      the roller's own turn flags the combat (dice.mjs maybeGrantComboTurn, GM-relayed); the next
-  //      advance consumes the flag, STAYS on that combatant, and marks the grant so a Combo during it
-  //      can't chain another.
-  //   2. SOLO extra turns: an apex Solo monster acts multiple times per round (its Tier `turns`, +1
-  //      at ★4+). Each End-Turn while a Solo has turns left STAYS on it (a fresh turn) and ticks a
-  //      per-round counter; only the final one advances. The counter resets each round (the flag is
-  //      keyed to combat.round). A forced advance (`_paSkipExtra`, set by the Stunned skip) bypasses
-  //      BOTH so a stunned Solo still loses its turn instead of being handed an extra one.
+  // Extra-turn grants on `nextTurn` — patched on the prototype so every advance path (tracker buttons,
+  // the HUD's End Turn relay) honors them:
+  //   1. COMBO (rules p.13): "the moment it resolves you take an additional turn". A Combo scored on the
+  //      roller's own turn flags the combat (dice.mjs maybeGrantComboTurn, GM-relayed); the next advance
+  //      consumes the flag, STAYS on that combatant, and marks the grant so a Combo during it can't chain.
+  //   2. A forced advance (`_paSkipExtra`, set by the Stunned skip) bypasses the Combo hold so a stunned
+  //      creature loses its turn instead of being handed an extra one.
+  // NOTE: Boss/Elite multi-actions are NOT handled here. A Boss is given several Combatant ENTRIES at
+  // spread initiative values when combat begins (ensureBossSlots), so Foundry's own turn order interleaves
+  // its actions between the players' turns — never back-to-back, exact count, no turn-loop surgery. The
+  // entries share one token (hence HP/defeat), and per-round effects de-dupe per actor. ENEMY-DESIGN Phase 0.
   const CombatClass = CONFIG.Combat.documentClass ?? Combat;
   if (!CombatClass.prototype._paNextTurnPatched) {
     const baseNextTurn = CombatClass.prototype.nextTurn;
@@ -426,7 +427,7 @@ Hooks.once("init", function () {
       if (this._paSkipExtra) { delete this._paSkipExtra; return baseNextTurn.call(this); }
       const cur = this.combatant;
 
-      // 1) Combo extra turn.
+      // Combo extra turn (holds the turn on the comboing combatant for one more action).
       const pending = this.getFlag("project-anime", "comboTurn");
       if (pending && cur && pending === `${cur.id}:${this.round}`) {
         await this.update({
@@ -444,25 +445,6 @@ Hooks.once("init", function () {
       // A stale pending grant (the turn moved on some other way) dies with the advance.
       if (pending) await this.unsetFlag("project-anime", "comboTurn");
 
-      // 2) Solo extra turns — stay on a Solo until it has used its per-round turn allotment.
-      if (cur && this.started) {
-        const turns = soloTurnsPerRound(cur);
-        if (turns > 1) {
-          const tracker = this.getFlag("project-anime", "soloTurn");
-          const used = (tracker && tracker.round === this.round) ? (Number(tracker.used) || 0) : 0;
-          if (used < turns - 1) {
-            await this.setFlag("project-anime", "soloTurn", { round: this.round, used: used + 1 });
-            if (cur.actor) {
-              ChatMessage.create({
-                speaker: ChatMessage.getSpeaker({ actor: cur.actor }),
-                content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.soloTurn", { name: cur.actor.name, n: used + 2, total: turns })}</em></div></div>`
-              });
-            }
-            return this; // hold the turn on the Solo — its next action
-          }
-          if (tracker) await this.unsetFlag("project-anime", "soloTurn"); // allotment spent → advance
-        }
-      }
       return baseNextTurn.call(this);
     };
     CombatClass.prototype._paNextTurnPatched = true;
@@ -830,16 +812,100 @@ async function tickStatusDurations(actor) {
   }
 }
 
-/** How many combat turns a combatant takes per round (action economy). A Monster-role Solo takes its
- *  Tier's `turns` (2), bumped to 3 at the apex ★4+; everything else takes 1. Drives the Solo extra-turn
- *  logic in the `nextTurn` patch — tunable via PROJECTANIME.monsterTiers[…].turns. */
-function soloTurnsPerRound(combatant) {
+/** Fixed actions a combatant takes per round (action economy — ENEMY-DESIGN Phase 0). A Monster-role
+ *  NPC takes its Tier's `turns`: Minion-squad 1, Standard 1, Elite 2, and a Boss/Solo (`turns: null`)
+ *  matches the LIVE player count in this combat (min 1). Everything else — PCs and social NPCs — takes 1.
+ *  The old "+1 at ★4+" apex bonus is retired (Boss = player count supersedes it). Drives how many Combatant
+ *  ENTRIES a Boss gets (ensureBossSlots) — tunable via PROJECTANIME.monsterTiers[…].turns. */
+function actionsPerRound(combatant, combat) {
   const a = combatant?.actor;
   if (a?.type !== "npc" || (a.system?.role ?? "monster") === "npc") return 1;
   const tier = PROJECTANIME.monsterTiers?.[a.system?.tier];
-  let turns = tier?.turns ?? 1;
-  if (a.system?.tier === "solo" && (Number(a.system?.stars) || 0) >= 4) turns += 1;
-  return Math.max(1, turns);
+  if (!tier) return 1;
+  if (tier.turns === null) return combatPlayerCount(combat);   // Boss/Solo → live PC count
+  return Math.max(1, Number(tier.turns) || 1);                 // Elite 2, the rest 1
+}
+
+/**
+ * ENEMY-DESIGN Phase 0 — BOSS ACTION ECONOMY via multiple combatant entries ("slots"). A Boss/Elite is
+ * entitled to actionsPerRound() actions per round (Elite 2, Solo = player count). Instead of hacking the
+ * turn loop (which can't fairly interleave one combatant's extra actions), we give its ONE token that many
+ * Combatant entries at SPREAD initiative values, so Foundry's own turn order interleaves the boss's actions
+ * between the players' turns — exactly N per round, never back-to-back, at any initiative. The extra entries
+ * are clones flagged `bossClone:<primaryId>`; they share the token (so HP, damage, and Defeat sync for free),
+ * and per-round effects de-duplicate per creature (combatTurnTick + tickOncePerRound). Idempotent; GM-side.
+ * Runs at the START of round 1 — driven off the post-update `updateCombat(round→1)` rather than the
+ * synchronous `combatStart` hook (which fires BEFORE core's start update and would race our reordering).
+ */
+async function ensureBossSlots(combat) {
+  if (!combat || game.users.activeGM?.id !== game.user.id) return;
+  // A spread needs a range to place against — roll initiative for anyone still missing it.
+  const unrolled = combat.combatants.filter((c) => c.initiative === null).map((c) => c.id);
+  if (unrolled.length) await combat.rollInitiative(unrolled);
+
+  let expanded = false;
+  for (const primary of [...combat.combatants]) {
+    if (primary.getFlag("project-anime", "bossClone") || primary.getFlag("project-anime", "bossExpanded")) continue;
+    const n = actionsPerRound(primary, combat);
+    if (n <= 1) continue;
+    const clones = Array.from({ length: n - 1 }, () => ({
+      tokenId: primary.tokenId, sceneId: primary.sceneId, actorId: primary.actorId, hidden: primary.hidden,
+      flags: { "project-anime": { bossClone: primary.id } }
+    }));
+    await primary.setFlag("project-anime", "bossExpanded", true);
+    const created = clones.length ? await combat.createEmbeddedDocuments("Combatant", clones) : [];
+    await spreadBossInitiative(combat, [primary, ...created]);
+    expanded = true;
+  }
+  // Adding entries + re-spreading reorders the tracker AFTER core fixed turn 0 against the pre-clone array,
+  // so realign the round to the true top of the new order (no-op when nothing expanded).
+  if (expanded && combat.started) await combat.update({ turn: 0 });
+}
+
+/** Place a boss group's entries in the GAPS between the OTHER combatants' initiatives, so each boss action
+ *  falls between players' turns. Entries are forced into DISTINCT, strictly-spread slots, so with
+ *  n ≤ (others + 1) — always true for a Boss vs its own players — no two boss entries land adjacent. */
+async function spreadBossInitiative(combat, group) {
+  const groupIds = new Set(group.map((c) => c.id));
+  const anchors = [...combat.combatants]
+    .filter((c) => !groupIds.has(c.id) && !c.getFlag("project-anime", "bossClone") && Number.isFinite(c.initiative))
+    .map((c) => c.initiative)
+    .sort((a, b) => b - a);
+  const n = group.length;
+  const updates = [];
+  if (!anchors.length) {
+    group.forEach((c, k) => updates.push({ _id: c.id, initiative: 100 - k * 10 }));   // boss alone — just space them
+  } else {
+    // Candidate slots, high → low: above the top anchor, the midpoint of each adjacent pair, below the bottom.
+    const slots = [anchors[0] + 5];
+    for (let i = 1; i < anchors.length; i++) slots.push((anchors[i - 1] + anchors[i]) / 2);
+    slots.push(anchors[anchors.length - 1] - 5);
+    // Pick n slot indices spread evenly but forced STRICTLY INCREASING, so two boss entries never share a
+    // slot (which would put them back-to-back). Clamps to the last slot only if n exceeds the slot count.
+    let prev = -1;
+    group.forEach((c, k) => {
+      let idx = n <= 1 ? 0 : Math.round((k * (slots.length - 1)) / (n - 1));
+      idx = Math.min(slots.length - 1, Math.max(prev + 1, idx));
+      prev = idx;
+      // Per-entry epsilon: keeps the boss's own entries strictly ordered and off any exact anchor tie.
+      updates.push({ _id: c.id, initiative: slots[idx] - k * 1e-3 });
+    });
+  }
+  await combat.updateEmbeddedDocuments("Combatant", updates);
+}
+
+/** True the FIRST time `key` is requested for a combatant TOKEN in the current round, recording it so a
+ *  Boss with several combatant entries (which all share ONE token) — or a GM stepping the tracker — ticks
+ *  ONCE PER ROUND PER CREATURE, not once per entry. Keyed on the token id (a flat document id): boss
+ *  clones share it (deduped) while two distinct tokens of the same base actor key separately (each ticks).
+ *  Token ids carry no dots, so they're safe as flag-map keys (an actor UUID would be mangled by Foundry's
+ *  dotted-path flattening). High-water — the round only advances. Scoped to this combat. GM-side caller. */
+async function tickOncePerRound(combat, key, tokenId) {
+  if (!tokenId) return true;
+  const map = combat.getFlag("project-anime", key) ?? {};
+  if ((Number(map[tokenId]) || 0) >= combat.round) return false;
+  await combat.setFlag("project-anime", key, { ...map, [tokenId]: combat.round });
+  return true;
 }
 
 /** Runaway guard: bounds the chain of consecutive Stunned skips so a status that somehow can't be
@@ -869,28 +935,24 @@ async function tickStunned(combat, started) {
  * Combat turn-tick automation (GM-side only, mirroring expireEffects' single-active-GM guard).
  * On a turn/round advance: the combatant whose turn just ENDED takes Decay and counts down its
  * status durations; the one whose turn just STARTED gets Sustain regen, then — if Stunned — has its
- * turn auto-skipped. Reads combat.previous / combat.current. Sustain regen is gated to once per round
- * per combatant via a high-water `sustainRound` flag, so stepping back through the turn order — within
- * a round or across rounds — never re-heals.
+ * turn auto-skipped. Reads combat.previous / combat.current. Every per-round tick is gated ONCE PER
+ * ROUND PER ACTOR via tickOncePerRound, so a Boss with several combatant entries (ENEMY-DESIGN Phase 0)
+ * decays / regenerates / counts down its statuses exactly once — not once per entry — and stepping the
+ * tracker backward never re-applies them.
  */
 async function combatTurnTick(combat, change) {
   if (game.users.activeGM?.id !== game.user.id) return;
   if (!("turn" in change) && !("round" in change)) return;
-  const endedActor = combat.combatants.get(combat.previous?.combatantId)?.actor ?? null;
+  const endedC = combat.combatants.get(combat.previous?.combatantId) ?? null;
+  const endedActor = endedC?.actor ?? null;
   const started = combat.combatants.get(combat.current?.combatantId) ?? null;
-  if (endedActor) {
+  if (endedActor && await tickOncePerRound(combat, "endTicks", endedC.tokenId)) {
     await tickDecay(endedActor);
     await tickStatusDurations(endedActor);
   }
   if (started?.actor) {
-    // HP/Energy regen applies once per round: only when this combatant first reaches a round it
-    // hasn't sustained in yet. Going back in the turn order won't clear the flag, so it won't reheal.
-    // Channeled upkeep rides the same once-per-round gate (1 EP per open channel, rules v0.01) —
-    // regen first, then the channel bill, then a Stunned creature's turn is skipped (a channel
-    // holds while Stunned: the EP keeps flowing even though the bearer can't act).
-    const lastSustained = Number(started.getFlag("project-anime", "sustainRound")) || 0;
-    if (combat.round > lastSustained) {
-      await started.setFlag("project-anime", "sustainRound", combat.round);
+    // HP/Energy regen + Channeled upkeep (1 EP per open channel, rules v0.01) once per round per creature.
+    if (await tickOncePerRound(combat, "sustainTicks", started.tokenId)) {
       await tickSustain(started.actor);
       await tickChanneled(started.actor);
     }
@@ -899,6 +961,23 @@ async function combatTurnTick(combat, change) {
 }
 
 Hooks.on("updateCombat", combatTurnTick);
+// Expand bosses into their multiple combatant entries at the START of round 1. We trigger off the
+// post-update `updateCombat` (round just became 1) rather than the synchronous `combatStart` hook, which
+// fires BEFORE core's start-of-combat `update({round:1,turn:0})` and would race our reordering. Idempotent
+// (the bossExpanded guard), so a reset-and-restart is safe.
+Hooks.on("updateCombat", (combat, change) => {
+  if (change?.round === 1 && game.users.activeGM?.id === game.user.id) ensureBossSlots(combat);
+});
+// Clean up a boss's extra entries if its primary leaves combat (the whole set dies with the combat otherwise).
+Hooks.on("deleteCombatant", async (combatant) => {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  const combat = combatant.parent;
+  if (!combat || !combatant.getFlag("project-anime", "bossExpanded")) return;
+  const orphans = combat.combatants
+    .filter((c) => c.getFlag("project-anime", "bossClone") === combatant.id)
+    .map((c) => c.id);
+  if (orphans.length) await combat.deleteEmbeddedDocuments("Combatant", orphans);
+});
 
 /* -------------------------------------------- */
 /*  Defeat & end-of-combat recovery (rules p.14) */

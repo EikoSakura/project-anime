@@ -825,8 +825,11 @@ PROJECTANIME.encounterPowerDefault = 6;
  *   • `stepUps`   — the Attribute Step-Up budget (a starting PC gets 5). Attributes cap at d12 for
  *                   everyone, so a Tier's dice top out near a maxed PC's and need no star scaling.
  *   • `evasion` / `defense` — flat bonuses written to the NPC's Evasion / Defense Bonus.
- *   • `turns` — combat turns this Tier takes PER ROUND (action economy). Solo takes 2 (3 at ★4+),
- *               the rest take 1. Wired into the turn loop (see project-anime.mjs nextTurn patch).
+ *   • `turns` — fixed actions this Tier takes PER ROUND (action economy): Minion 1, Standard 1,
+ *               Elite 2. Solo is `null` = the LIVE player count, computed in actionsPerRound (a Boss
+ *               matches the party's action economy). The old ★4+ apex bonus is retired. A Boss gets this
+ *               many Combatant ENTRIES at spread initiative values (project-anime.mjs ensureBossSlots), so
+ *               its actions interleave with the players' turns natively — never back-to-back.
  *   • `pcWorth` — the ENCOUNTER-BUDGET currency: how many Player Characters this ONE body is worth
  *                 (the Fabula-Ultima rank model). Minion 0.25 (×4 = 1 PC), Standard 1, Elite 2; a Solo
  *                 is dynamic (= the party's player count, a balanced 1-v-party boss) so it's stored
@@ -841,12 +844,83 @@ PROJECTANIME.encounterPowerDefault = 6;
 PROJECTANIME.monsterTiers = {
   minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5,  turns: 1, pcWorth: 0.25 },
   standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75, turns: 1, pcWorth: 1 },
-  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.75, evasion: 1, defense: 1, spFactor: 1,    turns: 1, pcWorth: 2 },
-  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3.5,  evasion: 2, defense: 2, spFactor: 2.5,  turns: 2, pcWorth: null }
+  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.75, evasion: 1, defense: 1, spFactor: 1,    turns: 2,    pcWorth: 2 },
+  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3.5,  evasion: 2, defense: 2, spFactor: 2.5,  turns: null, pcWorth: null }
 };
 
 /** Iteration order for monster Tiers (weakest → strongest). */
 PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
+
+/* -------------------------------------------- */
+/*  Monster Role (the archetype axis)           */
+/* -------------------------------------------- */
+
+/**
+ * ROLE is the third monster axis — build = Tier × ★ × Role. It is a power-NEUTRAL template that
+ * decides how a monster FIGHTS, not how strong it is (the 4e / Lancer / Draw-Steel model), so it
+ * does NOT touch encounter-worth. Picking a Role in the Monster Creator (while creating):
+ *   • spread  — attribute PRIORITY (highest first). The auto-spread pours the Tier's Step-Up budget
+ *               down this list, filling each to d12 in turn, replacing manual Step-Up spending. All
+ *               five attributes are listed so the budget always spends out exactly (5×d12 capacity
+ *               far exceeds any Tier budget), which the creator's exact-spend gate requires.
+ *   • lean    — flat Evasion / Defense DELTAS added on top of the Tier's grant (clamped at 0 in the
+ *               build so a fragile role never derives a negative stat).
+ *   • attack  — the natural-weapon Basic Attack's signature config (two accuracy Attributes, damage
+ *               type, physical range) — the creator pre-fills the EXISTING natural weapon, not a dupe.
+ *   • move    — one pre-built signature Skill from the existing Skill vocabulary, granted free as
+ *               managed kit; its SP cost is reserved from the budget (monster-creator.mjs roleKitSP)
+ *               so the displayed pool stays honest.
+ * An unset Role ("") = a custom build the GM spreads by hand — every existing NPC reads this and
+ * nothing auto-fills (zero-break). Names follow the genre's shared vocabulary, so the UI needs no
+ * helper text. Plain, tunable data — like monsterTiers, a starting point to rebalance.
+ */
+PROJECTANIME.monsterArchetypes = {
+  brute: {
+    label: "PROJECTANIME.Archetype.brute", icon: "fa-solid fa-gavel",
+    spread: ["might", "agility", "spirit", "mind", "charm"],
+    lean: { evasion: -1, defense: 0 },
+    attack: { attrA: "might", attrB: "might", type: "physical", rangeType: "melee", tiles: 1 },
+    move: { name: "PROJECTANIME.Archetype.move.brute", img: "icons/svg/explosion.svg", effect: "strike", rank: 2, attrA: "might", attrB: "might", damageAttr: "attrA", scope: "melee", tiles: 1, target: "foe", damageType: "physical", damagePool: "hp", modifiers: ["push"] }
+  },
+  skirmisher: {
+    label: "PROJECTANIME.Archetype.skirmisher", icon: "fa-solid fa-wind",
+    spread: ["agility", "might", "mind", "spirit", "charm"],
+    lean: { evasion: 1, defense: 0 },
+    attack: { attrA: "agility", attrB: "might", type: "physical", rangeType: "melee", tiles: 1 },
+    move: { name: "PROJECTANIME.Archetype.move.skirmisher", img: "icons/svg/wing.svg", effect: "strike", rank: 2, attrA: "agility", attrB: "might", damageAttr: "attrA", scope: "melee", tiles: 1, target: "foe", damageType: "physical", damagePool: "hp", modifiers: ["move"] }
+  },
+  artillery: {
+    label: "PROJECTANIME.Archetype.artillery", icon: "fa-solid fa-meteor",
+    spread: ["mind", "agility", "spirit", "charm", "might"],
+    lean: { evasion: 0, defense: -1 },
+    attack: { attrA: "mind", attrB: "agility", type: "fire", rangeType: "ranged", tiles: 10 },
+    move: { name: "PROJECTANIME.Archetype.move.artillery", img: "icons/svg/fire.svg", effect: "strike", rank: 2, attrA: "mind", attrB: "agility", damageAttr: "attrA", scope: "near", tiles: 5, target: "foe", damageType: "fire", damagePool: "hp", modifiers: ["burst"] }
+  },
+  sentinel: {
+    label: "PROJECTANIME.Archetype.sentinel", icon: "fa-solid fa-shield",
+    spread: ["spirit", "might", "agility", "mind", "charm"],
+    lean: { evasion: 1, defense: 1 },
+    attack: { attrA: "might", attrB: "spirit", type: "physical", rangeType: "melee", tiles: 1 },
+    move: { name: "PROJECTANIME.Archetype.move.sentinel", img: "icons/svg/shield.svg", effect: "custom", rank: 2, attrA: "might", attrB: "spirit", damageAttr: "attrA", scope: "near", tiles: 5, target: "ally", damageType: "", damagePool: "hp", modifiers: ["protection", "retaliation"], retaliationType: "physical" }
+  },
+  controller: {
+    label: "PROJECTANIME.Archetype.controller", icon: "fa-solid fa-hand-sparkles",
+    spread: ["mind", "spirit", "agility", "charm", "might"],
+    lean: { evasion: 0, defense: 0 },
+    attack: { attrA: "mind", attrB: "charm", type: "mental", rangeType: "melee", tiles: 1 },
+    move: { name: "PROJECTANIME.Archetype.move.controller", img: "icons/svg/net.svg", effect: "hinder", rank: 1, attrA: "mind", attrB: "charm", damageAttr: "attrA", scope: "near", tiles: 5, target: "foe", damageType: "", damagePool: "hp", effectAttrs: ["agility"], modifiers: [] }
+  },
+  support: {
+    label: "PROJECTANIME.Archetype.support", icon: "fa-solid fa-hand-holding-heart",
+    spread: ["spirit", "charm", "mind", "agility", "might"],
+    lean: { evasion: 0, defense: 0 },
+    attack: { attrA: "charm", attrB: "spirit", type: "physical", rangeType: "melee", tiles: 1 },
+    move: { name: "PROJECTANIME.Archetype.move.support", img: "icons/svg/heal.svg", effect: "mend", rank: 1, attrA: "spirit", attrB: "charm", damageAttr: "attrA", scope: "near", tiles: 5, target: "ally", damageType: "", damagePool: "hp", modifiers: [] }
+  }
+};
+
+/** Iteration order for monster Roles (the picker order). */
+PROJECTANIME.monsterArchetypeKeys = ["brute", "skirmisher", "artillery", "sentinel", "controller", "support"];
 
 /* -------------------------------------------- */
 /*  Minion Squads (pooled-unit hordes)          */
@@ -857,9 +931,10 @@ PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
  * combat unit (one token, one initiative, one pooled HP bar), NOT N independent bodies. This
  * is the 13th-Age mob / Draw-Steel squad / Genesys minion-group model, and it replaces the old
  * per-row "× quantity" multiplier on the Encounter Builder. The squad's max HP is its per-member
- * HP × its size (so area damage spills naturally across the unit), and a Basic Attack strikes
- * once per living member (dice.mjs rollSquadStrike) — durability AND output scale with the count,
- * which is what keeps the unit's encounter price honest. Standard / Elite / Solo never squad: each
+ * HP × its size (so area damage spills naturally across the unit), and a Basic Attack is one shared
+ * group-strike — a single to-hit whose damage sums every living member (dice.mjs rollSquadStrike) —
+ * so durability AND output scale with the count, which is what keeps the unit's encounter price
+ * honest. Standard / Elite / Solo never squad: each
  * is its own body (drag the actor again to field another).
  */
 

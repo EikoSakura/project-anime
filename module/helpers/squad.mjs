@@ -4,10 +4,11 @@
  * A MINION-Tier NPC fields as a SQUAD: one token, one initiative, one POOLED HP bar whose max is
  * the per-member HP × the squad size. Damage (single-target or area) just lowers that shared pool,
  * so a squad "spills over" and AoE clears chaff automatically — and the number of LIVING members is
- * read back from the pool: members = ceil(hp.value / per-member-HP). A Basic Attack then strikes
- * once per living member (dice.mjs rollSquadStrike), so both durability and output scale with the
- * count. This is the 13th-Age mob / Draw-Steel squad / Genesys minion-group model, and it replaces
- * the Encounter Builder's old per-row "× quantity" multiplier.
+ * read back from the pool: members = ceil(hp.value / per-member-HP). A Basic Attack is the squad's
+ * ONE shared action — a single group to-hit whose damage sums every living member (dice.mjs
+ * rollSquadStrike), so both durability and output scale with the count. This is the 13th-Age mob /
+ * Draw-Steel squad / Genesys minion-group model, and it replaces the Encounter Builder's old per-row
+ * "× quantity" multiplier.
  *
  * Squad behaviour engages ONLY at size ≥ 2 (a size-1 minion is an ordinary single creature with its
  * authored HP — fully backward-compatible). Standard / Elite / Solo never squad. Kept dependency-free

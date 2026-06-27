@@ -539,8 +539,8 @@
       "effectApplied": "Applies {effect} to {name}",
       "rollDamage": "Roll Damage",
       "squadStrike": "Squad Strike",
-      "squadHits": "{hits}/{members} hit",
-      "squadResult": "{hits} of {members} members hit {name} for {n}.",
+      "squadHits": "{members} strike",
+      "squadResult": "All {members} members strike {name} for {n}.",
       "rollHealing": "Roll Healing",
       "apply": "Apply",
       "applied": "Applied {n} {what} to {name}.",
@@ -1314,7 +1314,7 @@
       "defeated": "{name} is Defeated!",
       "recovered": "{name} recovers to {hp} HP as combat ends.",
       "comboTurn": "{name} takes an extra turn from the Combo!",
-      "soloTurn": "{name} acts again — turn {n} of {total}!"
+      "extraAction": "{name} cuts in for an extra action — {n} of {total}!"
     },
     "Dossier": {
       "title": "Dossier",
@@ -1662,9 +1662,8 @@
       "stepOf": "Step {n} of {total}",
       "step": {
         "concept": "Concept",
-        "tier": "Tier",
-        "attributes": "Attributes",
-        "stats": "Combat Stats",
+        "frame": "Frame",
+        "tune": "Tune",
         "abilities": "Abilities",
         "finish": "Review"
       },
@@ -1675,6 +1674,7 @@
       "tierVital": "HP / Energy",
       "tierEvaDef": "Eva / Def",
       "stars": "Star Rating",
+      "role": "Role",
       "encounterPower": "Power",
       "pickTierFirst": "Pick a Tier first.",
       "stepsLeft": "Step-Ups left",
@@ -1707,6 +1707,22 @@
       "elite": "Elite",
       "solo": "Solo"
     },
+    "Archetype": {
+      "brute": "Brute",
+      "skirmisher": "Skirmisher",
+      "artillery": "Artillery",
+      "sentinel": "Sentinel",
+      "controller": "Controller",
+      "support": "Support",
+      "move": {
+        "brute": "Crushing Blow",
+        "skirmisher": "Hit and Run",
+        "artillery": "Elemental Barrage",
+        "sentinel": "Guardian's Aegis",
+        "controller": "Binding Hex",
+        "support": "Mending Light"
+      }
+    },
     "Worth": {
       "label": "Worth",
       "minion": "¼ PC each",
@@ -1735,7 +1751,7 @@
       "squadOf": "Squad ×{n}",
       "squadMembers": "Members",
       "squadSizeHint": "Squad size — its members share one pooled HP bar and strike as one unit.",
-      "squadStrikeHint": "{n} members strike {name} (Evasion {eva}).",
+      "squadStrikeHint": "The {n}-strong squad strikes {name} (Evasion {eva}).",
       "dropPCs": "Drag Player Characters here.",
       "dropMonsters": "Drag monsters here.",
       "dropItems": "Drag items here.",

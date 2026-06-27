@@ -40,8 +40,8 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 2 · TIER ===================== --}}
-  {{#if onTier}}
+  {{!-- ===================== 2 · FRAME (★ · Tier · Role → finished statblock) ===================== --}}
+  {{#if onFrame}}
   <section class="cc-step-body cc-tier">
     <div class="cc-star-row">
       <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.stars"}}</span>
@@ -68,18 +68,42 @@
         <ul class="cc-tier-stats">
           <li class="cc-tier-worth"><span class="cc-tier-k">{{localize "PROJECTANIME.Worth.label"}}</span><span class="cc-tier-v">{{t.worth}}</span></li>
           <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierStepUps"}}</span><span class="cc-tier-v">{{t.stepUps}}</span></li>
-          <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierVital"}}</span><span class="cc-tier-v">×{{t.vitalMult}}</span></li>
+          <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierVital"}}</span><span class="cc-tier-v">{{t.hp}} / {{t.energy}}</span></li>
           <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierEvaDef"}}</span><span class="cc-tier-v">+{{t.evasion}} / +{{t.defense}}</span></li>
           <li><span class="cc-tier-k">{{localize "PROJECTANIME.Stat.skillPoints"}}</span><span class="cc-tier-v">{{t.skillPoints}}</span></li>
         </ul>
       </button>
       {{/each}}
     </div>
+
+    <div class="cc-role-row">
+      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.role"}}</span>
+      <div class="cc-role-pick" role="radiogroup">
+        {{#each archetypes as |r|}}
+        <button type="button" class="cc-role-card{{#if r.selected}} selected{{/if}}"
+                data-action="pickArchetype" data-archetype="{{r.key}}" title="{{r.label}}" aria-label="{{r.label}}">
+          <i class="{{r.icon}}"></i>
+          <span class="cc-role-name">{{r.label}}</span>
+        </button>
+        {{/each}}
+      </div>
+    </div>
+
+    {{#if hasTier}}
+    <div class="cc-vitals-grid cc-frame-stats">
+      <div class="cc-vital hp"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span><span class="cc-v-val">{{vitals.hp}}</span></div>
+      <div class="cc-vital energy"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.energy"}}</span><span class="cc-v-val">{{vitals.energy}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="cc-v-val">{{vitals.evasion}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="cc-v-val">{{vitals.defense}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span><span class="cc-v-val">{{vitals.sp}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.movement"}}</span><span class="cc-v-val">{{vitals.movement}}</span></div>
+    </div>
+    {{/if}}
   </section>
   {{/if}}
 
-  {{!-- ===================== 3 · ATTRIBUTES ===================== --}}
-  {{#if onAttributes}}
+  {{!-- ===================== 3 · TUNE (optional — pre-filled dice + squad) ===================== --}}
+  {{#if onTune}}
   <section class="cc-step-body cc-attributes">
     <div class="cc-budget-pill{{#if overSpent}} over{{/if}}">
       <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.stepsLeft"}}</span>
@@ -105,40 +129,6 @@
       </div>
       {{/each}}
     </div>
-  </section>
-  {{/if}}
-
-  {{!-- ===================== 4 · COMBAT STATS ===================== --}}
-  {{#if onStats}}
-  <section class="cc-step-body cc-stats">
-    <div class="cc-vitals-grid">
-      <div class="cc-vital hp">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span>
-        <span class="cc-v-val">{{vitals.hp}}</span>
-        <span class="cc-v-sub muted">{{vitalNote}}</span>
-      </div>
-      <div class="cc-vital energy">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.energy"}}</span>
-        <span class="cc-v-val">{{vitals.energy}}</span>
-        <span class="cc-v-sub muted">{{vitalNote}}</span>
-      </div>
-      <div class="cc-vital">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span>
-        <span class="cc-v-val">{{vitals.evasion}}</span>
-      </div>
-      <div class="cc-vital">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.defense"}}</span>
-        <span class="cc-v-val">{{vitals.defense}}</span>
-      </div>
-      <div class="cc-vital">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.movement"}}</span>
-        <span class="cc-v-val">{{vitals.movement}}</span>
-      </div>
-      <div class="cc-vital">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.carryingCapacity"}}</span>
-        <span class="cc-v-val">{{vitals.carry}}</span>
-      </div>
-    </div>
     {{#if vitalsStale}}
     <button type="button" class="cc-mini-btn" data-action="recalcVitals">
       <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.MonsterCreator.recalc"}}
@@ -160,7 +150,7 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 5 · ABILITIES ===================== --}}
+  {{!-- ===================== 4 · ABILITIES ===================== --}}
   {{#if onAbilities}}
   <section class="cc-step-body cc-skills">
 
@@ -211,9 +201,11 @@
           <span class="cc-skill-name">{{s.name}}</span>
           <span class="cc-skill-sub muted">{{s.stars}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}}</span>
         </div>
+        {{#unless s.granted}}
         <button type="button" class="cc-icon-btn danger" data-action="removeSkill" title="{{localize 'PROJECTANIME.MonsterCreator.removeSkill'}}">
           <i class="fas fa-trash"></i>
         </button>
+        {{/unless}}
       </li>
       {{/each}}
     </ul>
@@ -223,18 +215,23 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 6 · REVIEW ===================== --}}
+  {{!-- ===================== 5 · REVIEW ===================== --}}
   {{#if onFinish}}
   <section class="cc-step-body cc-review">
     <div class="cc-review-id">
       <img class="cc-review-img" src="{{img}}" alt="" />
       <div class="cc-review-head">
         <span class="cc-review-name">{{name}}</span>
-        {{#if tierBadge}}
-        <span class="cc-tier-badge" style="--tier-color: {{tierBadge.color}}">
-          {{#if tierBadge.stars}}<span class="cc-badge-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}<i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}{{#if tierBadge.worth}} <span class="cc-badge-worth">· {{tierBadge.worth}}</span>{{/if}}
-        </span>
-        {{/if}}
+        <div class="cc-review-badges">
+          {{#if tierBadge}}
+          <span class="cc-tier-badge" style="--tier-color: {{tierBadge.color}}">
+            {{#if tierBadge.stars}}<span class="cc-badge-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}<i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}{{#if tierBadge.worth}} <span class="cc-badge-worth">· {{tierBadge.worth}}</span>{{/if}}
+          </span>
+          {{/if}}
+          {{#if roleBadge}}
+          <span class="cc-role-badge"><i class="{{roleBadge.icon}}"></i> {{roleBadge.label}}</span>
+          {{/if}}
+        </div>
       </div>
     </div>
     <div class="cc-vitals-grid">

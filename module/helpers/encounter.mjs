@@ -82,6 +82,16 @@ export function effectivePlayers(party) {
   return Math.max(1, sys.encounterManual ? (sys.encounterPlayers ?? 1) : (partyMembers(party).length || 1));
 }
 
+/** Count of player-character combatants in a live Combat (min 1) — the action allotment a Boss/Solo
+ *  matches each round (ENEMY-DESIGN Phase 0). Mirrors effectivePlayers but reads the ENCOUNTER, not the
+ *  party roster: an allied NPC token the GM runs has no player owner, so it never inflates a boss's
+ *  action count — only real PCs do. (Collection#filter returns an Array, hence `.length`.) */
+export function combatPlayerCount(combat) {
+  if (!combat) return 1;
+  const pcs = combat.combatants.filter((c) => c.actor?.type === "character" && c.actor.hasPlayerOwner);
+  return Math.max(1, pcs.length);
+}
+
 /** The Party-Equivalent offset for a difficulty key (defaults to Medium / on-level = 0). */
 export function difficultyOffset(key) {
   return PROJECTANIME.encounterDifficulty[key]?.offset ?? 0;

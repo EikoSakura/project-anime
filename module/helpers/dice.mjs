@@ -714,13 +714,15 @@ export async function rollAttack(actor, item, { event } = {}) {
 }
 
 /**
- * A MINION SQUAD's Basic Attack (helpers/squad.mjs): the unit strikes once per LIVING member, so a
- * squad's output scales with its size exactly as its durability does (pooled HP) — which is what keeps
- * its sub-linear encounter price honest. Each member rolls its own to-hit against the single target's
- * Evasion and, on a hit, its own damage (so per-hit Defense / affinity apply — a tough, armoured target
- * shrugs off chaff, the swarm's built-in counter). The whole volley resolves to ONE consolidated,
- * undoable chat card. Combo extra-turns and Luck are intentionally NOT offered to a chaff swarm. Falls
- * back to a single rollAttack outside a real squad or with no target to resolve hits against.
+ * A MINION SQUAD's Basic Attack (helpers/squad.mjs) is the unit's ONE shared action: a SINGLE group
+ * accuracy roll against the target's Evasion — not one to-hit per member. On a HIT, every LIVING member
+ * contributes its own damage (each rolled and individually adjusted for the target's Defense / affinity),
+ * summed into ONE application — so output still scales with surviving members (keeping the squad's
+ * sub-linear encounter price honest) and a tough, armoured target still shrugs off chaff. On a MISS the
+ * squad does nothing: with one to-hit the strike is all-or-nothing — a swarm bursts or whiffs (the
+ * swinginess is intentional; flagged for playtest). The result resolves to ONE consolidated, undoable
+ * chat card. Combo extra-turns and Luck are intentionally NOT offered to a chaff swarm. Falls back to a
+ * single rollAttack outside a real squad (members < 2) or with no target to resolve the hit against.
  */
 export async function rollSquadStrike(actor, weapon, { event } = {}) {
   const members = squadMembers(actor);
@@ -733,7 +735,7 @@ export async function rollSquadStrike(actor, weapon, { event } = {}) {
   let mod = Number(acc.mod) || 0;
   const evasion = Number(target.system?.evasion?.value) || 0;
 
-  // One situational-modifier prompt for the whole volley (Shift-click skips it).
+  // One situational-modifier prompt for the squad's shared action (Shift-click skips it).
   if (!event?.shiftKey) {
     const info = `<p class="hint">${i18n("PROJECTANIME.Roll.squadStrikeHint", { n: members, name: target.name, eva: evasion })}</p>`;
     const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.squadStrike"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, infoHTML: info });
@@ -744,47 +746,58 @@ export async function rollSquadStrike(actor, weapon, { event } = {}) {
   const rmods = collectRollModifiers(actor, "attack", { target });
   mod += rmods.flat;
   const wmods = collectWeaponModBonuses(actor, weapon, { src: weapon, target });
-  if (wmods.attack) mod += wmods.attack;
-  const { dieA, dieB } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true, target });
+  if (wmods.attack) { mod += wmods.attack; rmods.sources.push(...wmods.attackSources); }
+  const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true, target });
 
-  let hits = 0;
+  // ONE group to-hit for the whole squad — no Fumble / Combo / Luck for a chaff swarm.
+  const roll = new Roll(checkFormula(dieA, dieB, mod));
+  await roll.evaluate();
+  const hit = roll.total >= evasion;
+
+  // On a hit, every living member adds its damage (each rolled + Defense/affinity-adjusted), summed.
   let total = 0;
-  let lastDtype = "physical";
+  let dtype = "physical";
   let pool = "hp";
-  const strip = [];
-  for (let i = 0; i < members; i++) {
-    const r = new Roll(checkFormula(dieA, dieB, mod));
-    await r.evaluate();
-    const hit = r.total >= evasion;
-    strip.push(`<span class="squad-die ${hit ? "hit" : "miss"}">${r.total}</span>`);
-    if (!hit) continue;
-    hits += 1;
-    const dmg = await computeDamageRoll(actor, weapon, { target });
-    const adj = adjustForTarget(dmg.raw, dmg.dtype, target, { ignoresDefense: dmg.ignoresDefense, heal: false, pool: dmg.pool });
-    total += Math.max(0, adj.amount);
-    lastDtype = dmg.dtype;
-    pool = dmg.pool;
+  if (hit) {
+    for (let i = 0; i < members; i++) {
+      const dmg = await computeDamageRoll(actor, weapon, { target });
+      const adj = adjustForTarget(dmg.raw, dmg.dtype, target, { ignoresDefense: dmg.ignoresDefense, heal: false, pool: dmg.pool });
+      total += Math.max(0, adj.amount);
+      dtype = dmg.dtype;
+      pool = dmg.pool;
+    }
   }
 
-  // Apply the volley as one barrier-aware lump, recorded as an undoable damage row.
+  // Apply the summed damage as one barrier-aware lump, recorded as a single undoable damage row.
   const rows = [];
-  const notes = [`<div class="squad-volley">${strip.join("")}</div>`];
-  if (total > 0) {
-    const bc = barrierCalc(target, { amount: total, heal: false, line: `<strong>${total}</strong> ${elementLabel(lastDtype)}` }, pool);
-    await routeApply(target, target.uuid, total, false, pool);
-    rows.push({ uuid: target.uuid, name: target.name, img: target.img, amount: bc.amount, heal: false, pool, calc: bc.calc, undone: false });
+  const lines = [...stepNotes(reasons)];
+  const atkModLine = rollModLine(rmods); if (atkModLine) lines.push(atkModLine);
+  lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${target.name}</strong>: ${evasion}`);
+  if (hit) {
+    if (total > 0) {
+      const bc = barrierCalc(target, { amount: total, heal: false, line: `<strong>${total}</strong> ${elementLabel(dtype)}` }, pool);
+      await routeApply(target, target.uuid, total, false, pool);
+      rows.push({ uuid: target.uuid, name: target.name, img: target.img, amount: bc.amount, heal: false, pool, calc: bc.calc, undone: false });
+    }
+    lines.push(i18n("PROJECTANIME.Roll.squadResult", { members, n: total, name: target.name }));
   }
-  notes.push(i18n("PROJECTANIME.Roll.squadResult", { hits, members, n: total, name: target.name }));
+  // Attacking reveals a Vanished attacker (rules v0.01) — the attempt itself, hit or miss.
+  await revealVanished(actor, lines);
+
+  const badge = hit
+    ? { cls: "success", text: i18n("PROJECTANIME.Roll.squadHits", { members }) }
+    : { cls: "failure", text: i18n("PROJECTANIME.Roll.miss") };
 
   await postCard(actor, cardHTML({
     title: weapon.name,
     subtitle: i18n("PROJECTANIME.Roll.squadStrike"),
     icon: weapon.img,
-    badges: [{ cls: hits ? "success" : "failure", text: i18n("PROJECTANIME.Roll.squadHits", { hits, members }) }],
-    lines: notes,
+    badges: [badge],
+    rollHTML: await roll.render(),
+    lines,
     rows
-  }), null, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
-  return { hits, members, total };
+  }), roll, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
+  return { hit, members, total };
 }
 
 /** A "Weapon"-range Skill borrows the equipped weapon's accuracy & damage. Returns that weapon
