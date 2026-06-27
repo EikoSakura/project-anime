@@ -923,7 +923,7 @@ PROJECTANIME.monsterArchetypes = {
 };
 
 /** Iteration order for monster Roles (the picker order). */
-PROJECTANIME.monsterArchetypeKeys = ["brute", "skirmisher", "artillery", "sentinel", "controller", "support"];
+PROJECTANIME.monsterArchetypeKeys = ["artillery", "brute", "controller", "sentinel", "skirmisher", "support"];
 
 /* -------------------------------------------- */
 /*  Minion Squads (pooled-unit hordes)          */
