@@ -1707,6 +1707,13 @@
       "elite": "Elite",
       "solo": "Solo"
     },
+    "Worth": {
+      "label": "Worth",
+      "minion": "¼ PC each",
+      "standard": "1 PC",
+      "elite": "2 PCs",
+      "solo": "the party"
+    },
     "Party": {
       "name": "Party",
       "portrait": "Choose portrait",
@@ -1723,17 +1730,12 @@
       "tabEncounter": "Encounter",
       "manualEstimate": "Manual estimate",
       "players": "Players",
-      "totalSP": "Party total SP",
       "pullRoster": "From roster",
-      "powerGauge": "Power",
-      "bodiesGauge": "Bodies",
+      "equivGauge": "Party Equivalents",
       "squadOf": "Squad ×{n}",
       "squadMembers": "Members",
       "squadSizeHint": "Squad size — its members share one pooled HP bar and strike as one unit.",
       "squadStrikeHint": "{n} members strike {name} (Evasion {eva}).",
-      "actionEconOk": "Action economy looks balanced — {bodies} turns/round vs {players} players.",
-      "actionEconHeavy": "{bodies} turns/round vs {players} players — they'll out-act the party (aim {low}–{high}).",
-      "actionEconLight": "Only {bodies} turns/round for {players} players — lean on Elite/Solo threats (aim {low}–{high}).",
       "dropPCs": "Drag Player Characters here.",
       "dropMonsters": "Drag monsters here.",
       "dropItems": "Drag items here.",
@@ -1778,9 +1780,9 @@
     "Encounter": {
       "difficulty": {
         "easy": "Easy",
-        "standard": "Standard",
+        "medium": "Medium",
         "hard": "Hard",
-        "deadly": "Deadly"
+        "extreme": "Extreme"
       }
     },
     "Status": {

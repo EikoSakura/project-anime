@@ -596,8 +596,9 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
 /**
  * A Party — an out-of-combat planning actor. It carries no combat stats of its own; it holds
  * a roster of Player Characters and a planned "encounter" of monsters (NPCs). The Party sheet
- * derives the party's total Skill Points, the monster budget (Party SP × difficulty), and how
- * much of that budget the listed monsters spend. Members and monsters are stored as UUIDs.
+ * derives the encounter budget in Party-Equivalents (player count + difficulty offset) and how
+ * much of it the planned threats spend (each Tier worth a fixed number of PCs — Minion 0.25,
+ * Standard 1, Elite 2, Solo = the party). Members and monsters are stored as UUIDs.
  */
 export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
   static defineSchema() {
@@ -609,11 +610,11 @@ export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
       { initial: [] }
     );
 
-    // Encounter difficulty → the budget multiplier (see PROJECTANIME.encounterDifficulty).
+    // Encounter difficulty → the Party-Equivalent budget offset (see PROJECTANIME.encounterDifficulty).
     schema.difficulty = new fields.StringField({
       required: true,
       blank: false,
-      initial: "standard",
+      initial: "medium",
       choices: PROJECTANIME.encounterDifficultyKeys
     });
 
@@ -632,13 +633,11 @@ export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
       { initial: [] }
     );
 
-    // Manual estimate — plan a fight WITHOUT a built roster. When `encounterManual` is on, the
-    // budget is driven by the typed party total Skill Points (`encounterSP`) instead of the
-    // roster's summed power; `encounterPlayers` is an action-economy guide only (it does not
-    // scale the budget — see helpers/encounter.mjs).
+    // Manual estimate — plan a fight WITHOUT a built roster: when `encounterManual` is on the budget
+    // is driven by the typed player count (`encounterPlayers`) instead of the live roster size. The
+    // budget is Party-Equivalents = player count + difficulty offset (see helpers/encounter.mjs).
     schema.encounterManual = new fields.BooleanField({ initial: false });
     schema.encounterPlayers = new fields.NumberField({ ...requiredInteger, initial: 4, min: 1 });
-    schema.encounterSP = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
     // Shared party treasury — a Gold pool the Stash tab can split evenly among members.
     schema.gold = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
@@ -651,6 +650,12 @@ export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
   static migrateData(source) {
     if (Array.isArray(source?.encounter)) {
       for (const e of source.encounter) if (e && !e.id) e.id = foundry.utils.randomID();
+    }
+    // Difficulty keys were renamed when the budget moved to Party-Equivalents (Standard→Medium,
+    // Deadly→Extreme); remap stored values so the StringField's `choices` validation stays valid.
+    if (source && typeof source.difficulty === "string") {
+      if (source.difficulty === "standard") source.difficulty = "medium";
+      else if (source.difficulty === "deadly") source.difficulty = "extreme";
     }
     return super.migrateData(source);
   }

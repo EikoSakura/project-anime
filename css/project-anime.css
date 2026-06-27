@@ -4164,6 +4164,8 @@
 /* ★ rating before the tier label ("★★★ Elite") — gold, snug. */
 .project-anime.sheet.actor .tier-badge .tier-stars { display: inline-flex; gap: 0.05rem; color: var(--pa-gold); font-size: 0.6rem; }
 .project-anime.sheet.actor .tier-badge .tier-stars i { color: var(--pa-gold); }
+/* Encounter-budget worth ("· 2 PCs") trailing the tier label. */
+.project-anime.sheet.actor .tier-badge .tier-worth { color: var(--pa-ink-soft); font-weight: 600; }
 /* Apex (★max) telegraphs a top threat in red-gold. */
 .project-anime.sheet.actor .tier-badge.apex { background: color-mix(in srgb, #c0392b 18%, var(--pa-field)); border-color: color-mix(in srgb, #c0392b 55%, var(--pa-line)); }
 .project-anime.sheet.actor .tier-badge.apex .tier-stars,
@@ -4185,6 +4187,9 @@
 .project-anime.monster-creator button.cc-star.on { color: var(--pa-gold); text-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 45%, transparent); }
 /* ★ in the Review badge + the encounter-tally row. */
 .project-anime.monster-creator .cc-tier-badge .cc-badge-stars { display: inline-flex; gap: 0.05rem; color: var(--pa-gold); }
+.project-anime.monster-creator .cc-tier-badge .cc-badge-worth { color: var(--pa-ink-soft); font-weight: 600; }
+/* "Worth" stat on a tier card, tinted to the tier colour (the headline encounter number). */
+.project-anime.monster-creator .cc-tier-worth .cc-tier-v { color: var(--tier-color); }
 .project-anime.party-sheet .party-row-stars { color: var(--pa-gold); font-size: 0.58rem; margin-right: 0.1rem; }
 
 /* -------------------------------------------------------------------------- */
@@ -4318,32 +4323,16 @@
 .project-anime.party-sheet button.party-pull:hover { border-color: var(--pa-accent); color: var(--pa-ink); }
 .project-anime.party-sheet .party-pull-n { font-family: var(--pa-font-mono); color: var(--pa-gold); }
 
-/* Action-economy guide line */
-.project-anime.party-sheet .party-econ {
-  display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0;
-  font-size: 0.72rem; color: var(--pa-ink-soft);
-}
-.project-anime.party-sheet .party-econ.heavy { color: var(--pa-danger); }
-.project-anime.party-sheet .party-econ.light { color: var(--pa-gold); }
-.project-anime.party-sheet .party-econ.ok { color: var(--pa-good, var(--pa-ink-soft)); }
-
 .project-anime.party-sheet .party-meter { height: 6px; border-radius: 3px; background: var(--pa-track); overflow: hidden; }
 .project-anime.party-sheet .party-meter-fill { height: 100%; background: linear-gradient(90deg, var(--pa-accent), var(--pa-accent-2, var(--pa-accent))); transition: width 0.2s; }
 .project-anime.party-sheet .party-meter-fill.over { background: var(--pa-danger); }
 
-/* Encounter dual gauges — Power (SP) over Bodies (action economy) */
+/* Encounter gauge — Party-Equivalents spent vs budget */
 .project-anime.party-sheet .party-gauges { display: grid; gap: 0.5rem; margin: 0.2rem 0 0.5rem; }
 .project-anime.party-sheet .party-gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.18rem; }
 .project-anime.party-sheet .party-gauge-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pa-ink-soft); display: inline-flex; align-items: center; gap: 0.3rem; }
 .project-anime.party-sheet .party-gauge-val { font-family: var(--pa-font-mono); font-size: 0.82rem; color: var(--pa-ink); }
 .project-anime.party-sheet .party-gauge-val.over { color: var(--pa-danger); }
-.project-anime.party-sheet .party-gauge-val.heavy { color: var(--pa-danger); }
-.project-anime.party-sheet .party-gauge-val.light { color: var(--pa-gold); }
-.project-anime.party-sheet .party-gauge-val.ok { color: var(--pa-good, var(--pa-ink-soft)); }
-.project-anime.party-sheet .party-meter-fill.heavy { background: var(--pa-danger); }
-.project-anime.party-sheet .party-meter-fill.light { background: var(--pa-gold); }
-.project-anime.party-sheet .party-meter-fill.ok { background: linear-gradient(90deg, var(--pa-accent), var(--pa-accent-2, var(--pa-accent))); }
-.project-anime.party-sheet .party-meter-fill.empty { background: var(--pa-track); }
 
 /* Squad encounter line — pooled-unit minions */
 .project-anime.party-sheet .party-row.is-squad { border-left: 2px solid var(--tier-color, var(--pa-line)); }

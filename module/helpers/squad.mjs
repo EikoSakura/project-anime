@@ -48,25 +48,6 @@ export function squadMembers(actor) {
   return Math.min(squadSize(actor), Math.ceil(hp / per));
 }
 
-/** How many combat turns / action-economy "bodies" this NPC occupies: an apex Solo acts 2× per
- *  round (3× at ★4+); a squad is ONE body (its members concentrate into one turn); everyone else 1.
- *  Mirrors soloTurnsPerRound in project-anime.mjs (kept here so the planner needs no combat import). */
-export function tierBodies(actor) {
-  if (actor?.type !== "npc" || (actor.system?.role ?? "monster") === "npc") return 1;
-  if (actor.system?.tier === "solo") return (Number(actor.system?.stars) || 0) >= 4 ? 3 : 2;
-  return 1;
-}
-
-/** A squad's Skill-Point threat for the encounter tally: the single minion's price × size, scaled
- *  by the sub-linear swarm factor (a pooled one-initiative unit threatens less than that many
- *  independent monsters). Floored at the single-minion price so a squad never reads cheaper than one. */
-export function squadCost(perMinionCost, size) {
-  const n = Math.max(1, Math.floor(Number(size) || 1));
-  const each = Math.max(0, Number(perMinionCost) || 0);
-  if (n < 2) return each;
-  return Math.max(each, Math.round(each * n * (PROJECTANIME.squadSwarmFactor ?? 0.5)));
-}
-
 /**
  * Resize a Minion's squad (the single source of truth for its pooled HP). Records the per-member HP
  * the first time the unit becomes a squad (from its current max), writes the new size, and refills

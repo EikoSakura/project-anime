@@ -259,7 +259,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.tierBadge = tierCfg
       ? { label: game.i18n.localize(tierCfg.label), icon: tierCfg.icon, color: tierCfg.color,
           stars: tierStars >= 1 ? Array.from({ length: tierStars }, (_, i) => i) : null,
-          apex: tierStars >= CONFIG.PROJECTANIME.maxStars }
+          apex: tierStars >= CONFIG.PROJECTANIME.maxStars,
+          // Encounter-budget worth (Party-Equivalents) surfaced at a glance — see helpers/encounter.mjs.
+          worth: game.i18n.localize(`PROJECTANIME.Worth.${tierKey}`) }
       : null;
     // The toggled <prose-mirror> shows enriched HTML while collapsed and loads the raw
     // value (+ this UUID, for content links) when editing — the PF2e click-to-edit

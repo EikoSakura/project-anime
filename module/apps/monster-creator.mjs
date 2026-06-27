@@ -175,6 +175,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         evasion: t.evasion,
         defense: t.defense,
         skillPoints: s.skillPoints,
+        worth: game.i18n.localize(`PROJECTANIME.Worth.${k}`),   // encounter-budget worth (Party-Equivalents)
         selected: sys.tier === k
       };
     });
@@ -253,7 +254,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
 
     // Review (last step) — a compact summary card.
     ctx.tierBadge = this.#tier()
-      ? { label: ctx.tierName, icon: this.#tier().icon, color: this.#tier().color, stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null }
+      ? { label: ctx.tierName, icon: this.#tier().icon, color: this.#tier().color, stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null,
+          worth: game.i18n.localize(`PROJECTANIME.Worth.${this.actor.system.tier}`) }
       : null;
     ctx.skillCount = ctx.skills.length;
 

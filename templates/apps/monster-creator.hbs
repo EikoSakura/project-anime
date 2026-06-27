@@ -66,6 +66,7 @@
           {{#if t.selected}}<i class="cc-tier-check fas fa-circle-check"></i>{{/if}}
         </div>
         <ul class="cc-tier-stats">
+          <li class="cc-tier-worth"><span class="cc-tier-k">{{localize "PROJECTANIME.Worth.label"}}</span><span class="cc-tier-v">{{t.worth}}</span></li>
           <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierStepUps"}}</span><span class="cc-tier-v">{{t.stepUps}}</span></li>
           <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierVital"}}</span><span class="cc-tier-v">×{{t.vitalMult}}</span></li>
           <li><span class="cc-tier-k">{{localize "PROJECTANIME.MonsterCreator.tierEvaDef"}}</span><span class="cc-tier-v">+{{t.evasion}} / +{{t.defense}}</span></li>
@@ -231,7 +232,7 @@
         <span class="cc-review-name">{{name}}</span>
         {{#if tierBadge}}
         <span class="cc-tier-badge" style="--tier-color: {{tierBadge.color}}">
-          {{#if tierBadge.stars}}<span class="cc-badge-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}<i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}
+          {{#if tierBadge.stars}}<span class="cc-badge-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}<i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}{{#if tierBadge.worth}} <span class="cc-badge-worth">· {{tierBadge.worth}}</span>{{/if}}
         </span>
         {{/if}}
       </div>

@@ -1455,10 +1455,10 @@ async function backfillSkillPointLog() {
 // self-built Skill, plus one non-refundable "legacy" lump for the remainder of the old `spent`
 // scalar (the attribute / stat advancement). GM-side, once per NPC (flag "npcStarLogBackfilled").
 // NOTE: we deliberately do NOT auto-stamp a ★ star rating here — a legacy NPC was built against the
-// global Encounter Power dial, not a known star, so guessing a star would both mislabel it and shift
-// its encounter-tally cost (monsterStarCost prices off the star). Unrated NPCs (stars 0) keep the
-// legacy monsterSPCost pricing → existing prepped fights are unchanged. The GM rates a monster when
-// they choose, via the Monster Creator's star picker (or the sheet).
+// global Encounter Power dial, not a known star, so guessing a star would mislabel its power level
+// (and resize how the Monster Creator would rebuild it). The encounter budget now reads from the Tier
+// in Party-Equivalents, not the star, so leaving a legacy NPC unrated never changes a planned fight's
+// cost. The GM rates a monster when they choose, via the Monster Creator's star picker (or the sheet).
 async function backfillNpcSkillLog() {
   if (game.users.activeGM?.id !== game.user.id) return;
   const updates = [];

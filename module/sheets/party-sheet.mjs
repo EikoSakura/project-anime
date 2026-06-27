@@ -1,4 +1,10 @@
-import { memberPower, partyPower, effectivePartyPower, encounterBudget, encounterLines, actionEconomy, effectivePlayers } from "../helpers/encounter.mjs";
+import { memberPower, partyPower, encounterBudget, encounterLines, effectivePlayers } from "../helpers/encounter.mjs";
+
+/** Format a Party-Equivalent value for display: trim to at most 2 decimals, drop trailing zeros
+ *  (0.25 → "0.25", 1 → "1", 1.5 → "1.5", 2 → "2"). */
+function fmtEquiv(n) {
+  return parseFloat((Number(n) || 0).toFixed(2)).toString();
+}
 import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
 import { isMinionTier, setSquadSize } from "../helpers/squad.mjs";
 
@@ -127,26 +133,25 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
         return { id: i.id, name: i.name, img: i.img, qty: qty > 1 ? qty : null, cost: Number(i.system?.cost) || 0 };
       });
 
-    // Encounter tab (GM only) — difficulty, the SP "Power" budget, and the planned threats. The fight
-    // is read on TWO gauges: Power (Skill-Point threat vs the budget) and Bodies (turns/round vs the
-    // players, the action-economy axis the SP sum can't see). Minions field as one pooled Squad line
-    // (a size stepper, not a quantity multiplier); Standard/Elite/Solo are individual lines.
+    // Encounter tab (GM only) — difficulty, the Party-Equivalent budget, and the planned threats, read
+    // on ONE gauge: PC-equivalents spent vs the budget (player count + difficulty offset). Each Tier is
+    // worth a fixed number of PCs (Minion 0.25 · Standard 1 · Elite 2 · Solo = the party), a number
+    // that folds power AND action economy together. Minions field as one pooled Squad line (a size
+    // stepper, not a quantity multiplier); Standard/Elite/Solo are individual lines.
     if (isGM) {
-      // Budget basis: typed total Skill Points in manual-estimate mode (plan a fight with no
-      // built roster), else the live roster's summed power.
-      const power = effectivePartyPower(this.actor);
+      const players = effectivePlayers(this.actor);
       context.encounterManual = sys.encounterManual ?? false;
       context.encounterPlayers = sys.encounterPlayers ?? 4;
-      context.encounterSP = sys.encounterSP ?? 0;
-      context.rosterPower = context.partyPower; // shown as the "pull from roster" reference
-      context.difficulty = sys.difficulty ?? "standard";
+      context.rosterPlayers = this.#resolvedMembers().length || 0; // "From roster" reference (live count)
+      context.difficulty = sys.difficulty ?? "medium";
       context.difficultyChoices = Object.fromEntries(
         cfg.encounterDifficultyKeys.map((k) => [k, game.i18n.localize(cfg.encounterDifficulty[k].label)])
       );
-      context.budget = encounterBudget(this.actor);
+      const budget = encounterBudget(this.actor);
+      context.budget = budget;
       context.thresholds = cfg.encounterDifficultyKeys.map((k) => ({
         label: game.i18n.localize(cfg.encounterDifficulty[k].label),
-        value: Math.round(power * cfg.encounterDifficulty[k].mult),
+        value: Math.max(0, players + cfg.encounterDifficulty[k].offset),
         active: context.difficulty === k
       }));
 
@@ -154,27 +159,15 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       context.encounter = lines.map((l) => ({
         ...l,
         starsArr: l.stars >= 1 ? Array.from({ length: l.stars }, (_, i) => i) : null,
-        // Squad lines read "Squad ×N · cost" with living/total members; individuals read a flat cost.
+        // Squad lines read "Squad ×N · worth" with living/total members; individuals read a flat worth.
         squadLabel: l.isMinion ? game.i18n.format("PROJECTANIME.Party.squadOf", { n: l.size }) : "",
         membersLabel: (l.isMinion && l.maxMembers > 1) ? `${l.members}/${l.maxMembers}` : "",
-        costLabel: `${l.cost}`
+        equivLabel: fmtEquiv(l.equiv)
       }));
-      const spent = lines.reduce((s, l) => s + (l.cost || 0), 0);
-      context.spent = spent;
-      context.over = spent > context.budget;
-      context.usePct = context.budget > 0 ? Math.clamp(Math.round((spent / context.budget) * 100), 0, 100) : 0;
-
-      // Bodies gauge — turns/round vs the players (a Squad is 1 body whatever its size; a Solo is 2–3).
-      const econ = actionEconomy(this.actor);
-      context.players = econ.players;
-      context.bodies = econ.bodies;
-      context.bodiesTarget = econ.players;
-      context.bodiesTone = econ.tone;
-      context.bodiesPct = Math.clamp(Math.round((econ.bodies / Math.max(1, econ.high)) * 100), 0, 100);
-      const econKey = { heavy: "actionEconHeavy", light: "actionEconLight", ok: "actionEconOk" }[econ.tone];
-      context.actionEcon = econKey
-        ? { tone: econ.tone, label: game.i18n.format(`PROJECTANIME.Party.${econKey}`, econ) }
-        : null;
+      const spent = lines.reduce((s, l) => s + (l.equiv || 0), 0);
+      context.spent = fmtEquiv(spent);
+      context.over = spent > budget;
+      context.usePct = budget > 0 ? Math.clamp(Math.round((spent / budget) * 100), 0, 100) : (spent > 0 ? 100 : 0);
     }
 
     return context;
@@ -411,12 +404,11 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     actor?.sheet?.render(true);
   }
 
-  /** Prefill the manual-estimate fields from the live roster — the party's summed power as the
-   *  total SP, its member count as the player count. Lets the GM start from the real party and
-   *  then tweak the numbers (e.g. "what if there were 5 of them?") without a built roster. */
+  /** Prefill the manual-estimate player count from the live roster — its member count. Lets the GM
+   *  start from the real party and then tweak the number (e.g. "what if there were 5 of them?")
+   *  without a built roster. */
   static async #onPullRoster() {
     await this.actor.update({
-      "system.encounterSP": partyPower(this.actor),
       "system.encounterPlayers": Math.max(1, this.#resolvedMembers().length || 1)
     });
   }

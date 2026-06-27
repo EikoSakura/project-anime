@@ -825,21 +825,24 @@ PROJECTANIME.encounterPowerDefault = 6;
  *   • `stepUps`   — the Attribute Step-Up budget (a starting PC gets 5). Attributes cap at d12 for
  *                   everyone, so a Tier's dice top out near a maxed PC's and need no star scaling.
  *   • `evasion` / `defense` — flat bonuses written to the NPC's Evasion / Defense Bonus.
- *   • `evaDefCost` — what those flat Eva/Def are worth in Skill Points for ENCOUNTER PRICING only
- *                    (monsterStarCost). PCs can't buy flat Eva/Def, so it isn't a build cost — but a
- *                    boss's +2/+2 is real threat and must be priced into the budget.
  *   • `turns` — combat turns this Tier takes PER ROUND (action economy). Solo takes 2 (3 at ★4+),
  *               the rest take 1. Wired into the turn loop (see project-anime.mjs nextTurn patch).
+ *   • `pcWorth` — the ENCOUNTER-BUDGET currency: how many Player Characters this ONE body is worth
+ *                 (the Fabula-Ultima rank model). Minion 0.25 (×4 = 1 PC), Standard 1, Elite 2; a Solo
+ *                 is dynamic (= the party's player count, a balanced 1-v-party boss) so it's stored
+ *                 `null` and resolved live (helpers/encounter.mjs tierPcWorth). This folds power AND
+ *                 action economy into one number, and is INDEPENDENT of ★ power — build the NPC
+ *                 on-level for its ★ and the flat worth holds.
  * All plain, easily-tuned numbers (like `skillRanks`) — a starting point to iterate on, not a
  * finished balance pass. `icon` / `color` drive the ★-Tier badge on the NPC sheet header.
  * NOTE: `vitalBase` only affects NEW derivations (the Monster Creator); a built NPC stores concrete
  * HP/EN, so retuning these never moves an existing statblock.
  */
 PROJECTANIME.monsterTiers = {
-  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5,  evaDefCost: 0, turns: 1 },
-  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75, evaDefCost: 0, turns: 1 },
-  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.75, evasion: 1, defense: 1, spFactor: 1,    evaDefCost: 1, turns: 1 },
-  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3.5,  evasion: 2, defense: 2, spFactor: 2.5,  evaDefCost: 3, turns: 2 }
+  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5,  turns: 1, pcWorth: 0.25 },
+  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75, turns: 1, pcWorth: 1 },
+  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.75, evasion: 1, defense: 1, spFactor: 1,    turns: 1, pcWorth: 2 },
+  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3.5,  evasion: 2, defense: 2, spFactor: 2.5,  turns: 2, pcWorth: null }
 };
 
 /** Iteration order for monster Tiers (weakest → strongest). */
@@ -860,10 +863,9 @@ PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
  * is its own body (drag the actor again to field another).
  */
 
-/** Squad pricing is SUB-LINEAR: a pooled, one-initiative swarm threatens less than the same number
- *  of independent monsters (it acts once, dies to one good AoE), so its Skill-Point cost is the
- *  single minion's price × size × this factor. ~0.5 = "a party-sized wave ≈ one real threat". */
-PROJECTANIME.squadSwarmFactor = 0.5;
+/** Squad worth is LINEAR in the encounter budget: each member is worth 0.25 of a PC (the Minion
+ *  Tier's `pcWorth`), so four = one PC and a size-N squad spends N×0.25 Party-Equivalents. The pooled
+ *  one-initiative HP bar is what keeps that honest — the swarm acts once and dies to one good AoE. */
 
 /** Default size a freshly-dropped minion squad takes when the party size is unknown (manual mode):
  *  Draw Steel buys minions four at a time; we mirror that. The Encounter Builder prefers the live
@@ -938,20 +940,20 @@ export function tierScaling(tierKey, power = getEncounterPower()) {
 /* -------------------------------------------- */
 
 /**
- * Encounter difficulty → the multiplier on the party's total Skill Points that yields the
- * monster budget for a fight (Budget = Party SP × mult). Plain, tunable numbers. NOTE: a raw
- * SP sum ignores action economy (many small monsters out-act one big brute), so treat these
- * as a planning guide, not a guarantee.
+ * Encounter difficulty → a flat OFFSET on the party's player count that yields the encounter budget
+ * in PARTY-EQUIVALENTS (Budget = player count + offset). Medium is "on level" — a fair fight fields
+ * as many PC-equivalents of threat as there are players; each step is ±2 PCs. So a party of 4 faces
+ * 2 / 4 / 6 / 8 equivalents across Easy / Medium / Hard / Extreme. Plain, tunable numbers.
  */
 PROJECTANIME.encounterDifficulty = {
-  easy:     { label: "PROJECTANIME.Encounter.difficulty.easy",     mult: 0.5 },
-  standard: { label: "PROJECTANIME.Encounter.difficulty.standard", mult: 1 },
-  hard:     { label: "PROJECTANIME.Encounter.difficulty.hard",     mult: 1.5 },
-  deadly:   { label: "PROJECTANIME.Encounter.difficulty.deadly",   mult: 2 }
+  easy:    { label: "PROJECTANIME.Encounter.difficulty.easy",    offset: -2 },
+  medium:  { label: "PROJECTANIME.Encounter.difficulty.medium",  offset: 0 },
+  hard:    { label: "PROJECTANIME.Encounter.difficulty.hard",    offset: 2 },
+  extreme: { label: "PROJECTANIME.Encounter.difficulty.extreme", offset: 4 }
 };
 
 /** Iteration order for encounter difficulties (easiest → hardest). */
-PROJECTANIME.encounterDifficultyKeys = ["easy", "standard", "hard", "deadly"];
+PROJECTANIME.encounterDifficultyKeys = ["easy", "medium", "hard", "extreme"];
 
 /* -------------------------------------------- */
 /*  Biography dossier                           */

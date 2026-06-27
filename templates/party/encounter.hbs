@@ -1,5 +1,6 @@
-{{!-- Encounter tab (GM-only part): difficulty → budget, read on two gauges (Power = SP threat,
-      Bodies = action economy), and the planned threats — Minion squads + individual Standard/Elite/Solo. --}}
+{{!-- Encounter tab (GM-only part): difficulty → budget in Party-Equivalents, read on one gauge, and
+      the planned threats — Minion squads + individual Standard/Elite/Solo, each worth a fixed number
+      of PCs (Minion 0.25 · Standard 1 · Elite 2 · Solo = the party). --}}
 <section class="party-pane{{#if onEncounter}} active{{/if}}" data-pane="encounter">
   <div class="party-section party-budget">
     <label class="party-manual-toggle">
@@ -13,12 +14,8 @@
         <span class="party-label">{{localize "PROJECTANIME.Party.players"}}</span>
         <input type="number" name="system.encounterPlayers" value="{{encounterPlayers}}" min="1" step="1" />
       </label>
-      <label class="party-field party-field-sp">
-        <span class="party-label">{{localize "PROJECTANIME.Party.totalSP"}}</span>
-        <input type="number" name="system.encounterSP" value="{{encounterSP}}" min="0" step="1" />
-      </label>
       <button type="button" class="party-pull" data-action="pullRoster">
-        <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.Party.pullRoster"}} <span class="party-pull-n">{{rosterPower}}</span>
+        <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.Party.pullRoster"}} <span class="party-pull-n">{{rosterPlayers}}</span>
       </button>
     </div>
     {{/if}}
@@ -45,33 +42,23 @@
       <i class="fas fa-skull"></i> {{localize "PROJECTANIME.Party.encounter"}}
     </h3>
 
-    {{!-- Two gauges: Power (SP threat vs budget) and Bodies (turns/round vs players). --}}
+    {{!-- One gauge: Party-Equivalents spent vs the budget (Tier worth folds power AND actions in). --}}
     <div class="party-gauges">
       <div class="party-gauge">
         <div class="party-gauge-head">
-          <span class="party-gauge-label"><i class="fas fa-bolt"></i> {{localize "PROJECTANIME.Party.powerGauge"}}</span>
+          <span class="party-gauge-label"><i class="fas fa-user-group"></i> {{localize "PROJECTANIME.Party.equivGauge"}}</span>
           <span class="party-gauge-val{{#if over}} over{{/if}}">{{spent}} / {{budget}}</span>
         </div>
         <div class="party-meter"><div class="party-meter-fill{{#if over}} over{{/if}}" style="width: {{usePct}}%"></div></div>
       </div>
-      <div class="party-gauge">
-        <div class="party-gauge-head">
-          <span class="party-gauge-label"><i class="fas fa-users-between-lines"></i> {{localize "PROJECTANIME.Party.bodiesGauge"}}</span>
-          <span class="party-gauge-val {{bodiesTone}}">{{bodies}} / {{bodiesTarget}}</span>
-        </div>
-        <div class="party-meter"><div class="party-meter-fill {{bodiesTone}}" style="width: {{bodiesPct}}%"></div></div>
-      </div>
     </div>
-    {{#if actionEcon}}
-    <p class="party-econ {{actionEcon.tone}}"><i class="fas fa-users-between-lines"></i> {{actionEcon.label}}</p>
-    {{/if}}
 
     <div class="party-drop" data-drop="encounter">
       {{#each encounter as |m|}}
       <div class="party-row{{#if m.missing}} missing{{/if}}{{#if m.isMinion}} is-squad{{/if}}" data-line-id="{{m.id}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.tierColor}}">
         <img src="{{m.img}}" alt="" data-action="openActor" />
         <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{#if m.starsArr}}<span class="party-row-stars">{{#each m.starsArr}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}{{m.tierLabel}}</span>{{/if}}{{#if m.isMinion}}<span class="party-row-squad">{{m.squadLabel}}{{#if m.membersLabel}} · <i class="fas fa-heart-pulse"></i> {{m.membersLabel}}{{/if}}</span>{{/if}}</span>
-        <span class="party-row-cost"><i class="fas fa-star"></i> {{m.costLabel}}</span>
+        <span class="party-row-cost"><i class="fas fa-user-group"></i> {{m.equivLabel}}</span>
         {{#if @root.editable}}
         {{#if m.isMinion}}
         <span class="party-qty" data-tooltip="{{localize 'PROJECTANIME.Party.squadSizeHint'}}">
