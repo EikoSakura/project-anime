@@ -53,7 +53,7 @@
     {{#if tierBadge}}
     <span class="tier-badge{{#if tierBadge.apex}} apex{{/if}}" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
       {{#if tierBadge.stars}}<span class="tier-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span>{{/if}}
-      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>{{#if tierBadge.worth}}<span class="tier-worth">· {{tierBadge.worth}}</span>{{/if}}
+      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>
     </span>
     {{/if}}
     {{#if roleBadge}}

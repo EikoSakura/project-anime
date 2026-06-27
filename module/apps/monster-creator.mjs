@@ -18,7 +18,7 @@
  * class (plus `monster-creator` for the Tier-specific bits).
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
-import { tierScaling, starOrDialPower } from "../helpers/config.mjs";
+import { tierScaling, starOrDialPower, npcVitals } from "../helpers/config.mjs";
 import { setSquadSize } from "../helpers/squad.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
 
@@ -108,9 +108,11 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     return this.#tier()?.stepUps ?? 0;
   }
 
-  /** HP / Energy multiplier from the Tier (1 while untiered). */
-  #mult() {
-    return this.#tier()?.vitalMult ?? 1;
+  /** This monster's derived HP / Energy under the Fabula-Ultima additive model (config npcVitals):
+   *  round5(Level + 2.5·attr) × the Tier rank. For a Minion `hp` is the PER-MEMBER pool. */
+  #vitals() {
+    const a = this.actor.system.attributes;
+    return npcVitals(this.actor.system.tier, this.actor.system.stars, a.might.base, a.spirit.base);
   }
 
   /** Step-Ups already spent = sum over attributes of (steps above d4). */
@@ -170,21 +172,22 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.starRated = stars >= 1;
     ctx.tierKey = sys.tier ?? "";
     // Tier cards show FINISHED HP / EN at the current attributes (read a chart, never multiply): each
-    // tier's vital multiplier resolved against this monster's ⟪Might⟫×2 / ⟪Spirit⟫×2, same formula as
-    // #applyVitals — so the headline numbers on the card are exactly what the build will store.
+    // tier's Fabula-Ultima vitals (config npcVitals) resolved at this monster's ★ Level and attributes,
+    // same formula as #applyVitals — so the headline numbers on the card are exactly what gets stored.
     const cardMight = sys.attributes.might.base;
     const cardSpirit = sys.attributes.spirit.base;
     ctx.tiers = cfg.monsterTierKeys.map((k) => {
       const t = cfg.monsterTiers[k];
       const s = tierScaling(k, power);
+      const v = npcVitals(k, stars, cardMight, cardSpirit);
       return {
         key: k,
         label: game.i18n.localize(t.label),
         icon: t.icon,
         color: t.color,
         stepUps: t.stepUps,
-        hp: Math.max(4, Math.round(cardMight * 2 * s.vitalMult)),
-        energy: Math.max(4, Math.round(cardSpirit * 2 * s.vitalMult)),
+        hp: v.hp,
+        energy: v.energy,
         evasion: t.evasion,
         defense: t.defense,
         skillPoints: s.skillPoints,
@@ -225,10 +228,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     });
 
     // Combat Stats — the FINISHED statblock read off the Frame card (no multiplier shown). Derived
-    // from the current attributes × the Tier and surfaced as final numbers.
-    const might = sys.attributes.might.base;
-    const spirit = sys.attributes.spirit.base;
-    const rawMult = this.#mult();          // exact multiplier used to derive HP/Energy
+    // from the ★ Level + attributes + Tier rank (config npcVitals) and surfaced as final numbers.
+    const fresh = this.#vitals();          // the HP/Energy this build would store right now
     ctx.tierName = this.#tier() ? game.i18n.localize(this.#tier().label) : game.i18n.localize("PROJECTANIME.MonsterCreator.noTier");
     ctx.vitals = {
       hp: sys.hp.max,
@@ -242,9 +243,9 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     // A Minion is a SQUAD member: its derived HP is the PER-MEMBER pool, so "stale" compares the
     // per-member value (memberHp) rather than the pooled max; everyone else compares hp.max directly.
     const isMinion = sys.tier === "minion";
-    const perMemberHP = Math.max(4, Math.round(might * 2 * rawMult));
+    const perMemberHP = fresh.hp;
     const storedPer = isMinion ? (Number(sys.squad?.memberHp) || sys.hp.max) : sys.hp.max;
-    ctx.vitalsStale = storedPer !== perMemberHP || (sys.energy.base ?? sys.energy.max) !== Math.max(4, Math.round(spirit * 2 * rawMult));
+    ctx.vitalsStale = storedPer !== perMemberHP || (sys.energy.base ?? sys.energy.max) !== fresh.energy;
     // Squad controls (Minion Tier only): size stepper + the pooled-HP breakdown (per-member × size).
     ctx.isMinion = isMinion;
     ctx.squadSize = Math.max(1, Number(sys.squad?.size) || 1);
@@ -405,13 +406,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     }
   }
 
-  /** Set HP and Energy to full from the current attributes × the Tier multiplier. Floored at a small
-   *  minimum so a ★1 Minion (multiplier well under 1) never derives a degenerate sub-4 pool. */
+  /** Set HP and Energy to full from the Fabula-Ultima vitals (config npcVitals): round5(★ Level +
+   *  2.5·attr) × the Tier rank. For a Minion the value is the PER-MEMBER pool (the squad pools it). */
   async #applyVitals() {
-    const a = this.actor.system.attributes;
-    const mult = this.#mult();
-    const hp = Math.max(4, Math.round(a.might.base * 2 * mult));
-    const energy = Math.max(4, Math.round(a.spirit.base * 2 * mult));
+    const { hp, energy } = this.#vitals();
     const update = {
       "system.hp.max": hp,
       "system.energy.max": energy,

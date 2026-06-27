@@ -814,14 +814,17 @@ PROJECTANIME.encounterPowerDefault = 6;
  * Monster "Tier" — the anime combat ROLE / shape an NPC plays (minion / standard / elite / solo),
  * INDEPENDENT of its power level (that's the per-NPC ★ star rating — see PROJECTANIME.starPower).
  * A monster is built on the same rules as a Player Character (the five Attributes start at d4 and
- * you spend Step-Ups; HP = ⟪Might⟫×2, Energy = ⟪Spirit⟫×2); the ★ rating sets the build BUDGET and
- * the Tier sets the SHAPE it's spent in. So a "★1 Solo" and a "★5 Minion" are both legal and mean
- * something different. Stars own MAGNITUDE; the Tier owns the split + frame + role:
+ * you spend Step-Ups); the ★ rating sets the build BUDGET and MAGNITUDE and the Tier sets the SHAPE
+ * it's spent in. So a "★1 Solo" and a "★5 Minion" are both legal and mean something different. Stars
+ * own MAGNITUDE; the Tier owns the split + frame + role:
  *   • `spFactor`  — Skill Points granted = round(power × spFactor), where `power` = the ★ rating's
  *                   local Encounter Power (starPower) or the global dial when unstarred. Read the
  *                   factor as "how many PCs' worth of skills": Elite 1 (a peer), Solo 2.5.
- *   • `vitalBase` — base HP/Energy multiplier on ⟪Might⟫×2 / ⟪Spirit⟫×2; the EFFECTIVE multiplier
- *                   grows with the power = vitalBase × (power / default).
+ *   • `hpRank` / `epRank` — the RANK multiplier on the Fabula-Ultima vitals base (see PROJECTANIME.starLevel
+ *                   and npcVitals): HP = round5(Level + 2.5·Might) × hpRank, Energy = round5(Level + 2.5·Spirit)
+ *                   × epRank. Mirrors FU's rank scaling — Standard ×1, Elite ×2 HP, Solo (Champion) ×N HP
+ *                   (N = soloChampionX) and ×2 Energy. `hpRank: null` = the live Champion factor. A Minion's
+ *                   base is its PER-MEMBER pool (the squad pools it × size, helpers/squad.mjs).
  *   • `stepUps`   — the Attribute Step-Up budget (a starting PC gets 5). Attributes cap at d12 for
  *                   everyone, so a Tier's dice top out near a maxed PC's and need no star scaling.
  *   • `evasion` / `defense` — flat bonuses written to the NPC's Evasion / Defense Bonus.
@@ -838,14 +841,14 @@ PROJECTANIME.encounterPowerDefault = 6;
  *                 on-level for its ★ and the flat worth holds.
  * All plain, easily-tuned numbers (like `skillRanks`) — a starting point to iterate on, not a
  * finished balance pass. `icon` / `color` drive the ★-Tier badge on the NPC sheet header.
- * NOTE: `vitalBase` only affects NEW derivations (the Monster Creator); a built NPC stores concrete
- * HP/EN, so retuning these never moves an existing statblock.
+ * NOTE: `hpRank` / `epRank` only affect NEW derivations (the Monster Creator); a built NPC stores
+ * concrete HP/EN, so retuning these never moves an existing statblock.
  */
 PROJECTANIME.monsterTiers = {
-  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  vitalBase: 1,    evasion: 0, defense: 0, spFactor: 0.5,  turns: 1, pcWorth: 0.25 },
-  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  vitalBase: 1.25, evasion: 0, defense: 0, spFactor: 0.75, turns: 1, pcWorth: 1 },
-  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  vitalBase: 1.75, evasion: 1, defense: 1, spFactor: 1,    turns: 2,    pcWorth: 2 },
-  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  vitalBase: 3.5,  evasion: 2, defense: 2, spFactor: 2.5,  turns: null, pcWorth: null }
+  minion:   { label: "PROJECTANIME.Tier.minion",   icon: "fa-solid fa-skull",         color: "#7a8a8f", stepUps: 3,  hpRank: 1,    epRank: 1, evasion: 0, defense: 0, spFactor: 0.5,  turns: 1, pcWorth: 0.25 },
+  standard: { label: "PROJECTANIME.Tier.standard", icon: "fa-solid fa-hand-fist",     color: "#4f6c9c", stepUps: 4,  hpRank: 1,    epRank: 1, evasion: 0, defense: 0, spFactor: 0.75, turns: 1, pcWorth: 1 },
+  elite:    { label: "PROJECTANIME.Tier.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", stepUps: 5,  hpRank: 2,    epRank: 1, evasion: 1, defense: 1, spFactor: 1,    turns: 2,    pcWorth: 2 },
+  solo:     { label: "PROJECTANIME.Tier.solo",     icon: "fa-solid fa-crown",         color: "#9c4f6c", stepUps: 8,  hpRank: null, epRank: 2, evasion: 2, defense: 2, spFactor: 2.5,  turns: null, pcWorth: null }
 };
 
 /** Iteration order for monster Tiers (weakest → strongest). */
@@ -983,6 +986,55 @@ export function starOrDialPower(actor) {
   return starPowerValue(actor?.system?.stars) || getEncounterPower();
 }
 
+/* -------------------------------------------- */
+/*  NPC vitals — Fabula-Ultima additive model   */
+/* -------------------------------------------- */
+
+/**
+ * A monster's ★ rating → its Fabula-Ultima "Level" band, the magnitude term in the HP/Energy formula
+ * (npcVitals). FU keys vitals to an integer Level that climbs in multiples of 5/10; the ★ rating picks
+ * the band. Numbers stay multiples of 5 because both terms of the formula are: the Level here, and
+ * 2.5 × an (always-even) attribute die. ★0 / unrated falls back to npcLevelDefault (the ★2 baseline).
+ */
+PROJECTANIME.starLevel = { 1: 5, 2: 10, 3: 20, 4: 30, 5: 40 };
+
+/** The Level an unrated NPC derives vitals at — the ★2 baseline / on-level default. */
+PROJECTANIME.npcLevelDefault = 10;
+
+/** Solo "Champion factor": how many PCs' worth of HP a Solo's body carries (FU Champion(X), X ≈ party
+ *  size). The Tier's `hpRank: null` resolves to this — a plain, tunable assumed party size. */
+PROJECTANIME.soloChampionX = 4;
+
+/** An NPC's vitals Level from its ★ rating (the FU magnitude band), or the unrated default. */
+export function starLevel(stars) {
+  return PROJECTANIME.starLevel[Number(stars) || 0] ?? PROJECTANIME.npcLevelDefault;
+}
+
+/** Round to the nearest 5 (the Fabula-Ultima vitals grain). */
+function round5(n) {
+  return Math.round((Number(n) || 0) / 5) * 5;
+}
+
+/**
+ * A monster's derived HP and Energy under the Fabula-Ultima additive model (Spec B), keyed to its ★
+ * Level and Tier rank — NOT a multiplier on ⟪attr⟫×2. Per FU:
+ *   HP     = round5( Level + 2.5 × Might  ) × hpRank
+ *   Energy = round5( Level + 2.5 × Spirit ) × epRank
+ * where Level = starLevel(stars) and the Tier supplies the rank multipliers (Standard ×1, Elite ×2 HP,
+ * Solo ×soloChampionX HP and ×2 Energy). For a Minion the returned HP is the PER-MEMBER pool (hpRank 1);
+ * the squad pools it × size (helpers/squad.mjs). Floored at 5. `might`/`spirit` are die-size numbers.
+ */
+export function npcVitals(tierKey, stars, might, spirit) {
+  const t = PROJECTANIME.monsterTiers[tierKey] ?? PROJECTANIME.monsterTiers.standard;
+  const level = starLevel(stars);
+  const hpRank = (t.hpRank == null) ? PROJECTANIME.soloChampionX : t.hpRank;
+  const epRank = t.epRank ?? 1;
+  return {
+    hp: Math.max(5, round5(level + 2.5 * (Number(might) || 4)) * hpRank),
+    energy: Math.max(5, round5(level + 2.5 * (Number(spirit) || 4)) * epRank)
+  };
+}
+
 /** World-setting key for the Monster Creator's Encounter Power dial. */
 export const ENCOUNTER_POWER_SETTING = "encounterPower";
 
@@ -996,17 +1048,15 @@ export function getEncounterPower() {
   return PROJECTANIME.encounterPowerDefault;
 }
 
-/** A Tier's EFFECTIVE numbers at a given Encounter Power: its Skill-Point grant and HP/Energy
- *  multiplier scaled by the dial, with the fixed knobs (stepUps / evasion / defense / label /
- *  icon / color) spread through. Returns null for an unknown Tier key. */
+/** A Tier's EFFECTIVE numbers at a given Encounter Power: its Skill-Point grant scaled by the dial,
+ *  with the fixed knobs (stepUps / evasion / defense / label / icon / color / hpRank / epRank) spread
+ *  through. Vitals are derived separately by npcVitals. Returns null for an unknown Tier key. */
 export function tierScaling(tierKey, power = getEncounterPower()) {
   const t = PROJECTANIME.monsterTiers[tierKey];
   if (!t) return null;
-  const base = PROJECTANIME.encounterPowerDefault || 6;
   return {
     ...t,
-    skillPoints: Math.max(0, Math.round(power * (t.spFactor ?? 0))),
-    vitalMult: (t.vitalBase ?? 1) * (power / base)
+    skillPoints: Math.max(0, Math.round(power * (t.spFactor ?? 0)))
   };
 }
 
