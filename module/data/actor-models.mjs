@@ -397,13 +397,6 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
     // starOrDialPower). 0 = unrated → fall back to the global dial (and the badge hides the stars).
     schema.stars = new fields.NumberField({ required: false, integer: true, initial: 0, min: 0, max: 5 });
 
-    // Combat ROLE / archetype — the third monster axis (Tier × ★ × Role; see PROJECTANIME.
-    // monsterArchetypes). A power-neutral template the Monster Creator uses to auto-spread the
-    // Step-Up budget + grant a signature kit. A free StringField (not `choices`-locked) so the table
-    // can be retuned/renamed and hand-editing stays valid; "" = a custom build (every existing NPC,
-    // zero-break — nothing auto-derives from it). Distinct from `role` below (the monster⇄npc kind).
-    schema.archetype = new fields.StringField({ required: false, blank: true, initial: "" });
-
     // MINION SQUAD — a Minion-Tier NPC fields as a pooled unit (helpers/squad.mjs). `size` is the
     // member count (1 = a lone minion / not yet a squad); `memberHp` is the per-member HP pool,
     // recorded the first time the unit becomes a squad so resizing recomputes cleanly. The EFFECTIVE

@@ -76,19 +76,6 @@
       {{/each}}
     </div>
 
-    <div class="cc-role-row">
-      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.role"}}</span>
-      <div class="cc-role-pick" role="radiogroup">
-        {{#each archetypes as |r|}}
-        <button type="button" class="cc-role-card{{#if r.selected}} selected{{/if}}"
-                data-action="pickArchetype" data-archetype="{{r.key}}" title="{{r.label}}" aria-label="{{r.label}}">
-          <i class="{{r.icon}}"></i>
-          <span class="cc-role-name">{{r.label}}</span>
-        </button>
-        {{/each}}
-      </div>
-    </div>
-
     {{#if hasTier}}
     <div class="cc-vitals-grid cc-frame-stats">
       <div class="cc-vital hp"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span><span class="cc-v-val">{{vitals.hp}}</span></div>
@@ -227,9 +214,6 @@
           <span class="cc-tier-badge" style="--tier-color: {{tierBadge.color}}">
             {{#if tierBadge.stars}}<span class="cc-badge-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span> {{/if}}<i class="{{tierBadge.icon}}"></i> {{tierBadge.label}}
           </span>
-          {{/if}}
-          {{#if roleBadge}}
-          <span class="cc-role-badge"><i class="{{roleBadge.icon}}"></i> {{roleBadge.label}}</span>
           {{/if}}
         </div>
       </div>

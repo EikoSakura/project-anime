@@ -1674,7 +1674,6 @@
       "tierVital": "HP / Energy",
       "tierEvaDef": "Eva / Def",
       "stars": "Star Rating",
-      "role": "Role",
       "encounterPower": "Power",
       "pickTierFirst": "Pick a Tier first.",
       "stepsLeft": "Step-Ups left",
@@ -1706,22 +1705,6 @@
       "standard": "Standard",
       "elite": "Elite",
       "solo": "Solo"
-    },
-    "Archetype": {
-      "brute": "Brute",
-      "skirmisher": "Skirmisher",
-      "artillery": "Artillery",
-      "sentinel": "Sentinel",
-      "controller": "Controller",
-      "support": "Support",
-      "move": {
-        "brute": "Crushing Blow",
-        "skirmisher": "Hit and Run",
-        "artillery": "Elemental Barrage",
-        "sentinel": "Guardian's Aegis",
-        "controller": "Binding Hex",
-        "support": "Mending Light"
-      }
     },
     "Worth": {
       "label": "Worth",

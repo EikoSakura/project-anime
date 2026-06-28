@@ -263,10 +263,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
           // Encounter-budget worth (Party-Equivalents) surfaced at a glance — see helpers/encounter.mjs.
           worth: game.i18n.localize(`PROJECTANIME.Worth.${tierKey}`) }
       : null;
-    // Role badge — the combat archetype (Brute / Skirmisher / …), shown beside the ★-Tier badge on a
-    // Monster-role NPC. Null when unset (a custom build) or on a social NPC.
-    const archCfg = context.isMonster ? CONFIG.PROJECTANIME.monsterArchetypes?.[this.actor.system.archetype] : null;
-    context.roleBadge = archCfg ? { label: game.i18n.localize(archCfg.label), icon: archCfg.icon } : null;
     // The toggled <prose-mirror> shows enriched HTML while collapsed and loads the raw
     // value (+ this UUID, for content links) when editing — the PF2e click-to-edit
     // pattern. The enriched content is injected as the element's inner HTML.

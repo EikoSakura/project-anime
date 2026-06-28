@@ -15,7 +15,9 @@
  * The window reuses the Codex's `.pa-hq` styling (its root carries that class), reads/writes the same
  * world HQ object via getHQ/saveHQ, and shares the build path: a GM builds directly; a player relays
  * the build to the active GM over the system socket (validated GM-side against the `unlocked` flag).
- * It re-renders on any HQ change via the HQ setting's onChange (project-anime.mjs).
+ * An HQ change routes through notifyHQChanged (digest-gated) so a no-op change doesn't flash; the GM's
+ * own high-frequency authoring edits save QUIETLY and patch the live DOM in place (no re-render) —
+ * structural ops (role/build/tier/staff/new/delete) still take a full re-render. See codex.mjs.
  */
 import { getHQ, saveHQ, blankFacility, buildFacility, assignStaff, unassignStaff, facilityStaffCap } from "../helpers/factions.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
@@ -90,22 +92,36 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
   /** Signature of the HQ slice this window draws — lets notifyHQChanged skip a no-op re-render. */
   #hqSig = null;
 
+  /** Arm exactly one render to be skipped — a quiet (DOM-patched) authoring edit eats the onChange
+   *  re-render it triggered, so adjusting a field doesn't flash the whole window. Mirrors codex.mjs. */
+  #skipRenderOnce = false;
+
   get isGM() { return game.user.isGM; }
 
   /** What this window renders from the HQ object: the facilities (minus the Workshop `recipes` / Shop
-   *  `stock` it never shows), the resource stockpile, the people (for staffing), and the HQ accent (its
-   *  theme tint). An HQ change that touches only missions / the craft queue / a recipe / the turn leaves
-   *  this untouched, so no flash. */
+   *  `stock` / the facility `img`, none of which it draws — rail + head use the role icon), the resource
+   *  stockpile, the people (for staffing), and the HQ accent (its theme tint). An HQ change that touches
+   *  only missions / the craft queue / a recipe / a facility image / the turn leaves this untouched, so
+   *  no flash (and a quiet image pick here genuinely early-returns rather than swallowing a render). */
   #hqDigest() {
     const hq = getHQ();
-    const facilities = (hq.facilities ?? []).map((f) => { const { recipes, stock, ...rest } = f; return rest; });
+    const facilities = (hq.facilities ?? []).map((f) => { const { recipes, stock, img, ...rest } = f; return rest; });
     return JSON.stringify({ facilities, resources: hq.resources, people: hq.people, accent: hq.accent });
   }
 
-  /** The HQ world object changed — re-render only if our slice moved (seamless-refresh entry point). */
+  /** The HQ world object changed — re-render only if our slice moved (seamless-refresh entry point).
+   *  When we DON'T render, consume any pending one-shot skip: a quiet edit that reverts a field to the
+   *  last-rendered value leaves the digest === sig, so this early-returns without rendering — the armed
+   *  flag would otherwise leak and silently swallow the next legitimate render (codex.mjs CRITICAL FIX). */
   notifyHQChanged() {
-    if (this.#hqDigest() === this.#hqSig) return;
+    if (this.#hqDigest() === this.#hqSig) { this.#skipRenderOnce = false; return; }
     this.render(false);
+  }
+
+  /** Skip exactly one render (see #skipRenderOnce) so a quiet HQ save doesn't flash the window. */
+  render(...args) {
+    if (this.#skipRenderOnce) { this.#skipRenderOnce = false; return this; }
+    return super.render(...args);
   }
 
   /** Set the selected facility and reflect it on the live DOM (no re-render). */
@@ -254,6 +270,7 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
   }
 
   async _prepareContext() {
+    await this.#ensureStaffPartial();   // register the resident-section partial before the {{> …}} include renders
     const hq = getHQ();
     const isGM = this.isGM;
     const resTypes = getMaterialCategories();
@@ -320,17 +337,124 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
     for (const d of root.querySelectorAll(".struct-detail")) d.classList.toggle("active", d.dataset.detail === this.#selId);
   }
 
+  /* --------------------------------- seamless patches --------------------------------- */
+  /* After a quiet edit (no re-render), patch the few GM-visible bits the edited control doesn't itself
+   * show. Each is fail-safe (missing node → skipped, refreshes on the next real render). */
+
+  /** Recompute one facility's view-model (the same shape #facilityVM feeds the template) for in-place patches. */
+  #vmFor(id) {
+    const hq = getHQ();
+    const resTypes = getMaterialCategories();
+    const facilityList = hq.facilities.map((e) => ({ id: e.id, name: e.name }));
+    const e = hq.facilities.find((x) => x.id === id);
+    return e ? this.#facilityVM(e, { resTypes, hqResources: hq.resources, facilityList, people: hq.people }) : null;
+  }
+
+  /** Patch the rail row's name after a quiet name edit (the detail input already shows the value). */
+  #patchRailName(id) {
+    const row = this.element?.querySelector(`.struct-row[data-recruit-id="${id}"]`);
+    const nm = row?.querySelector(".struct-row-nm");
+    if (!nm) return;
+    const name = this.#vmFor(id)?.name?.trim();
+    nm.textContent = name || game.i18n.localize(row.classList.contains("built") ? "PROJECTANIME.HQ.newFacility" : "PROJECTANIME.HQ.newStructure");
+  }
+
+  /** Refresh how OTHER facilities' (always-rendered) upgrade-target dropdowns name this one after a quiet
+   *  rename — every upgrade facility's <select> lists the rest by name, and this window draws all panes at
+   *  once, so the sibling option would otherwise show the old name until a loud render. */
+  #patchUpgradeRefs(id) {
+    const name = this.#vmFor(id)?.name ?? "";
+    for (const opt of this.element?.querySelectorAll(`.struct-detail select[data-recruit-field="upgradeTarget"] option[value="${id}"]`) ?? [])
+      opt.textContent = name;
+  }
+
+  /** Patch the rail row's lock pip after a quiet `unlocked` toggle (tier-0 structure rows only). */
+  #patchUnlockedLock(id, unlocked) {
+    const row = this.element?.querySelector(`.struct-row[data-recruit-id="${id}"]`);
+    if (!row || row.classList.contains("built")) return;
+    const existing = row.querySelector(".struct-row-lock");
+    if (unlocked) existing?.remove();
+    else if (!existing) {
+      const i = document.createElement("i");
+      i.className = "fas fa-lock struct-row-lock";
+      i.title = game.i18n.localize("PROJECTANIME.HQ.unlockedHint");
+      row.appendChild(i);
+    }
+  }
+
+  /** Patch the next-tier cost preview + Build button enable after a quiet cost edit. Material `label`/
+   *  `icon` are GM-editable free text, so escape them like the Handlebars template does (a `"` in a
+   *  label would otherwise break the attribute). */
+  #patchCostPreview(id) {
+    const vm = this.#vmFor(id);
+    const detail = this.element?.querySelector(`.struct-detail[data-detail="${id}"]`);
+    if (!vm || !detail) return;
+    const esc = foundry.utils.escapeHTML;
+    const snext = detail.querySelector(".hq-snext");
+    if (snext && !vm.maxed && !vm.building) {
+      let html = `<span class="hq-snext-lbl">${vm.buildLabel}:</span>`;
+      if (vm.hasNextCost) html += vm.nextCost.map((c) =>
+        `<span class="hq-scost${c.enough ? "" : " short"}" title="${esc(c.label)}">${c.iconImg ? `<img src="${esc(c.icon)}" alt="">` : `<i class="${esc(c.icon)}"></i>`} ${c.amount}</span>`).join("");
+      else html += `<span class="hq-sfree">${game.i18n.localize("PROJECTANIME.HQ.free")}</span>`;
+      snext.innerHTML = html;
+    }
+    detail.querySelector(".hq-sbuild")?.toggleAttribute("disabled", !vm.canBuild);
+  }
+
+  /** Register the shared resident-section partial before the first render (idempotent — getTemplate caches),
+   *  so the `{{> …structures-staff.hbs}}` include resolves and the staff section can be re-rendered. */
+  async #ensureStaffPartial() {
+    const lt = foundry.applications.handlebars?.loadTemplates ?? globalThis.loadTemplates;
+    try { await lt(["systems/project-anime/templates/apps/structures-staff.hbs"]); } catch (_e) { /* a staff edit falls back to a loud render if the partial can't be fetched */ }
+  }
+
+  /** Re-render ONE facility's resident section in place from its VM — covers slots, the gather note, the
+   *  pool, the count and canAssign in one shot (no-op if the section isn't rendered, e.g. a tier-0
+   *  blueprint). The data-action buttons keep working via AppV2's delegated root, so no re-bind needed. */
+  async #patchStaffSection(id) {
+    const sec = this.element?.querySelector(`.struct-staff-sec[data-staff-sec="${id}"]`);
+    const vm = sec ? this.#vmFor(id) : null;
+    if (!vm) return;
+    const rt = foundry.applications.handlebars?.renderTemplate ?? globalThis.renderTemplate;
+    sec.innerHTML = await rt("systems/project-anime/templates/apps/structures-staff.hbs", vm);
+  }
+
+  /** Re-render EVERY facility's resident section after a staff assign/unassign — the idle pool spans all
+   *  panes (a person staffs one facility at a time), so one assignment changes the pool shown in all. */
+  async #patchStaffEverywhere() {
+    for (const sec of this.element?.querySelectorAll(".struct-staff-sec[data-staff-sec]") ?? [])
+      await this.#patchStaffSection(sec.dataset.staffSec);
+  }
+
   #dropData(event) {
     try { return JSON.parse(event.dataTransfer.getData("text/plain") || "{}"); } catch (_e) { return {}; }
   }
 
-  /** Mutate one facility (GM only), persist; the HQ onChange re-renders this window + the Codex. */
-  async #mutateFacility(id, fn) {
+  /** Mutate one facility (GM only), persist; the HQ onChange re-renders this window + the Codex.
+   *  Pass { quiet: true } when the caller has already patched the live DOM, to suppress THIS window's
+   *  re-render (the flash). The no-op guard ensures a change-nothing edit fires no onChange — otherwise
+   *  an armed skip flag would leak and swallow the next render (mirrors codex.mjs #mutateHQ). */
+  async #mutateFacility(id, fn, { quiet = false } = {}) {
     if (!this.isGM) return;
     const hq = getHQ();
     const e = hq.facilities.find((x) => x.id === id);
     if (!e) return;
+    const before = JSON.stringify(hq);
     fn(e);
+    if (JSON.stringify(hq) === before) return;
+    if (quiet) this.#skipRenderOnce = true;
+    await saveHQ(hq);
+  }
+
+  /** Mutate the WHOLE HQ quietly (GM only) for edits that span facilities/people (staffing). Same no-op
+   *  guard + skip-flag as #mutateFacility; the caller has already patched the live DOM. */
+  async #mutateHQQuiet(fn) {
+    if (!this.isGM) return;
+    const hq = getHQ();
+    const before = JSON.stringify(hq);
+    fn(hq);
+    if (JSON.stringify(hq) === before) return;
+    this.#skipRenderOnce = true;
     await saveHQ(hq);
   }
 
@@ -419,7 +543,9 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
     const id = target.closest("[data-recruit-id]")?.dataset.recruitId;
     const cur = getHQ().facilities.find((x) => x.id === id)?.img ?? "";
     const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
-    new FP({ type: "image", current: cur, callback: (path) => this.#mutateFacility(id, (e) => { e.img = path; }) }).browse();
+    // The structure image isn't drawn in this window (rail + head use the role icon) and is excluded from
+    // #hqDigest, so a quiet save here genuinely early-returns in notifyHQChanged — no flash.
+    new FP({ type: "image", current: cur, callback: (path) => this.#mutateFacility(id, (e) => { e.img = path; }, { quiet: true }) }).browse();
   }
 
   /** Open the structure's backing NPC sheet, if any. */
@@ -451,14 +577,18 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
 
   /* --------------------------------- field handlers --------------------------------- */
 
-  /** Edit a structure field (GM): kind/name/yield/unlocked/buildTime/serviceKind/upgradeTarget. */
+  /** Edit a structure field (GM): kind/name/yield/unlocked/buildTime/serviceKind/upgradeTarget.
+   *  All but `role` save quietly (the edited control already shows its value) — `role` reshapes the
+   *  book (which sub-panels show + the icon), so it takes a full re-render. The few GM-visible bits the
+   *  edited control doesn't itself show (the rail name + lock pip) are patched in place. */
   async #onFacilityField(event) {
     const el = event.currentTarget;
     const id = el.dataset.recruitId;
     const field = el.dataset.recruitField;
     if (!id || !field) return;
     const val = el.value;
-    return this.#mutateFacility(id, (e) => {
+    const quiet = field !== "role";
+    await this.#mutateFacility(id, (e) => {
       if (field === "role") e.role = val;
       else if (field === "name") e.name = val;
       else if (field === "yieldGold") e.yieldGold = Math.max(0, Math.round(Number(val) || 0));
@@ -467,7 +597,10 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
       else if (field === "buildTime") e.buildTime = Math.max(0, Math.round(Number(val) || 0));
       else if (field === "serviceKind") e.serviceKind = val;
       else if (field === "upgradeTarget") e.upgradeTarget = val;
-    });
+    }, { quiet });
+    if (!quiet) return; // role re-rendered the whole book
+    if (field === "name") { this.#patchRailName(id); this.#patchUpgradeRefs(id); }
+    else if (field === "unlocked") this.#patchUnlockedLock(id, el.checked);
   }
 
   /** Set a structure's BASE per-tier cost for one resource (GM); 0 clears that resource from the cost. */
@@ -477,29 +610,29 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
     const key = el.dataset.facilityCost;
     if (!id || !key) return;
     const val = Math.max(0, Math.round(Number(el.value) || 0));
-    return this.#mutateFacility(id, (e) => { e.cost ??= {}; if (val > 0) e.cost[key] = val; else delete e.cost[key]; });
+    await this.#mutateFacility(id, (e) => { e.cost ??= {}; if (val > 0) e.cost[key] = val; else delete e.cost[key]; }, { quiet: true });
+    this.#patchCostPreview(id);
   }
 
   /** Station a resident at this facility (GM) — tap a pool portrait. Fills the next slot up to the
-   *  facility's tier capacity; assignStaff touches both the facility and the person, so mutate the hq. */
+   *  facility's tier capacity; assignStaff touches both the facility and the person. Saves quietly + re-
+   *  renders every pane's resident section in place (the idle pool spans them all) — no window flash. */
   static async #onAssignStaff(event, target) {
     if (!this.isGM) return;
     const fid = target.closest("[data-recruit-id]")?.dataset.recruitId;
     const pid = target.closest("[data-person-id]")?.dataset.personId;
     if (!fid || !pid) return;
-    const hq = getHQ();
-    assignStaff(hq, fid, pid);
-    await saveHQ(hq);
+    await this.#mutateHQQuiet((hq) => assignStaff(hq, fid, pid));
+    await this.#patchStaffEverywhere();
   }
 
-  /** Remove a resident from this facility (GM) — the ✕ on a filled slot. */
+  /** Remove a resident from this facility (GM) — the ✕ on a filled slot. Quiet + patch (see assign). */
   static async #onUnassignStaff(event, target) {
     if (!this.isGM) return;
     const pid = target.closest("[data-person-id]")?.dataset.personId;
     if (!pid) return;
-    const hq = getHQ();
-    unassignStaff(hq, pid);
-    await saveHQ(hq);
+    await this.#mutateHQQuiet((hq) => unassignStaff(hq, pid));
+    await this.#patchStaffEverywhere();
   }
 
   /** Toggle whether this facility ACCEPTS a resource type (GM) — the "fit" a resident's Gather trait
@@ -513,7 +646,9 @@ export class StructuresWindow extends HandlebarsApplicationMixin(ApplicationV2) 
       f.accepts = Array.isArray(f.accepts) ? f.accepts : [];
       const i = f.accepts.indexOf(key);
       if (i >= 0) f.accepts.splice(i, 1); else f.accepts.push(key);
-    });
+    }, { quiet: true });
+    target.classList.toggle("on");           // the chip lives outside the staff section — toggle it directly
+    await this.#patchStaffSection(fid);      // refresh the gather note (accepts ∩ present staff)
   }
 
   /** Drop an Item onto the yield slot → store a snapshot as the structure's per-turn item yield (GM). */

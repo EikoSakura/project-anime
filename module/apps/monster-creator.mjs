@@ -56,7 +56,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       pickImage: MonsterCreatorApp.#onPickImage,
       pickTier: MonsterCreatorApp.#onPickTier,
       pickStars: MonsterCreatorApp.#onPickStars,
-      pickArchetype: MonsterCreatorApp.#onPickArchetype,
       raiseAttr: MonsterCreatorApp.#onRaiseAttr,
       lowerAttr: MonsterCreatorApp.#onLowerAttr,
       recalcVitals: MonsterCreatorApp.#onRecalcVitals,
@@ -96,11 +95,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
    *  multiplier, fixed knobs spread through), or null while untiered. */
   #tier() {
     return this.actor.system.tier ? tierScaling(this.actor.system.tier, this.#power()) : null;
-  }
-
-  /** The selected Role/archetype template (spread / lean / signature kit), or null when unset. */
-  #archetype() {
-    return CONFIG.PROJECTANIME.monsterArchetypes[this.actor.system.archetype] ?? null;
   }
 
   /** Attribute Step-Up budget = the selected Tier's allotment (0 until one is picked). */
@@ -196,16 +190,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       };
     });
 
-    // Role — the archetype cards (power-neutral templates) + the selected key. Picked alongside
-    // Tier/★ on the Frame step; auto-spreads the budget and grants a signature kit (#onPickArchetype).
-    ctx.archetypeKey = sys.archetype ?? "";
-    ctx.archetypes = cfg.monsterArchetypeKeys.map((k) => ({
-      key: k,
-      label: game.i18n.localize(cfg.monsterArchetypes[k].label),
-      icon: cfg.monsterArchetypes[k].icon,
-      selected: sys.archetype === k
-    }));
-
     // Attributes — Step-Ups against the Tier budget.
     const used = this.#stepsUsed();
     const budget = this.#budget();
@@ -280,13 +264,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       }));
 
     // Review (last step) — a compact summary card.
-    const arch = this.#archetype();
     ctx.tierBadge = this.#tier()
       ? { label: ctx.tierName, icon: this.#tier().icon, color: this.#tier().color, stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null,
           worth: game.i18n.localize(`PROJECTANIME.Worth.${this.actor.system.tier}`) }
       : null;
-    // Role badge — rides alongside the ★-Tier badge wherever it shows (review here, NPC sheet header).
-    ctx.roleBadge = arch ? { label: game.i18n.localize(arch.label), icon: arch.icon } : null;
     ctx.skillCount = ctx.skills.length;
 
     return ctx;
@@ -459,10 +440,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     // (minion ★1 … solo ★4), so the rating reads sensibly out of the box; the picker overrides it.
     if (!(Number(this.actor.system.stars) >= 1)) update["system.stars"] = CONFIG.PROJECTANIME.tierOnLevelStar[key] ?? 2;
     await this.actor.update(update);
-    // A new Tier has a new Step-Up budget — re-pour the Role spread so the attributes refill to fit it
-    // (the budget is Tier-fixed, so this only triggers on a Tier change, never a ★ change, preserving
-    // any hand-tuning across star picks). #applyTierBuild then derives vitals from the fresh spread.
-    if (creating && this.#archetype()) await this.#applyRoleSpread(this.actor.system.archetype);
+    // A new Tier has a new Step-Up budget — #applyTierBuild trims any over-spent dice to fit it and
+    // re-derives vitals. The GM spends the budget by hand (raise/lower on the Tune step).
     await this.#applyTierBuild(creating);
     this.render();
   }
@@ -479,116 +458,24 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Pick a Role (the archetype): stamp it, then (while creating) auto-spread the Step-Up budget down
-   *  the Role's priority, swap in its signature kit, and recompute Eva/Def + SP + vitals. Clicking the
-   *  selected Role again clears it back to a custom build. Finished monsters only restamp the field
-   *  (the Phase-3 badge) — no re-spread or kit churn. */
-  static async #onPickArchetype(event, target) {
-    const key = target.closest("[data-archetype]")?.dataset.archetype;
-    if (!CONFIG.PROJECTANIME.monsterArchetypes[key]) return;
-    const creating = !this.actor.getFlag("project-anime", "creationComplete");
-    const next = (key === this.actor.system.archetype) ? "" : key;   // re-click clears
-    await this.actor.update({ "system.archetype": next });
-    if (creating) {
-      await this.#clearRoleKit();
-      if (next) { await this.#applyRoleSpread(next); await this.#buildRoleKit(next); }
-      else await this.actor.setFlag("project-anime", "roleKitSP", 0);
-    }
-    await this.#applyTierBuild(creating);
-    this.render();
-  }
-
-  /** Pour the Tier's Step-Up budget down the Role's attribute PRIORITY: every attribute resets to d4,
-   *  then each is filled to d12 in priority order until the budget is spent. The spread lists all five
-   *  attributes, and 5×d12 capacity exceeds any Tier budget, so the budget always spends out exactly —
-   *  which the attributes-step exact-spend gate requires. No-op without a Tier (budget 0 → all d4). */
-  async #applyRoleSpread(key) {
-    const arch = CONFIG.PROJECTANIME.monsterArchetypes[key];
-    if (!arch) return;
-    const keys = CONFIG.PROJECTANIME.attributeKeys;
-    const dice = Object.fromEntries(keys.map((k) => [k, 4]));
-    let left = this.#budget();
-    for (const k of arch.spread) {
-      while (left > 0 && dice[k] < 12) { dice[k] += 2; left -= 1; }
-      if (left <= 0) break;
-    }
-    const update = {};
-    for (const k of keys) update[`system.attributes.${k}.base`] = dice[k];
-    await this.actor.update(update);
-  }
-
-  /** Remove the current Role's granted kit (flagged `roleKit` items) before a re-pick. The granted
-   *  move carries no SP-ledger entry, so deleting it refunds nothing — no race with the SP reseed. The
-   *  natural weapon is NOT roleKit-flagged (it persists and is reconfigured in place), so it survives. */
-  async #clearRoleKit() {
-    const ids = this.actor.items.filter((i) => i.getFlag("project-anime", "roleKit")).map((i) => i.id);
-    if (ids.length) await this.actor.deleteEmbeddedDocuments("Item", ids);
-  }
-
-  /** Build a Role's signature kit: (a) pre-fill the EXISTING natural weapon as the Basic Attack
-   *  (accuracy Attributes, damage type, range) — no duplicate weapon; (b) create its one signature
-   *  Skill as free granted kit (flagged `roleKit` so a re-pick sweeps it) and reserve the move's
-   *  nominal SP via the `roleKitSP` flag so the displayed budget stays honest. */
-  async #buildRoleKit(key) {
-    const arch = CONFIG.PROJECTANIME.monsterArchetypes[key];
-    if (!arch) return;
-    const a = arch.attack;
-    const nat = this.actor.items.find((i) => i.type === "weapon" && i.getFlag("project-anime", "natural"));
-    if (nat) await nat.update({
-      "system.accuracy.attrA": a.attrA,
-      "system.accuracy.attrB": a.attrB,
-      "system.damage.type": a.type,
-      "system.range.type": a.rangeType,
-      "system.range.tiles": a.tiles
-    });
-    const m = arch.move;
-    await this.actor.createEmbeddedDocuments("Item", [{
-      name: game.i18n.localize(m.name),
-      type: "skill",
-      img: m.img ?? "icons/svg/upgrade.svg",
-      system: {
-        rank: m.rank,
-        actionType: m.actionType ?? "action",
-        attributes: { attrA: m.attrA, attrB: m.attrB },
-        damageAttr: m.damageAttr ?? "attrA",
-        range: { scope: m.scope, tiles: m.tiles ?? 0 },
-        effect: m.effect,
-        target: m.target ?? "any",
-        damageType: m.damageType ?? "",
-        damagePool: m.damagePool ?? "hp",
-        modifiers: m.modifiers ?? [],
-        effectAttrs: m.effectAttrs ?? [],
-        retaliationType: m.retaliationType ?? ""
-      },
-      flags: { "project-anime": { granted: true, roleKit: true } }
-    }]);
-    const sp = CONFIG.PROJECTANIME.skillRanks[m.rank]?.sp ?? 0;
-    await this.actor.setFlag("project-anime", "roleKitSP", sp);
-  }
-
   /** Re-apply the Tier build at this monster's current local power: flat Eva/Def, the (re-)granted
    *  Skill-Point pool while creating, the re-fit Step-Up budget, and the re-derived HP/Energy. Shared
    *  by Tier and Star picks so the two axes always recompute together. No-op without a Tier. */
   async #applyTierBuild(creating) {
     const tier = this.#tier();   // scaled to the current local power (star or dial)
     if (!tier) return;
-    // Flat Evasion / Defense = the Tier's grant + the Role's frame lean (clamped at 0 so a fragile
-    // role never derives a negative stat). Role unset → lean 0, so nothing shifts.
-    const lean = this.#archetype()?.lean ?? {};
+    // Flat Evasion / Defense = the Tier's grant.
     const update = {
-      "system.evasion.bonus": Math.max(0, tier.evasion + (Number(lean.evasion) || 0)),
-      "system.defense.bonus": Math.max(0, tier.defense + (Number(lean.defense) || 0))
+      "system.evasion.bonus": Math.max(0, tier.evasion),
+      "system.defense.bonus": Math.max(0, tier.defense)
     };
-    // Re-seed the unspent Skill-Point pool to the (scaled) grant MINUS what's already on the ledger
-    // AND minus the Role kit's reserved cost (its granted move is free but its nominal SP is held back
-    // so the budget stays honest) — only while creating, so changing Tier/★ rescales the budget
-    // without refunding skills already built this session (and re-opening a finished monster never
-    // wipes its spent points at all).
+    // Re-seed the unspent Skill-Point pool to the (scaled) grant MINUS what's already on the ledger —
+    // only while creating, so changing Tier/★ rescales the budget without refunding skills already
+    // built this session (and re-opening a finished monster never wipes its spent points at all).
     if (creating) {
       const sp = this.actor.system.skillPoints ?? {};
       const spent = Array.isArray(sp.log) ? sp.log.reduce((s, e) => s + (Number(e.amount) || 0), 0) : (sp.spent ?? 0);
-      const roleKitSP = Number(this.actor.getFlag("project-anime", "roleKitSP")) || 0;
-      update["system.skillPoints.value"] = Math.max(0, tier.skillPoints - spent - roleKitSP);
+      update["system.skillPoints.value"] = Math.max(0, tier.skillPoints - spent);
     }
     await this.actor.update(update);
     // If the Tier's budget is smaller than what's already spent on dice, trim the excess.

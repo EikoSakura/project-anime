@@ -4145,16 +4145,9 @@
   background: color-mix(in srgb, var(--tier-color) 16%, var(--pa-field));
   border: 1px solid color-mix(in srgb, var(--tier-color) 45%, var(--pa-line));
 }
-/* Review badges sit in a wrapping row (★-Tier + Role side by side). */
+/* Review badges sit in a wrapping row (the ★-Tier badge). */
 .project-anime.monster-creator .cc-review-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
-.project-anime.monster-creator .cc-role-badge {
-  display: inline-flex; align-items: center; gap: 0.3rem;
-  padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
-  color: var(--pa-accent);
-  background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-field));
-  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
-}
-/* The Frame step's finished stat card — a touch of separation under the Role picker. */
+/* The Frame step's finished stat card — a touch of separation under the Tier grid. */
 .project-anime.monster-creator .cc-frame-stats { margin-top: 0.6rem; }
 
 /* Tier badge on the NPC sheet header (beside the disposition select). */
@@ -4176,16 +4169,6 @@
 .project-anime.sheet.actor .tier-badge.apex { background: color-mix(in srgb, #c0392b 18%, var(--pa-field)); border-color: color-mix(in srgb, #c0392b 55%, var(--pa-line)); }
 .project-anime.sheet.actor .tier-badge.apex .tier-stars,
 .project-anime.sheet.actor .tier-badge.apex .tier-stars i { color: #f1c40f; }
-/* Role (archetype) badge on the NPC sheet header, beside the ★-Tier badge. */
-.project-anime.sheet.actor .role-badge {
-  display: inline-flex; align-items: center; gap: 0.3rem; max-width: 100%;
-  padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700;
-  color: var(--pa-accent);
-  background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-field));
-  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
-}
-.project-anime.sheet.actor .role-badge i { color: var(--pa-accent); }
-.project-anime.sheet.actor .role-badge span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Star rating picker (Monster Creator, Tier step) — a row of toggle stars above the power readout. */
 .project-anime.monster-creator .cc-star-row {
@@ -4206,24 +4189,6 @@
 .project-anime.monster-creator .cc-tier-badge .cc-badge-worth { color: var(--pa-ink-soft); font-weight: 600; }
 /* "Worth" stat on a tier card, tinted to the tier colour (the headline encounter number). */
 .project-anime.monster-creator .cc-tier-worth .cc-tier-v { color: var(--tier-color); }
-/* Role (archetype) picker — a compact grid of icon+name cards under the Tier grid. */
-.project-anime.monster-creator .cc-role-row { margin-top: 0.6rem; }
-.project-anime.monster-creator .cc-role-row > .cc-label { display: block; margin-bottom: 0.35rem; }
-.project-anime.monster-creator .cc-role-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
-.project-anime.monster-creator button.cc-role-card {
-  display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
-  padding: 0.5rem 0.3rem; cursor: pointer; border-radius: 7px;
-  background: var(--pa-panel); border: 1px solid var(--pa-line); color: var(--pa-ink-soft);
-  transition: border-color 0.1s ease, color 0.1s ease, transform 0.1s ease;
-}
-.project-anime.monster-creator button.cc-role-card i { font-size: 1.1rem; }
-.project-anime.monster-creator button.cc-role-card .cc-role-name { font-size: 0.74rem; font-weight: 600; }
-.project-anime.monster-creator button.cc-role-card:hover { transform: translateY(-1px); border-color: var(--pa-accent); color: var(--pa-ink); }
-.project-anime.monster-creator button.cc-role-card.selected {
-  border-color: var(--pa-accent); color: var(--pa-ink);
-  background: color-mix(in srgb, var(--pa-accent) 14%, var(--pa-panel));
-  box-shadow: 0 0 0 1px var(--pa-accent) inset;
-}
 .project-anime.party-sheet .party-row-stars { color: var(--pa-gold); font-size: 0.58rem; margin-right: 0.1rem; }
 
 /* -------------------------------------------------------------------------- */
@@ -6730,7 +6695,10 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .pa-structures .struct-name:focus { border-color: var(--pa-gold); }
 .pa-structures .struct-name.ro { background: transparent; border-color: transparent; padding-left: 0; }
 .pa-structures .struct-d-tier { font-size: 13px; white-space: nowrap; }
-.pa-structures .struct-detail .hq-bk-sec:first-of-type { margin-top: 4px; }
+.pa-structures .struct-detail > .hq-bk-sec:first-of-type { margin-top: 4px; }
+/* The resident section is wrapped in a box-less anchor (display:contents) so it can be re-rendered in
+   place on a staff change without affecting layout or descendant-selector matching. */
+.pa-structures .struct-staff-sec { display: contents; }
 .pa-structures .struct-staff-note { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; font-weight: 700; color: #7fe0b6; }
 .pa-structures .struct-staff-note i { color: #46c08d; }
 /* Resident slots & picker — small circular portraits only, no name labels (the name is the element's
