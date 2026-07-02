@@ -1,20 +1,5 @@
-{{!-- Gear drawer: paperdoll (slots over the portrait) + icon-grid inventory "bag" --}}
-{{#*inline "pdSlot"}}
-<div class="pd-slot{{#if item}} filled{{/if}}" data-slot="{{key}}"
-     {{#if @root.editable}}data-action="pickSlot"{{/if}}
-     title="{{label}}{{#if item}} — {{item.name}}{{/if}}">
-  <div class="pd-cell">
-    {{#if item}}
-    <img class="pd-icon" src="{{item.img}}" alt="{{item.name}}" data-item-id="{{item.id}}"{{#if @root.editable}} draggable="true"{{/if}} />
-    {{#if @root.editable}}<a class="pd-unequip" data-action="unequipSlot" data-slot="{{key}}" title="{{localize 'PROJECTANIME.Action.unequip'}}"><i class="fas fa-xmark"></i></a>{{/if}}
-    {{#if item.shield}}{{#if @root.editable}}<a class="pd-mode" data-action="cycleShieldUse" data-item-id="{{item.id}}" title="{{#if item.dualWield}}{{localize 'PROJECTANIME.Action.useShieldOnly'}}{{else}}{{localize 'PROJECTANIME.Action.useDualWield'}}{{/if}}"><i class="fas {{#if item.dualWield}}fa-hand-fist{{else}}fa-shield-halved{{/if}}"></i></a>{{/if}}{{/if}}
-    {{else}}
-    <i class="pd-placeholder fas {{icon}}"></i>
-    {{/if}}
-  </div>
-  <span class="pd-name">{{#if item}}{{item.name}}{{else}}{{label}}{{/if}}</span>
-</div>
-{{/inline}}
+{{!-- Gear drawer: paperdoll (slots over the portrait) + icon-grid inventory "bag". The reusable
+      body lives in gear-body.hbs, shared with the Monster Creator's Gear step. --}}
 <aside class="section-drawer{{#if open.gear}} open{{/if}}" data-section="gear">
   <div class="drawer-backdrop" data-action="closeDrawer"></div>
   <div class="drawer-panel">
@@ -23,84 +8,7 @@
       <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
     </div>
     <div class="drawer-content">
-
-      <div class="paperdoll">
-        <div class="pd-stage">
-          <img class="pd-portrait" src="{{actor.img}}" alt="{{actor.name}}" />
-          {{#each paperdoll as |slot|}}{{> pdSlot}}{{/each}}
-        </div>
-      </div>
-
-      <div class="tab-meta">
-        {{#if isCharacter}}
-        <label class="meta-stat" title="{{localize 'PROJECTANIME.Stat.gold'}}">
-          <i class="fas fa-coins"></i>
-          <span class="meta-label">{{localize "PROJECTANIME.Stat.gold"}}</span>
-          <input type="number" name="system.gold" value="{{system.gold}}" min="0" />
-        </label>
-        <div class="meta-stat" title="{{localize 'PROJECTANIME.Stat.sellRate'}}">
-          <i class="fas fa-tags"></i>
-          <span class="meta-label">{{localize "PROJECTANIME.Stat.sellRate"}}</span>
-          <span class="meta-value">{{system.sellRate}}%</span>
-        </div>
-        <div class="meta-stat" title="{{localize 'PROJECTANIME.Stat.buyRate'}}">
-          <i class="fas fa-cart-shopping"></i>
-          <span class="meta-label">{{localize "PROJECTANIME.Stat.buyRate"}}</span>
-          <span class="meta-value">{{system.buyRate}}%</span>
-        </div>
-        {{/if}}
-        <div class="carry-indicator {{#if system.carryingCapacity.overloaded}}overloaded{{/if}}">
-          <span>{{localize "PROJECTANIME.Stat.carryingCapacity"}}: <strong>{{system.carryingCapacity.value}} / {{system.carryingCapacity.max}}</strong></span>
-          {{#if system.carryingCapacity.overloaded}}<span class="warn">{{localize "PROJECTANIME.Overloaded"}}</span>{{/if}}
-        </div>
-      </div>
-
-      <div class="bag-bar">
-        {{#each bags as |bag|}}
-        <div class="bag-tab{{#if bag.selected}} active{{/if}}" data-bag-id="{{bag.id}}" data-action="selectBag"
-             title="{{bag.name}}{{#if bag.count}} ({{bag.count}}){{/if}}">
-          {{#if bag.backpack}}<i class="bag-icon fas {{bag.icon}}"></i>{{else}}<img class="bag-icon" src="{{bag.img}}" alt="{{bag.name}}" />{{/if}}
-          {{#if bag.count}}<span class="bag-count">{{bag.count}}</span>{{/if}}
-          {{#unless bag.backpack}}{{#if @root.editable}}
-          <div class="bag-actions">
-            <a data-action="editItem" data-item-id="{{bag.id}}" title="{{localize 'PROJECTANIME.Action.edit'}}"><i class="fas fa-edit"></i></a>
-            <a data-action="deleteItem" data-item-id="{{bag.id}}" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>
-          </div>
-          {{/if}}{{/unless}}
-        </div>
-        {{/each}}
-        {{#if @root.editable}}
-        <a class="bag-add" data-action="createItem" data-type="container" title="{{localize 'PROJECTANIME.Container.add'}}"><i class="fas fa-plus"></i></a>
-        {{/if}}
-      </div>
-
-      <div class="pd-bag">
-        <div class="item-grid">
-          {{#each bagItems as |item|}}
-          <div class="item-tile{{#if item.equipped}} equipped{{/if}}" data-item-id="{{item.id}}"{{#if @root.editable}} draggable="true"{{/if}} title="{{item.name}}">
-            <div class="tile-icon" data-action="editItem">
-              <img src="{{item.img}}" alt="{{item.name}}" />
-              {{#if item.qty}}<span class="tile-qty">{{item.qty}}</span>{{/if}}
-            </div>
-            <span class="tile-name">{{item.name}}</span>
-            <div class="tile-actions">
-              <a data-action="rollItem" title="{{localize 'PROJECTANIME.Action.toChat'}}"><i class="fas fa-comment"></i></a>
-              {{#if item.equippable}}
-              <a data-action="toggleEquip" class="{{#if item.equipped}}active{{/if}}" title="{{localize 'PROJECTANIME.Action.equip'}}"><i class="fas fa-shield-halved"></i></a>
-              {{/if}}
-              {{#if @root.editable}}
-              <a data-action="deleteItem" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>
-              {{/if}}
-            </div>
-          </div>
-          {{/each}}
-          {{#if @root.editable}}
-          <div class="item-tile add-tile" data-action="createMenu" title="{{localize 'PROJECTANIME.Action.addItem'}}">
-            <div class="tile-icon add-icon"><i class="fas fa-plus"></i></div>
-          </div>
-          {{/if}}
-        </div>
-      </div>
+      {{> "systems/project-anime/templates/actor/gear-body.hbs"}}
     </div>
   </div>
 </aside>

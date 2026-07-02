@@ -13,6 +13,7 @@
  */
 import { getHQ, saveHQ, blankRecipe, craftRecipe, recipeCraftable, recipeCost } from "../helpers/factions.mjs";
 import { getMaterialCategories, isImageIcon } from "../helpers/materials.mjs";
+import { stampCompendiumSource } from "../helpers/gear.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -296,6 +297,7 @@ export class WorkshopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!item?.toObject) return;
     const snap = item.toObject();
     delete snap._id;
+    stampCompendiumSource(snap, item);
     return this.#mutateRecipe(recipeId, (r) => { r.output = snap; if (!r.name) r.name = snap.name || ""; if (!r.img) r.img = snap.img || ""; });
   }
 }

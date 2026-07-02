@@ -24,7 +24,7 @@
         {{#each talentList as |t|}}
         <div class="attribute-card" data-attribute="{{t.key}}">
           <div class="attr-head"><i class="attr-icon {{t.icon}}"></i><span class="attr-name">{{t.label}}</span></div>
-          <div class="attr-die rollable" data-action="rollTalent" data-talent="{{t.key}}" title="{{localize 'PROJECTANIME.Roll.checkHint'}}">{{t.die}}</div>
+          <div class="attr-die rollable" data-action="rollTalent" data-talent="{{t.key}}" title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span class="die-face">{{t.die}}</span></div>
           <label class="attr-base-edit" title="{{localize 'PROJECTANIME.Field.base'}}">
             <span class="abe-label">{{localize "PROJECTANIME.Field.base"}}</span>
             <input class="attr-base" type="number" name="system.talents.{{t.key}}.base" value="{{t.base}}" min="4" max="12" step="2" />
@@ -84,7 +84,7 @@
         <span class="attr-name">{{attr.label}}</span>
       </div>
       <div class="attr-die rollable" data-action="rollCheck" data-attribute="{{attr.key}}"
-           title="{{localize 'PROJECTANIME.Roll.checkHint'}}">{{attr.die}}</div>
+           title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span class="die-face">{{attr.die}}</span></div>
       {{!-- Base value: kept wired (same data path) but tucked away — reveals on hover/focus to edit. --}}
       <label class="attr-base-edit" title="{{localize 'PROJECTANIME.Field.base'}}">
         <span class="abe-label">{{localize "PROJECTANIME.Field.base"}}</span>

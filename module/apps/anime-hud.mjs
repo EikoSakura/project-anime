@@ -21,6 +21,7 @@
  */
 
 import { canSeeTokenVitals } from "./token-info.mjs";
+import { PROJECTANIME, combatantSide, activeSide, pendingOnSide, hasActed, isSkippable } from "../helpers/config.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -551,18 +552,13 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
     classes: ["project-anime", "theme-dark", "anime-combat"],
     window: { frame: false, positioned: false },
     actions: {
+      combatActivate: AnimeCombatTracker.#onActivate,
       combatEndTurn: AnimeCombatTracker.#onEndTurn,
       combatGoto: AnimeCombatTracker.#onGoto,
-      combatRoll: AnimeCombatTracker.#onRoll,
-      combatRollAll: AnimeCombatTracker.#onRollAll,
-      combatRollNpc: AnimeCombatTracker.#onRollNpc,
       combatBegin: AnimeCombatTracker.#onBegin,
-      combatReset: AnimeCombatTracker.#onReset,
       combatToggleHidden: AnimeCombatTracker.#onToggleHidden,
       combatToggleDefeated: AnimeCombatTracker.#onToggleDefeated,
       combatToggleCollapse: AnimeCombatTracker.#onToggleCollapse,
-      combatPrevTurn: AnimeCombatTracker.#onPrevTurn,
-      combatPrevRound: AnimeCombatTracker.#onPrevRound,
       combatNextRound: AnimeCombatTracker.#onNextRound,
       combatEndCombat: AnimeCombatTracker.#onEndCombat,
       combatTarget: AnimeCombatTracker.#onTarget,
@@ -607,7 +603,9 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
    *  first one). Client-side + transient (resets on reload), like the console's page. */
   #collapsed = false;
 
-  /** @override */
+  /** @override — SIDE INITIATIVE view: rows are grouped into Player / Enemy / Neutral phase blocks; the
+   *  active phase is highlighted; within it, a viewer's not-yet-acted units are pickable (free-pick), and
+   *  the unit currently "on" shows the End Turn control to whoever controls it. */
   async _prepareContext() {
     const combat = this.#combat();
     const isGM = game.user.isGM;
@@ -616,13 +614,13 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
     if (!combat || !visible.length) return { show: false };
 
     const started = !!combat.started;
-    const current = combat.combatant;
-    const currentId = current?.id;
-    // The single row kept in the collapsed view: the current turn — or, before the encounter begins
-    // (nobody active yet), the first combatant, so the collapsed view is never empty.
-    const keepId = currentId ?? visible[0]?.id;
+    const aSide = started ? activeSide(combat) : null;          // which phase is up (null before start / round done)
+    const cur = combat.combatant;
+    // The unit currently "on": the current combatant, but only when it's genuinely up (started, not yet
+    // acted, on the active side) — guards against a stale `turn` index so an acted/off-phase row never lights.
+    const activeId = (started && cur && !hasActed(cur, combat.round) && combatantSide(cur) === aSide) ? cur.id : null;
 
-    const turns = visible.map((c) => {
+    const row = (c) => {
       const actor = c.actor;
       const hp = actor?.system?.hp;
       const en = actor?.system?.energy;
@@ -633,18 +631,24 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
       const seeHP = seeVitals && !!hp?.max;
       const seeEN = seeVitals && !!en?.max;
       const hpPct = seeHP ? pct(hp) : 0;
+      const acted = started && hasActed(c, combat.round);
+      const activeRow = c.id === activeId;
+      const mine = isGM || c.isOwner;
+      // Pickable = on the active side, un-acted, actable (not stunned/defeated), controlled by the viewer,
+      // and nobody currently on (one unit acts at a time within a phase — pick, act, End Turn, pick next).
+      const activatable = started && !!aSide && combatantSide(c) === aSide && !acted && !isSkippable(c) && mine && !activeId;
       return {
         id: c.id,
         name: c.name,
         img: c.img || actor?.img || FALLBACK_IMG,
-        init: c.initiative != null ? Math.floor(c.initiative) : null,   // whole number; tie fractions stay in the stored value for sorting
-        rolled: c.initiative != null,
-        active: c.id === currentId,
-        keep: c.id === keepId,            // the one row kept when collapsed
+        active: activeRow,
+        acted,
+        activatable,
+        canEndRow: activeRow && mine,      // inline End Turn on the acting row, for its controller
+        keep: activeRow || (!activeId && activatable),   // collapsed view keeps the acting unit / the pickable set
         defeated: c.isDefeated,
         hidden: c.hidden,
         disp: DISP_CLASS(c),
-        canRoll: isGM || c.isOwner,
         targeted: !!tok && !!tok.targeted?.has?.(game.user),   // the viewer is targeting this token
         seeHP,
         hp: seeHP ? { value: hp.value ?? 0, max: hp.max ?? 0, pct: hpPct, hue: Math.round(1.2 * hpPct) } : null,
@@ -653,9 +657,16 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
         hideLabel: L(c.hidden ? "PROJECTANIME.Hud.combat.show" : "PROJECTANIME.Hud.combat.hide"),
         defeatLabel: L(c.isDefeated ? "PROJECTANIME.Hud.combat.revive" : "PROJECTANIME.Hud.combat.defeat")
       };
-    });
+    };
 
-    const myTurn = !!current && current.isOwner;   // viewer owns the active combatant
+    // Group visible combatants into phase blocks, in Player → Enemy → Neutral order; hide empty phases.
+    const bySide = {};
+    for (const c of visible) (bySide[combatantSide(c)] ??= []).push(row(c));
+    const groups = PROJECTANIME.sides
+      .filter((s) => bySide[s]?.length)
+      .map((s) => ({ side: s, label: L(PROJECTANIME.sideLabel[s]), active: started && s === aSide, rows: bySide[s] }));
+
+    const activeControlled = !!activeId && (isGM || !!combat.combatants.get(activeId)?.isOwner);
     return {
       show: true,
       gm: isGM,
@@ -663,8 +674,9 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
       collapsed: this.#collapsed,
       collapseLabel: L(this.#collapsed ? "PROJECTANIME.Hud.combat.expand" : "PROJECTANIME.Hud.combat.collapse"),
       round: combat.round,
-      turns,
-      canEnd: started && (isGM || myTurn)   // a player may end their own turn (GM uses the header nav)
+      phaseLabel: aSide ? L(PROJECTANIME.sideLabel[aSide]) : "",
+      groups,
+      canEnd: started && activeControlled   // footer End Turn — visible to whoever controls the acting unit
     };
   }
 
@@ -693,33 +705,28 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
     document.body.classList.remove("pa-combat-shown");
   }
 
-  /** End/advance the turn: GM advances directly; a player whose combatant is active relays to the
-   *  active GM over the system socket (Combat docs are GM-owned, so players can't advance directly). */
+  /** End the acting unit's turn: GM ends directly through the phase state machine; a player who controls
+   *  the unit currently on relays to the active GM over the system socket (Combat docs are GM-owned). */
   static async #onEndTurn() {
     const combat = game.combats?.active;
     if (!combat?.started) return;
-    if (game.user.isGM) return combat.nextTurn();
+    if (game.user.isGM) return globalThis.projectanime?.sideInit?.end(combat);
     const current = combat.combatant;
     if (!current?.isOwner) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Hud.combat.notYourTurn"));
-    game.socket.emit("system.project-anime", { type: "endTurn", combatId: combat.id, userId: game.user.id });
+    // Send the SPECIFIC acting unit's id — the GM must end this unit, not whatever is current when the
+    // relay lands (a concurrent activation could have moved it), which would drop this unit's Combo/ticks.
+    game.socket.emit("system.project-anime", { type: "endTurn", combatId: combat.id, combatantId: current.id, userId: game.user.id });
   }
 
-  /** Roll initiative for a combatant — GM for anyone, a player for one they own. */
-  static async #onRoll(event, target) {
+  /** Free-pick: put one of the active phase's units on ("I'm going" / "you're up"). GM activates directly
+   *  through the state machine; a player relays to the GM. Only pickable rows carry this action. */
+  static async #onActivate(event, target) {
     event.stopPropagation();
-    const id = target.closest("[data-combatant-id]")?.dataset.combatantId;
     const combat = game.combats?.active;
-    if (combat && id) await combat.rollInitiative([id]);
-  }
-
-  /** GM only: roll initiative for every combatant that hasn't rolled yet (NPCs + any unrolled PCs). */
-  static async #onRollAll() {
-    if (game.user.isGM) await game.combats?.active?.rollAll();
-  }
-
-  /** GM only: roll initiative for unrolled NPC combatants (no player owner) only. */
-  static async #onRollNpc() {
-    if (game.user.isGM) await game.combats?.active?.rollNPC();
+    const id = target.closest("[data-combatant-id]")?.dataset.combatantId;
+    if (!combat?.started || !id) return;
+    if (game.user.isGM) return globalThis.projectanime?.sideInit?.activate(combat, id);
+    game.socket.emit("system.project-anime", { type: "activate", combatId: combat.id, combatantId: id, userId: game.user.id });
   }
 
   /** Click a combatant row → select & pan to its token. */
@@ -735,14 +742,10 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
   /** Toggle this client's collapsed view (current turn only). */
   static #onToggleCollapse() { this.#collapsed = !this.#collapsed; this.render(); }
 
-  /** GM only: begin the encounter (round 1, first turn). */
+  /** GM only: begin the encounter (round 1). startSideInitiative (project-anime.mjs) then parks the turn
+   *  at null so the Player side free-picks. */
   static async #onBegin() {
     if (game.user.isGM) await game.combats?.active?.startCombat();
-  }
-
-  /** GM only: clear every combatant's rolled initiative. */
-  static async #onReset() {
-    if (game.user.isGM) await game.combats?.active?.resetAll();
   }
 
   /** GM only: show / hide a combatant from the players' tracker (the eye toggle). */
@@ -763,9 +766,10 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
     if (c) await c.update({ defeated: !c.isDefeated });
   }
 
-  /* ----- GM header navigation (turn / round controls, à la pf2e-hud) ----- */
-  static async #onPrevTurn() { if (game.user.isGM) await game.combats?.active?.previousTurn(); }
-  static async #onPrevRound() { if (game.user.isGM) await game.combats?.active?.previousRound(); }
+  /* ----- GM header navigation ----- */
+  // Force the encounter to the next round (patched Combat#nextRound → forceNextRound: clears acted
+  // markers, bumps the round, reopens Player Phase). Backward turn/round stepping is not offered under
+  // side initiative — reversing the acted-set has no clean meaning.
   static async #onNextRound() { if (game.user.isGM) await game.combats?.active?.nextRound(); }
 
   /** GM only: end the whole encounter (Foundry confirms first). */

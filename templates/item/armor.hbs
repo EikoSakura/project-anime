@@ -1,14 +1,18 @@
 {{!-- Armor details --}}
 <section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
-  <p class="formula-preview">+{{system.defenseBonus}} {{localize "PROJECTANIME.Stat.defense"}} · −{{system.evasionPenalty}} {{localize "PROJECTANIME.Stat.evasion"}}</p>
+  <p class="formula-preview">{{localize "PROJECTANIME.Field.protection"}} {{system.protection}} ({{localize "PROJECTANIME.Stat.defShort"}} {{system.defSplit}} / {{localize "PROJECTANIME.Stat.resShort"}} {{system.resSplit}}) · {{localize "PROJECTANIME.Stat.evaShort"}} {{system.evasionMod}}</p>
 
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.defense"}}</h4>
     <div class="form-grid">
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.defenseBonus"}}</label>
-        <input type="number" name="system.defenseBonus" value="{{system.defenseBonus}}" min="0" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.evasionPenalty"}}</label>
-        <input type="number" name="system.evasionPenalty" value="{{system.evasionPenalty}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.protection"}}</label>
+        <input type="number" name="system.protection" value="{{system.protection}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.defSplit"}}</label>
+        <input type="number" name="system.defSplit" value="{{system.defSplit}}" min="0" max="{{system.protection}}" data-action="armorSplit" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.resSplit"}}</label>
+        <input type="number" name="system.resSplit" value="{{system.resSplit}}" min="0" max="{{system.protection}}" data-action="armorSplit" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.evasionMod"}}</label>
+        <input type="number" name="system.evasionMod" value="{{system.evasionMod}}" /></div>
     </div>
   </div>
 

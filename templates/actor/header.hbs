@@ -108,18 +108,14 @@
   <div class="panel-rule"></div>
 
   <div class="panel-vitals">
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="v-val">{{system.evasion.value}}</span></div>
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="v-val">{{system.defense.value}}</span></div>
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.movement"}}</span><span class="v-val">{{system.movement.value}}</span></div>
+    {{#if system.atk.value}}<div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.atkShort"}}</span><span class="v-val">{{system.atk.value}}</span></div>{{/if}}
+    {{#if system.matk.value}}<div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.matkShort"}}</span><span class="v-val">{{system.matk.value}}</span></div>{{/if}}
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.defShort"}}</span><span class="v-val">{{system.defense.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.resShort"}}</span><span class="v-val">{{system.res.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.evaShort"}}</span><span class="v-val">{{system.evasion.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.asShort"}}</span><span class="v-val">{{system.as.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.movShort"}}</span><span class="v-val">{{system.movement.value}}</span></div>
   </div>
-
-  <div class="panel-rule"></div>
-  <button type="button" class="initiative-btn" data-action="rollInitiative"
-          title="{{localize 'PROJECTANIME.Roll.initiative'}}">
-    <i class="fas fa-flag-checkered"></i>
-    <span class="ib-label">{{localize "PROJECTANIME.Roll.initiative"}}</span>
-    <span class="ib-formula">{{initiativeLabel}}</span>
-  </button>
 
   {{#if isCharacter}}
   <div class="panel-rule"></div>

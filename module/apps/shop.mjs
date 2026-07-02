@@ -13,6 +13,7 @@
  * selling deletes the buyer's item and credits gold. Stock is unlimited (a restocking storefront).
  */
 import { getHQ, saveHQ } from "../helpers/factions.mjs";
+import { stampCompendiumSource } from "../helpers/gear.mjs";
 import { partyActors, partyMembers } from "../helpers/party-folder.mjs";
 import { getCreationConfig } from "../helpers/creation.mjs";
 import { BASE_BUY_PCT, BASE_SELL_PCT } from "../helpers/effects.mjs";
@@ -250,6 +251,7 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!item?.toObject) return;
     const snap = item.toObject();
     delete snap._id;
+    stampCompendiumSource(snap, item);
     return this.#mutateFacility((e) => { (e.stock ??= []).push(snap); });
   }
 
@@ -264,10 +266,12 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     const f = this.facility;
     if (!buyer || !f) return;
     // Resolve the source item (authored snapshot or compendium uuid) into a fresh object.
-    let snap = null;
+    let snap = null, source = null;
     if (target.dataset.idx !== undefined) snap = foundry.utils.deepClone((f.stock ?? [])[Number(target.dataset.idx)] ?? null);
-    else if (target.dataset.uuid) snap = (await fromUuid(target.dataset.uuid).catch(() => null))?.toObject?.() ?? null;
+    else if (target.dataset.uuid) { source = await fromUuid(target.dataset.uuid).catch(() => null); snap = source?.toObject?.() ?? null; }
     if (!snap) return;
+    // Authored stock already carries its origin (stamped on drop); a live compendium buy stamps here.
+    if (source) stampCompendiumSource(snap, source);
 
     const cost = Number(snap.system?.cost ?? 0) || 0;
     const price = Math.ceil(cost * this.#effRates(buyer).effBuy / 100);

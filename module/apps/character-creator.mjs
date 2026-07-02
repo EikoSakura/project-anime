@@ -18,6 +18,7 @@
  * (the actor sheet auto-opens this once for an owner until that flag is set).
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
+import { stampCompendiumSource } from "../helpers/gear.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { isImageIcon } from "../helpers/elements.mjs";
 import { collectLuckSteps, stepUpDie } from "../helpers/effects.mjs";
@@ -193,10 +194,10 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
         id: i.id,
         name: i.name,
         img: i.img,
-        stars: cfg.skillRanks[i.system.rank]?.stars ?? "",
+        stars: `${i.system.spCost ?? 0} SP`,
         actionLabel: game.i18n.localize(cfg.actionTypes[i.system.actionType] ?? ""),
         energyCost: i.system.energyCost ?? 0,
-        spCost: i.system.spCost ?? i.system.rank ?? 0,
+        spCost: i.system.spCost ?? 0,
         passive: i.system.actionType === "passive"
       }));
 
@@ -483,6 +484,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     }
     const data = src.toObject();
     delete data._id;
+    stampCompendiumSource(data, src);
     foundry.utils.setProperty(data, "flags.project-anime.choice", choiceId);
     foundry.utils.setProperty(data, "flags.project-anime.chosenOption", uuid);
     await this.actor.createEmbeddedDocuments("Item", [data]);
@@ -570,6 +572,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     }
     const data = src.toObject();
     delete data._id;
+    stampCompendiumSource(data, src);
     await this.actor.createEmbeddedDocuments("Item", [data]);
     if (cost > 0) await this.actor.update({ "system.gold": gold - cost });
     ui.notifications.info(game.i18n.format("PROJECTANIME.Creator.bought", { name: src.name, cost }));

@@ -4,13 +4,15 @@
  * A standalone ApplicationV2 opened from a character's Skills drawer. It has three
  * modes:
  *   • hub      — Skill-Point balance, a list of the character's Skills (each with an
- *                "Improve" button), and a "Build New Skill" button.
+ *                "Effects" button), and a "Build New Skill" button. (Skill Enhancement
+ *                lives in the Advancement dialog now.)
  *   • build    — a 6-step wizard (Concept → Rank → Roll & Effect → Range & Target → Modifiers →
  *                Review) that creates a new Skill and spends SP = its Rank (the rules'
  *                "Learning a Skill"). Blocks if the character can't afford it.
- *   • advance  — the rules' "Improving Skills": Raise Rank / Sharpen Accuracy / Lower
- *                Energy / Raise Range (each 1 SP) plus Add a Modifier (1 SP, within the
- *                Rank's budget).
+ *   • advance  — LEGACY. Skill Enhancement moved to the Advancement dialog (which stages
+ *                the same ops and writes identical "improve" ledger entries); the hub no
+ *                longer links here, but the machinery stays for the advance-mode template
+ *                section and the Refund path's expectations.
  *
  * Mirrors the AdvancementApp pattern (registers in `actor.apps` for live SP refresh)
  * and the EffectBuilder working-copy pattern (the build draft survives interactive
@@ -23,14 +25,15 @@
  */
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, modifierBarredByType, effectAttrCount, effectBaseRank, effectModifierCap, affinityModifierLevels, clampAffinityLevel, skillEvasionKeys, skillEvasionLabel, isSelfCenteredArea } from "../helpers/config.mjs";
+import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, modifierBarredByType, effectAttrCount, effectMinCost, skillSpCost, rangeModifierCost, affinityModifierLevels, effectEvasionChoices, skillEvasionLabel, skillDuration, isSelfCenteredArea, modifierValue } from "../helpers/config.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** The build-wizard steps, in order. "roll" is the combined Roll & Effect step (the attack
- *  Attributes plus the Effect and its options); "range" is the Range & Target step that follows. */
-const STEPS = ["concept", "rank", "roll", "range", "modifiers", "review"];
+/** The build-wizard steps, in order (v0.03 — no Rank step: cost derives from the choices).
+ *  "roll" is the combined Roll & Effect step (the attack Attributes plus the Effect and its
+ *  options); "range" is the Range & Target step that follows. */
+const STEPS = ["concept", "roll", "range", "modifiers", "review"];
 
 /** Sensible Target / Duration starting points per Effect — applied when the Effect CHANGES (the
  *  player can re-pick freely afterwards). Offensive Effects aim at a Foe; Transform, the Passive
@@ -92,13 +95,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     form: { handler: SkillBuilderApp.#onFormSubmit, submitOnChange: false, closeOnSubmit: false },
     actions: {
       buildNew: SkillBuilderApp.#onBuildNew,
-      improveSkill: SkillBuilderApp.#onImproveSkill,
       editEffects: SkillBuilderApp.#onEditEffects,
       backToHub: SkillBuilderApp.#onBackToHub,
       gotoStep: SkillBuilderApp.#onGotoStep,
       stepBack: SkillBuilderApp.#onStepBack,
       stepNext: SkillBuilderApp.#onStepNext,
-      pickRank: SkillBuilderApp.#onPickRank,
       toggleModifier: SkillBuilderApp.#onToggleModifier,
       toggleCustomHeavy: SkillBuilderApp.#onToggleCustomHeavy,
       toggleReequipHeavy: SkillBuilderApp.#onToggleReequipHeavy,
@@ -106,13 +107,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       removeModifierTake: SkillBuilderApp.#onRemoveModifierTake,
       pickImage: SkillBuilderApp.#onPickImage,
       finishBuild: SkillBuilderApp.#onFinishBuild,
-      raiseRank: SkillBuilderApp.#onRaiseRank,
       raiseRange: SkillBuilderApp.#onRaiseRange,
+      raiseDuration: SkillBuilderApp.#onRaiseDuration,
+      raiseArea: SkillBuilderApp.#onRaiseArea,
       lowerEnergy: SkillBuilderApp.#onLowerEnergy,
       sharpenAccuracy: SkillBuilderApp.#onSharpenAccuracy,
       sharpenDamage: SkillBuilderApp.#onSharpenDamage,
-      addModifier: SkillBuilderApp.#onAddModifier,
-      turnModifier: SkillBuilderApp.#onTurnModifier
+      addModifier: SkillBuilderApp.#onAddModifier
     }
   };
 
@@ -142,12 +143,12 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       img: DEFAULT_SKILL_IMG,
       description: "",
       actionType: "action",
-      rank: 1,
       attrA: "might",
       attrB: "spirit",
       attrC: "",
       damageAttr: "attrA",
-      range: { scope: "near", tiles: CONFIG.PROJECTANIME.rangeTiles.near ?? 5 },
+      // v0.03: Skills default to WEAPON range (tiles/scene are +1 SP overrides).
+      range: { scope: "weapon", tiles: 1 },
       effect: "strike",
       // Target + Duration (rules v0.01) — seeded with Strike's defaults (the blank draft's
       // Effect); switching the Effect re-seeds both (see #sync).
@@ -169,6 +170,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictStatus: "",
       decayType: "",
       inflictPool: "hp",
+      // Protection Modifier — whether the Protection boost targets DEF or RES.
+      protectionTarget: "defense",
       // Retaliation Modifier — the damage type dealt back to a foe that strikes the target.
       retaliationType: "",
       // Affinity Modifiers — the Element (Rank-gated level) / the Status (always Immune).
@@ -176,6 +179,12 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       // than once); each take is an Element+level / a Status pick.
       affinityDamages: [],
       affinityStatusIds: [],
+      // Absorb / Immunity Modifiers (v0.03, Heavy) — the absorbed Element; the Immunity's
+      // kind + Element/Status pick.
+      absorbElement: "",
+      immunityKind: "element",
+      immunityElement: "",
+      immunityStatus: "",
       // Analyze / Infuse Modifiers — what a hit reveals; what the weapons are imbued with.
       analyzeCategory: "vitals",
       infuseKind: "element",
@@ -229,12 +238,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       img: item.img,
       description: s.description ?? "",
       actionType: s.actionType ?? "action",
-      rank: s.rank ?? 1,
       attrA: s.attributes?.attrA ?? "might",
       attrB: s.attributes?.attrB ?? "spirit",
       attrC: s.attributes?.attrC ?? "",
       damageAttr: s.damageAttr ?? "attrA",
-      range: { scope: s.range?.scope ?? "near", tiles: s.range?.tiles ?? 0 },
+      range: { scope: s.range?.scope ?? "weapon", tiles: s.range?.tiles ?? 0 },
       effect: s.effect ?? "strike",
       target: s.target ?? "any",
       // The draft holds only the INTRINSIC duration (Instant/Standard); Channeled/Scene live on
@@ -251,9 +259,14 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictStatus: s.inflictStatus ?? "",
       decayType: s.decayType ?? "",
       inflictPool: s.inflictPool ?? "hp",
+      protectionTarget: s.protectionTarget ?? "defense",
       retaliationType: s.retaliationType ?? "",
       affinityDamages: (s.affinityDamages ?? []).map((t) => ({ type: t?.type ?? "", level: t?.level ?? "resist" })),
       affinityStatusIds: [...(s.affinityStatusIds ?? [])],
+      absorbElement: s.absorbElement ?? "",
+      immunityKind: s.immunityKind === "status" ? "status" : "element",
+      immunityElement: s.immunityElement ?? "",
+      immunityStatus: s.immunityStatus ?? "",
       analyzeCategory: s.analyzeCategory ?? "vitals",
       infuseKind: s.infuseKind ?? "element",
       infuseElement: s.infuseElement ?? "",
@@ -317,7 +330,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       id: i.id,
       name: i.name,
       img: i.img,
-      stars: cfg.skillRanks[i.system.rank]?.stars ?? "",
+      cost: `${i.system.spCost ?? 0} ${game.i18n.localize("PROJECTANIME.Stat.skillPointsAbbr")}`,
       actionLabel: game.i18n.localize(cfg.actionTypes[i.system.actionType] ?? ""),
       energyCost: i.system.energyCost ?? 0,
       passive: i.system.actionType === "passive"
@@ -352,7 +365,6 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.isFirst = this.#step === 0;
     ctx.isLast = this.#step === STEPS.length - 1;
     ctx.onConcept = stepKey === "concept";
-    ctx.onRank = stepKey === "rank";
     ctx.onRoll = stepKey === "roll";      // Roll & Effect (Attributes + the Effect and its options)
     ctx.onRange = stepKey === "range";    // Range & Target
     ctx.onModifiers = stepKey === "modifiers";
@@ -362,28 +374,26 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.attributeChoices = cfg.attributes;
     ctx.rangeChoices = cfg.ranges;
     ctx.triggerChoices = cfg.triggers;
-    // Effects gate by Base Rank (rules v0.01: the minimum Rank a Skill must be to take the
-    // Effect) — the pickers list the WHOLE catalog, greying out what the chosen Rank can't take
-    // yet; over-rank entries wear the Rank they need (· ★★). The CURRENT selection stays pickable
-    // even when over (editing a grandfathered skill) — step-next/commit re-validate and walk the
-    // player back. A raised Servant / bonded Companion can never take Animate or Companion
-    // (rules v0.01) — those vanish from its pickers entirely.
+    // v0.03: Effects carry a minimum SP cost instead of a Rank gate — every entry wears its
+    // "1+ SP" tag and stays pickable (the cost readout reacts). Retired Effects (Animate → a
+    // Module; the old Affinity Effect) only list while one IS the current selection (editing a
+    // grandfathered Skill). A raised Servant / bonded Companion can never take Animate or
+    // Companion — those vanish from its pickers entirely.
     const servantBarred = SkillBuilderApp.barredEffects(this.actor);
-    const effectOption = (k, label, current) => {
-      const base = effectBaseRank(k);
-      const overRank = base > d.rank;
-      return {
-        key: k,
-        label: game.i18n.localize(label) + (overRank ? ` · ${cfg.skillRanks[base]?.stars ?? base}` : ""),
-        gated: overRank && k !== current,
-        selected: k === current
-      };
-    };
+    const retired = cfg.retiredEffects ?? [];
+    const spAbbr = game.i18n.localize("PROJECTANIME.Stat.skillPointsAbbr");
+    const effectOption = (k, label, current) => ({
+      key: k,
+      label: `${game.i18n.localize(label)} · ${effectMinCost(k)}+ ${spAbbr}`,
+      gated: false,
+      selected: k === current
+    });
     ctx.effectChoices = Object.entries(cfg.skillEffects)
-      .filter(([k]) => !servantBarred.includes(k))
+      .filter(([k]) => !servantBarred.includes(k) && (!retired.includes(k) || k === d.effect))
       .map(([k, label]) => effectOption(k, label, d.effect));
     ctx.damagePoolChoices = cfg.damagePools;
     ctx.damageTypeChoices = elementChoices();
+    ctx.protectionTargetChoices = { defense: game.i18n.localize("PROJECTANIME.Stat.defense"), res: game.i18n.localize("PROJECTANIME.Stat.resistance") };
     // Status list — used by the Inflict / Infuse / Hinder pickers AND the Affinity (Status)
     // Modifier panel. Sorted alphabetically by label (order is display-only — the value is the id).
     ctx.conditionChoices = Object.fromEntries((cfg.statusConditions ?? [])
@@ -400,7 +410,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showDamageDie = cfg.dieEffects.includes(d.effect);
     // The HP/Energy pool field shows for Strike (which pool its damage hits).
     ctx.showDamagePool = cfg.poolEffects.includes(d.effect);
-    ctx.poolLabel = "PROJECTANIME.Skill.field.damagePool";
+    ctx.poolLabel = d.effect === "mend" ? "PROJECTANIME.Skill.field.healPool" : "PROJECTANIME.Skill.field.damagePool";
     ctx.showEffectExtras = ctx.showDamageDie || ctx.showDamageType || ctx.showDamagePool || ctx.showControlElement;
     // Empower/Weaken/Transform: pick which Attributes change (rules v0.01 — ONE for
     // Empower/Weaken; Transform offers two slots: fill one for +2 steps, both for +1 each).
@@ -437,13 +447,15 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.durationLocked = d.modifiers.includes("channeled") ? game.i18n.localize(cfg.skillDurations.channeled)
       : d.modifiers.includes("scene") ? game.i18n.localize(cfg.skillDurations.scene) : "";
     ctx.showDurationTurns = ctx.showDurationField && !ctx.durationLocked && d.duration !== "instant";
-    // Skill Evasion (Roll & Effect step) — the Effect's own defender swap (rules v0.01), never hand-
-    // picked: when the Effect defines one (Disguise/Illusion → Mind or Charm, Telepathy/Vanish
-    // → Mind or Spirit) two locked columns show the pair auto-filled; other Effects show nothing.
-    const seKeys = skillEvasionKeys(cfg.effectSkillEvasion?.[d.effect] ?? "");
-    ctx.skillEvasionPair = seKeys.length
-      ? { a: skillEvasionLabel(seKeys[0]), b: seKeys[1] ? skillEvasionLabel(seKeys[1]) : "" }
+    // "Targets ⟪X⟫ or ⟪Y⟫ (chosen at creation)" (v0.03) — when the Effect defines an evasion
+    // swap (Disguise/Illusion → Mind or Charm, Telepathy/Vanish → Mind or Spirit) the player
+    // picks ONE of the pair here; other Effects show nothing (the Mental Modifier has its own
+    // pick on the Modifiers step).
+    const evChoices = effectEvasionChoices(d.effect);
+    ctx.evasionChoices = evChoices.length
+      ? Object.fromEntries(evChoices.map((k) => [k, game.i18n.localize(cfg.attributes[k])]))
       : null;
+    ctx.evasionSelected = evChoices.includes(d.skillEvasion) ? d.skillEvasion : evChoices[0];
     ctx.damageDieChoices = {
       attrA: game.i18n.localize(cfg.attributes[d.attrA] ?? d.attrA),
       attrB: game.i18n.localize(cfg.attributes[d.attrB] ?? d.attrB)
@@ -453,47 +465,33 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.rangeHasTiles = rangeHasTiles(d.range.scope);
     ctx.rangeRec = cfg.rangeTiles[d.range.scope] ?? 0;
 
-    ctx.rankCards = Object.entries(cfg.skillRanks).map(([k, v]) => {
-      const rank = Number(k);
-      return {
-        rank,
-        stars: v.stars,
-        label: game.i18n.localize(v.label),
-        sp: v.sp,
-        energy: v.energy,
-        maxModifiers: v.maxModifiers,
-        selected: d.rank === rank,
-        affordable: v.sp <= budget
-      };
-    });
-
     ctx.effectDesc = game.i18n.localize(`PROJECTANIME.Skill.effectDesc.${d.effect}`);
 
-    const used = modifiersBudget(d.modifiers, d);
-    // Animate / Companion allow NO Modifiers (rules v0.01) — their budget reads 0 / 0.
-    const max = effectModifierCap(d.effect, d.rank);
+    // v0.03: no Modifier cap — the weight (Heavy = 2, Range override = 1) only drives the SP
+    // cost, shown live. Animate / Companion still allow NO Modifiers at all.
+    const used = modifiersBudget(d.modifiers, d) + rangeModifierCost(d);
+    const noMods = (cfg.noModifierEffects ?? []).includes(d.effect);
     ctx.modUsed = used;
-    ctx.modMax = max;
-    ctx.modOver = used > max;
+    ctx.liveSp = skillSpCost(d);
+    ctx.liveEnergy = ctx.liveSp * 2;
+    ctx.isPassiveCost = d.actionType === "passive";
     ctx.modifierList = Object.entries(cfg.skillModifiers).map(([key, label]) => {
       const selected = d.modifiers.includes(key);
       const isCustom = key === "custom";
       const isReequip = key === "reequip";
-      const cost = isHeavyModifier(key, d) ? 2 : 1;     // Custom's / Re-equip's weight follows its Heavy checkbox
-      // An always-on Skill can't take Secondary Effect (rules v0.01) or a Duration Modifier, and a
-      // "None" Effect can't take Secondary Effect on any Action Type (modifierBarredByType); an
-      // Aura field can't be Channeled (its lifetime is its marker's). Channeled↔Scene swap freely
+      // An always-on Skill can't take Secondary Effect or a Duration Modifier, and a "None"
+      // Effect can't take Secondary Effect on any Action Type (modifierBarredByType); an Aura
+      // field can't be Channeled (its lifetime is its marker's). Channeled↔Scene swap freely
       // (mutually exclusive — toggling one releases the other), so neither blocks the other here.
-      const incompatible = modifierBarredByType(key, d)
+      const incompatible = noMods
+        || modifierBarredByType(key, d)
         || (key === "channeled" && d.modifiers.includes("aura"))
         || (key === "aura" && d.modifiers.includes("channeled"));
-      const swapMate = key === "channeled" ? "scene" : key === "scene" ? "channeled" : null;
-      const budgetAfterSwap = swapMate && d.modifiers.includes(swapMate) ? used - 1 : used;
       return {
         key,
         label: game.i18n.localize(label),
         desc: game.i18n.localize(`PROJECTANIME.Skill.modifierDesc.${key}`),
-        heavy: cfg.heavyModifiers.includes(key),         // the fixed "Heavy" badge (Devour / Mass / Secondary Effect)
+        heavy: cfg.heavyModifiers.includes(key),         // the fixed "Heavy" 🔶 badge
         isCustom,                                         // Custom shows an inline Heavy chip when selected
         customHeavy: isCustom && !!d.customModifierHeavy,
         isReequip,                                        // Re-equip's Heavy form swaps the whole loadout
@@ -502,12 +500,16 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         // A choose-able Modifier configures INSIDE its row once selected — its pickers (status /
         // element / category / kind) render right in the box; clicks there don't toggle the row.
         showInflict: selected && key === "inflict",
+        showProtection: selected && key === "protection",
         showRetaliation: selected && key === "retaliation",
         showAffinityDamage: selected && key === "affinityDamage",
         showAffinityStatus: selected && key === "affinityStatus",
+        showAbsorb: selected && key === "absorb",
+        showImmunity: selected && key === "immunity",
+        showMental: selected && key === "mental",
         showAnalyze: selected && key === "analyze",
         showInfuse: selected && key === "infuse",
-        hasConfig: selected && ["inflict", "retaliation", "affinityDamage", "affinityStatus", "analyze", "infuse"].includes(key),
+        hasConfig: selected && ["protection", "inflict", "retaliation", "affinityDamage", "affinityStatus", "absorb", "immunity", "mental", "analyze", "infuse"].includes(key),
         // Multi-take Modifiers (rules: "can be selected more than once") render one pick row per
         // take plus a ＋ chip; each take weighs the Modifier's cost again. ✕ drops a single take
         // (never the last — un-tick the row for that).
@@ -520,7 +522,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
           ? (d.affinityStatusIds.length ? d.affinityStatusIds : [""])
               .map((id, i, arr) => ({ index: i, id, removable: arr.length > 1 }))
           : [],
-        blocked: !selected && (incompatible || budgetAfterSwap + cost > max)
+        blocked: !selected && incompatible
       };
     });
 
@@ -535,7 +537,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const secEffect = d.secondaryEffect || "strike";
     const noSecondary = ["passive", "animate", "companion", "conjure", "gate"];
     ctx.secondaryEffectChoices = Object.entries(cfg.skillEffects)
-      .filter(([k]) => !noSecondary.includes(k) && !servantBarred.includes(k))
+      .filter(([k]) => !noSecondary.includes(k) && !servantBarred.includes(k) && (!retired.includes(k) || k === secEffect))
       .map(([k, label]) => effectOption(k, label, secEffect));
     ctx.secondaryActive = secActive;
     ctx.secondaryEffectDesc = game.i18n.localize(`PROJECTANIME.Skill.effectDesc.${secEffect}`);
@@ -546,7 +548,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showSecondaryControlElement = secEffect === "elementalControl";
     ctx.showSecondaryExtras = ctx.showSecondaryDie || ctx.showSecondaryType || ctx.showSecondaryPool || ctx.showSecondaryControlElement;
     ctx.secondaryDieLabel = secEffect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie";
-    ctx.secondaryPoolLabel = "PROJECTANIME.Skill.field.damagePool";
+    ctx.secondaryPoolLabel = secEffect === "mend" ? "PROJECTANIME.Skill.field.healPool" : "PROJECTANIME.Skill.field.damagePool";
 
     // Aura Modifier — its field's audience is the Skill's Target (the Range & Target step's picker); an
     // ACTIVE aura's lifetime follows the Duration there too. A passive aura is always-on.
@@ -561,15 +563,30 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.inflictLingering = ctx.inflictActive && d.inflictStatus === "decay";
     ctx.inflictHasPool = ctx.inflictActive && (cfg.poolChoiceStatuses ?? []).includes(d.inflictStatus);
 
-    // Affinity Modifiers — Damage shows the Element picker plus the Rank-gated level (Resist;
-    // ⭐⭐⭐ unlocks Immune; ⭐⭐⭐⭐⭐ unlocks Absorb); Status only grants Immune, so it's just
-    // the Status picker.
+    // Affinity Modifiers (v0.03) — Damage grants Resist only (Immunity / Absorb are their own
+    // Heavy Modifiers); Status grants Resist (halved duration). A grandfathered immune/absorb
+    // take keeps its stored level in its select.
     const levelChoices = Object.fromEntries(
-      Object.entries(affinityModifierLevels(d.rank)).map(([k, v]) => [k, game.i18n.localize(v)])
+      Object.entries(cfg.affinityLevels).filter(([k]) => k !== "none" && k !== "weak")
+        .map(([k, v]) => [k, game.i18n.localize(v)])
     );
-    ctx.affinityLevelChoices = levelChoices;
+    const newLevelChoices = Object.fromEntries(
+      Object.entries(affinityModifierLevels()).map(([k, v]) => [k, game.i18n.localize(v)])
+    );
+    ctx.affinityLevelChoices = d.affinityDamages.some((t) => t.level !== "resist") ? levelChoices : newLevelChoices;
     ctx.affinityDamageActive = d.modifiers.includes("affinityDamage");
     ctx.affinityStatusActive = d.modifiers.includes("affinityStatus");
+    // Absorb / Immunity / Mental Modifiers — their creation-time picks.
+    ctx.absorbActive = d.modifiers.includes("absorb");
+    ctx.immunityActive = d.modifiers.includes("immunity");
+    ctx.immunityKindChoices = {
+      element: game.i18n.localize("PROJECTANIME.Skill.field.damageType"),
+      status: game.i18n.localize("PROJECTANIME.Skill.field.inflictStatus")
+    };
+    ctx.immunityIsStatus = d.immunityKind === "status";
+    ctx.mentalActive = d.modifiers.includes("mental");
+    ctx.mentalChoices = Object.fromEntries((cfg.mentalAttrs ?? []).map((k) => [k, game.i18n.localize(cfg.attributes[k])]));
+    ctx.mentalSelected = (cfg.mentalAttrs ?? []).includes(d.skillEvasion) ? d.skillEvasion : "mind";
 
     // Analyze / Infuse Modifiers — their creation-time picks.
     ctx.analyzeActive = d.modifiers.includes("analyze");
@@ -582,7 +599,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     );
     ctx.infuseIsStatus = d.infuseKind === "status";
 
-    const rank = cfg.skillRanks[d.rank] ?? {};
+    const spCost = skillSpCost(d);
     const dtLabels = elementChoices();
     // The EFFECTIVE Target/Duration the commit will write (locks + Aura audience + Duration
     // Modifiers applied; a plain passive Skill normalizes to Self — its effect rides the bearer).
@@ -599,8 +616,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.review = {
       name: (d.name || "").trim() || game.i18n.localize("PROJECTANIME.SkillBuilder.newSkillName"),
       img: d.img,
-      stars: rank.stars ?? "",
-      rankLabel: game.i18n.localize(rank.label ?? ""),
+      costLabel: `${spCost} ${spAbbr}`,
       actionType: game.i18n.localize(cfg.actionTypes[d.actionType] ?? ""),
       attrA: game.i18n.localize(cfg.attributes[d.attrA] ?? ""),
       attrB: game.i18n.localize(cfg.attributes[d.attrB] ?? ""),
@@ -623,9 +639,17 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
             .map((t) => `${dtLabels[t.type] ?? t.type} — ${levelChoices[t.level] ?? t.level}`).join(" · ") : "",
       affinityStatus: ctx.affinityStatusActive
         ? d.affinityStatusIds.filter(Boolean)
-            .map((id) => `${ctx.conditionChoices[id] ?? id} — ${game.i18n.localize("PROJECTANIME.Affinity.immune")}`).join(" · ") : "",
+            .map((id) => `${ctx.conditionChoices[id] ?? id} — ${game.i18n.localize("PROJECTANIME.Affinity.resist")}`).join(" · ") : "",
+      absorb: (ctx.absorbActive && d.absorbElement) ? (dtLabels[d.absorbElement] ?? d.absorbElement) : "",
+      immunity: ctx.immunityActive
+        ? (ctx.immunityIsStatus
+          ? (ctx.conditionChoices[d.immunityStatus] ?? "")
+          : (dtLabels[d.immunityElement] ?? "")) : "",
+      mental: (ctx.mentalActive && (cfg.mentalAttrs ?? []).includes(d.skillEvasion))
+        ? game.i18n.localize(cfg.attributes[d.skillEvasion]) : "",
       inflict: (ctx.inflictActive && d.inflictStatus)
         ? `${ctx.conditionChoices[d.inflictStatus] ?? d.inflictStatus}${ctx.inflictLingering && d.decayType ? ` · ${dtLabels[d.decayType] ?? d.decayType}` : ""}${ctx.inflictHasPool ? ` · ${game.i18n.localize(cfg.damagePools[d.inflictPool === "energy" ? "energy" : "hp"])}` : ""}` : "",
+      protectionTarget: d.modifiers.includes("protection") ? game.i18n.localize(d.protectionTarget === "res" ? "PROJECTANIME.Stat.resistance" : "PROJECTANIME.Stat.defense") : "",
       retaliation: (d.modifiers.includes("retaliation") && d.retaliationType) ? (dtLabels[d.retaliationType] ?? d.retaliationType) : "",
       analyze: ctx.analyzeActive ? (ctx.analyzeChoices[d.analyzeCategory] ?? "") : "",
       infuse: ctx.infuseActive
@@ -643,49 +667,50 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         // Heavy reads as a clean suffix (the list rows carry the badge; no parentheses).
         return isHeavyModifier(m, d) ? `${label} · ${game.i18n.localize("PROJECTANIME.Skill.heavy")}` : label;
       }),
-      spCost: rank.sp ?? d.rank,
-      energyCost: d.actionType === "passive" ? 0 : (rank.energy ?? d.rank * 2),
+      spCost,
+      energyCost: d.actionType === "passive" ? 0 : spCost * 2,
       passive: d.actionType === "passive",
-      passiveEnergyTax: d.actionType === "passive" ? Math.floor((rank.energy ?? d.rank * 2) / 2) : 0
+      // v0.03: a Passive subtracts its FULL Energy cost (SP×2) from max Energy.
+      passiveEnergyTax: d.actionType === "passive" ? spCost * 2 : 0
     };
-    const rankCost = rank.sp ?? d.rank;
-    ctx.affordable = rankCost <= budget;
-    // Edit mode swaps "Learn (cost)" for "Save Changes (net SP)" — the net is the new Rank
+    ctx.affordable = spCost <= budget;
+    // Edit mode swaps "Learn (cost)" for "Save Changes (net SP)" — the net is the new SP
     // cost minus what's already logged (negative = a refund), blank when it nets to zero.
     ctx.isEditing = !!this.#editId;
     ctx.finishLabel = game.i18n.localize(this.#editId ? "PROJECTANIME.SkillBuilder.saveChanges" : "PROJECTANIME.SkillBuilder.learn");
     if (this.item) {
       ctx.netCostLabel = ""; // no SP changes hands on a standalone item
     } else if (this.#editId) {
-      const net = rankCost - editedLogged;
+      const net = spCost - editedLogged;
       ctx.netCostLabel = net === 0 ? "" : (net > 0 ? `+${net}` : `-${Math.abs(net)}`);
     } else {
-      ctx.netCostLabel = String(rankCost);
+      ctx.netCostLabel = String(spCost);
     }
   }
 
+  /** "Skill Enhancement" (v0.03, replaces Improving Skills): Accuracy / Duration / Efficiency /
+   *  Power / Range at 1 SP each, plus Expansion (add a Modifier — 1 SP, 2 SP for a Heavy). */
   #prepareAdvance(ctx, sp) {
     const cfg = CONFIG.PROJECTANIME;
     const item = this.#advanceSkill();
     const sys = item.system;
-    const rank = cfg.skillRanks[sys.rank] ?? {};
     const used = sys.modifiersUsed ?? 0;
-    const max = sys.maxModifiers ?? 0;
     const accuracy = sys.accuracyMod ?? 0;
     const damage = sys.damageMod ?? 0;
     const energy = sys.energyCost ?? 0;
-    const minEnergy = sys.minEnergy ?? Math.ceil((rank.energy ?? 2) / 2);
-    const scope = sys.range?.scope ?? "near";
+    const minEnergy = sys.minEnergy ?? Math.ceil((sys.baseEnergy ?? 2) / 2);
     const rangeTiles = sys.range?.tiles ?? 0;
-    const rangeTileScope = rangeHasTiles(scope);
+    const rangeTileScope = rangeHasTiles(sys.range?.scope ?? "weapon");
+    // Duration (+1 turn) only applies to a Skill with a turn-counted (Standard) Duration.
+    const durTurns = sys.effectDuration ?? cfg.standardDurationTurns;
+    const durApplies = sys.actionType !== "passive" && skillDuration(sys) === "standard";
     const canAfford = sp >= 1;
 
     ctx.skill = {
       id: item.id,
       name: item.name,
       img: item.img,
-      stars: rank.stars ?? "",
-      rankLabel: game.i18n.localize(rank.label ?? ""),
+      cost: `${sys.spCost ?? 0} ${game.i18n.localize("PROJECTANIME.Stat.skillPointsAbbr")}`,
       actionLabel: game.i18n.localize(cfg.actionTypes[sys.actionType] ?? ""),
       effectLabel: game.i18n.localize(cfg.skillEffects[sys.effect] ?? ""),
       rangeLabel: rangeLabel(sys.range),
@@ -693,10 +718,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       attrB: game.i18n.localize(cfg.attributes[sys.attributes?.attrB] ?? ""),
       energyCost: energy,
       passive: sys.actionType === "passive",
-      passiveEnergyTax: sys.passiveEnergyTax ?? (sys.actionType === "passive" ? Math.floor((rank.energy ?? sys.rank * 2) / 2) : 0),
+      passiveEnergyTax: sys.passiveEnergyTax ?? 0,
       accuracyMod: accuracy,
       modUsed: used,
-      modMax: max,
       modifiers: (sys.modifiers ?? []).map((m) => {
         const takes = modifierTakes(m, sys);
         const label = game.i18n.localize(cfg.skillModifiers[m] ?? m) + (takes > 1 ? ` ×${takes}` : "");
@@ -706,23 +730,17 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
     ctx.improvements = {
       canAfford,
-      raiseRank: {
-        cost: 1,
-        atMax: sys.rank >= 5,
-        next: sys.rank < 5 ? (cfg.skillRanks[sys.rank + 1]?.stars ?? "") : "",
-        disabled: sys.rank >= 5 || !canAfford
-      },
       sharpenAccuracy: {
         cost: 1,
         cur: accuracy,
         next: accuracy + 1,
         atMax: accuracy >= 3,
-        // Only Skills that make an Accuracy Check (target an enemy) can Sharpen it.
+        // Only Skills that make an Accuracy Check (target an enemy) can enhance it.
         applies: skillNeedsAccuracy(sys),
         disabled: accuracy >= 3 || !canAfford
       },
-      // Sharpen Damage / Sharpen Healing — only for Skills that roll an output (Strike / Mend);
-      // the label flips to "Healing" for a Mend.
+      // "Power" (+1 damage or healing, max +3) — only for Skills with an output (Strike / Heal);
+      // the detail label flips to healing for a Heal.
       sharpenDamage: {
         cost: 1,
         cur: damage,
@@ -732,6 +750,15 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         isHeal: sys.effect === "mend",
         disabled: damage >= 3 || !canAfford
       },
+      // "Duration" (+1 turn) — v0.03's new enhancement.
+      raiseDuration: {
+        cost: 1,
+        applies: durApplies,
+        cur: durTurns,
+        next: durTurns + 1,
+        disabled: !durApplies || !canAfford
+      },
+      // "Efficiency" (−1 EP, min half base).
       lowerEnergy: {
         cost: 1,
         cur: energy,
@@ -739,29 +766,51 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         atMin: energy <= minEnergy,
         disabled: energy <= minEnergy || !canAfford
       },
+      // "Range" (+1 tile) — only a tile-ranged Skill has a count to raise.
       raiseRange: {
         cost: 1,
         hasTiles: rangeTileScope,
         cur: rangeTiles,
         next: rangeTiles + 1,
-        // Self / Weapon / Very Far have no tile count to raise.
         disabled: !rangeTileScope || !canAfford
-      },
-      addModifier: { cost: 1, full: used >= max }
+      }
     };
 
+    // "Area" (+1 tile to the area size, max +3) — one card per area Modifier the Skill carries
+    // (Burst radius / Aura field radius). Rides the modifierGrowth machinery.
+    const growMax = cfg.modifierGrowthMax ?? 3;
+    ctx.areaMods = (cfg.areaGrowModifiers ?? [])
+      .filter((key) => (sys.modifiers ?? []).includes(key))
+      .map((key) => {
+        const growth = Math.min(growMax, sys.modifierGrowth?.[key] ?? 0);
+        const cur = modifierValue(item, key);
+        const atMax = growth >= growMax;
+        return {
+          key,
+          label: game.i18n.localize(cfg.skillModifiers[key] ?? key),
+          cur,
+          next: cur + 1,
+          atMax,
+          disabled: atMax || !canAfford
+        };
+      });
+
+    // Expansion — add a Modifier (1 SP; 2 SP for a Heavy). v0.03 has no Modifier cap; only the
+    // compatibility rules block. Animate / Companion still take none.
+    const noMods = (cfg.noModifierEffects ?? []).includes(sys.effect);
     ctx.addableModifiers = Object.entries(cfg.skillModifiers)
-      // A multi-take Modifier (Affinity Damage/Status) stays listed even when taken — Improve
+      // A multi-take Modifier (Affinity Damage/Status) stays listed even when taken — Expansion
       // can buy another take (the Element/Status is picked on the next wizard rebuild).
       .filter(([key]) => !(sys.modifiers ?? []).includes(key) || (cfg.multiTakeModifiers ?? []).includes(key))
       .map(([key, label]) => {
         const isHeavy = isHeavyModifier(key, sys);
         const cost = isHeavy ? 2 : 1;
-        // The Builder's compatibility rules hold on Improve too: no Secondary Effect / Duration
+        // The Builder's compatibility rules hold on Expansion too: no Secondary Effect / Duration
         // Modifier on an always-on Skill, no Channeled Aura, and Channeled↔Scene stay exclusive
-        // (Improve can't remove a Modifier, so the other one being present blocks outright).
+        // (Expansion can't remove a Modifier, so the other one being present blocks outright).
         const mods = sys.modifiers ?? [];
-        const incompatible = modifierBarredByType(key, sys)
+        const incompatible = noMods
+          || modifierBarredByType(key, sys)
           || (key === "channeled" && (mods.includes("aura") || mods.includes("scene")))
           || (key === "scene" && mods.includes("channeled"))
           || (key === "aura" && mods.includes("channeled"));
@@ -770,33 +819,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
           label: game.i18n.localize(label),
           desc: game.i18n.localize(`PROJECTANIME.Skill.modifierDesc.${key}`),
           heavy: isHeavy,
-          blocked: incompatible || used + cost > max,
-          disabled: incompatible || used + cost > max || !canAfford
-        };
-      });
-
-    // "Tune a Modifier" (rules): grow the numeric value of ANY Modifier the Skill already has that
-    // carries a number (Aura/Burst radius, Chain targets, Push/Pull/Move tiles, Protection's
-    // Defense…). 1 SP each, growth capped at +3 (config.mjs modifierGrowthMax). Only Modifiers in
-    // growableModifiers qualify; a rank-based one (Push/Pull) starts at the Rank.
-    const growable = cfg.growableModifiers ?? {};
-    const growMax = cfg.modifierGrowthMax ?? 3;
-    ctx.growableMods = (sys.modifiers ?? [])
-      .filter((key) => growable[key])
-      .map((key) => {
-        const base = growable[key].rankBased ? (sys.rank ?? 1) : (growable[key].base ?? 0);
-        const growth = Math.min(growMax, sys.modifierGrowth?.[key] ?? 0);
-        const atMax = growth >= growMax;
-        return {
-          key,
-          label: game.i18n.localize(cfg.skillModifiers[key] ?? key),
-          unit: game.i18n.localize(growable[key].unit ?? ""),
-          base,
-          growth,
-          current: base + growth,
-          next: base + growth + 1,
-          atMax,
-          disabled: atMax || !canAfford
+          cost,
+          blocked: incompatible,
+          disabled: incompatible || sp < cost
         };
       });
   }
@@ -817,7 +842,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Attribute relabels the damage-die picker that now shares the Roll & Effect step; range scope
     // reveals the tile count and can lock Target; the duration choice reveals the Standard turn
     // count; Inflict's Status reveals the Lingering element; Infuse's kind swaps its value picker).
-    for (const sel of this.element.querySelectorAll('select[name="actionType"], select[name="effect"], select[name="secondaryEffect"], select[name="attrA"], select[name="attrB"], select[name="rangeScope"], select[name="duration"], select[name="inflictStatus"], select[name="infuseKind"]')) {
+    for (const sel of this.element.querySelectorAll('select[name="actionType"], select[name="effect"], select[name="secondaryEffect"], select[name="attrA"], select[name="attrB"], select[name="rangeScope"], select[name="duration"], select[name="inflictStatus"], select[name="infuseKind"], select[name="immunityKind"]')) {
       sel.addEventListener("change", () => { this.#sync(); this.render(); });
     }
   }
@@ -861,11 +886,23 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (data.target) d.target = data.target;
       if (data.duration) d.duration = data.duration === "instant" ? "instant" : "standard";
     }
-    // Skill Evasion is the Effect's to define, never hand-picked (rules v0.01: Disguise/Illusion
-    // → Mind-or-Charm, Telepathy/Vanish → Mind-or-Spirit, everything else none; the defender uses
-    // the better of the pair) — derived every sync so the Effect step's locked A/B columns and
-    // the stored value can't drift apart.
-    d.skillEvasion = CONFIG.PROJECTANIME.effectSkillEvasion?.[d.effect] ?? "";
+    // Skill Evasion (v0.03: "Targets ⟪X⟫ or ⟪Y⟫ — chosen at creation"): when the Effect defines
+    // a pair the player picks ONE (the roll step's select); otherwise the Mental Modifier's pick
+    // (Mind/Spirit/Charm) applies; otherwise none. Re-derived every sync so the stored value
+    // always matches what the current Effect/Modifiers justify.
+    {
+      const cfgPA = CONFIG.PROJECTANIME;
+      const evChoices = effectEvasionChoices(d.effect);
+      if (evChoices.length) {
+        if (typeof data.skillEvasion === "string" && evChoices.includes(data.skillEvasion)) d.skillEvasion = data.skillEvasion;
+        if (!evChoices.includes(d.skillEvasion)) d.skillEvasion = evChoices[0];
+      } else if ((d.modifiers ?? []).includes("mental")) {
+        if (typeof data.mentalAttr === "string" && (cfgPA.mentalAttrs ?? []).includes(data.mentalAttr)) d.skillEvasion = data.mentalAttr;
+        if (!(cfgPA.mentalAttrs ?? []).includes(d.skillEvasion)) d.skillEvasion = "mind";
+      } else {
+        d.skillEvasion = "";
+      }
+    }
     if (data.damageAttr) d.damageAttr = data.damageAttr;
     if (data.damagePool) d.damagePool = data.damagePool;
     if ("damageType" in data) d.damageType = data.damageType ?? "";
@@ -889,6 +926,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if ("secondaryDamageType" in data) d.secondaryDamageType = data.secondaryDamageType ?? "";
     if ("inflictStatus" in data) d.inflictStatus = data.inflictStatus ?? "";
     if ("decayType" in data) d.decayType = data.decayType ?? "";
+    if ("protectionTarget" in data) d.protectionTarget = data.protectionTarget ?? "defense";
     if ("retaliationType" in data) d.retaliationType = data.retaliationType ?? "";
     if (data.inflictPool) d.inflictPool = data.inflictPool;
     // Affinity Modifier takes (affinityType0..N / affinityStatusId0..N — one pick row per take,
@@ -905,6 +943,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       for (let i = 0; `affinityStatusId${i}` in data; i++) ids.push(data[`affinityStatusId${i}`] ?? "");
       d.affinityStatusIds = ids;
     }
+    // Absorb / Immunity Modifier picks (rendered only inside their selected rows).
+    if ("absorbElement" in data) d.absorbElement = data.absorbElement ?? "";
+    if (data.immunityKind) d.immunityKind = data.immunityKind === "status" ? "status" : "element";
+    if ("immunityElement" in data) d.immunityElement = data.immunityElement ?? "";
+    if ("immunityStatus" in data) d.immunityStatus = data.immunityStatus ?? "";
     if (data.analyzeCategory) d.analyzeCategory = data.analyzeCategory;
     if (data.infuseKind) d.infuseKind = data.infuseKind;
     if ("infuseElement" in data) d.infuseElement = data.infuseElement ?? "";
@@ -1014,19 +1057,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Block leaving a step that isn't valid yet (a React Skill needs a Trigger; the Effect must
-   *  meet its Base Rank — rules v0.01 — and a Servant/Companion can't take Animate/Companion).
-   *  The Effect is chosen on the combined Roll & Effect step ("roll"), so its gates fire there. */
+  /** Block leaving a step that isn't valid yet (a React Skill needs a Trigger; a
+   *  Servant/Companion can't take Animate/Companion). The Effect is chosen on the combined
+   *  Roll & Effect step ("roll"), so its gate fires there. */
   #validateStep() {
     const d = this.#draft;
     if (STEPS[this.#step] === "concept" && d.actionType === "react" && !d.trigger) {
       ui.notifications.warn(game.i18n.localize("PROJECTANIME.Skill.reactNeedsTrigger"));
-      return false;
-    }
-    if (STEPS[this.#step] === "roll" && effectBaseRank(d.effect) > d.rank) {
-      ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.effectRankGate", {
-        stars: CONFIG.PROJECTANIME.skillRanks[effectBaseRank(d.effect)]?.stars ?? effectBaseRank(d.effect)
-      }));
       return false;
     }
     if (STEPS[this.#step] === "roll" && SkillBuilderApp.barredEffects(this.actor).includes(d.effect)) {
@@ -1034,13 +1071,6 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return false;
     }
     return true;
-  }
-
-  static #onPickRank(event, target) {
-    this.#sync();
-    const r = Number(target.dataset.rank);
-    if (r >= 1 && r <= 5) this.#draft.rank = r;
-    this.render();
   }
 
   static #onToggleModifier(event, target) {
@@ -1074,20 +1104,23 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if ((key === "channeled" && mods.includes("aura")) || (key === "aura" && mods.includes("channeled"))) {
         return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modIncompatible"));
       }
+      // Animate / Companion take no Modifiers at all.
+      if ((cfg.noModifierEffects ?? []).includes(d.effect)) {
+        return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modIncompatible"));
+      }
       // Channeled and Scene are mutually exclusive Duration Modifiers — picking one releases the
-      // other FIRST, so a straight swap always fits the budget.
+      // other FIRST, so a straight swap always fits.
       if (key === "channeled" || key === "scene") {
         const oi = mods.indexOf(key === "channeled" ? "scene" : "channeled");
         if (oi >= 0) mods.splice(oi, 1);
       }
-      const used = modifiersBudget(mods, d);
-      const cost = isHeavyModifier(key, d) ? 2 : 1;
-      const max = effectModifierCap(d.effect, d.rank);
-      if (used + cost > max) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modBudgetFull"));
+      // v0.03: no Modifier cap — each pick just raises the SP cost (shown live).
       mods.push(key);
       // Ticking a multi-take Modifier opens with one (blank) take row.
       if (key === "affinityDamage" && !d.affinityDamages.length) d.affinityDamages = [{ type: "", level: "resist" }];
       if (key === "affinityStatus" && !d.affinityStatusIds.length) d.affinityStatusIds = [""];
+      // The Mental Modifier's evasion swap seeds its default pick.
+      if (key === "mental" && !(cfg.mentalAttrs ?? []).includes(d.skillEvasion) && !effectEvasionChoices(d.effect).length) d.skillEvasion = "mind";
       // A passive-only Modifier (Aura) forces the Skill to Passive the moment it's picked.
       if ((cfg.passiveOnlyModifiers ?? []).includes(key)) d.actionType = "passive";
       // An Aura's field needs a real audience — a Self target collapses to Ally on pick.
@@ -1104,11 +1137,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const d = this.#draft;
     const key = target.closest("[data-modifier]")?.dataset.modifier;
     if (!key || !(CONFIG.PROJECTANIME.multiTakeModifiers ?? []).includes(key) || !d.modifiers.includes(key)) return;
-    const used = modifiersBudget(d.modifiers, d);
-    const cost = isHeavyModifier(key, d) ? 2 : 1;
-    if (used + cost > effectModifierCap(d.effect, d.rank)) {
-      return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modBudgetFull"));
-    }
+    // v0.03: no Modifier cap — another take just weighs on the SP cost again.
     if (key === "affinityDamage") d.affinityDamages.push({ type: "", level: "resist" });
     else if (key === "affinityStatus") d.affinityStatusIds.push("");
     this.render();
@@ -1131,31 +1160,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
    *  overflow the Rank's budget. */
   static #onToggleCustomHeavy() {
     this.#sync();
-    const cfg = CONFIG.PROJECTANIME;
     const d = this.#draft;
     if (!d.modifiers.includes("custom")) return;
-    if (!d.customModifierHeavy) {
-      // Going Heavy adds a second point of weight; `used` already counts Custom once, so check +1.
-      const used = modifiersBudget(d.modifiers, d);
-      const max = cfg.skillRanks[d.rank]?.maxModifiers ?? d.rank;
-      if (used + 1 > max) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modBudgetFull"));
-    }
+    // v0.03: no cap — Heavy just adds a second point of weight to the SP cost.
     d.customModifierHeavy = !d.customModifierHeavy;
     this.render();
   }
 
-  /** Flip the Re-equip Modifier's Heavy flag (rules: the Heavy form swaps your ENTIRE loadout).
-   *  Mirrors the Custom Heavy toggle — blocked if going Heavy would overflow the Rank's budget. */
+  /** Flip the Re-equip Modifier's Heavy flag (the Heavy form swaps your ENTIRE loadout). */
   static #onToggleReequipHeavy() {
     this.#sync();
-    const cfg = CONFIG.PROJECTANIME;
     const d = this.#draft;
     if (!d.modifiers.includes("reequip")) return;
-    if (!d.reequipHeavy) {
-      const used = modifiersBudget(d.modifiers, d);
-      const max = cfg.skillRanks[d.rank]?.maxModifiers ?? d.rank;
-      if (used + 1 > max) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modBudgetFull"));
-    }
     d.reequipHeavy = !d.reequipHeavy;
     this.render();
   }
@@ -1196,27 +1212,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     // A raised Servant / bonded Companion can never learn Animate or Companion (rules v0.01).
     if (SkillBuilderApp.barredEffects(this.actor).includes(d.effect)) {
-      this.#step = STEPS.indexOf("effect");
+      this.#step = STEPS.indexOf("roll");
       ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.servantNoEffect"));
       return this.render();
     }
-    // Both Effect slots must meet their Base Rank (rules v0.01) — walk back to the offending step.
-    if (effectBaseRank(d.effect) > d.rank) {
-      this.#step = STEPS.indexOf("effect");
-      ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.effectRankGate", {
-        stars: cfg.skillRanks[effectBaseRank(d.effect)]?.stars ?? effectBaseRank(d.effect)
-      }));
-      return this.render();
-    }
-    if (d.modifiers.includes("secondaryEffect") && effectBaseRank(d.secondaryEffect || "strike") > d.rank) {
-      this.#step = STEPS.indexOf("modifiers");
-      ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.effectRankGate", {
-        stars: cfg.skillRanks[effectBaseRank(d.secondaryEffect || "strike")]?.stars ?? ""
-      }));
-      return this.render();
-    }
     const name = (d.name || "").trim() || game.i18n.localize("PROJECTANIME.SkillBuilder.newSkillName");
-    const rankCost = cfg.skillRanks[d.rank]?.sp ?? d.rank;
     // The Secondary Effect persists only while its Modifier is selected; otherwise it's cleared.
     const hasSecondary = d.modifiers.includes("secondaryEffect");
     // Empower/Weaken/Transform attribute picks — kept to valid keys and the Effect's allowance
@@ -1228,7 +1228,6 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const hinderStatuses = [];
     const system = {
       description: d.description ?? "",
-      rank: d.rank,
       actionType: d.actionType,
       attributes: { attrA: d.attrA, attrB: d.attrB, attrC: d.attrC ?? "" },
       effectAttrs,
@@ -1270,15 +1269,22 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       // pool choice only while a valued Status (Barrier / Regen) is chosen.
       inflictStatus: d.modifiers.includes("inflict") && (cfg.conditionKeys ?? []).includes(d.inflictStatus) ? d.inflictStatus : "",
       decayType: (d.modifiers.includes("inflict") && d.inflictStatus === "decay") ? (d.decayType ?? "") : "",
+      // Protection's target stat persists only while its Modifier is selected.
+      protectionTarget: d.modifiers.includes("protection") ? (d.protectionTarget ?? "defense") : "defense",
       // Retaliation's damage type persists only while its Modifier is selected.
       retaliationType: d.modifiers.includes("retaliation") ? (d.retaliationType ?? "") : "",
       inflictPool: d.inflictPool === "energy" ? "energy" : "hp",
-      // Affinity takes persist only while their Modifier is selected; blank takes drop, and each
-      // Damage take's level clamps to the Rank (the Status flavor is always Immune — no level).
+      // Affinity takes persist only while their Modifier is selected; blank takes drop. v0.03
+      // authors Resist only (grandfathered immune/absorb levels pass through unchanged).
       affinityDamages: d.modifiers.includes("affinityDamage")
-        ? d.affinityDamages.filter((t) => t.type).map((t) => ({ type: t.type, level: clampAffinityLevel(t.level, d.rank) }))
+        ? d.affinityDamages.filter((t) => t.type).map((t) => ({ type: t.type, level: t.level || "resist" }))
         : [],
       affinityStatusIds: d.modifiers.includes("affinityStatus") ? d.affinityStatusIds.filter(Boolean) : [],
+      // Absorb / Immunity picks persist only while their Modifier is selected.
+      absorbElement: d.modifiers.includes("absorb") ? (d.absorbElement ?? "") : "",
+      immunityKind: d.immunityKind === "status" ? "status" : "element",
+      immunityElement: d.modifiers.includes("immunity") && d.immunityKind !== "status" ? (d.immunityElement ?? "") : "",
+      immunityStatus: d.modifiers.includes("immunity") && d.immunityKind === "status" ? (d.immunityStatus ?? "") : "",
       // Analyze / Infuse picks (kind always persists; the unused value side is cleared).
       analyzeCategory: d.analyzeCategory in cfg.analyzeCategories ? d.analyzeCategory : "vitals",
       infuseKind: d.infuseKind === "status" ? "status" : "element",
@@ -1293,21 +1299,23 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Skill Evasion persists only when the Skill actually makes an Accuracy Check — the assembled
     // system carries everything skillNeedsAccuracy reads (Effect slots, Modifiers, Target).
     system.skillEvasion = (skillNeedsAccuracy(system) && d.skillEvasion in cfg.skillEvasionAttrs) ? d.skillEvasion : "";
-    if (this.#editId) await this.#commitEdit(name, system, rankCost);
-    else await this.#commitNew(name, system, rankCost);
+    // v0.03: the SP cost derives from the assembled design (Effect minimum vs Modifier weight).
+    const spCost = skillSpCost(system);
+    if (this.#editId) await this.#commitEdit(name, system, spCost);
+    else await this.#commitNew(name, system, spCost);
   }
 
-  /** Create the Skill and spend SP = Rank (the rules' "Learning a Skill"), blocking if short. */
-  async #commitNew(name, system, rankCost) {
+  /** Create the Skill and spend its derived SP cost (the rules' "Learning a Skill"), blocking if short. */
+  async #commitNew(name, system, spCost) {
     const sp = this.actor.system.skillPoints?.value ?? 0;
-    if (rankCost > sp) {
-      return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: rankCost, sp }));
+    if (spCost > sp) {
+      return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: spCost, sp }));
     }
     const [created] = await this.actor.createEmbeddedDocuments("Item", [{
       name, type: "skill", img: this.#draft.img || DEFAULT_SKILL_IMG, system
     }]);
-    await this.actor.recordSkillPointSpend({ amount: rankCost, kind: "skill", ref: created?.id ?? "", label: name });
-    ui.notifications.info(game.i18n.format("PROJECTANIME.SkillBuilder.learned", { name, cost: rankCost }));
+    await this.actor.recordSkillPointSpend({ amount: spCost, kind: "skill", ref: created?.id ?? "", label: name });
+    ui.notifications.info(game.i18n.format("PROJECTANIME.SkillBuilder.learned", { name, cost: spCost }));
     this.#mode = "hub";
     this.#draft = null;
     this.#editId = null;
@@ -1324,7 +1332,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
    * Rank/Range/Modifier Improves fold back into the recomputed Rank cost as before.
    * Granted Skills are package-managed and free, so their fields are rewritten without SP changes.
    */
-  async #commitEdit(name, system, rankCost) {
+  async #commitEdit(name, system, spCost) {
     const item = this.item ?? this.actor.items.get(this.#editId);
     if (!item) { this.#mode = "hub"; this.#draft = null; this.#editId = null; return this.render(); }
 
@@ -1344,8 +1352,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       damageMod: keepDamage ? (prev.damageMod ?? 0) : 0,
       energyReduction: prev.energyReduction ?? 0
     };
-    // Does an Improve ledger entry still earn its keep on the rebuilt Skill? Structural Improves
-    // (Rank/Range/Modifier) always fold into the recomputed Rank cost, so they never carry over.
+    // Does an Enhancement ledger entry still earn its keep on the rebuilt Skill? Structural ones
+    // (Range/Modifier — and legacy Rank) fold into the recomputed SP cost, so they never carry
+    // over. Duration rides effectDuration, which the wizard itself carries.
     const improveSurvives = (e) => {
       switch (e.data?.op) {
         case "accuracy": return keepAccuracy;
@@ -1376,21 +1385,21 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         const entries = sp.log.filter((e) => e.ref === this.#editId);
         const kept = entries.filter((e) => e.kind === "improve" && improveSurvives(e));
         const logged = entries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-        const newSkillTotal = rankCost + kept.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const newSkillTotal = spCost + kept.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
         const newValue = value + logged - newSkillTotal;
         if (newValue < 0) {
           return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: newSkillTotal - logged, sp: value }));
         }
         const log = sp.log.filter((e) => e.ref !== this.#editId);
-        log.push({ id: foundry.utils.randomID(), label: name, amount: rankCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() }, ...kept);
+        log.push({ id: foundry.utils.randomID(), label: name, amount: spCost, kind: "skill", ref: this.#editId, data: {}, time: Date.now() }, ...kept);
         await this.actor.update({ "system.skillPoints.value": newValue, "system.skillPoints.log": log });
       } else {
         // Fallback for an actor with no ledger (NPCs now carry one, so this is rarely hit): reconcile
-        // by the Rank-cost DELTA (refund the Skill's current cost, charge the new) and mirror it into
+        // by the SP-cost DELTA (refund the Skill's current cost, charge the new) and mirror it into
         // the `spent` scalar. Surviving advancement fields are kept; ones that no longer fit aren't
         // separately refundable.
         const oldCost = Number(item.system.spCost) || 0;
-        const delta = rankCost - oldCost;
+        const delta = spCost - oldCost;
         const newValue = value - delta;
         if (newValue < 0) {
           return ui.notifications.warn(game.i18n.format("PROJECTANIME.SkillBuilder.notEnoughSp", { cost: delta, sp: value }));
@@ -1434,12 +1443,12 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
-  /** Ledger metadata for an Improve-mode purchase on `item` (op drives how Refund reverses it). */
+  /** Ledger metadata for an Enhancement purchase on `item` (op drives how Refund reverses it). */
   #improveMeta(item, op, key = "") {
     const cfg = CONFIG.PROJECTANIME;
-    let labelKey = { rank: "improveRank", range: "improveRange", energy: "improveEnergy", accuracy: "improveAccuracy", modifier: "improveModifier", growth: "improveGrowth" }[op];
-    // Sharpen Damage and Sharpen Healing share the `damage` op (one field); the log names the
-    // one that fits the Effect.
+    let labelKey = { range: "improveRange", duration: "improveDuration", energy: "improveEnergy", accuracy: "improveAccuracy", modifier: "improveModifier" }[op];
+    // The Power enhancement covers damage and healing (one field); the log names the one that
+    // fits the Effect.
     if (op === "damage") labelKey = item.system.effect === "mend" ? "improveHealing" : "improveDamage";
     return {
       kind: "improve", ref: item.id, data: { op, key },
@@ -1447,18 +1456,37 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
-  static async #onRaiseRank() {
-    const item = this.#advanceSkill();
-    if (!item || item.system.rank >= 5) return;
-    await this.#spend(1, () => item.update({ "system.rank": item.system.rank + 1 }), this.#improveMeta(item, "rank"));
-  }
-
   static async #onRaiseRange() {
     const item = this.#advanceSkill();
     if (!item) return;
-    const scope = item.system.range?.scope ?? "near";
-    if (!rangeHasTiles(scope)) return; // Self / Weapon / Very Far have no tiles to raise
+    const scope = item.system.range?.scope ?? "weapon";
+    if (!rangeHasTiles(scope)) return; // Self / Weapon / Scene have no tiles to raise
     await this.#spend(1, () => item.update({ "system.range.tiles": (item.system.range?.tiles ?? 0) + 1 }), this.#improveMeta(item, "range"));
+  }
+
+  /** "Area" (v0.03 Enhancement): +1 tile to an area Modifier's size (Burst / Aura), max +3 (1 SP). */
+  static async #onRaiseArea(event, target) {
+    const item = this.#advanceSkill();
+    if (!item) return;
+    const key = target.closest("[data-modifier]")?.dataset.modifier;
+    if (!key || !(CONFIG.PROJECTANIME.areaGrowModifiers ?? []).includes(key)) return;
+    if (!(item.system.modifiers ?? []).includes(key)) return;
+    const cur = item.system.modifierGrowth?.[key] ?? 0;
+    if (cur >= (CONFIG.PROJECTANIME.modifierGrowthMax ?? 3)) return;
+    await this.#spend(1, () => item.update({ [`system.modifierGrowth.${key}`]: cur + 1 }), {
+      kind: "improve", ref: item.id, data: { op: "growth", key },
+      label: game.i18n.format("PROJECTANIME.SkillLog.entry.improveArea", {
+        skill: item.name, mod: game.i18n.localize(CONFIG.PROJECTANIME.skillModifiers[key] ?? key)
+      })
+    });
+  }
+
+  /** "Duration" (v0.03 Enhancement): +1 turn on a Standard-duration Skill (1 SP). */
+  static async #onRaiseDuration() {
+    const item = this.#advanceSkill();
+    if (!item || item.system.actionType === "passive" || skillDuration(item.system) !== "standard") return;
+    const cur = item.system.effectDuration ?? CONFIG.PROJECTANIME.standardDurationTurns;
+    await this.#spend(1, () => item.update({ "system.effectDuration": cur + 1 }), this.#improveMeta(item, "duration"));
   }
 
   static async #onLowerEnergy() {
@@ -1480,6 +1508,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#spend(1, () => item.update({ "system.damageMod": (item.system.damageMod ?? 0) + 1 }), this.#improveMeta(item, "damage"));
   }
 
+  /** "Expansion" (v0.03): add a Modifier from the list — 1 SP, or 2 SP for a Heavy 🔶. */
   static async #onAddModifier(event, target) {
     const item = this.#advanceSkill();
     if (!item) return;
@@ -1488,9 +1517,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const mods = item.system.modifiers ?? [];
     const multiTake = (CONFIG.PROJECTANIME.multiTakeModifiers ?? []).includes(key);
     if (mods.includes(key) && !multiTake) return;
-    // Compatibility (mirrors the build wizard): no Secondary Effect / Duration Modifier on an
-    // always-on Skill; no Channeled Aura; Channeled↔Scene exclusive (Improve can't remove one).
+    // Compatibility (mirrors the build wizard): no Modifiers at all on Animate/Companion; no
+    // Secondary Effect / Duration Modifier on an always-on Skill; no Channeled Aura;
+    // Channeled↔Scene exclusive (Expansion can't remove one).
     const sys = item.system;
+    if ((CONFIG.PROJECTANIME.noModifierEffects ?? []).includes(sys.effect)) {
+      return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modIncompatible"));
+    }
     if (modifierBarredByType(key, sys)) {
       return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.passiveNoMod"));
     }
@@ -1500,28 +1533,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modIncompatible"));
     }
     const cost = isHeavyModifier(key, item.system) ? 2 : 1;
-    if ((item.system.modifiersUsed ?? 0) + cost > (item.system.maxModifiers ?? 0)) {
-      return ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.modBudgetFull"));
-    }
     // Adding a passive-only Modifier (Aura) flips the Skill to Passive so the field actually projects.
     const update = { "system.modifiers": mods.includes(key) ? mods : [...mods, key] };
-    // A multi-take Modifier records its new (blank) take — it weighs on the budget immediately;
+    // A multi-take Modifier records its new (blank) take — it weighs on the cost immediately;
     // the Element/Status gets picked the next time the Skill is rebuilt in the wizard.
     if (key === "affinityDamage") update["system.affinityDamages"] = [...(sys.affinityDamages ?? []), { type: "", level: "resist" }];
     if (key === "affinityStatus") update["system.affinityStatusIds"] = [...(sys.affinityStatusIds ?? []), ""];
     if ((CONFIG.PROJECTANIME.passiveOnlyModifiers ?? []).includes(key)) update["system.actionType"] = "passive";
-    await this.#spend(1, () => item.update(update), this.#improveMeta(item, "modifier", key));
-  }
-
-  /** "Tune a Modifier": grow a numeric Modifier's value by 1 (1 SP), capped at +3. */
-  static async #onTurnModifier(event, target) {
-    const item = this.#advanceSkill();
-    if (!item) return;
-    const key = target.closest("[data-modifier]")?.dataset.modifier;
-    if (!key || !CONFIG.PROJECTANIME.growableModifiers?.[key]) return;
-    if (!(item.system.modifiers ?? []).includes(key)) return;
-    const cur = item.system.modifierGrowth?.[key] ?? 0;
-    if (cur >= (CONFIG.PROJECTANIME.modifierGrowthMax ?? 3)) return;
-    await this.#spend(1, () => item.update({ [`system.modifierGrowth.${key}`]: cur + 1 }), this.#improveMeta(item, "growth", key));
+    await this.#spend(cost, () => item.update(update), this.#improveMeta(item, "modifier", key));
   }
 }

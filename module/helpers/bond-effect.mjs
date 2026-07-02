@@ -20,6 +20,7 @@
  * actor update/create hooks + the ready pass (project-anime.mjs), exactly like reconcileTraits.
  */
 import { normalizeRule } from "./effects.mjs";
+import { stampCompendiumSource } from "./gear.mjs";
 
 const FLAG_SCOPE = "project-anime";
 
@@ -140,7 +141,7 @@ async function deliverBondGrants(actor, grantWants) {
     else {
       let src = null;
       try { src = await fromUuid(g.uuid); } catch (_) { /* unresolved ref */ }
-      if (src?.documentName === "Item") data = src.toObject();
+      if (src?.documentName === "Item") data = stampCompendiumSource(src.toObject(), src);
     }
     if (!data) continue;   // source gone + no snapshot — skip silently
     delete data._id;

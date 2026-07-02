@@ -46,11 +46,25 @@ export function skillRulesHTML(item) {
   const mods = sys.modifiers ?? [];
   const has = (m) => mods.includes(m);
   const actor = item.actor ?? null;
-  const attrName = (slot) => loc(cfg.attributes[sys.attributes?.[slot]] ?? "");
-  // The damage/heal amount: the resolved die size if on an actor, else "your <Attr> die".
+  // POWER (v0.03): a flat number — the chosen ACC Attribute's value, plus Weapon DMG for a
+  // weapon-range Skill. On an actor the resolved number shows; standalone names the Attribute.
+  const weaponSkill = sys.range?.scope === "weapon";
+  const powerWeapon = weaponSkill && actor
+    ? ((actor.items ?? []).find((w) => w.type === "weapon" && w.system?.equipped && w.system.hand === "main")
+      ?? (actor.items ?? []).find((w) => w.type === "weapon" && w.system?.equipped) ?? null)
+    : null;
+  const powerAttrKey = (slot) => {
+    if (powerWeapon) {
+      const a = powerWeapon.system.accuracy ?? {};
+      return (slot === "attrB" ? a.attrB : a.attrA) ?? "might";
+    }
+    return sys.attributes?.[slot] ?? "might";
+  };
+  const attrName = (slot) => loc(cfg.attributes[powerAttrKey(slot)] ?? "");
   const dmgAmount = (slot) => {
-    const size = actor?.system?.attributes?.[sys.attributes?.[slot]]?.value;
-    return size ? numSpan("d" + size) : N("yourDie", { attr: `<strong>${attrName(slot)}</strong>` });
+    const size = actor?.system?.attributes?.[powerAttrKey(slot)]?.value;
+    if (!size) return N("yourDie", { attr: `<strong>${attrName(slot)}</strong>` });
+    return numSpan(size + (powerWeapon ? (Number(powerWeapon.system.damage?.mod) || 0) : 0));
   };
   const mv = (k) => numSpan(modifierValue(item, k));
   const condLabel = (id) => { const c = (cfg.statusConditions ?? []).find((x) => x.id === id); return c ? loc(c.name) : id; };
@@ -80,7 +94,9 @@ export function skillRulesHTML(item) {
       const t = ds.damageType ? elementLabel(ds.damageType) : "";
       core.push(t ? N("deals", { dmg: dmgAmount(ds.damageAttr), type: t }) : N("dealsPlain", { dmg: dmgAmount(ds.damageAttr) }));
     } else if (ds.effect === "mend") {
-      core.push(N("restores", { dmg: dmgAmount(ds.damageAttr) }));
+      // v0.03: a Heal restores HP or EP (chosen at creation).
+      const pool = loc(cfg.damagePools[(ds.damagePool === "energy") ? "energy" : "hp"]);
+      core.push(N("restores", { dmg: dmgAmount(ds.damageAttr), pool }));
     }
   }
 
@@ -145,7 +161,8 @@ export function skillRulesHTML(item) {
         sentences.push(N("illusion"));
         break;
       case "steal":
-        sentences.push((Number(sys.rank) || 1) >= 3 ? N("stealEquipped") : N("steal"));
+        // v0.03: base Steal takes from inventory only — equipped items need the Disarm Modifier.
+        sentences.push(N("steal"));
         break;
       case "telepathy":
         sentences.push(N("telepathy"));
@@ -234,7 +251,10 @@ export function skillRulesHTML(item) {
   if (has("cleanse")) sentences.push(N("cleanse"));
   if (has("cover")) sentences.push(N("cover"));
   if (has("charge")) sentences.push(N("charge"));
-  if (has("protection")) sentences.push(N("protection", { n: numSpan("+" + modifierValue(item, "protection")) }));
+  if (has("protection")) {
+    const stat = loc(sys.protectionTarget === "res" ? "PROJECTANIME.Stat.resShort" : "PROJECTANIME.Stat.defShort");
+    sentences.push(N("protection", { n: numSpan("+" + modifierValue(item, "protection")), stat }));
+  }
   if (has("retaliation")) {
     const n = numSpan(modifierValue(item, "retaliation"));
     const el = sys.retaliationType ? elementLabel(sys.retaliationType) : "";
@@ -252,15 +272,28 @@ export function skillRulesHTML(item) {
       }));
     }
   }
-  // Status affinities only ever grant Immune (no Resist/Absorb ladder).
+  // Status affinities grant Resist (v0.03: the chosen Status's duration is halved).
   if (has("affinityStatus")) {
     for (const id of sys.affinityStatusIds ?? []) {
       if (!id) continue;
-      sentences.push(N("affinityGrant", {
-        thing: `<strong>${condLabel(id)}</strong>`,
-        level: `<strong>${loc(cfg.affinityLevels.immune)}</strong>`
-      }));
+      sentences.push(N("affinityStatusResist", { thing: `<strong>${condLabel(id)}</strong>` }));
     }
+  }
+  // Absorb / Immunity (v0.03, Heavy Modifiers).
+  if (has("absorb") && sys.absorbElement) {
+    sentences.push(N("affinityGrant", {
+      thing: `<strong>${elementLabel(sys.absorbElement)}</strong>`,
+      level: `<strong>${loc(cfg.affinityLevels.absorb)}</strong>`
+    }));
+  }
+  if (has("immunity")) {
+    const thing = sys.immunityKind === "status"
+      ? (sys.immunityStatus ? condLabel(sys.immunityStatus) : "")
+      : (sys.immunityElement ? elementLabel(sys.immunityElement) : "");
+    if (thing) sentences.push(N("affinityGrant", {
+      thing: `<strong>${thing}</strong>`,
+      level: `<strong>${loc(cfg.affinityLevels.immune)}</strong>`
+    }));
   }
   if (has("analyze")) {
     sentences.push(N("analyze", { category: `<strong>${loc(cfg.analyzeCategories[sys.analyzeCategory] ?? "")}</strong>` }));
@@ -275,6 +308,10 @@ export function skillRulesHTML(item) {
   if (has("manifest")) sentences.push(N("manifest"));
   if (has("nullify")) sentences.push(N("nullify"));
   if (has("reequip")) sentences.push(N(sys.reequipHeavy ? "reequipHeavy" : "reequip"));
+  // v0.03 additions: Combo, Disarm, Waypoint (Mental reads through the Skill-Evasion line above).
+  if (has("combo")) sentences.push(N("combo"));
+  if (has("disarm")) sentences.push(N("disarm"));
+  if (has("waypoint")) sentences.push(N("waypoint"));
 
   // ---- Closing: duration / action economy / Energy / Aura field / React trigger. ----
   // Duration (rules v0.01): Channeled always announces its upkeep; Scene / Standard only when the
@@ -290,7 +327,7 @@ export function skillRulesHTML(item) {
     else if (lasting && dur === "scene") sentences.push(N("sceneLine"));
     else if (lasting && dur === "standard") sentences.push(N("durationTurns", { n: numSpan(sys.effectDuration ?? cfg.standardDurationTurns) }));
   }
-  if (sys.actionType === "passive") sentences.push(N("passiveLine", { n: numSpan(sys.passiveEnergyTax ?? Math.floor((Number(sys.baseEnergy) || 0) / 2)) }));
+  if (sys.actionType === "passive") sentences.push(N("passiveLine", { n: numSpan(sys.passiveEnergyTax ?? (Number(sys.baseEnergy) || 0)) }));
   else if (Number(sys.energyCost) > 0) sentences.push(N("costs", { n: numSpan(sys.energyCost) }));
   // Aura: the field applies the Skill's effect(s) to its audience nearby — the Skill's Target
   // decides who (Ally → you and allies; Foe → enemies only, never you; Any → everyone).

@@ -21,13 +21,17 @@ import { SkillBuilderApp } from "./skill-builder.mjs";
 import { tierScaling, starOrDialPower, npcVitals } from "../helpers/config.mjs";
 import { setSquadSize } from "../helpers/squad.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
+import {
+  GEAR_GROUPS, SLOT_ACCEPTS,
+  buildGearContext, slotOccupant, equipToSlot, clearSlot, importDroppedItem, readDrag, draggedItem
+} from "../helpers/gear.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 /** Creation steps, in order. The FRAME step merges the old Tier + Combat-Stats steps: you pick
  *  ★ / Tier / Role and read the finished statblock off a live card (no multiplication). TUNE is the
  *  old Attributes step — now optional, since Role pre-fills the dice. */
-const STEPS = ["concept", "frame", "tune", "abilities", "finish"];
+const STEPS = ["concept", "frame", "tune", "abilities", "gear", "finish"];
 
 /** Default icon for a freshly-created Basic Attack (natural weapon). */
 const NATURAL_WEAPON_IMG = "icons/svg/sword.svg";
@@ -66,6 +70,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       removeAttack: MonsterCreatorApp.#onRemoveAttack,
       openSkillBuilder: MonsterCreatorApp.#onOpenSkillBuilder,
       removeSkill: MonsterCreatorApp.#onRemoveSkill,
+      // Gear step — the same loadout actions the actor sheet's Gear drawer uses.
+      selectBag: MonsterCreatorApp.#onSelectBag,
+      toggleEquip: MonsterCreatorApp.#onToggleEquip,
+      unequipSlot: MonsterCreatorApp.#onUnequipSlot,
+      cycleShieldUse: MonsterCreatorApp.#onCycleShieldUse,
+      pickSlot: MonsterCreatorApp.#onPickSlot,
+      createItem: MonsterCreatorApp.#onCreateItem,
+      createMenu: MonsterCreatorApp.#onCreateMenu,
+      editItem: MonsterCreatorApp.#onEditItem,
+      deleteItem: MonsterCreatorApp.#onDeleteItem,
+      rollItem: MonsterCreatorApp.#onRollItem,
       finish: MonsterCreatorApp.#onFinish
     }
   };
@@ -76,6 +91,9 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
 
   /** Current step index. */
   #step = 0;
+
+  /** Selected inventory bag (container id, "" = backpack) on the Gear step. */
+  #selectedBag = "";
 
   get title() {
     return `${game.i18n.localize("PROJECTANIME.MonsterCreator.title")} — ${this.actor.name}`;
@@ -145,6 +163,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.onFrame = stepKey === "frame";
     ctx.onTune = stepKey === "tune";
     ctx.onAbilities = stepKey === "abilities";
+    ctx.onGear = stepKey === "gear";
     ctx.onFinish = stepKey === "finish";
 
     // Identity.
@@ -254,7 +273,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         id: i.id,
         name: i.name,
         img: i.img,
-        stars: cfg.skillRanks[i.system.rank]?.stars ?? "",
+        stars: `${i.system.spCost ?? 0} SP`,
         actionLabel: game.i18n.localize(cfg.actionTypes[i.system.actionType] ?? ""),
         energyCost: i.system.energyCost ?? 0,
         passive: i.system.actionType === "passive",
@@ -269,6 +288,20 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
           worth: game.i18n.localize(`PROJECTANIME.Worth.${this.actor.system.tier}`) }
       : null;
     ctx.skillCount = ctx.skills.length;
+
+    // Gear step — the same carried-gear UI players get on the actor sheet (paperdoll + bags + grid,
+    // via helpers/gear.mjs → gear-body.hbs), plus a live Defense/Evasion readout so the GM sees armor
+    // take effect. Only built while on the step; buildGearContext also corrects a stale selected bag.
+    if (ctx.onGear) {
+      ctx.actor = this.actor;
+      ctx.system = sys;
+      ctx.editable = this.actor.isOwner;
+      const gear = buildGearContext(this.actor, { selectedBag: this.#selectedBag });
+      this.#selectedBag = gear.selectedBag;
+      Object.assign(ctx, gear);   // paperdoll, bags, bagItems, selectedBag
+      ctx.defense = sys.defense.value;
+      ctx.evasion = sys.evasion.value;
+    }
 
     return ctx;
   }
@@ -302,6 +335,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     for (const input of this.element.querySelectorAll(".cc-attack-name")) {
       input.addEventListener("change", (ev) => this.#commitAttackName(ev.currentTarget));
     }
+    // Gear step: wire drag-drop (compendium/sidebar copy + paperdoll/bag equip zones).
+    if (this.actor.isOwner && STEPS[this.#step] === "gear") this.#bindGearDnD();
   }
 
   _onClose(options) {
@@ -608,6 +643,236 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     if (!item || item.type !== "weapon") return;
     const name = (input.value || "").trim() || game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName");
     if (name !== item.name) await item.update({ name });
+  }
+
+  /* -------------------------------------------- */
+  /*  Gear (loadout — same as the actor sheet)    */
+  /* -------------------------------------------- */
+
+  /** Resolve the item a gear row/tile belongs to (by the closest [data-item-id]). */
+  #getItem(target) {
+    const id = target.closest("[data-item-id]")?.dataset.itemId;
+    return id ? this.actor.items.get(id) : null;
+  }
+
+  /** Select a bag (container) → re-render so the inventory grid shows its contents. */
+  static #onSelectBag(event, target) {
+    this.#selectedBag = target.dataset.bagId || "";
+    this.render();
+  }
+
+  static async #onToggleEquip(event, target) {
+    const item = this.#getItem(target);
+    if (!item || !("equipped" in item.system)) return;
+    await item.update({ "system.equipped": !item.system.equipped });
+  }
+
+  static async #onUnequipSlot(event, target) {
+    await clearSlot(this.actor, target.dataset.slot);
+  }
+
+  static async #onCycleShieldUse(event, target) {
+    const item = this.#getItem(target);
+    if (!item || item.type !== "shield") return;
+    await item.update({ "system.use": item.system.use === "dual" ? "shield" : "dual" });
+  }
+
+  static #onPickSlot(event, target) {
+    this.#openSlotPicker(target.dataset.slot, target);
+  }
+
+  static #onCreateMenu(event, target) {
+    this.#openCreateMenu(target);
+  }
+
+  static async #onCreateItem(event, target) {
+    event.preventDefault();
+    await this.#createGearItem(target.dataset.type || "gear");
+  }
+
+  static #onEditItem(event, target) {
+    this.#getItem(target)?.sheet?.render(true);
+  }
+
+  static async #onDeleteItem(event, target) {
+    await this.#getItem(target)?.deleteDialog();
+  }
+
+  static async #onRollItem(event, target) {
+    this.#getItem(target)?.roll({ event });
+  }
+
+  /** Create one gear item of `type`, filed into the bag currently being viewed. */
+  async #createGearItem(type) {
+    const name = game.i18n.format("DOCUMENT.New", { type: game.i18n.localize(`TYPES.Item.${type}`) });
+    const data = { name, type };
+    if (this.#selectedBag && GEAR_GROUPS.includes(type)) data["system.container"] = this.#selectedBag;
+    await this.actor.createEmbeddedDocuments("Item", [data]);
+  }
+
+  /** Open the click-to-equip popover for a paperdoll slot: eligible items + an Unequip row. */
+  #openSlotPicker(slotKey, anchor) {
+    if (!this.actor.isOwner || !slotKey) return;
+    this.element.querySelector(".pd-picker")?.remove();
+
+    const base = slotKey.startsWith("accessory") ? "accessory" : slotKey;
+    const accepts = SLOT_ACCEPTS[base] ?? [];
+    const equipped = this.actor.items.filter((i) => i.system?.equipped);
+    const occupant = slotOccupant(slotKey, equipped);
+    const candidates = this.actor.items.filter((i) => accepts.includes(i.type)).sort(bySort);
+
+    const menu = document.createElement("div");
+    menu.className = "pd-picker";
+    menu.setAttribute("popover", "auto");
+
+    const addRow = (cls, build, onClick) => {
+      const row = document.createElement("div");
+      row.className = cls;
+      build(row);
+      row.addEventListener("click", () => { menu.hidePopover(); onClick(); });
+      menu.appendChild(row);
+    };
+
+    if (occupant) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Equipment.empty")), () => clearSlot(this.actor, slotKey));
+    for (const it of candidates) {
+      addRow(`pd-option${occupant && it.id === occupant.id ? " is-selected" : ""}`, (r) => {
+        const img = document.createElement("img");
+        img.src = it.img;
+        const span = document.createElement("span");
+        span.textContent = it.name;
+        r.append(img, span);
+      }, () => equipToSlot(this.actor, it, slotKey));
+    }
+    if (!menu.children.length) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Empty")), () => {});
+
+    this.element.appendChild(menu);
+    menu.addEventListener("toggle", (ev) => {
+      if (ev.newState === "open") this.#placePopover(menu, anchor);
+      else menu.remove();
+    });
+    menu.showPopover();
+  }
+
+  /** Item-creation type picker (the + tile in the flat inventory grid). */
+  #openCreateMenu(anchor) {
+    if (!this.actor.isOwner) return;
+    this.element.querySelector(".pd-picker")?.remove();
+    const icons = { weapon: "fa-khanda", armor: "fa-shirt", shield: "fa-shield-halved", accessory: "fa-ring", consumable: "fa-flask", gear: "fa-box-archive" };
+
+    const menu = document.createElement("div");
+    menu.className = "pd-picker";
+    menu.setAttribute("popover", "auto");
+    for (const type of GEAR_GROUPS) {
+      const row = document.createElement("div");
+      row.className = "pd-option";
+      const i = document.createElement("i");
+      i.className = `fas ${icons[type] ?? "fa-box"}`;
+      const span = document.createElement("span");
+      span.textContent = game.i18n.localize(`TYPES.Item.${type}`);
+      row.append(i, span);
+      row.addEventListener("click", () => { menu.hidePopover(); this.#createGearItem(type); });
+      menu.appendChild(row);
+    }
+    this.element.appendChild(menu);
+    menu.addEventListener("toggle", (ev) => {
+      if (ev.newState === "open") this.#placePopover(menu, anchor);
+      else menu.remove();
+    });
+    menu.showPopover();
+  }
+
+  /** Fixed-position a popover beside its anchor (flips above if it won't fit below). */
+  #placePopover(menu, anchor) {
+    const r = anchor.getBoundingClientRect();
+    Object.assign(menu.style, { position: "fixed", inset: "auto", margin: "0", left: `${Math.round(r.left)}px`, minWidth: `${Math.max(r.width, 170)}px` });
+    const h = menu.offsetHeight;
+    const fitsBelow = r.bottom + 4 + h <= window.innerHeight;
+    menu.style.top = `${Math.round(fitsBelow || r.top - h - 4 < 0 ? r.bottom + 4 : r.top - h - 4)}px`;
+  }
+
+  /** Native drag-and-drop for the Gear step: drop a gear item from a compendium / sidebar / another
+   *  sheet onto the step to copy it here; drag a tile onto a paperdoll slot to equip, onto the bag to
+   *  unequip, onto a bag tab to refile. Mirrors the actor sheet's #bindPaperdoll + #onSheetDrop —
+   *  standalone, since the creator is not an ActorSheetV2 (no base ondrop to fight). */
+  #bindGearDnD() {
+    const root = this.element;
+    if (!root) return;
+
+    // Root copy target lives on the persistent window root → bind once.
+    if (!root.dataset.paCreatorDrop) {
+      root.dataset.paCreatorDrop = "1";
+      root.addEventListener("dragover", (ev) => { ev.preventDefault(); });
+      root.addEventListener("drop", (ev) => this.#onGearDrop(ev));
+    }
+
+    // Per-render: (re)mark tiles draggable + (re)wire the paperdoll / bag drop zones.
+    for (const el of root.querySelectorAll("[data-item-id][draggable='true']")) {
+      for (const img of el.querySelectorAll("img")) img.setAttribute("draggable", "false");
+      el.addEventListener("dragstart", (ev) => {
+        const uuid = this.actor?.items.get(el.dataset.itemId)?.uuid;
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ paItem: el.dataset.itemId, type: "Item", uuid }));
+        ev.dataTransfer.effectAllowed = "copyMove";
+      });
+    }
+
+    for (const slot of root.querySelectorAll(".pd-slot")) {
+      slot.addEventListener("dragover", (ev) => { ev.preventDefault(); slot.classList.add("drag-over"); });
+      slot.addEventListener("dragleave", () => slot.classList.remove("drag-over"));
+      slot.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        slot.classList.remove("drag-over");
+        // Own item → equip it; foreign item → copy it onto this monster first, then equip the copy.
+        const item = draggedItem(this.actor, ev) ?? await importDroppedItem(this.actor, readDrag(ev));
+        if (item) equipToSlot(this.actor, item, slot.dataset.slot);
+      });
+    }
+
+    const bag = root.querySelector(".pd-bag");
+    if (bag) {
+      bag.addEventListener("dragover", (ev) => ev.preventDefault());
+      bag.addEventListener("drop", (ev) => {
+        const item = draggedItem(this.actor, ev);
+        if (item?.system?.equipped) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          item.update({ "system.equipped": false });
+        }
+      });
+    }
+
+    for (const tab of root.querySelectorAll(".bag-tab")) {
+      tab.addEventListener("dragover", (ev) => { ev.preventDefault(); tab.classList.add("drag-over"); });
+      tab.addEventListener("dragleave", () => tab.classList.remove("drag-over"));
+      tab.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        tab.classList.remove("drag-over");
+        const bagId = tab.dataset.bagId || "";
+        const item = draggedItem(this.actor, ev);
+        if (item) {
+          // Own item → just refile it into this bag.
+          if (item.type !== "container" && (item.system.container || "") !== bagId) {
+            await item.update({ "system.container": bagId });
+          }
+          return;
+        }
+        // Foreign item → copy it straight into this bag.
+        await importDroppedItem(this.actor, readDrag(ev), { container: bagId });
+      });
+    }
+  }
+
+  /** Root drop: copy a dropped foreign gear item onto the monster (own-tile drops are handled by the
+   *  paperdoll/bag zones, which stopPropagation). No-op off the Gear step. */
+  async #onGearDrop(ev) {
+    if (STEPS[this.#step] !== "gear") return;
+    if (ev.target?.closest?.("prose-mirror, .ProseMirror, .editor-content")) return;
+    const data = readDrag(ev);
+    if (data?.type !== "Item" || !data.uuid) return;
+    if (data.paItem && this.actor.items.has(data.paItem)) return; // own tile → its zone handles it
+    ev.preventDefault();
+    await importDroppedItem(this.actor, data);
   }
 
   /* -------------------------------------------- */

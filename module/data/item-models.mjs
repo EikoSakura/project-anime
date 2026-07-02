@@ -1,4 +1,4 @@
-import { PROJECTANIME, modifiersBudget, effectModifierCap } from "../helpers/config.mjs";
+import { PROJECTANIME, modifiersBudget, rangeModifierCost, skillSpCost } from "../helpers/config.mjs";
 
 const fields = foundry.data.fields;
 const requiredInteger = { required: true, nullable: false, integer: true };
@@ -32,11 +32,14 @@ const damageField = () =>
     type: new fields.StringField({ required: true, blank: false, initial: "physical" })
   });
 
-/** Physical range block — melee/ranged and a tile count. */
+/** Physical range block — tile reach, with an optional minimum for banded ranges ("2–8").
+ *  `type` (melee/ranged) is legacy display data (v0.03 shows tile numbers only); kept so stored
+ *  gear validates. */
 const physicalRangeField = (type = "melee", tiles = 1) =>
   new fields.SchemaField({
     type: new fields.StringField({ required: true, blank: false, initial: type, choices: PROJECTANIME.rangeTypes }),
-    tiles: new fields.NumberField({ ...requiredInteger, initial: tiles, min: 0 })
+    tiles: new fields.NumberField({ ...requiredInteger, initial: tiles, min: 0 }),
+    minTiles: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
   });
 
 /* -------------------------------------------- */
@@ -60,6 +63,9 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
   static defineSchema() {
     const schema = super.defineSchema();
 
+    // LEGACY (pre-v0.03): the old star Rank. Nothing derives from it anymore — SP cost is
+    // computed from the Effect + Modifiers (config.mjs skillSpCost). Kept so stored data and
+    // old ledger refunds validate.
     schema.rank = new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 5 });
     schema.actionType = new fields.StringField({
       required: true, blank: false, initial: "action", choices: PROJECTANIME.actionTypes
@@ -83,12 +89,12 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // For damage/heal Effects (Strike / Mend): which of the two Attributes' die to
     // roll for the amount (rules: "choose one of its two Attributes").
     schema.damageAttr = new fields.StringField({ required: true, blank: false, initial: "attrA", choices: ["attrA", "attrB"] });
-    // Range = a named scope plus an editable tile count. The scope's "up to N"
-    // is just a recommendation; the player sets the actual `tiles` (Self / Weapon /
-    // Very Far ignore it). See PROJECTANIME.rangeTiles.
+    // Range (v0.03) = a scope plus an editable tile count. Skills default to WEAPON range;
+    // "tiles" (Range (X tiles)) and "scene" (Range (Scene)) are range overrides that each add
+    // +1 SP (config.mjs rangeModifierCost). Legacy Melee/Near/Far/Very Far migrate below.
     schema.range = new fields.SchemaField({
-      scope: new fields.StringField({ required: true, blank: false, initial: "near", choices: PROJECTANIME.ranges }),
-      tiles: new fields.NumberField({ ...requiredInteger, initial: 5, min: 0 })
+      scope: new fields.StringField({ required: true, blank: false, initial: "weapon", choices: PROJECTANIME.ranges }),
+      tiles: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 })
     });
     schema.effect = new fields.StringField({
       required: true, blank: false, initial: "strike", choices: PROJECTANIME.skillEffects
@@ -143,7 +149,15 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // the status-affinity engine isn't automated yet, so these drive the rules text on the card.
     // Only meaningful while the "affinityStatus" Modifier is selected.
     schema.affinityStatusIds = new fields.ArrayField(new fields.StringField({ blank: true }), { initial: [] });
-    // A Strike can deal Hit Point or Energy damage; default Hit Points.
+    // Absorb Modifier (v0.03, Heavy) — the Damage Type the target Absorbs (takes none, heals
+    // instead). Only meaningful while "absorb" is selected.
+    schema.absorbElement = new fields.StringField({ required: false, blank: true, initial: "" });
+    // Immunity Modifier (v0.03, Heavy) — full Immunity to a Damage Type OR a Status Effect
+    // (chosen at creation). Only meaningful while "immunity" is selected.
+    schema.immunityKind = new fields.StringField({ required: true, blank: false, initial: "element", choices: ["element", "status"] });
+    schema.immunityElement = new fields.StringField({ required: false, blank: true, initial: "" });
+    schema.immunityStatus = new fields.StringField({ required: false, blank: true, initial: "" });
+    // A Strike deals — and a Heal restores — Hit Points or Energy (chosen at creation).
     schema.damagePool = new fields.StringField({ required: true, blank: false, initial: "hp", choices: PROJECTANIME.damagePools });
     // How long an ACTIVE Bolster/Hinder effect lasts, in combat rounds. Null/blank = "the scene"
     // (auto-expires when combat ends). Ignored by Passive Skills — their effect is always-on. An
@@ -170,6 +184,8 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // target. Chosen from the game's Elements at creation; blank = untyped. Only meaningful while
     // the `retaliation` Modifier is selected (see helpers/effects.mjs skillModifierRules).
     schema.retaliationType = new fields.StringField({ required: false, blank: true, initial: "" });
+    // Protection target — whether the Protection modifier boosts DEF or RES.
+    schema.protectionTarget = new fields.StringField({ required: true, blank: false, initial: "defense", choices: ["defense", "res"] });
 
     // Analyze Modifier — which category a successful hit reveals (chosen at creation).
     schema.analyzeCategory = new fields.StringField({ required: true, blank: false, initial: "vitals", choices: PROJECTANIME.analyzeCategories });
@@ -229,6 +245,18 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     if (typeof source?.range === "string") {
       const scope = source.range;
       source.range = { scope, tiles: PROJECTANIME.rangeTiles?.[scope] ?? 0 };
+    }
+    // v0.03 collapsed the range bands: Melee/Near/Far → a plain tile count ("Range (X tiles)"),
+    // Very Far → Scene. The stored tile count carries over (band default when it was blank/0).
+    if (source?.range && typeof source.range === "object") {
+      const legacyTiles = { melee: 1, near: 5, far: 10 };
+      const sc = source.range.scope;
+      if (sc in legacyTiles) {
+        source.range.scope = "tiles";
+        if (!(Number(source.range.tiles) > 0)) source.range.tiles = legacyTiles[sc];
+      } else if (sc === "veryFar") {
+        source.range.scope = "scene";
+      }
     }
     if (source && source.effectAttrs === undefined && (source.effect === "bolster" || source.effect === "hinder")) {
       const at = source.attributes ?? {};
@@ -313,27 +341,25 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
   }
 
   prepareDerivedData() {
-    const rank = PROJECTANIME.skillRanks[this.rank] ?? PROJECTANIME.skillRanks[1];
-    this.spCost = rank.sp;
-    // Base Energy is rank×2; the "Lower Energy Cost" advancement reduces it, but never
-    // below half the base (the rules' minimum).
-    this.baseEnergy = rank.energy;
-    this.minEnergy = Math.ceil(rank.energy / 2);
+    // v0.03: SP cost = max(Effect minimum, Modifier weight + Range surcharge) — no Ranks.
+    this.spCost = skillSpCost(this);
+    // Base Energy is SP×2; the "Efficiency" enhancement reduces it, but never below half the
+    // base (the rules' minimum).
+    this.baseEnergy = this.spCost * 2;
+    this.minEnergy = Math.ceil(this.baseEnergy / 2);
     // Passive Skills are always-on and cost nothing to use — only active/reaction Skills
     // spend Energy. Zeroing it here is the single source of truth, so no sheet, drawer,
     // tooltip, or chat card ever shows an Energy cost for a passive.
     this.energyCost = this.actionType === "passive"
       ? 0
-      : Math.max(rank.energy - (this.energyReduction ?? 0), this.minEnergy);
-    // A Passive Skill spends no Energy on use; instead, while known it permanently taxes the
-    // bearer's MAXIMUM Energy by half its nominal cost (rank×2), floored — a Rank 1 passive
-    // (2 EP) lowers max Energy by 1. The actor sums this across owned Skills (actor-models.mjs).
-    this.passiveEnergyTax = this.actionType === "passive" ? Math.floor(this.baseEnergy / 2) : 0;
-    // Animate / Companion can carry NO Modifiers (rules v0.01) — their budget is zero.
-    this.maxModifiers = effectModifierCap(this.effect, this.rank);
-    // Heavy modifiers (Devour, Mass, or a Custom flagged Heavy) count as two toward the Rank budget.
-    this.modifiersUsed = modifiersBudget(this.modifiers, this);
-    this.modifiersOver = this.modifiersUsed > this.maxModifiers;
+      : Math.max(this.baseEnergy - (this.energyReduction ?? 0), this.minEnergy);
+    // A Passive Skill spends no Energy on use; instead, while known it permanently subtracts
+    // its FULL Energy cost (SP×2) from the bearer's maximum Energy (v0.03: "Passive Skills
+    // subtract this from maximum Energy instead of paying per use"). Summed in actor-models.mjs.
+    this.passiveEnergyTax = this.actionType === "passive" ? this.baseEnergy : 0;
+    // The Modifier weight shown on sheets (Heavy = 2, Range overrides count 1). v0.03 has no
+    // Modifier cap — weight only drives the SP cost.
+    this.modifiersUsed = modifiersBudget(this.modifiers, this) + rangeModifierCost(this);
   }
 }
 
@@ -386,13 +412,38 @@ export class ProjectAnimeWeapon extends ProjectAnimeItemBase {
 export class ProjectAnimeArmor extends ProjectAnimeItemBase {
   static defineSchema() {
     const schema = super.defineSchema();
-    schema.defenseBonus = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
-    schema.evasionPenalty = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+    schema.protection = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+    schema.defSplit = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+    schema.resSplit = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+    schema.evasionMod = new fields.NumberField({ ...requiredInteger, initial: 0 });
     schema.size = sizeField(1);
     schema.cost = costField();
     schema.equipped = equippedField();
     schema.container = containerField();
     return schema;
+  }
+
+  prepareDerivedData() {
+    const total = this.defSplit + this.resSplit;
+    if (total > this.protection) {
+      const scale = this.protection / (total || 1);
+      this.defSplit = Math.floor(this.defSplit * scale);
+      this.resSplit = this.protection - this.defSplit;
+    }
+  }
+
+  static migrateData(source) {
+    if ("defenseBonus" in source && !("protection" in source)) {
+      source.protection = source.defenseBonus ?? 0;
+      source.defSplit = source.defenseBonus ?? 0;
+      source.resSplit = 0;
+      delete source.defenseBonus;
+    }
+    if ("evasionPenalty" in source && !("evasionMod" in source)) {
+      source.evasionMod = -(source.evasionPenalty ?? 0);
+      delete source.evasionPenalty;
+    }
+    return super.migrateData(source);
   }
 }
 

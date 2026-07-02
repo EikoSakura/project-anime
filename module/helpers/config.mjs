@@ -31,6 +31,25 @@ PROJECTANIME.attributeIcons = {
   charm: "fa-solid fa-masks-theater"
 };
 
+/** Half-score of a die value: d4→2, d6→3, d8→4, d10→5, d12→6. */
+export function halfScore(dieValue) {
+  return Math.floor((dieValue ?? 4) / 2);
+}
+
+/** True if a weapon's accuracy attributes include Might (physical weapon → ATK vs DEF). */
+export function isPhysicalWeapon(weapon) {
+  const a = weapon?.system?.accuracy?.attrA;
+  const b = weapon?.system?.accuracy?.attrB;
+  return a === "might" || b === "might";
+}
+
+/** True if a weapon's accuracy attributes include Mind (magical weapon → MATK vs RES). */
+export function isMagicalWeapon(weapon) {
+  const a = weapon?.system?.accuracy?.attrA;
+  const b = weapon?.system?.accuracy?.attrB;
+  return a === "mind" || b === "mind";
+}
+
 /* -------------------------------------------- */
 /*  Talents (NPC HQ work dice)                  */
 /* -------------------------------------------- */
@@ -72,51 +91,86 @@ PROJECTANIME.actionTypes = {
   react: "PROJECTANIME.Skill.actionType.react"
 };
 
-/** Skill Range scopes (single-target / AOE centre point). */
+/** Skill Range scopes (v0.03): a Skill defaults to WEAPON range; Self is free (a targeting
+ *  choice); a set tile count ("Range (X tiles)") and Scene ("Range (Scene)") are RANGE MODIFIERS —
+ *  each adds +1 to the Skill's SP cost (rangeModifierCost). Legacy Melee/Near/Far/Very Far scopes
+ *  migrate to tiles/scene in item-models.mjs. */
 PROJECTANIME.ranges = {
-  self: "PROJECTANIME.Range.self",
   weapon: "PROJECTANIME.Range.weapon",
-  melee: "PROJECTANIME.Range.melee",
-  near: "PROJECTANIME.Range.near",
-  far: "PROJECTANIME.Range.far",
-  veryFar: "PROJECTANIME.Range.veryFar"
+  self: "PROJECTANIME.Range.self",
+  tiles: "PROJECTANIME.Range.tiles",
+  scene: "PROJECTANIME.Range.scene"
 };
 
-/** Recommended ("up to") tile value per Range scope. 0 = not a tile distance
- *  (Self / Weapon / Very Far carry no tile count); the rest the player sets, with
- *  these as the rules' suggested cap. */
-PROJECTANIME.rangeTiles = { self: 0, weapon: 0, melee: 1, near: 5, far: 10, veryFar: 0 };
+/** Default tile value per Range scope (0 = not a tile distance). */
+PROJECTANIME.rangeTiles = { self: 0, weapon: 0, tiles: 1, scene: 0 };
 
-/** True when a Range scope uses an editable tile count (Melee / Near / Far). */
+/** True when a Range scope uses an editable tile count. */
 export function rangeHasTiles(scope) {
-  return (PROJECTANIME.rangeTiles[scope] ?? 0) > 0;
+  return scope === "tiles";
 }
 
-/** Localized display for a Skill's range: "Near · 4 tiles" for tile scopes, else
- *  just the scope ("Self"). Tolerates the legacy string form during migration. */
+/** The SP a Skill's Range choice adds (v0.03: Range (X tiles) and Range (Scene) are Modifiers
+ *  costing 1 each; Weapon and Self are free). */
+export function rangeModifierCost(sys) {
+  const scope = sys?.range?.scope;
+  return (scope === "tiles" || scope === "scene") ? 1 : 0;
+}
+
+/** Localized display for a Skill's range: "Range · 4 tiles" for the tile scope, else just the
+ *  scope ("Self" / "Weapon" / "Scene"). Tolerates the legacy string form during migration. */
 export function rangeLabel(range) {
-  const scope = (range && typeof range === "object" ? range.scope : range) ?? "near";
+  const scope = (range && typeof range === "object" ? range.scope : range) ?? "weapon";
   const label = game.i18n.localize(PROJECTANIME.ranges[scope] ?? scope);
   if (!rangeHasTiles(scope)) return label;
   const tiles = (range && typeof range === "object" ? range.tiles : PROJECTANIME.rangeTiles[scope]) ?? 0;
   return `${label} · ${tiles} ${game.i18n.localize("PROJECTANIME.Skill.tiles")}`;
 }
 
-/** Localized display for a Weapon/Shield's physical range: "Melee · 1" / "Ranged · 5"
- *  — the range type plus its tile reach. The Skill-range counterpart is rangeLabel. */
+/** Localized display for a Weapon/Shield's physical range (v0.03: tile numbers only —
+ *  "1" or "2–8"; the Melee/Ranged labels are gone). The Skill-range counterpart is rangeLabel. */
 export function physicalRangeLabel(range) {
-  const type = game.i18n.localize(PROJECTANIME.rangeTypes[range?.type] ?? range?.type ?? "");
-  return `${type} · ${range?.tiles ?? 0}`;
+  const max = Number(range?.tiles) || 0;
+  const min = Number(range?.minTiles) || 0;
+  return (min > 0 && min !== max) ? `${min}–${max}` : `${max}`;
 }
 
-/** Rank metadata: SP cost to create, Energy cost to use, and max Modifiers. */
-PROJECTANIME.skillRanks = {
-  1: { label: "PROJECTANIME.Skill.rank.basic", stars: "★", sp: 1, energy: 2, maxModifiers: 1 },
-  2: { label: "PROJECTANIME.Skill.rank.intermediate", stars: "★★", sp: 2, energy: 4, maxModifiers: 2 },
-  3: { label: "PROJECTANIME.Skill.rank.advanced", stars: "★★★", sp: 3, energy: 6, maxModifiers: 3 },
-  4: { label: "PROJECTANIME.Skill.rank.expert", stars: "★★★★", sp: 4, energy: 8, maxModifiers: 4 },
-  5: { label: "PROJECTANIME.Skill.rank.master", stars: "★★★★★", sp: 5, energy: 10, maxModifiers: 5 }
+/** v0.03: Ranks are gone. A Skill's SP cost = the weight of its Modifiers, with a minimum equal
+ *  to its Effect's cost. Heavy Modifiers count as two; Targeting, React, and Passive are free;
+ *  Range (X tiles) / Range (Scene) each count 1. Energy to use = SP × 2. */
+PROJECTANIME.effectMinCost = {
+  affinity: 1, animate: 2, bolster: 2, companion: 2, conjure: 1, custom: 1,
+  disguise: 1, elementalControl: 1, gate: 1, hinder: 1, illusion: 2, mend: 1,
+  passive: 0, sense: 2, steal: 1, strike: 1, telepathy: 2, transform: 2, vanish: 1
 };
+
+/** An Effect's minimum SP cost (the "None"/Modifiers-only carrier is 0; unknown → 1). */
+export function effectMinCost(effect) {
+  return PROJECTANIME.effectMinCost[effect] ?? 1;
+}
+
+/** Effects retired from NEW authoring (v0.03): Animate moved to Modules; the Affinity Effect is
+ *  covered by the Affinity / Immunity / Absorb Modifiers on a Modifiers-only Skill. Stored Skills
+ *  keep working; the Builder only lists these while one is already the current selection. */
+PROJECTANIME.retiredEffects = ["animate", "affinity"];
+
+/**
+ * A Skill's derived SP cost (v0.03): max(Effect minimum, Modifier weight + Range surcharge).
+ * With the Secondary Effect Modifier the second Effect's minimum must also be met. This is the
+ * single cost authority — the data model, the Builder, and the SP reconcile all read it.
+ */
+export function skillSpCost(sys) {
+  if (!sys) return 0;
+  const weight = modifiersBudget(sys.modifiers ?? [], sys) + rangeModifierCost(sys);
+  let min = effectMinCost(sys.effect);
+  if (skillHasSecondary(sys)) min = Math.max(min, effectMinCost(sys.secondaryEffect));
+  return Math.max(min, weight);
+}
+
+/** Card/badge label for a Skill's cost — "2 SP" (replaces the old rank stars). */
+export function skillCostLabel(sys) {
+  return `${Number(sys?.spCost ?? skillSpCost(sys)) || 0} SP`;
+}
 
 /** How many Attributes an attribute-touching Effect changes (rules v0.01): Empower steps up ONE
  *  chosen Attribute, Weaken steps down ONE; Transform steps up one Attribute by two OR two
@@ -152,33 +206,10 @@ PROJECTANIME.skillEffects = {
   vanish: "PROJECTANIME.Skill.effect.vanish"
 };
 
-/** Each Effect's Base Rank — the minimum Rank a Skill must be to take it (rules v0.01: Effects
- *  have a Base Rank). Doc values for the Effects the doc defines; the system-side Effects
- *  (Affinity / Custom) stay open at ⭐. Skills created before the gate are
- *  grandfathered: the Builder blocks NEW picks below the Base Rank, stored ones keep working. */
-PROJECTANIME.effectBaseRanks = {
-  affinity: 1, animate: 2, bolster: 3, companion: 2, conjure: 1, custom: 1,
-  disguise: 1, elementalControl: 1, gate: 1, hinder: 1, illusion: 2, mend: 1,
-  passive: 1, sense: 2, steal: 1, strike: 1,
-  telepathy: 2, transform: 2, vanish: 1
-};
-
-/** An Effect's Base Rank (1 when unlisted). */
-export function effectBaseRank(effect) {
-  return PROJECTANIME.effectBaseRanks[effect] ?? 1;
-}
-
-/** Effects that can carry NO Modifiers at all (rules v0.01: "This effect cannot have
- *  Modifiers" — Animate, Companion). Their Modifier budget is zero whatever the Rank. */
+/** Effects that can carry NO Modifiers at all (v0.03: "This Effect cannot have Modifiers" —
+ *  Companion; Animate kept for legacy data). There is no other Modifier cap — v0.03 lets a
+ *  Skill take as many Modifiers as it wants (each raises the SP cost). */
 PROJECTANIME.noModifierEffects = ["animate", "companion"];
-
-/** The Modifier budget a Skill's Rank allows, honoring the no-Modifier Effects (zero for
- *  Animate / Companion). The single authority — the data model, the Builder, and the
- *  Improve list all size their budget through here. */
-export function effectModifierCap(effect, rank) {
-  if (PROJECTANIME.noModifierEffects.includes(effect)) return 0;
-  return PROJECTANIME.skillRanks[rank]?.maxModifiers ?? (Number(rank) || 1);
-}
 
 /** Servant tier → the multiplier on the Animate Skill's Energy cost that the raised servant
  *  locks out of the caster's MAXIMUM Energy while it exists (rules v0.01: Minion ½ · Standard
@@ -272,11 +303,22 @@ export function skillEvasionAttr(sys) {
   return k in PROJECTANIME.skillEvasionAttrs ? k : "";
 }
 
-/** The Skill Evasion the doc assigns each Effect (the Builder's seed when the Effect is
- *  chosen): Disguise/Illusion vs Mind-or-Charm, Telepathy/Vanish vs Mind-or-Spirit. */
+/** The Attribute pair an Effect's "Targets ⟪X⟫ or ⟪Y⟫ (chosen at creation)" offers (v0.03):
+ *  Disguise/Illusion target Mind or Charm, Telepathy/Vanish target Mind or Spirit. The Builder
+ *  stores the ONE chosen Attribute in `skillEvasion`; legacy pair values ("mindCharm") still
+ *  resolve at read as better-of-pair (skillEvasionKeys). */
 PROJECTANIME.effectSkillEvasion = {
   disguise: "mindCharm", illusion: "mindCharm", telepathy: "mindSpirit", vanish: "mindSpirit"
 };
+
+/** The single-Attribute choices an Effect's evasion swap offers at creation ([] = none). */
+export function effectEvasionChoices(effect) {
+  return skillEvasionKeys(PROJECTANIME.effectSkillEvasion?.[effect] ?? "");
+}
+
+/** The Mental Modifier's choices (v0.03: "Choose ⟪Mind⟫, ⟪Spirit⟫, or ⟪Charm⟫. Targets the
+ *  chosen Attribute instead of EVA") — written into `skillEvasion` like an Effect's swap. */
+PROJECTANIME.mentalAttrs = ["mind", "spirit", "charm"];
 
 /** A Strike Skill can deal Hit Point or Energy damage (rules: Strike). */
 PROJECTANIME.damagePools = {
@@ -295,12 +337,15 @@ PROJECTANIME.damageEffects = ["strike", "affinity"];
  *  one of its two Attributes. You roll that Attribute's die"). */
 PROJECTANIME.dieEffects = ["strike", "mend"];
 
-/** Effects that choose a pool (Hit Points / Energy): Strike (which pool its damage hits). Other
- *  Effects hide the pool field. */
-PROJECTANIME.poolEffects = ["strike"];
+/** Effects that choose a pool (Hit Points / Energy): Strike (which pool its damage hits) and
+ *  Mend/Heal (v0.03: "Restore HP or EP, chosen at creation"). Other Effects hide the pool field. */
+PROJECTANIME.poolEffects = ["strike", "mend"];
 
-/** Optional Modifiers that shape a Skill (count toward the Rank's max). */
+/** Optional Modifiers that shape a Skill (v0.03: each adds +1 SP; Heavy 🔶 adds +2). One
+ *  alphabetized list — Targeting lives on the Skill's Target field (free) and Range overrides on
+ *  its Range field (rangeModifierCost). "burst" is a system-side area shape kept from v0.02. */
 PROJECTANIME.skillModifiers = {
+  absorb: "PROJECTANIME.Skill.modifier.absorb",
   affinityDamage: "PROJECTANIME.Skill.modifier.affinityDamage",
   affinityStatus: "PROJECTANIME.Skill.modifier.affinityStatus",
   analyze: "PROJECTANIME.Skill.modifier.analyze",
@@ -311,16 +356,20 @@ PROJECTANIME.skillModifiers = {
   channeled: "PROJECTANIME.Skill.modifier.channeled",
   charge: "PROJECTANIME.Skill.modifier.charge",
   cleanse: "PROJECTANIME.Skill.modifier.cleanse",
+  combo: "PROJECTANIME.Skill.modifier.combo",
   cover: "PROJECTANIME.Skill.modifier.cover",
   custom: "PROJECTANIME.Skill.modifier.custom",
   devour: "PROJECTANIME.Skill.modifier.devour",
+  disarm: "PROJECTANIME.Skill.modifier.disarm",
   drainEnergy: "PROJECTANIME.Skill.modifier.drainEnergy",
   drainHP: "PROJECTANIME.Skill.modifier.drainHP",
+  immunity: "PROJECTANIME.Skill.modifier.immunity",
   inflict: "PROJECTANIME.Skill.modifier.inflict",
   infuse: "PROJECTANIME.Skill.modifier.infuse",
   line: "PROJECTANIME.Skill.modifier.line",
   manifest: "PROJECTANIME.Skill.modifier.manifest",
   mass: "PROJECTANIME.Skill.modifier.mass",
+  mental: "PROJECTANIME.Skill.modifier.mental",
   move: "PROJECTANIME.Skill.modifier.move",
   nullify: "PROJECTANIME.Skill.modifier.nullify",
   pierce: "PROJECTANIME.Skill.modifier.pierce",
@@ -330,16 +379,17 @@ PROJECTANIME.skillModifiers = {
   reequip: "PROJECTANIME.Skill.modifier.reequip",
   retaliation: "PROJECTANIME.Skill.modifier.retaliation",
   scene: "PROJECTANIME.Skill.modifier.scene",
-  secondaryEffect: "PROJECTANIME.Skill.modifier.secondaryEffect"
+  secondaryEffect: "PROJECTANIME.Skill.modifier.secondaryEffect",
+  waypoint: "PROJECTANIME.Skill.modifier.waypoint"
 };
 // NOTE: "reflect" is no longer a Modifier — rules v0.01 moved Reflect to the beneficial Status
 // list (applied via Inflict, like Barrier/Regen). Stored skills migrate in item-models.mjs.
 
-/** Modifiers flagged "Heavy" count as two Modifiers (rules: Devour, Mass, Secondary Effect).
- *  "Custom" and "Re-equip" are Heavy per-skill instead (their own flag, toggled by a Builder
- *  checkbox — Re-equip's Heavy form swaps the ENTIRE loadout) — see isHeavyModifier below,
- *  the single place that resolves a Modifier's effective weight. */
-PROJECTANIME.heavyModifiers = ["devour", "mass", "secondaryEffect"];
+/** Modifiers flagged "Heavy" count as two (v0.03 🔶: Absorb, Devour, Immunity, Mass, Secondary
+ *  Effect). "Custom" and "Re-equip" are Heavy per-skill instead (their own flag, toggled by a
+ *  Builder checkbox) — see isHeavyModifier below, the single place that resolves a Modifier's
+ *  effective weight. */
+PROJECTANIME.heavyModifiers = ["absorb", "devour", "immunity", "mass", "secondaryEffect"];
 
 /** Whether a Modifier counts as Heavy (two toward the Rank's Modifier budget) on a given Skill.
  *  The static Heavy set (Devour / Mass / Secondary Effect) is fixed; "Custom" and "Re-equip" are
@@ -428,60 +478,52 @@ export function auraAudience(sys) {
   return t === "foe" ? "foe" : t === "any" ? "any" : "ally";
 }
 
-/** EVERY Modifier carrying a numeric value the "Tune a Modifier" advancement grows (+1 per SP, up
- *  to PROJECTANIME.modifierGrowthMax). `rankBased: true` means the base is the Skill's RANK; a plain
- *  `base` is the fixed value before any growth. Per-skill growth is stored in system.modifierGrowth.
- *  The full set of "numbers you can improve":
- *    • Aura       — the field radius in tiles (base = the Skill's Rank).
- *    • Burst      — the circle radius in tiles (base = the Skill's Rank).
- *    • Chain      — extra targets it leaps to after the first hit (base = the Skill's Rank).
- *    • Move       — bonus tiles on top of the Modifier's half-Skill-die movement (base = the Skill's Rank).
- *    • Protection  — the Defense the Skill grants its target(s) (fixed base 1).
- *    • Retaliation — the damage dealt back to a foe that strikes the target (fixed base 2).
- *    • Push/Pull   — tiles of forced movement (base = the Skill's Rank). */
+/** Modifiers carrying a fixed numeric value (v0.03 — flat numbers, no Rank scaling):
+ *    • Aura        — the field radius in tiles (2 — "within 2 tiles of you").
+ *    • Burst       — the circle radius in tiles (2; system-side shape).
+ *    • Chain       — extra targets it leaps to after the first hit (1).
+ *    • Move        — tiles another creature is moved (2; moving yourself uses your MOV).
+ *    • Protection  — the DEF/RES the Skill grants its target(s) (1).
+ *    • Retaliation — the damage dealt back to a foe that strikes the target (2).
+ *    • Push/Pull   — tiles of forced movement (2).
+ *  Legacy "Tune a Modifier" growth (system.modifierGrowth) still adds on top — grandfathered;
+ *  v0.03 removed Tune from the advancement list, so no new growth is authored. */
 PROJECTANIME.growableModifiers = {
-  aura: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  burst: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  chain: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.targets" },
-  move: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  aura: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  burst: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  chain: { base: 1, unit: "PROJECTANIME.Skill.growUnit.targets" },
+  move: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
   protection: { base: 1, unit: "PROJECTANIME.Skill.growUnit.defense" },
   retaliation: { base: 2, unit: "PROJECTANIME.Skill.growUnit.damage" },
-  push: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  pull: { rankBased: true, unit: "PROJECTANIME.Skill.growUnit.tiles" }
+  push: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  pull: { base: 2, unit: "PROJECTANIME.Skill.growUnit.tiles" }
 };
 
-/** The most "Tune a Modifier" can add to any one Modifier (homebrew cap): growth is 0–3, so e.g. a
- *  Push tops out at Rank + 3 tiles and Protection at +1 + 3 = +4 Defense. Enforced by the Tune
- *  handler, the Builder UI, the data model (item-models.mjs), and clamped at read in modifierValue. */
+/** The Modifiers the "Area" Enhancement grows (+1 tile to the area size, 1 SP each, max +3):
+ *  a Burst's radius and an Aura's field radius. Growth rides system.modifierGrowth, same as the
+ *  legacy Tune data, so refunds and re-edit carry-over already handle it. */
+PROJECTANIME.areaGrowModifiers = ["burst", "aura"];
+
+/** Cap on per-Modifier growth — the Area Enhancement's +3 limit (and the ceiling legacy "Tune a
+ *  Modifier" data is clamped to at read). */
 PROJECTANIME.modifierGrowthMax = 3;
 
 /** How many tiles a Chain may leap between targets (rules: "within 3 tiles"). */
 PROJECTANIME.chainTiles = 3;
 
-/** A growable Modifier's effective value on an item = its base (the Skill's Rank for a
- *  rank-based one) + that item's stored growth, the growth clamped to the +3 Tune cap. */
+/** A valued Modifier's effective value on an item = its fixed base + any grandfathered Tune
+ *  growth (clamped to the legacy +3 cap). */
 export function modifierValue(item, key) {
   const g = PROJECTANIME.growableModifiers?.[key];
   if (!g) return 0;
-  const base = g.rankBased ? (Number(item?.system?.rank) || 1) : (g.base ?? 0);
   const growth = Math.min(PROJECTANIME.modifierGrowthMax, Math.max(0, item?.system?.modifierGrowth?.[key] ?? 0));
-  return base + growth;
+  return (g.base ?? 0) + growth;
 }
 
-/** The Affinity levels an Affinity Modifier may grant at a given Rank (rules: Resist; ⭐⭐⭐ may
- *  be Immune instead; ⭐⭐⭐⭐⭐ may be Absorb instead). Returns a {value: labelKey} choices map. */
-export function affinityModifierLevels(rank) {
-  const r = Number(rank) || 1;
-  const out = { resist: PROJECTANIME.affinityLevels.resist };
-  if (r >= 3) out.immune = PROJECTANIME.affinityLevels.immune;
-  if (r >= 5) out.absorb = PROJECTANIME.affinityLevels.absorb;
-  return out;
-}
-
-/** Clamp a chosen affinity level to what the Rank allows (used when a Skill's Rank drops). */
-export function clampAffinityLevel(level, rank) {
-  const allowed = affinityModifierLevels(rank);
-  return level in allowed ? level : "resist";
+/** The level the Affinity (Damage) Modifier grants (v0.03: Resist only — full Immunity and
+ *  Absorb are their own Heavy Modifiers). Stored immune/absorb takes are grandfathered at read. */
+export function affinityModifierLevels() {
+  return { resist: PROJECTANIME.affinityLevels.resist };
 }
 
 /* -------------------------------------------- */
@@ -542,9 +584,9 @@ PROJECTANIME.offensiveEffects = ["strike", "hinder", "steal", "disguise", "illus
 
 /** Modifiers that on their own land something hostile (a condition / a stolen secret / an ended
  *  Skill), so a Skill carrying one makes an Accuracy Check even when its Effect is otherwise
- *  neutral. Analyze, Banish and Nullify roll per the rules ("on a successful Accuracy Check" /
- *  "requires an Accuracy Check"). Lingering rides Inflict (its chosen Status). */
-PROJECTANIME.offensiveModifiers = ["inflict", "analyze", "banish", "nullify"];
+ *  neutral. Analyze, Banish and Nullify roll per the rules; Disarm makes a contested roll
+ *  (v0.03). Lingering rides Inflict (its chosen Status). */
+PROJECTANIME.offensiveModifiers = ["inflict", "analyze", "banish", "nullify", "disarm"];
 
 /** What the Analyze Modifier reveals — chosen at Skill creation (rules: "Choose between the
  *  following categories"). Mirrors the Scouter's reveal categories. */
@@ -655,16 +697,18 @@ PROJECTANIME.affinityDamage = { weak: 2, resist: -2, immune: null, absorb: null 
  *  Vanished is the Vanish Effect's "cannot be seen" state. */
 PROJECTANIME.conditionKeys = ["barrier", "blinded", "bound", "curse", "decay", "exhausted", "prone", "reflect", "regen", "slowed", "stunned", "vanished"];
 
-/** The conditions that carry a VALUE on a chosen pool (rules v0.01: Barrier absorbs that much
- *  damage to the pool; Regen restores that much at the start of each turn). The value is the
- *  Skill's Rank × 2 (see valuedStatusValue) and the Builder asks which pool (Hit Points / Energy). */
+/** The conditions that carry a VALUE on a chosen pool (rules: Barrier absorbs that much damage
+ *  to the pool; Regen restores that much at the start of each turn). The value keys off the
+ *  Skill's SP cost (see valuedStatusValue) and the Builder asks which pool (Hit Points / Energy). */
 PROJECTANIME.valuedStatuses = ["barrier", "regen"];
 
-/** The value a Skill's VALUED status (Regen / Barrier) carries: the Skill's Rank × 2 (rules) —
- *  Regen heals that much HP/Energy at the start of each of the bearer's turns, Barrier absorbs that
- *  much. Min 1. Single source of truth, shared by the inflict, aura, and on-use paths. */
-export function valuedStatusValue(rank) {
-  return Math.max(1, (Number(rank) || 1) * 2);
+/** The value a Skill's VALUED status carries (v0.03 — SP replaces Rank as the magnitude):
+ *  Barrier absorbs the Skill's FULL SP cost; Regen restores HALF the SP cost (rounded down) at
+ *  the start of each of the bearer's turns. Min 1. Single source of truth, shared by the
+ *  inflict, aura, and on-use paths. */
+export function valuedStatusValue(sp, statusId = "regen") {
+  const n = Number(sp) || 1;
+  return Math.max(1, statusId === "barrier" ? n : Math.floor(n / 2));
 }
 
 /** Conditions whose Inflict carries an HP/Energy POOL choice made at Skill creation (rules v0.01
@@ -791,6 +835,84 @@ PROJECTANIME.dispositions = {
   neutral: "PROJECTANIME.Disposition.neutral",
   hostile: "PROJECTANIME.Disposition.hostile"
 };
+
+/* -------------------------------------------- */
+/*  Side Initiative (Fire-Emblem phases)        */
+/* -------------------------------------------- */
+
+/** Combat runs as SIDE INITIATIVE: the whole PLAYER side acts (Player Phase), then the whole ENEMY
+ *  side (Enemy Phase), then NEUTRALS (Neutral Phase); a round = one pass through all three. Phase
+ *  order is fixed — players always first — and a combatant's side comes from its token disposition.
+ *  Within a phase units are FREE-PICKED (any not-yet-acted unit, in any order). */
+PROJECTANIME.sides = ["friendly", "hostile", "neutral"];   // acting order: Player → Enemy → Neutral
+
+/** Each side's initiative band. Combatants sort by `initiative` DESC, so friendly (highest) leads,
+ *  then hostile, then neutral. Bands are 1000 apart — far wider than any within-side tiebreak — so
+ *  sides never interleave. Assigned deterministically (no dice) by sideInitiative(). */
+PROJECTANIME.sideBase = { friendly: 3000, hostile: 2000, neutral: 1000 };
+
+/** Phase display labels (the tracker's phase headers + round line). */
+PROJECTANIME.sideLabel = {
+  friendly: "PROJECTANIME.Combat.phase.player",
+  hostile: "PROJECTANIME.Combat.phase.enemy",
+  neutral: "PROJECTANIME.Combat.phase.neutral"
+};
+
+/** Resolve a combatant's SIDE (Player/Enemy/Neutral phase) from its token disposition — FRIENDLY →
+ *  friendly, NEUTRAL → neutral, HOSTILE/SECRET → hostile. A GM can override per-combatant via the
+ *  `side` flag. Reads the live token disposition first, falling back to the actor's prototype token. */
+export function combatantSide(combatant) {
+  const D = CONST.TOKEN_DISPOSITIONS;
+  const override = combatant?.getFlag?.("project-anime", "side");
+  if (override && PROJECTANIME.sideBase[override] != null) return override;
+  const disp = combatant?.token?.disposition
+    ?? combatant?.actor?.prototypeToken?.disposition
+    ?? D.HOSTILE;
+  if (disp === D.FRIENDLY) return "friendly";
+  if (disp === D.NEUTRAL) return "neutral";
+  return "hostile";   // HOSTILE and SECRET both fight on the enemy side
+}
+
+/** A combatant's deterministic initiative = its side band + a within-side tiebreak (Agility + Mind,
+ *  so faster units sit higher in the fallback order) + a tiny per-id epsilon (keeps entries distinct
+ *  and stably ordered). No dice: side membership, not a roll, decides turn order. The within-side
+ *  order is only a display/fallback ordering — activation itself is free-pick. */
+export function sideInitiative(combatant) {
+  const base = PROJECTANIME.sideBase[combatantSide(combatant)] ?? PROJECTANIME.sideBase.neutral;
+  const attrs = combatant?.actor?.system?.attributes ?? {};
+  const tie = (Number(attrs.agility?.value) || 0) + (Number(attrs.mind?.value) || 0);
+  const id = String(combatant?.id ?? "");
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997;
+  return base + tie + h / 100000;
+}
+
+/** A combatant has already acted this round when its `actedRound` marker equals the live round. Markers
+ *  are round-stamped, so a stale one (from a prior round) is inert without needing to be cleared. */
+export function hasActed(combatant, round) {
+  return combatant?.getFlag?.("project-anime", "actedRound") === round;
+}
+
+/** A unit that can't take an activation: Defeated (down) or Stunned (loses this turn). Such units are
+ *  never pickable — the truly-down are excluded from the phase, the Stunned are auto-passed. */
+export function isSkippable(combatant) {
+  return !!combatant?.isDefeated || !!combatant?.actor?.statuses?.has?.("stunned");
+}
+
+/** Not-yet-acted, non-defeated combatants on a side, in stable within-side order (display + auto-pick).
+ *  Stunned units are INCLUDED (they hold the phase until auto-skipped); the Defeated are excluded. */
+export function pendingOnSide(combat, side) {
+  return [...(combat?.combatants ?? [])]
+    .filter((c) => !c.isDefeated && combatantSide(c) === side && !hasActed(c, combat.round))
+    .sort((a, b) => (b.initiative ?? 0) - (a.initiative ?? 0));
+}
+
+/** The side whose phase is active right now: the highest-priority side (Player → Enemy → Neutral) that
+ *  still has a pending unit. null = every side is spent → the round is complete. */
+export function activeSide(combat) {
+  for (const side of PROJECTANIME.sides) if (pendingOnSide(combat, side).length) return side;
+  return null;
+}
 
 /** An NPC actor's role — which face of the sheet it shows. "monster" is the combat statblock (Tier,
  *  the Monster Creator, hostile by default); "npc" is a social/ally NPC that offers a Bond (a bond

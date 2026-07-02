@@ -110,7 +110,7 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
               ].filter(Boolean);
               return {
                 name: i.name,
-                stars: PROJECTANIME.skillRanks?.[s.rank]?.stars ?? "",
+                stars: s.spCost != null ? `${s.spCost} SP` : "",
                 meta,
                 description: s.description ? await TextEditor.enrichHTML(s.description, { secrets: false }) : "",
                 open: this.#openSkills.has(i.name)

@@ -12,8 +12,8 @@
  * project-anime.mjs's ready hook). Idempotent — re-running writes the same values.
  */
 
-/** Hidden world-flag key: the v0.01 gear audit has been applied. */
-export const PACK_AUDIT_SETTING = "packAuditV001";
+/** Hidden world-flag key: the v0.02 gear audit has been applied. */
+export const PACK_AUDIT_SETTING = "packAuditV002";
 
 /** Doc table targets, per pack → item name → flat system updates. */
 const PACK_TARGETS = {
@@ -29,10 +29,10 @@ const PACK_TARGETS = {
     "Unarmed":  { "system.cost": 0,    "system.size": 0, "system.accuracy.attrA": "might",   "system.accuracy.attrB": "agility", "system.accuracy.mod": 0,  "system.damage.mod": -2, "system.range.type": "melee",  "system.range.tiles": 1 }
   },
   armor: {
-    "Clothes":      { "system.cost": 100,  "system.size": 0, "system.defenseBonus": 0, "system.evasionPenalty": 0 },
-    "Light Armor":  { "system.cost": 250,  "system.size": 1, "system.defenseBonus": 1, "system.evasionPenalty": 0 },
-    "Medium Armor": { "system.cost": 500,  "system.size": 2, "system.defenseBonus": 2, "system.evasionPenalty": 1 },
-    "Heavy Armor":  { "system.cost": 1000, "system.size": 3, "system.defenseBonus": 3, "system.evasionPenalty": 2 }
+    "Clothes":      { "system.cost": 100,  "system.size": 0, "system.protection": 0, "system.defSplit": 0, "system.resSplit": 0, "system.evasionMod": 0 },
+    "Light Armor":  { "system.cost": 250,  "system.size": 1, "system.protection": 1, "system.defSplit": 1, "system.resSplit": 0, "system.evasionMod": 0 },
+    "Medium Armor": { "system.cost": 500,  "system.size": 2, "system.protection": 2, "system.defSplit": 2, "system.resSplit": 0, "system.evasionMod": -1 },
+    "Heavy Armor":  { "system.cost": 1000, "system.size": 3, "system.protection": 3, "system.defSplit": 3, "system.resSplit": 0, "system.evasionMod": -2 }
   },
   shields: {
     "Light Shield": { "system.cost": 150, "system.size": 2, "system.evasionBonus": 1, "system.defenseBonus": 0, "system.accuracy.attrA": "might", "system.accuracy.attrB": "agility", "system.accuracy.mod": 0, "system.damage.mod": -1, "system.range.type": "melee", "system.range.tiles": 1 },
@@ -87,6 +87,6 @@ export async function auditGearPacks() {
       if (wasLocked) await pack.configure({ locked: true });
     }
   }
-  if (updated) console.log(`Project: Anime | Gear audit — ${updated} compendium item(s) aligned to the v0.01 tables.`);
+  if (updated) console.log(`Project: Anime | Gear audit — ${updated} compendium item(s) aligned to the v0.02 tables.`);
   return updated;
 }

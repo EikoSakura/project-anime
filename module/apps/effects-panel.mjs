@@ -13,7 +13,7 @@
  * effects of unequipped gear. The panel hides itself entirely when there's nothing to show.
  */
 import { liveEffects, summarizeRules } from "../helpers/effects.mjs";
-import { performOvercome } from "../helpers/dice.mjs";
+import { contextRemoveEffect } from "../helpers/dice.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -73,35 +73,9 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const li of this.element.querySelectorAll(".ep-effect[data-effect-uuid]")) {
       li.addEventListener("contextmenu", (ev) => {
         ev.preventDefault();
-        EffectsPanel.#onContextEffect(li.dataset.effectUuid);
+        contextRemoveEffect(li.dataset.effectUuid);
       });
     }
-  }
-
-  /** Right-click router: overcomeable effects (conditions / ensnare markers) on an owned actor
-   *  open the Overcome-or-Remove choice; everything else keeps the instant removal. */
-  static async #onContextEffect(uuid) {
-    const effect = uuid ? await fromUuid(uuid) : null;
-    if (!effect) return;
-    const flags = effect.flags?.["project-anime"] ?? {};
-    const isCondition = [...(effect.statuses ?? [])].some((s) => (CONFIG.PROJECTANIME?.conditionKeys ?? []).includes(s));
-    const onActor = effect.parent?.documentName === "Actor";
-    if (onActor && effect.isOwner && (isCondition || flags.ensnare)) {
-      const action = await foundry.applications.api.DialogV2.wait({
-        window: { title: effect.name },
-        content: "",
-        buttons: [
-          { action: "overcome", label: game.i18n.localize("PROJECTANIME.Roll.overcome"), icon: "fas fa-hand-fist", default: true },
-          { action: "remove", label: game.i18n.localize("PROJECTANIME.Effect.remove"), icon: "fas fa-trash" },
-          { action: "cancel", label: game.i18n.localize("Cancel"), icon: "fas fa-times" }
-        ],
-        rejectClose: false
-      });
-      if (action === "overcome") return performOvercome(effect.parent, effect);
-      if (action === "remove") return EffectsPanel.#onRemoveEffect(uuid);
-      return;
-    }
-    return EffectsPanel.#onRemoveEffect(uuid);
   }
 
   /** A single integer of remaining lifetime for the corner badge, or null for permanent / scene-long
@@ -147,20 +121,5 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     } else {
       effect.parent?.sheet?.render(true);
     }
-  }
-
-  /** Right-click an entry → remove that effect from the actor. Only effects that live ON the actor
-   *  (ad-hoc reminders, applied Skill effects, status conditions) can be cleared here; an effect
-   *  borne by an item is tied to that item — unequip/remove the item instead. */
-  static async #onRemoveEffect(uuid) {
-    const effect = uuid ? await fromUuid(uuid) : null;
-    if (!effect) return;
-    if (effect.parent?.documentName !== "Actor") {
-      return ui.notifications.info(game.i18n.format("PROJECTANIME.Effect.removeFromItem",
-        { name: effect.name, item: effect.parent?.name ?? "" }));
-    }
-    if (!effect.isOwner) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Effect.removeNoPermission"));
-    game.tooltip?.deactivate?.();
-    await effect.delete();
   }
 }

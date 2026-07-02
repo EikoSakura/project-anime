@@ -141,6 +141,66 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     return controls;
   }
 
+  /** UUID of the compendium document this item was imported from (V13 stat, legacy flag), or null. */
+  #sourceUuid() {
+    return this.item._stats?.compendiumSource ?? this.item.flags?.core?.sourceId ?? null;
+  }
+
+  /** @override — inject a PF2e-style "Refresh from Compendium" button directly in the window
+   *  header, beside ✕. Only shown for an editable item that carries a compendium source; clicking
+   *  it re-pulls the item's definition from that pack. Frame is built once, so this injects once. */
+  async _renderFrame(options) {
+    const frame = await super._renderFrame(options);
+    const header = frame.querySelector(".window-header");
+    if (header && this.isEditable && this.#sourceUuid() && !header.querySelector(".pa-refresh-source")) {
+      const label = game.i18n.localize("PROJECTANIME.Item.refreshFromCompendium");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      // `icon` restores the Font Awesome font-family (core's global button rule forces --font-sans,
+      // which renders the glyph as tofu); match the ✕ button's classes exactly.
+      btn.className = "header-control icon fa-solid fa-arrows-rotate pa-refresh-source";
+      btn.dataset.tooltip = label;
+      btn.setAttribute("aria-label", label);
+      btn.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); this.#refreshFromCompendium(); });
+      const closeBtn = header.querySelector('[data-action="close"]');
+      if (closeBtn) closeBtn.before(btn);
+      else header.appendChild(btn);
+    }
+    return frame;
+  }
+
+  /** Reset this item's name/img/system (and embedded effects) to its compendium source, keeping
+   *  the copy's own instance state — quantity, equipped, which bag it lives in — and its flags
+   *  (pins, grants, source id). Confirms first: it overwrites local edits and can't be undone. */
+  async #refreshFromCompendium() {
+    if (!this.isEditable) return;
+    const uuid = this.#sourceUuid();
+    const source = uuid ? await fromUuid(uuid).catch(() => null) : null;
+    if (!source) return void ui.notifications.warn(game.i18n.localize("PROJECTANIME.Item.refreshNoSource"));
+
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("PROJECTANIME.Item.refreshFromCompendium") },
+      content: `<p>${game.i18n.format("PROJECTANIME.Item.refreshPrompt", { name: source.name })}</p>`
+    });
+    if (!ok) return;
+
+    const src = source.toObject();
+    // A refresh updates the *definition* — carry over this copy's instance state (schema-backed only).
+    for (const f of ["quantity", "equipped", "container"])
+      if (this.item.system[f] !== undefined) src.system[f] = this.item.system[f];
+    // Schema-backed system: overwriting every field to the source resets it (arrays replace, no stale keys).
+    await this.item.update({ name: src.name, img: src.img, system: src.system });
+
+    // Re-sync the item's embedded Active Effects to the source's definitions.
+    const effIds = this.item.effects.map((e) => e.id);
+    if (effIds.length) await this.item.deleteEmbeddedDocuments("ActiveEffect", effIds);
+    if (src.effects?.length)
+      await this.item.createEmbeddedDocuments("ActiveEffect", src.effects.map(({ _id, ...rest }) => rest));
+
+    ui.notifications.info(game.i18n.format("PROJECTANIME.Item.refreshDone", { name: this.item.name }));
+    this.render();
+  }
+
   /** @override — replace native dropdowns with the themed custom widget. */
   async _onRender(context, options) {
     await super._onRender(context, options);
@@ -152,6 +212,16 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       row.setAttribute("draggable", "true");
       row.addEventListener("dragstart", (ev) => {
         ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "ActiveEffect", uuid: effect.uuid }));
+      });
+    }
+    // Armor protection split: changing one side auto-adjusts the other.
+    for (const inp of this.element.querySelectorAll('[data-action="armorSplit"]')) {
+      inp.addEventListener("change", (ev) => {
+        const prot = this.item.system.protection ?? 0;
+        const field = ev.currentTarget.name;
+        const val = Math.clamp(Number(ev.currentTarget.value) || 0, 0, prot);
+        const other = field === "system.defSplit" ? "system.resSplit" : "system.defSplit";
+        this.item.update({ [field]: val, [other]: prot - val });
       });
     }
     // The whole sheet scrolls on .window-content; keep its position across re-renders.
@@ -192,13 +262,10 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       context.rangeHasTiles = rangeHasTiles(sys.range?.scope);
       context.rangeRec = cfg.rangeTiles[sys.range?.scope] ?? 0;
       context.damagePoolChoices = cfg.damagePools;
-      // The HP/Energy pool field shows for Strike (which pool its damage hits).
+      // The HP/Energy pool field shows for Strike (which pool its damage hits) and Heal (v0.03:
+      // which pool it restores).
       context.showDamagePool = cfg.poolEffects.includes(sys.effect);
-      context.poolLabel = "PROJECTANIME.Skill.field.damagePool";
-      context.rankInfo = cfg.skillRanks[sys.rank] ?? {};
-      context.rankChoices = Object.fromEntries(
-        Object.entries(cfg.skillRanks).map(([k, v]) => [k, `${v.stars} ${game.i18n.localize(v.label)}`])
-      );
+      context.poolLabel = sys.effect === "mend" ? "PROJECTANIME.Skill.field.healPool" : "PROJECTANIME.Skill.field.damagePool";
       context.effectDesc = game.i18n.localize(`PROJECTANIME.Skill.effectDesc.${sys.effect}`);
       context.modifierList = Object.entries(cfg.skillModifiers).map(([key, label]) => ({
         key,
@@ -208,10 +275,10 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         selected: (sys.modifiers ?? []).includes(key)
       }));
       // Active Skills show their Energy cost; a Passive shows its max-Energy tax instead.
-      const stars = context.rankInfo.stars ?? "";
+      const costTag = `${sys.spCost ?? 0} SP`;
       context.summary = sys.energyCost > 0
-        ? `${stars} · ${sys.energyCost} EN`
-        : (sys.actionType === "passive" && sys.passiveEnergyTax > 0 ? `${stars} · −${sys.passiveEnergyTax} Max EN` : `${stars}`);
+        ? `${costTag} · ${sys.energyCost} EN`
+        : (sys.actionType === "passive" && sys.passiveEnergyTax > 0 ? `${costTag} · −${sys.passiveEnergyTax} Max EN` : costTag);
     } else if (this.item.type === "weapon" || this.item.type === "shield") {
       context.accuracyFormula = `⟪${this.#attrName(sys.accuracy.attrA)}⟫ + ⟪${this.#attrName(sys.accuracy.attrB)}⟫`;
     } else if (this.item.type === "consumable") {
@@ -256,8 +323,10 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
         break;
       case "armor":
-        push("PROJECTANIME.Field.defenseBonus", signed(sys.defenseBonus));
-        push("PROJECTANIME.Field.evasionPenalty", `−${sys.evasionPenalty ?? 0}`);
+        push("PROJECTANIME.Field.protection", sys.protection);
+        push("PROJECTANIME.Field.defSplit", sys.defSplit);
+        push("PROJECTANIME.Field.resSplit", sys.resSplit);
+        if (sys.evasionMod) push("PROJECTANIME.Field.evasionMod", signed(sys.evasionMod));
         push("PROJECTANIME.Field.size", sys.size);
         push("PROJECTANIME.Field.cost", sys.cost);
         push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
@@ -281,8 +350,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
         break;
       case "skill": {
-        const r = cfg.skillRanks[sys.rank] ?? {};
-        push("PROJECTANIME.Skill.field.rank", `${r.stars ?? ""} ${L(r.label)}`.trim());
+        push("PROJECTANIME.Skill.field.spCost", `${sys.spCost ?? 0} SP`);
         push("PROJECTANIME.Skill.field.actionType", L(cfg.actionTypes[sys.actionType]));
         push("PROJECTANIME.Skill.field.effect", skillEffectKeys(sys).map((k) => L(cfg.skillEffects[k])).join(" + "));
         push("PROJECTANIME.Skill.field.target", L(cfg.skillTargets[skillTarget(sys)]));
@@ -299,7 +367,6 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         if (cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie", L(cfg.attributes[sys.attributes?.[sys.damageAttr]]));
         if (sys.energyCost > 0) push("PROJECTANIME.Skill.field.energyCost", sys.energyCost);
         else if (sys.actionType === "passive" && sys.passiveEnergyTax > 0) push("PROJECTANIME.Skill.field.energyTax", `−${sys.passiveEnergyTax}`);
-        push("PROJECTANIME.Skill.field.spCost", sys.spCost);
         if (sys.accuracyMod) push("PROJECTANIME.Skill.field.accuracyMod", `+${sys.accuracyMod}`);
         if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod", `+${sys.damageMod}`);
         if (sys.damageType && cfg.damageEffects.includes(sys.effect)) push("PROJECTANIME.Skill.field.damageType", elementLabel(sys.damageType));

@@ -13,6 +13,7 @@
 import { partyMembers, partyActors, resolveParty } from "./party-folder.mjs";
 import { applyRepToFaction, factionById, unlockRecruits } from "./factions.mjs";
 import { applyBondReward } from "./bonds.mjs";
+import { stampCompendiumSource } from "./gear.mjs";
 
 // `partyActors`/`resolveParty` moved to party-folder.mjs (shared with FACTION tier rewards); re-export
 // them here so existing importers of the Chronicle module keep working.
@@ -116,6 +117,7 @@ export async function grantRewards(quest, { goldItemsTo = "stash" } = {}) {
       if (item?.toObject) {
         const obj = item.toObject();
         delete obj._id;
+        stampCompendiumSource(obj, item);
         itemObjs.push(obj);
       }
     }

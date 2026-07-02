@@ -152,7 +152,7 @@ function auraEffectDataFor(skill, sourceToken) {
     if (inflictSt === "regen") {
       const pool = skill.system?.inflictPool === "energy" ? "energy" : "hp";
       foundry.utils.setProperty(sd, `flags.${FLAG_SCOPE}.rules`,
-        { version: 1, list: [{ type: "sustain", pool, value: valuedStatusValue(skill.system?.rank) }] });
+        { version: 1, list: [{ type: "sustain", pool, value: valuedStatusValue(skill.system?.spCost, "regen") }] });
     }
     statusRaw.push(sd);
   }

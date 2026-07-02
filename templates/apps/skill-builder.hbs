@@ -25,13 +25,10 @@
         <img src="{{s.img}}" alt="{{s.name}}" />
         <div class="sb-skill-info">
           <span class="sb-skill-name">{{s.name}}</span>
-          <span class="sb-skill-sub">{{s.stars}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}}</span>
+          <span class="sb-skill-sub">{{s.cost}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}}</span>
         </div>
         <button type="button" class="sb-improve sb-effects" data-action="editEffects">
           <i class="fas fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.SkillBuilder.editEffects"}}
-        </button>
-        <button type="button" class="sb-improve" data-action="improveSkill">
-          <i class="fas fa-arrow-up-right-dots"></i> {{localize "PROJECTANIME.SkillBuilder.improve"}}
         </button>
       </li>
       {{/each}}
@@ -87,22 +84,6 @@
     </section>
     {{/if}}
 
-    {{#if onRank}}
-    <section class="sb-step-body sb-rank">
-      <div class="sb-rank-grid">
-        {{#each rankCards as |rc|}}
-        <button type="button" class="sb-rank-card{{#if rc.selected}} selected{{/if}}{{#unless rc.affordable}} unaffordable{{/unless}}"
-                data-action="pickRank" data-rank="{{rc.rank}}" {{#unless rc.affordable}}disabled{{/unless}}>
-          <span class="sb-rank-stars">{{rc.stars}}</span>
-          <span class="sb-rank-name">{{rc.label}}</span>
-          <span class="sb-rank-cost"><i class="fas fa-star"></i> {{rc.sp}} {{localize "PROJECTANIME.Stat.skillPointsAbbr"}}</span>
-          <span class="sb-rank-meta"><i class="fas fa-bolt"></i> {{rc.energy}} · <i class="fas fa-sliders"></i> {{rc.maxModifiers}}</span>
-        </button>
-        {{/each}}
-      </div>
-    </section>
-    {{/if}}
-
     {{#if onRoll}}
     <section class="sb-step-body sb-roll">
       <div class="sb-field-grid">
@@ -124,19 +105,11 @@
         </select>
       </label>
       <p class="sb-effect-desc">{{effectDesc}}</p>
-      {{#if skillEvasionPair}}
-      <div class="sb-field-grid">
-        <label class="sb-field">
-          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillEvasionA"}}</span>
-          <select disabled><option selected>{{skillEvasionPair.a}}</option></select>
-        </label>
-        {{#if skillEvasionPair.b}}
-        <label class="sb-field">
-          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillEvasionB"}}</span>
-          <select disabled><option selected>{{skillEvasionPair.b}}</option></select>
-        </label>
-        {{/if}}
-      </div>
+      {{#if evasionChoices}}
+      <label class="sb-field">
+        <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillEvasion"}}</span>
+        <select name="skillEvasion">{{selectOptions evasionChoices selected=evasionSelected}}</select>
+      </label>
       {{/if}}
       {{#if showEffectExtras}}
       <div class="sb-field-grid">
@@ -192,7 +165,7 @@
         </label>
         {{#if rangeHasTiles}}
         <label class="sb-field">
-          <span class="sb-label">{{localize "PROJECTANIME.Skill.tiles"}} <span class="sb-cap">({{localize "PROJECTANIME.SkillBuilder.upTo"}} {{rangeRec}})</span></span>
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.tiles"}}</span>
           <input type="number" name="rangeTiles" value="{{draft.range.tiles}}" min="0" step="1" />
         </label>
         {{/if}}
@@ -230,8 +203,10 @@
 
     {{#if onModifiers}}
     <section class="sb-step-body sb-modifiers">
-      <div class="sb-mod-budget{{#if modOver}} over{{/if}}">
-        {{localize "PROJECTANIME.Skill.field.modifiers"}}: <strong>{{modUsed}} / {{modMax}}</strong>
+      <div class="sb-mod-budget">
+        {{localize "PROJECTANIME.Skill.field.spCost"}}: <strong><i class="fas fa-star"></i> {{liveSp}}</strong>
+        {{#if isPassiveCost}} · {{localize "PROJECTANIME.Skill.field.energyTax"}}: <strong><i class="fas fa-bolt"></i> −{{liveEnergy}}</strong>
+        {{else}} · {{localize "PROJECTANIME.Skill.field.energyCost"}}: <strong><i class="fas fa-bolt"></i> {{liveEnergy}}</strong>{{/if}}
       </div>
       <ul class="sb-mod-list">
         {{#each modifierList as |mod|}}
@@ -272,6 +247,12 @@
             </label>
             {{/if}}
             {{/if}}
+            {{#if mod.showProtection}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.modifier.protection"}}</span>
+              <select name="protectionTarget">{{selectOptions ../protectionTargetChoices selected=../draft.protectionTarget}}</select>
+            </label>
+            {{/if}}
             {{#if mod.showRetaliation}}
             <label class="sb-field">
               <span class="sb-label">{{localize "PROJECTANIME.Skill.field.retaliationType"}}</span>
@@ -303,6 +284,35 @@
               {{#if t.removable}}<span class="sb-mod-opt sb-take-x" data-action="removeModifierTake" data-take="{{t.index}}" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeRemove'}}"><i class="fas fa-xmark"></i></span>{{/if}}
             </div>
             {{/each}}
+            {{/if}}
+            {{#if mod.showAbsorb}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.damageType"}}</span>
+              <select name="absorbElement">{{selectOptions ../damageTypeChoices selected=../draft.absorbElement blank=""}}</select>
+            </label>
+            {{/if}}
+            {{#if mod.showImmunity}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.immunityKind"}}</span>
+              <select name="immunityKind">{{selectOptions ../immunityKindChoices selected=../draft.immunityKind}}</select>
+            </label>
+            {{#if ../immunityIsStatus}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.inflictStatus"}}</span>
+              <select name="immunityStatus">{{selectOptions ../conditionChoices selected=../draft.immunityStatus blank=""}}</select>
+            </label>
+            {{else}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.damageType"}}</span>
+              <select name="immunityElement">{{selectOptions ../damageTypeChoices selected=../draft.immunityElement blank=""}}</select>
+            </label>
+            {{/if}}
+            {{/if}}
+            {{#if mod.showMental}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillEvasion"}}</span>
+              <select name="mentalAttr">{{selectOptions ../mentalChoices selected=../mentalSelected}}</select>
+            </label>
             {{/if}}
             {{#if mod.showAnalyze}}
             <label class="sb-field">
@@ -385,7 +395,7 @@
         <img src="{{review.img}}" alt="" />
         <div class="sb-review-id">
           <div class="sb-review-name">{{review.name}}</div>
-          <div class="sb-review-sub">{{review.stars}} {{review.rankLabel}} · {{review.actionType}}</div>
+          <div class="sb-review-sub">{{review.costLabel}} · {{review.actionType}}</div>
         </div>
       </div>
       <dl class="sb-review-list">
@@ -396,7 +406,11 @@
         {{#if review.skillEvasion}}<div><dt>{{localize "PROJECTANIME.Skill.field.skillEvasion"}}</dt><dd>{{review.skillEvasion}}</dd></div>{{/if}}
         {{#if review.affinityDamage}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.affinityDamage"}}</dt><dd>{{review.affinityDamage}}</dd></div>{{/if}}
         {{#if review.affinityStatus}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.affinityStatus"}}</dt><dd>{{review.affinityStatus}}</dd></div>{{/if}}
+        {{#if review.absorb}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.absorb"}}</dt><dd>{{review.absorb}}</dd></div>{{/if}}
+        {{#if review.immunity}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.immunity"}}</dt><dd>{{review.immunity}}</dd></div>{{/if}}
+        {{#if review.mental}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.mental"}}</dt><dd>{{review.mental}}</dd></div>{{/if}}
         {{#if review.inflict}}<div><dt>{{localize "PROJECTANIME.Skill.field.inflictStatus"}}</dt><dd>{{review.inflict}}</dd></div>{{/if}}
+        {{#if review.protectionTarget}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.protection"}}</dt><dd>{{review.protectionTarget}}</dd></div>{{/if}}
         {{#if review.retaliation}}<div><dt>{{localize "PROJECTANIME.Skill.field.retaliationType"}}</dt><dd>{{review.retaliation}}</dd></div>{{/if}}
         {{#if review.analyze}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.analyze"}}</dt><dd>{{review.analyze}}</dd></div>{{/if}}
         {{#if review.infuse}}<div><dt>{{localize "PROJECTANIME.Skill.modifier.infuse"}}</dt><dd>{{review.infuse}}</dd></div>{{/if}}
@@ -448,7 +462,7 @@
       <img src="{{skill.img}}" alt="{{skill.name}}" />
       <div class="sb-adv-id">
         <div class="sb-adv-name">{{skill.name}}</div>
-        <div class="sb-adv-sub">{{skill.stars}} {{skill.rankLabel}} · {{skill.actionLabel}} · {{skill.effectLabel}}</div>
+        <div class="sb-adv-sub">{{skill.cost}} · {{skill.actionLabel}} · {{skill.effectLabel}}</div>
       </div>
     </div>
 
@@ -458,16 +472,11 @@
       {{#if skill.energyCost}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyCost"}}</dt><dd><i class="fas fa-bolt"></i> {{skill.energyCost}}</dd></div>{{/if}}
       {{#if skill.passive}}<div><dt>{{localize "PROJECTANIME.Skill.field.energyTax"}}</dt><dd><i class="fas fa-bolt"></i> −{{skill.passiveEnergyTax}}</dd></div>{{/if}}
       <div><dt>{{localize "PROJECTANIME.Skill.field.accuracyMod"}}</dt><dd>+{{skill.accuracyMod}}</dd></div>
-      <div class="span-2"><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{skill.modUsed}} / {{skill.modMax}}{{#if skill.modifiers.length}} — {{#each skill.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}</dd></div>
+      <div class="span-2"><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{skill.modUsed}}{{#if skill.modifiers.length}} — {{#each skill.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}</dd></div>
     </dl>
 
     <h3 class="sb-section-title">{{localize "PROJECTANIME.SkillBuilder.improvements"}}</h3>
     <div class="sb-imp-grid">
-      <button type="button" class="sb-imp" data-action="raiseRank" {{#if improvements.raiseRank.disabled}}disabled{{/if}}>
-        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.raiseRank"}}</span>
-        <span class="sb-imp-detail">{{#if improvements.raiseRank.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}{{skill.stars}} → {{improvements.raiseRank.next}}{{/if}}</span>
-        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.raiseRank.cost}}</span>
-      </button>
       {{#if improvements.sharpenAccuracy.applies}}
       <button type="button" class="sb-imp" data-action="sharpenAccuracy" {{#if improvements.sharpenAccuracy.disabled}}disabled{{/if}}>
         <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.sharpen"}}</span>
@@ -482,6 +491,13 @@
         <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.sharpenDamage.cost}}</span>
       </button>
       {{/if}}
+      {{#if improvements.raiseDuration.applies}}
+      <button type="button" class="sb-imp" data-action="raiseDuration" {{#if improvements.raiseDuration.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.raiseDuration"}}</span>
+        <span class="sb-imp-detail">{{improvements.raiseDuration.cur}} → {{improvements.raiseDuration.next}} {{localize "PROJECTANIME.Skill.turns"}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.raiseDuration.cost}}</span>
+      </button>
+      {{/if}}
       {{#unless skill.passive}}
       <button type="button" class="sb-imp" data-action="lowerEnergy" {{#if improvements.lowerEnergy.disabled}}disabled{{/if}}>
         <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.lowerEnergy"}}</span>
@@ -494,15 +510,18 @@
         <span class="sb-imp-detail">{{#if improvements.raiseRange.hasTiles}}{{improvements.raiseRange.cur}} → {{improvements.raiseRange.next}} {{localize "PROJECTANIME.Skill.tiles"}}{{else}}—{{/if}}</span>
         <span class="sb-imp-cost"><i class="fas fa-star"></i> {{improvements.raiseRange.cost}}</span>
       </button>
+      {{#each areaMods as |a|}}
+      <button type="button" class="sb-imp" data-action="raiseArea" data-modifier="{{a.key}}" {{#if a.disabled}}disabled{{/if}}>
+        <span class="sb-imp-name">{{localize "PROJECTANIME.SkillBuilder.raiseArea"}} — {{a.label}}</span>
+        <span class="sb-imp-detail">{{#if a.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}}{{else}}{{a.cur}} → {{a.next}} {{localize "PROJECTANIME.Skill.tiles"}}{{/if}}</span>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> 1</span>
+      </button>
+      {{/each}}
     </div>
 
     <h3 class="sb-section-title sb-addmod-title">
       {{localize "PROJECTANIME.SkillBuilder.addModifier"}}
-      <span class="sb-imp-cost"><i class="fas fa-star"></i> 1</span>
     </h3>
-    {{#if improvements.addModifier.full}}
-    <p class="sb-note">{{localize "PROJECTANIME.SkillBuilder.modBudgetFull"}}</p>
-    {{else}}
     <ul class="sb-add-mod-list">
       {{#each addableModifiers as |mod|}}
       <li class="sb-add-mod-row{{#if mod.blocked}} blocked{{/if}}" data-modifier="{{mod.key}}">
@@ -510,33 +529,13 @@
           <span class="sb-mod-name">{{mod.label}}{{#if mod.heavy}} <span class="heavy-badge">{{localize "PROJECTANIME.Skill.heavy"}}</span>{{/if}}</span>
           <span class="sb-mod-desc">{{mod.desc}}</span>
         </div>
+        <span class="sb-imp-cost"><i class="fas fa-star"></i> {{mod.cost}}</span>
         <button type="button" class="sb-add-mod" data-action="addModifier" title="{{localize 'PROJECTANIME.SkillBuilder.addModifier'}}" {{#if mod.disabled}}disabled{{/if}}>
           <i class="fas fa-plus"></i>
         </button>
       </li>
       {{/each}}
     </ul>
-    {{/if}}
-
-    {{#if growableMods.length}}
-    <h3 class="sb-section-title sb-grow-title">
-      {{localize "PROJECTANIME.SkillBuilder.turnModifier"}}
-      <span class="sb-imp-cost"><i class="fas fa-star"></i> 1</span>
-    </h3>
-    <ul class="sb-add-mod-list">
-      {{#each growableMods as |g|}}
-      <li class="sb-add-mod-row" data-modifier="{{g.key}}">
-        <div class="sb-add-mod-text">
-          <span class="sb-mod-name">{{g.label}}</span>
-          <span class="sb-mod-desc">{{#if g.atMax}}{{localize "PROJECTANIME.SkillBuilder.atMax"}} ({{g.current}} {{g.unit}}){{else}}{{g.current}} → {{g.next}} {{g.unit}}{{/if}}{{#if g.growth}} ({{localize "PROJECTANIME.SkillBuilder.base"}} {{g.base}} +{{g.growth}}){{/if}}</span>
-        </div>
-        <button type="button" class="sb-add-mod" data-action="turnModifier" title="{{localize 'PROJECTANIME.SkillBuilder.turnModifier'}}" {{#if g.disabled}}disabled{{/if}}>
-          <i class="fas fa-plus"></i>
-        </button>
-      </li>
-      {{/each}}
-    </ul>
-    {{/if}}
 
     <div class="sb-nav">
       <button type="button" class="sb-cancel" data-action="backToHub"><i class="fas fa-chevron-left"></i> {{localize "PROJECTANIME.SkillBuilder.backToSkills"}}</button>

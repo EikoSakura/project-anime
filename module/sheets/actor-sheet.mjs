@@ -1,4 +1,4 @@
-import { rollCheck, rollInitiative, useConsumable } from "../helpers/dice.mjs";
+import { rollCheck, useConsumable, contextRemoveEffect } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
 import { rangeLabel, physicalRangeLabel, skillEffectKeys } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
@@ -15,42 +15,16 @@ import { skillPointLedger } from "../helpers/skill-points.mjs";
 import { blankBond, getBonds, saveBonds, BOND_MAX_RANK, npcBond, npcBondRanks, forgeBondFromNpc } from "../helpers/bonds.mjs";
 import { getFactions, clampStanding } from "../helpers/factions.mjs";
 import { confirmAndDismiss } from "../helpers/servants.mjs";
+import {
+  GEAR_GROUPS, EQUIPPABLE, SLOT_ACCEPTS, bySort,
+  buildGearContext, slotOccupant, equipToSlot, clearSlot, importDroppedItem, readDrag, draggedItem, stampCompendiumSource
+} from "../helpers/gear.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
 
-/** Loose gear item types shown as inventory grids (Skills + Containers are handled
- *  separately — containers are the WoW-style "bags" in the container bar). */
-const GEAR_GROUPS = ["weapon", "armor", "shield", "accessory", "consumable", "gear"];
-
-/** Item types that can be equipped (and so get an equip toggle). */
-const EQUIPPABLE = new Set(["weapon", "armor", "shield", "accessory"]);
-
-/** Item types that can be copied onto an actor via drag-drop (every embeddable Item type). */
-const TRANSFERABLE_ITEM_TYPES = new Set([...GEAR_GROUPS, "skill", "container", "package"]);
-
-/** Paperdoll equip slots, positioned over the portrait in the Gear drawer (the
- *  template places each by `key` via CSS). The two accessory slots use the
- *  "accessory:N" form (N = position among equipped). */
-const PAPERDOLL_SLOTS = [
-  { key: "mainHand",    icon: "fa-hand-fist",     base: "mainHand"  },
-  { key: "offHand",     icon: "fa-shield-halved", base: "offHand"   },
-  { key: "armor",       icon: "fa-shirt",         base: "armor"     },
-  { key: "accessory:0", icon: "fa-ring",          base: "accessory" },
-  { key: "accessory:1", icon: "fa-ring",          base: "accessory" }
-];
-
-/** Item types each paperdoll slot accepts (keyed by the slot's `base`). */
-const SLOT_ACCEPTS = {
-  mainHand: ["weapon", "shield"],
-  offHand: ["weapon", "shield"],
-  armor: ["armor"],
-  container: ["container"],
-  accessory: ["accessory"]
-};
-
-/** Stable inventory ordering: by sort, then name. */
-const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
+// Gear constants + the paperdoll/bag/equip/transfer logic live in helpers/gear.mjs, shared with the
+// Monster Creator's Gear step. This sheet keeps its own action handlers, popovers, and DnD bindings.
 
 /** First letter of a bond's name (the diamond-portrait fallback when there's no image). */
 const initialOf = (name) => String(name || "?").trim().charAt(0).toUpperCase() || "?";
@@ -132,7 +106,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       addTrait: ProjectAnimeActorSheet.#onAddTrait,
       editTrait: ProjectAnimeActorSheet.#onEditTrait,
       removeTrait: ProjectAnimeActorSheet.#onRemoveTrait,
-      rollInitiative: ProjectAnimeActorSheet.#onRollInitiative,
       openAdvancement: ProjectAnimeActorSheet.#onOpenAdvancement,
       openRest: ProjectAnimeActorSheet.#onOpenRest,
       buildSkill: ProjectAnimeActorSheet.#onBuildSkill,
@@ -391,11 +364,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       }));
     }
 
-    // Initiative formula label for the side-panel button (Agility die + Mind die).
-    const agi = this.actor.system.attributes.agility?.value ?? 4;
-    const mnd = this.actor.system.attributes.mind?.value ?? 4;
-    context.initiativeLabel = `d${agi} + d${mnd}`;
-
     // BONDS drawer (Characters only) — the player's own relationship cards (flip-cards).
     if (context.isCharacter) context.bonds = await this.#bondContext();
     // BOND OFFER drawer (social NPCs) — the bond this NPC offers + its per-rank rewards.
@@ -443,11 +411,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   #bindSheetDnD() {
     const root = this.element;
     if (!root) return;
-    // Drawer rows are rebuilt each render → (re)mark them draggable.
+    // Drawer rows are rebuilt each render → (re)mark them draggable + (re)bind right-click removal.
+    // Right-click mirrors the floating Effects Panel: overcomeable conditions offer Overcome-or-Remove,
+    // everything else is cleared outright (item-borne effects notify to remove their source item).
     for (const row of root.querySelectorAll(".effect-row[data-effect-uuid]")) {
       row.setAttribute("draggable", "true");
       row.addEventListener("dragstart", (ev) => {
         ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "ActiveEffect", uuid: row.dataset.effectUuid }));
+      });
+      row.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        contextRemoveEffect(row.dataset.effectUuid);
       });
     }
     // Drop target lives on the persistent window root → bind once.
@@ -463,7 +437,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   async #onSheetDrop(ev) {
     // Leave text-editor drops alone (content-link creation in the biography editor).
     if (ev.target?.closest?.("prose-mirror, .ProseMirror, .editor-content")) return;
-    const data = this.#readDrag(ev);
+    const data = readDrag(ev);
     if (data?.type === "ActiveEffect" && data.uuid) {
       ev.preventDefault();
       const effect = await fromUuid(data.uuid);
@@ -486,13 +460,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       // dropping a tile back on its own sheet never duplicates the item.
       if (data.paItem && this.actor.items.has(data.paItem)) return;
       ev.preventDefault();
-      await this.#importDroppedItem(data);
+      await importDroppedItem(this.actor, data);
     }
   }
 
   /** Foundry's ActorSheetV2 binds its own `element.ondrop` every render (see its `_onRender`),
    *  which auto-creates a raw copy of any dropped Item/ActiveEffect. We run our own drop pipeline
-   *  (#onSheetDrop → #importDroppedItem / applyEffectCopy) that strips grant/natural/pin flags and
+   *  (#onSheetDrop → importDroppedItem / applyEffectCopy) that strips grant/natural/pin flags and
    *  routes effects, so the two channels would both fire and the drop would land TWICE. Suppress
    *  the base auto-create for foreign drops; keep delegating own-item drops to core so intra-sheet
    *  re-sorting (dropping a tile onto a sibling) still works. */
@@ -539,17 +513,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
 
   #prepareItems(context) {
     const skills = [];
-    const containers = [];
     const packages = [];
     const groups = Object.fromEntries(GEAR_GROUPS.map((k) => [k, []]));
     for (const item of this.actor.items) {
       if (item.type === "skill") skills.push(item);
-      else if (item.type === "container") containers.push(item);
       else if (item.type === "package") packages.push(item);
       else if (groups[item.type]) groups[item.type].push(item);
     }
-
-    const lite = (i) => ({ id: i.id, name: i.name, img: i.img, system: i.system });
 
     // Skills drawer: grouped by action type (Active / React / Passive). Each tile
     // carries its Effect glyph + role colour, rank, energy cost, pinned state, and
@@ -558,7 +528,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const cfgS = CONFIG.PROJECTANIME;
     const curEnergy = this.actor.system.energy?.value ?? 0;
     const mapDrawerSkill = (i) => {
-      const rank = cfgS.skillRanks[i.system.rank] ?? {};
       const cost = i.system.energyCost ?? 0;
       // Granted (free) abilities come from a Package/Skill's Grant effect — badged, and
       // not directly deletable (they're managed by their source; the trash is hidden).
@@ -569,10 +538,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         id: i.id,
         name: i.name,
         img: i.img,
-        stars: rank.stars ?? "",
+        stars: `${i.system.spCost ?? 0} SP`,
         energyCost: cost,
         pinned: !!i.getFlag("project-anime", "readied"),
-        over: !!i.system.modifiersOver,
         affordable: cost <= curEnergy,
         granted,
         grantedTip: granted
@@ -640,74 +608,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         return { id: i.id, name: i.name, img: i.img, qty: q > 1 ? q : null };
       });
 
-    // Containers (WoW-style bags): a bar of [Backpack] + one tab per container item.
-    // The inventory grids below are scoped to whichever bag is selected.
-    const containerIds = new Set(containers.map((c) => c.id));
-    if (this.#selectedBag && !containerIds.has(this.#selectedBag)) this.#selectedBag = ""; // deleted bag → backpack
-    const sel = this.#selectedBag;
-    // An item's effective bag: its container if that still exists, else the backpack.
-    const bagOf = (i) => {
-      const c = i.system?.container || "";
-      return c && containerIds.has(c) ? c : "";
-    };
-    // The innate Natural Attack is surfaced in the quick panel, not the carried-gear grid — keep
-    // it out of the bags (and their counts) so it never reads as droppable/loose equipment.
-    const containable = GEAR_GROUPS.flatMap((k) => groups[k]).filter((i) => !i.getFlag("project-anime", "natural"));
-    const countIn = (id) => containable.reduce((n, i) => n + (bagOf(i) === id ? 1 : 0), 0);
-
-    context.selectedBag = sel;
-    context.bags = [
-      { id: "", name: game.i18n.localize("PROJECTANIME.Container.backpack"), icon: "fa-box-open", count: countIn(""), selected: sel === "", backpack: true },
-      ...containers.sort(bySort).map((c) => ({ id: c.id, name: c.name, img: c.img, count: countIn(c.id), selected: sel === c.id }))
-    ];
-
-    // Inventory — one flat icon grid (FFXIV-style, no type headers) of the items in
-    // the selected bag, lightly ordered by type so like items cluster together.
-    context.bagItems = containable
-      .filter((i) => bagOf(i) === sel)
-      .sort((a, b) => GEAR_GROUPS.indexOf(a.type) - GEAR_GROUPS.indexOf(b.type) || bySort(a, b))
-      .map((i) => {
-        const l = lite(i);
-        const q = Number(i.system?.quantity);
-        l.qty = q > 1 ? q : null;          // quantity badge (stacks)
-        l.equippable = EQUIPPABLE.has(i.type);
-        l.equipped = !!i.system?.equipped;
-        return l;
-      });
-
-    // Paperdoll: resolve each slot's current occupant for the Gear drawer. A flat
-    // list — the template positions each slot over the portrait by its `key`.
-    const equipped = this.actor.items.filter((i) => i.system?.equipped);
-    context.paperdoll = PAPERDOLL_SLOTS.map((def) => {
-      const it = this.#slotOccupant(def.key, equipped);
-      let label = game.i18n.localize(`PROJECTANIME.Equipment.${def.base}`);
-      if (def.base === "accessory") label += ` ${Number(def.key.split(":")[1]) + 1}`;
-      return {
-        key: def.key,
-        icon: def.icon,
-        label,
-        // Shields carry their Wield-As mode so the slot can show an inline toggle (Dual Wield ↔
-        // Shield Only) — see the `pdSlot` partial + #onCycleShieldUse.
-        item: it ? {
-          id: it.id, name: it.name, img: it.img,
-          shield: it.type === "shield",
-          dualWield: it.type === "shield" && it.system.use === "dual"
-        } : null
-      };
-    });
-  }
-
-  /** Which equipped item currently fills a paperdoll slot (null if empty). */
-  #slotOccupant(slotKey, equipped) {
-    if (slotKey === "mainHand") return equipped.find((i) => (i.type === "weapon" || i.type === "shield") && i.system.hand === "main") ?? null;
-    if (slotKey === "offHand") return equipped.find((i) => (i.type === "weapon" || i.type === "shield") && i.system.hand === "off") ?? null;
-    if (slotKey === "armor") return equipped.find((i) => i.type === "armor") ?? null;
-    if (slotKey === "container") return equipped.find((i) => i.type === "container") ?? null;
-    if (slotKey.startsWith("accessory:")) {
-      const idx = Number(slotKey.split(":")[1]) || 0;
-      return equipped.filter((i) => i.type === "accessory").sort(bySort)[idx] ?? null;
-    }
-    return null;
+    // Carried gear (bag bar + inventory grid + paperdoll) — shared with the Monster Creator's Gear
+    // step. buildGearContext also corrects a stale selected bag (deleted → backpack), so write the
+    // corrected id back to our state.
+    const gear = buildGearContext(this.actor, { selectedBag: this.#selectedBag });
+    this.#selectedBag = gear.selectedBag;
+    Object.assign(context, gear);
   }
 
   /* -------------------------------------------- */
@@ -776,10 +682,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     return rollCheck(this.actor, { attrA: attr, attrB: attr });
   }
 
-  static async #onRollInitiative() {
-    return rollInitiative(this.actor);
-  }
-
   static async #onRollItem(event, target) {
     ProjectAnimeActorSheet.#getItem.call(this, target)?.roll({ event });
   }
@@ -813,7 +715,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
 
   /** Click a slot's ✕ → unequip whatever fills it. */
   static async #onUnequipSlot(event, target) {
-    await this.#clearSlot(target.dataset.slot);
+    await clearSlot(this.actor, target.dataset.slot);
   }
 
   /** Paperdoll: flip a shield between Dual Wield and Shield Only in place (mirrors the gear
@@ -828,59 +730,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /*  Paperdoll equip logic                       */
   /* -------------------------------------------- */
 
-  /** Equip `item` into a paperdoll slot, clearing whatever it displaces. */
-  async #equipToSlot(item, slotKey) {
-    if (!item || !slotKey) return;
-    const base = slotKey.startsWith("accessory") ? "accessory" : slotKey;
-    if (!SLOT_ACCEPTS[base]?.includes(item.type)) return;
-
-    const equipped = this.actor.items.filter((i) => i.system?.equipped && i.id !== item.id);
-    const updates = [];
-    const clear = (it) => updates.push({ _id: it.id, "system.equipped": false });
-    const target = { _id: item.id, "system.equipped": true };
-
-    switch (base) {
-      case "mainHand": {
-        const twoHanded = item.system.grip === "two";
-        target["system.hand"] = "main";
-        for (const it of equipped) if ((it.type === "weapon" || it.type === "shield") && it.system.hand === "main") clear(it);
-        // A two-handed grip occupies both hands → also free the off hand.
-        if (twoHanded) for (const it of equipped) if ((it.type === "weapon" || it.type === "shield") && it.system.hand === "off") clear(it);
-        break;
-      }
-      case "offHand": {
-        target["system.hand"] = "off";
-        for (const it of equipped) if ((it.type === "weapon" || it.type === "shield") && it.system.hand === "off") clear(it);
-        // A two-handed weapon in the main hand must give up a hand for this.
-        for (const it of equipped) if (it.type === "weapon" && it.system.hand === "main" && it.system.grip === "two") clear(it);
-        break;
-      }
-      case "armor":
-        for (const it of equipped) if (it.type === "armor") clear(it);
-        break;
-      case "container":
-        for (const it of equipped) if (it.type === "container") clear(it);
-        break;
-      case "accessory": {
-        const idx = Number(slotKey.split(":")[1]) || 0;
-        const accs = equipped.filter((i) => i.type === "accessory").sort(bySort);
-        if (accs[idx]) clear(accs[idx]);               // swap out this slot's occupant
-        const rest = accs.filter((_, i) => i !== idx);
-        while (rest.length >= 2) clear(rest.pop());     // never exceed two accessory slots
-        break;
-      }
-    }
-
-    updates.push(target);
-    await this.actor.updateEmbeddedDocuments("Item", updates);
-  }
-
-  /** Unequip whatever fills `slotKey`. */
-  async #clearSlot(slotKey) {
-    const occupant = this.#slotOccupant(slotKey, this.actor.items.filter((i) => i.system?.equipped));
-    if (occupant) await occupant.update({ "system.equipped": false });
-  }
-
   /** Open the click-to-equip popover for a slot: eligible items + an Unequip row. */
   #openSlotPicker(slotKey, anchor) {
     if (!this.isEditable || !slotKey) return;
@@ -889,7 +738,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const base = slotKey.startsWith("accessory") ? "accessory" : slotKey;
     const accepts = SLOT_ACCEPTS[base] ?? [];
     const equipped = this.actor.items.filter((i) => i.system?.equipped);
-    const occupant = this.#slotOccupant(slotKey, equipped);
+    const occupant = slotOccupant(slotKey, equipped);
     const candidates = this.actor.items.filter((i) => accepts.includes(i.type)).sort(bySort);
 
     const menu = document.createElement("div");
@@ -904,7 +753,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       menu.appendChild(row);
     };
 
-    if (occupant) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Equipment.empty")), () => this.#clearSlot(slotKey));
+    if (occupant) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Equipment.empty")), () => clearSlot(this.actor, slotKey));
     for (const it of candidates) {
       addRow(`pd-option${occupant && it.id === occupant.id ? " is-selected" : ""}`, (r) => {
         const img = document.createElement("img");
@@ -912,7 +761,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         const span = document.createElement("span");
         span.textContent = it.name;
         r.append(img, span);
-      }, () => this.#equipToSlot(it, slotKey));
+      }, () => equipToSlot(this.actor, it, slotKey));
     }
     if (!menu.children.length) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Empty")), () => {});
 
@@ -979,8 +828,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       content += `<div class="psd-group"><div class="psd-head">${game.i18n.localize("PROJECTANIME.Quick." + langKey)}</div>`;
       for (const s of inGroup) {
         const on = s.getFlag("project-anime", "readied") ? " checked" : "";
-        const stars = cfg.skillRanks[s.system?.rank]?.stars ?? "";
-        content += `<label class="psd-row"><input type="checkbox" name="${s.id}"${on} /><img src="${esc(s.img)}" /><span class="psd-name">${esc(s.name)}</span><span class="psd-meta">${stars}</span></label>`;
+        const costTag = `${s.system?.spCost ?? 0} SP`;
+        content += `<label class="psd-row"><input type="checkbox" name="${s.id}"${on} /><img src="${esc(s.img)}" /><span class="psd-name">${esc(s.name)}</span><span class="psd-meta">${costTag}</span></label>`;
       }
       content += `</div>`;
     }
@@ -1057,9 +906,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       if (item.type === "shield" && cfg.shieldUses?.[sys.use]) row(i18n("PROJECTANIME.Field.shieldUse"), i18n(cfg.shieldUses[sys.use]));
       if (sys.equipped) typeLabel += ` · ${i18n("PROJECTANIME.Field.equipped")}`;
     } else if (item.type === "skill") {
-      const rank = cfg.skillRanks[sys.rank] ?? {};
       typeLabel = `${i18n("TYPES.Item.skill")} · ${i18n(cfg.actionTypes[sys.actionType] ?? "")}`;
-      rowHTML(i18n("PROJECTANIME.Skill.field.rank"), `<span class='pa-tt-stars'>${rank.stars ?? ""}</span> ${esc(i18n(rank.label ?? ""))}`);
+      row(i18n("PROJECTANIME.Skill.field.spCost"), `${sys.spCost ?? 0} SP`);
       if (sys.energyCost > 0) row(i18n("PROJECTANIME.Skill.field.energyCost"), `${sys.energyCost} EN`);
       row(i18n("PROJECTANIME.Skill.field.range"), rangeLabel(sys.range));
       row(i18n("PROJECTANIME.Skill.field.effect"), skillEffectKeys(sys).map((k) => i18n(cfg.skillEffects[k] ?? "")).join(" + "));
@@ -1070,8 +918,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       if (sys.damageType && cfg.damageEffects.includes(sys.effect)) row(i18n("PROJECTANIME.Skill.field.damageType"), elName(sys.damageType));
       if ((sys.controlElement ?? "").trim() && skillEffectKeys(sys).includes("elementalControl")) row(i18n("PROJECTANIME.Skill.field.controlElement"), sys.controlElement.trim());
     } else if (item.type === "armor") {
-      row(i18n("PROJECTANIME.Field.defenseBonus"), sys.defenseBonus);
-      if (sys.evasionPenalty) row(i18n("PROJECTANIME.Field.evasionPenalty"), sys.evasionPenalty);
+      row(i18n("PROJECTANIME.Field.protection"), sys.protection);
+      row(i18n("PROJECTANIME.Field.defSplit"), sys.defSplit);
+      row(i18n("PROJECTANIME.Field.resSplit"), sys.resSplit);
+      if (sys.evasionMod) row(i18n("PROJECTANIME.Field.evasionMod"), sys.evasionMod);
     } else if (item.type === "container") {
       row(i18n("PROJECTANIME.Field.capacityBonus"), sys.capacityBonus);
     }
@@ -1219,8 +1069,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       return;
     }
     if (item.type === "weapon" || item.type === "shield") {
-      add("fa-hand-fist", "PROJECTANIME.Action.equipMainHand", () => this.#equipToSlot(item, "mainHand"));
-      add("fa-shield-halved", "PROJECTANIME.Action.equipOffHand", () => this.#equipToSlot(item, "offHand"));
+      add("fa-hand-fist", "PROJECTANIME.Action.equipMainHand", () => equipToSlot(this.actor, item, "mainHand"));
+      add("fa-shield-halved", "PROJECTANIME.Action.equipOffHand", () => equipToSlot(this.actor, item, "offHand"));
       if (equipped) add("fa-xmark", "PROJECTANIME.Action.unequip", () => item.update({ "system.equipped": false }));
     } else if (EQUIPPABLE.has(item.type)) {
       const key = equipped ? "PROJECTANIME.Action.unequip" : "PROJECTANIME.Action.equip";
@@ -1276,8 +1126,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         ev.stopPropagation();
         slot.classList.remove("drag-over");
         // Own item → equip it; foreign item → copy it onto this actor first, then equip the copy.
-        const item = this.#draggedItem(ev) ?? await this.#importDroppedItem(this.#readDrag(ev));
-        if (item) this.#equipToSlot(item, slot.dataset.slot);
+        const item = draggedItem(this.actor, ev) ?? await importDroppedItem(this.actor, readDrag(ev));
+        if (item) equipToSlot(this.actor, item, slot.dataset.slot);
       });
     }
 
@@ -1285,7 +1135,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     if (bag) {
       bag.addEventListener("dragover", (ev) => ev.preventDefault());
       bag.addEventListener("drop", (ev) => {
-        const item = this.#draggedItem(ev);
+        const item = draggedItem(this.actor, ev);
         if (item?.system?.equipped) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -1303,7 +1153,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         ev.stopPropagation();
         tab.classList.remove("drag-over");
         const bagId = tab.dataset.bagId || "";
-        const item = this.#draggedItem(ev);
+        const item = draggedItem(this.actor, ev);
         if (item) {
           // Own item → just refile it into this bag.
           if (item.type !== "container" && (item.system.container || "") !== bagId) {
@@ -1312,52 +1162,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
           return;
         }
         // Foreign item → copy it straight into this bag.
-        await this.#importDroppedItem(this.#readDrag(ev), { container: bagId });
+        await importDroppedItem(this.actor, readDrag(ev), { container: bagId });
       });
     }
-  }
-
-  /** Parse the drag payload (the JSON stashed on `text/plain` by our sheets + core Foundry). */
-  #readDrag(ev) {
-    try { return JSON.parse(ev.dataTransfer.getData("text/plain") || "{}"); } catch (_) { return {}; }
-  }
-
-  /** Resolve the embedded item being dragged within THIS sheet (null if foreign / not ours). */
-  #draggedItem(ev) {
-    const data = this.#readDrag(ev);
-    return data.paItem ? (this.actor.items.get(data.paItem) ?? null) : null;
-  }
-
-  /** Strip a source item down to a clean object for copying onto this actor: drop the source id,
-   *  the grant/natural/pin flags (meaningless or duplicative on a new owner), and reset the
-   *  equipped/bag state so the copy lands loose in the chosen bag (default backpack). */
-  #cleanItemForTransfer(item, { container = "" } = {}) {
-    const obj = item.toObject();
-    delete obj._id;
-    delete obj.sort;
-    const paFlags = obj.flags?.["project-anime"];
-    if (paFlags) {
-      delete paFlags.granted;     // a copy is a normally-owned ability, not a grant…
-      delete paFlags.grantedBy;   // …and its source carrier doesn't exist on the new owner
-      delete paFlags.natural;     // the new owner already has its own Natural Attack
-      delete paFlags.readied;     // don't auto-pin to the new owner's quick panel
-    }
-    if (obj.system) {
-      if ("equipped" in obj.system) obj.system.equipped = false;
-      if ("container" in obj.system) obj.system.container = item.type === "container" ? "" : container;
-    }
-    return obj;
-  }
-
-  /** Copy a dropped foreign Item (from another sheet / compendium / sidebar / stash) onto this
-   *  actor. Returns the created Item, or null if the drop wasn't a transferable foreign item. */
-  async #importDroppedItem(data, options = {}) {
-    if (data?.type !== "Item" || !data.uuid) return null;
-    const item = await fromUuid(data.uuid);
-    if (!item || item.documentName !== "Item" || !TRANSFERABLE_ITEM_TYPES.has(item.type)) return null;
-    if (item.parent?.id === this.actor.id) return null; // already ours — never self-copy
-    const [created] = await this.actor.createEmbeddedDocuments("Item", [this.#cleanItemForTransfer(item, options)]);
-    return created ?? null;
   }
 
   static async #onToggleCondition(event, target) {
@@ -1616,7 +1423,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
    *  links it to an existing bond (filling portrait + name). */
   async #onBondActorDrop(event, spec) {
     if (!this.isEditable || !spec) return;
-    const data = this.#readDrag(event);
+    const data = readDrag(event);
     if (data?.type !== "Actor" || !data.uuid) return;
     const actor = await fromUuid(data.uuid).catch(() => null);
     if (!actor) return;
@@ -1954,12 +1761,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /** Drop an Item onto a rank's reward slot → store a self-contained snapshot as that rank's reward. */
   async #onRewardItemDrop(event, rank) {
     if (!this.isEditable) return;
-    const data = this.#readDrag(event);
+    const data = readDrag(event);
     if (data?.type !== "Item" || !data.uuid) return;
     const item = await fromUuid(data.uuid).catch(() => null);
     if (!item?.toObject) return;
     const snap = item.toObject();
     delete snap._id;
+    stampCompendiumSource(snap, item);
     await this.#mutateNpcBond((b) => {
       const r = b.ranks.find((x) => x.rank === Number(rank));
       if (r) (r.rewardItems ??= []).push(snap);

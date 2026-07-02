@@ -202,7 +202,18 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 5 · REVIEW ===================== --}}
+  {{!-- ===================== 5 · GEAR ===================== --}}
+  {{#if onGear}}
+  <section class="cc-step-body cc-gear">
+    <div class="cc-vitals-grid cc-gear-stats">
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="cc-v-val">{{defense}}</span></div>
+      <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="cc-v-val">{{evasion}}</span></div>
+    </div>
+    {{> "systems/project-anime/templates/actor/gear-body.hbs"}}
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 6 · REVIEW ===================== --}}
   {{#if onFinish}}
   <section class="cc-step-body cc-review">
     <div class="cc-review-id">

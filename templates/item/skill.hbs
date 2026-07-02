@@ -1,20 +1,15 @@
 {{!-- Skill builder --}}
 <section class="item-body skill-builder tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
 
-  <div class="build-summary {{#if system.modifiersOver}}over{{/if}}">
-    <span class="stars">{{rankInfo.stars}}</span>
+  <div class="build-summary">
     <span>{{localize "PROJECTANIME.Skill.field.spCost"}}: <strong>{{system.spCost}}</strong></span>
     {{#if system.energyCost}}<span>{{localize "PROJECTANIME.Skill.field.energyCost"}}: <strong>{{system.energyCost}}</strong></span>{{/if}}
-    <span class="mod-budget">{{localize "PROJECTANIME.Skill.field.modifiers"}}: <strong>{{system.modifiersUsed}} / {{system.maxModifiers}}</strong></span>
+    <span class="mod-budget">{{localize "PROJECTANIME.Skill.field.modifiers"}}: <strong>{{system.modifiersUsed}}</strong></span>
   </div>
 
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
     <div class="form-grid">
-      <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.field.rank"}}</label>
-        <select name="system.rank">{{selectOptions rankChoices selected=system.rank}}</select>
-      </div>
       <div class="form-group">
         <label>{{localize "PROJECTANIME.Skill.field.actionType"}}</label>
         <select name="system.actionType">{{selectOptions config.actionTypes selected=system.actionType localize=true}}</select>
@@ -96,7 +91,7 @@
   <div class="modifiers-block">
     <header class="group-header">
       <h3>{{localize "PROJECTANIME.Skill.field.modifiers"}}
-        <span class="muted">({{system.modifiersUsed}} / {{system.maxModifiers}})</span></h3>
+        <span class="muted">({{system.modifiersUsed}})</span></h3>
     </header>
     <ul class="modifier-list">
       {{#each modifierList as |mod|}}

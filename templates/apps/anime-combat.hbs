@@ -1,18 +1,16 @@
 {{!-- Project: Anime — encounter tracker (frameless ApplicationV2 part), pinned just left of the
-      chat sidebar. Clean pf2e-hud-style layout: a header turn/round nav bar (GM), a flat list of
-      combatant rows — circular portrait | name over a row of small controls | initiative stacked
-      over HP — and a footer with the round actions, round counter, and collapse toggle. Shows as
-      soon as the encounter has visible combatants (even before it begins); hidden otherwise. --}}
+      chat sidebar. SIDE INITIATIVE layout: a header nav bar (GM), the combatant list broken into
+      Player / Enemy / Neutral PHASE blocks (the active phase highlighted; a viewer's not-yet-acted
+      units in it are pickable — free-pick), and a footer with the round + active phase, the player's
+      End Turn (when they control the acting unit), and the collapse toggle. --}}
 {{#if show}}
 <div class="ct-wrap{{#if collapsed}} collapsed{{/if}}">
 
   <div class="ct-head">
     {{#if gm}}
       {{#if started}}
-      <a class="ct-nav" data-action="combatPrevRound" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.prevRound'}}"><i class="fas fa-backward-step"></i></a>
-      <a class="ct-nav" data-action="combatPrevTurn" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.prevTurn'}}"><i class="fas fa-arrow-left"></i></a>
       <a class="ct-endcombat" data-action="combatEndCombat">{{localize 'PROJECTANIME.Hud.combat.endEncounter'}}</a>
-      <a class="ct-nav" data-action="combatEndTurn" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.nextTurn'}}"><i class="fas fa-arrow-right"></i></a>
+      <a class="ct-nav" data-action="combatEndTurn" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.advance'}}"><i class="fas fa-arrow-right"></i></a>
       <a class="ct-nav" data-action="combatNextRound" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.nextRound'}}"><i class="fas fa-forward-step"></i></a>
       {{else}}
       <a class="ct-begin" data-action="combatBegin"><i class="fas fa-play"></i> {{localize 'PROJECTANIME.Hud.combat.begin'}}</a>
@@ -23,12 +21,17 @@
   </div>
 
   <ol class="ct-list">
-    {{#each turns}}
-    <li class="ct-row disp-{{disp}}{{#if active}} active{{/if}}{{#if keep}} keep{{/if}}{{#if defeated}} defeated{{/if}}{{#if hidden}} hidden{{/if}}"
-        data-combatant-id="{{id}}" data-action="combatGoto" data-tooltip="{{name}}">
+    {{#each groups}}
+    <li class="ct-phase disp-{{side}}{{#if active}} active{{/if}}">
+      <span class="ct-phase-name">{{label}}</span>
+    </li>
+    {{#each rows}}
+    <li class="ct-row disp-{{disp}}{{#if active}} active{{/if}}{{#if acted}} acted{{/if}}{{#if activatable}} pickable{{/if}}{{#if keep}} keep{{/if}}{{#if defeated}} defeated{{/if}}{{#if hidden}} hidden{{/if}}"
+        data-combatant-id="{{id}}" data-action="{{#if activatable}}combatActivate{{else}}combatGoto{{/if}}" data-tooltip="{{name}}">
       <div class="ct-av">
         <div class="ct-img" style="background-image:url('{{img}}')"></div>
         {{#if defeated}}<i class="ct-dead fas fa-skull"></i>{{/if}}
+        {{#if acted}}<i class="ct-done fas fa-check"></i>{{/if}}
       </div>
       <div class="ct-mid">
         <div class="ct-name">{{name}}</div>
@@ -42,15 +45,11 @@
         </div>
       </div>
       <div class="ct-extras">
-        <div class="ct-initrow">
-          {{#if canRoll}}
-          <a class="ct-roll" data-action="combatRoll" data-combatant-id="{{id}}" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.roll'}}">
-            {{#if rolled}}<span class="ct-init">{{init}}</span>{{/if}}<i class="fas fa-dice-d20"></i>
-          </a>
-          {{else}}
-            {{#if rolled}}<span class="ct-init">{{init}}</span><i class="fas fa-dice-d20 ct-dim"></i>{{else}}<span class="ct-init-none">—</span>{{/if}}
-          {{/if}}
-        </div>
+        {{#if canEndRow}}
+        <a class="ct-endrow" data-action="combatEndTurn" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.endTurn'}}"><i class="fas fa-hourglass-end"></i></a>
+        {{else}}{{#if activatable}}
+        <span class="ct-go" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.activate'}}"><i class="fas fa-play"></i></span>
+        {{/if}}{{/if}}
         {{#if seeHP}}
         <div class="ct-hp" style="--hue:{{hp.hue}}" data-tooltip="{{hp.value}}/{{hp.max}}"><span>{{hp.value}}</span><i class="fas fa-heart"></i></div>
         {{/if}}
@@ -60,19 +59,16 @@
       </div>
     </li>
     {{/each}}
+    {{/each}}
   </ol>
 
   <div class="ct-foot">
     <div class="ct-foot-l">
-      {{#if gm}}
-      <a class="ct-fbtn" data-action="combatRollAll" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.rollAll'}}"><i class="fas fa-users"></i></a>
-      <a class="ct-fbtn" data-action="combatRollNpc" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.rollNpc'}}"><i class="fas fa-skull"></i></a>
-      <a class="ct-fbtn" data-action="combatReset" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.reset'}}"><i class="fas fa-rotate-left"></i></a>
-      {{else}}{{#if canEnd}}
+      {{#unless gm}}{{#if canEnd}}
       <a class="ct-end" data-action="combatEndTurn"><i class="fas fa-hourglass-end"></i> {{localize 'PROJECTANIME.Hud.combat.endTurn'}}</a>
-      {{/if}}{{/if}}
+      {{/if}}{{/unless}}
     </div>
-    <span class="ct-round">{{#if started}}{{localize "PROJECTANIME.Hud.combat.round"}} {{round}}{{else}}{{localize "PROJECTANIME.Hud.combat.notStarted"}}{{/if}}</span>
+    <span class="ct-round">{{#if started}}{{localize "PROJECTANIME.Hud.combat.round"}} {{round}}{{#if phaseLabel}} · {{phaseLabel}}{{/if}}{{else}}{{localize "PROJECTANIME.Hud.combat.notStarted"}}{{/if}}</span>
     <div class="ct-foot-r">
       <a class="ct-fbtn ct-collapse" data-action="combatToggleCollapse" data-tooltip="{{collapseLabel}}">
         <i class="fas {{#if collapsed}}fa-up-right-and-down-left-from-center{{else}}fa-down-left-and-up-right-to-center{{/if}}"></i>

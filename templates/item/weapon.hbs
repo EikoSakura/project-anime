@@ -13,12 +13,12 @@
         <select name="system.accuracy.attrB">{{selectOptions config.attributes selected=system.accuracy.attrB localize=true}}</select></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyMod"}}</label>
         <input type="number" name="system.accuracy.mod" value="{{system.accuracy.mod}}" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.damageMod"}}</label>
-        <input type="number" name="system.damage.mod" value="{{system.damage.mod}}" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.weaponDmg"}}</label>
+        <input type="number" name="system.damage.mod" value="{{system.damage.mod}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.damageType"}}</label>
         <select name="system.damage.type">{{selectOptions damageTypeChoices selected=system.damage.type}}</select></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.rangeType"}}</label>
-        <select name="system.range.type">{{selectOptions config.rangeTypes selected=system.range.type localize=true}}</select></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.rangeMin"}}</label>
+        <input type="number" name="system.range.minTiles" value="{{system.range.minTiles}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.rangeTiles"}}</label>
         <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" /></div>
     </div>

@@ -7,7 +7,7 @@ import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
 import { ProjectAnimeItemSheet } from "./sheets/item-sheet.mjs";
-import { PROJECTANIME, ENCOUNTER_POWER_SETTING, cursedPools } from "./helpers/config.mjs";
+import { PROJECTANIME, ENCOUNTER_POWER_SETTING, cursedPools, combatantSide, sideInitiative, hasActed, isSkippable, pendingOnSide, activeSide } from "./helpers/config.mjs";
 import * as dice from "./helpers/dice.mjs";
 import { elementLabel } from "./helpers/elements.mjs";
 import { registerElementSettings } from "./apps/element-config.mjs";
@@ -21,7 +21,7 @@ import { raiseServant, createCompanion, removeServantActor, pruneServantLedger, 
 import { auditGearPacks, PACK_AUDIT_SETTING } from "./helpers/pack-audit.mjs";
 import { syncAuras, isAuraEffect } from "./helpers/aura.mjs";
 import { EffectsPanel } from "./apps/effects-panel.mjs";
-import { TokenInfoPanel, TOKEN_INFO_SETTING, TOKEN_INFO_CLIENT_SETTING, canSeeTokenVitals } from "./apps/token-info.mjs";
+import { TokenInfoPanel, TOKEN_INFO_SETTING, TOKEN_INFO_CLIENT_SETTING, canSeeTokenVitals, viewerReveals } from "./apps/token-info.mjs";
 import { TokenDossier } from "./apps/token-dossier.mjs";
 import { RangeLine, RANGE_LINE_SETTING, RANGE_LINE_CLIENT_SETTING } from "./apps/range-line.mjs";
 import { AuraField } from "./apps/aura-field.mjs";
@@ -70,6 +70,16 @@ const DEFAULT_PARTY_SETTING = "defaultPartyProvisioned";
 // qty becomes that many individual lines. See migrateEncounterSquads.
 const ENCOUNTER_SQUAD_MIGRATION_SETTING = "encounterSquadsMigrated";
 
+// Per-user accent color — Log Horizon-style: every player's status windows wear THEIR color.
+// The chosen color is injected on <html> as --pa-player-accent; the sheet skin keys off it.
+const ACCENT_COLOR_SETTING = "accentColor";
+
+/** Write the user's accent color onto the document root so the sheet CSS can theme off it. */
+function applyPlayerAccent(value) {
+  const css = value?.css ?? (value ? String(value) : null);
+  if (css) document.documentElement.style.setProperty("--pa-player-accent", css);
+}
+
 /* -------------------------------------------- */
 /*  Init                                        */
 /* -------------------------------------------- */
@@ -77,16 +87,25 @@ const ENCOUNTER_SQUAD_MIGRATION_SETTING = "encounterSquadsMigrated";
 Hooks.once("init", function () {
   console.log("Project: Anime | Initializing system");
 
-  // Expose useful classes on the global scope for macros / downstream modules.
+  // Expose useful classes on the global scope for macros / downstream modules. `sideInit` surfaces the
+  // Side-Initiative state machine (GM-side) so the HUD tracker can drive it without an import cycle.
+  // (Note: `projectanime.combat` is later assigned the AnimeCombatTracker instance — keep these distinct.)
   globalThis.projectanime = {
     documents: { ProjectAnimeActor, ProjectAnimeItem },
     applications: { ProjectAnimeActorSheet, ProjectAnimeItemSheet, Codex },
+    sideInit: { activate: activateCombatant, end: endActivation, reconcile: reconcilePhase, nextRound: forceNextRound },
     dice,
     models
   };
 
   // Configuration constants.
   CONFIG.PROJECTANIME = PROJECTANIME;
+
+  // Register shared Handlebars partials included by full path via {{> …}} (Foundry does not auto-load
+  // them). The carried-gear body is shared by the actor sheet's Gear drawer and the Monster Creator's
+  // Gear step; preloading at init means it's registered long before any sheet opens.
+  const loadTpl = foundry.applications.handlebars?.loadTemplates ?? globalThis.loadTemplates;
+  loadTpl?.(["systems/project-anime/templates/actor/gear-body.hbs"]);
 
   // CHRONICLE quest log — the campaign's quests live in one world setting (GM writes, all read).
   game.settings.register("project-anime", QUESTS_SETTING, {
@@ -348,6 +367,18 @@ Hooks.once("init", function () {
     default: true
   });
 
+  // Player Accent — the color this user's sheets glow (trim, Energy bar, highlights). Client-scoped
+  // so each player at the table sees their own; applied immediately so open sheets re-tint live.
+  game.settings.register("project-anime", ACCENT_COLOR_SETTING, {
+    name: "PROJECTANIME.Settings.accentColor.name",
+    hint: "PROJECTANIME.Settings.accentColor.hint",
+    scope: "client",
+    config: true,
+    type: new foundry.data.fields.ColorField({ nullable: false, initial: "#3ec9f0" }),
+    onChange: applyPlayerAccent
+  });
+  applyPlayerAccent(game.settings.get("project-anime", ACCENT_COLOR_SETTING));
+
   // GM-configurable custom Token-Info fields (label + actor data path + gate + surface) — the
   // extensibility hook so module-added data (e.g. a Rank) can show in the readout.
   registerTokenFieldSettings();
@@ -357,13 +388,21 @@ Hooks.once("init", function () {
   // other viewers it never fires — we relax _canHUD so our handler runs, then branch in
   // _onClickRight: the real _canHUD (GM/owner) → core HUD, otherwise → the dossier. Patched on
   // the prototype in `init`, before any token's interaction manager is built.
+  //
+  // The dossier opens for a non-owner when EITHER the Token Info Panel world setting is on, OR the
+  // viewer carries at least one active Reveal category (a Scouter — e.g. a passive "analyze Skills"
+  // Skill). Reveal is a granted inspection ability, so it enables the inspect surface on its own,
+  // without also needing the GM to flip the (separate, hover-vitals) Token Info Panel setting. The
+  // dossier still gates each section by the viewer's reveals, so they only ever see what they earned.
+  const canInspect = () =>
+    game.settings.get("project-anime", TOKEN_INFO_SETTING) || viewerReveals().size > 0;
   const TokenClass = CONFIG.Token?.objectClass;
   if (TokenClass && !TokenClass.prototype._paDossierPatched) {
     const baseCanHUD = TokenClass.prototype._canHUD;
     const baseOnClickRight = TokenClass.prototype._onClickRight;
     TokenClass.prototype._canHUD = function (user, event) {
       if (baseCanHUD.call(this, user, event)) return true;
-      if (!game.settings.get("project-anime", TOKEN_INFO_SETTING) || !this.actor) return false;
+      if (!this.actor || !canInspect()) return false;
       // Keep the same situational guards core uses (no active drag / inactive layer / preview).
       if (this.layer?._draggedToken || !this.layer?.active || this.isPreview) return false;
       return true;
@@ -371,8 +410,8 @@ Hooks.once("init", function () {
     TokenClass.prototype._onClickRight = function (event) {
       // GM/owner (the real _canHUD) → unchanged core behavior (opens the Token HUD).
       if (baseCanHUD.call(this, game.user, event)) return baseOnClickRight.call(this, event);
-      // Any other viewer, feature on → the reveal-gated dossier.
-      if (game.settings.get("project-anime", TOKEN_INFO_SETTING) && this.actor) {
+      // Any other viewer with an inspect entitlement → the reveal-gated dossier.
+      if (this.actor && canInspect()) {
         TokenDossier.open(this, event);
         if (!this._propagateRightClick(event)) event.stopPropagation();
         return;
@@ -398,55 +437,23 @@ Hooks.once("init", function () {
   // Register the system's status conditions (token HUD icons + Active Effects).
   CONFIG.statusEffects = PROJECTANIME.statusConditions.map((c) => ({ ...c }));
 
-  // Initiative Check (rules p.13): roll the Agility die + the Mind die; the highest total acts
-  // first. Tiebreakers ride as fractions (small enough never to flip a real total): the larger
-  // Agility die wins a tie (+Agility/100), and an enemy acts before any player it still ties
-  // with (+0.001 for NPCs — see ProjectAnimeActor#getRollData's `tiebreak`). The tracker displays
-  // the whole number only (decimals: 0); the fractions still order ties, they just don't show.
-  CONFIG.Combat.initiative = {
-    formula: "1d@attributes.agility.value + 1d@attributes.mind.value + (@attributes.agility.value / 100) + (@tiebreak.npc / 1000)",
-    decimals: 0
-  };
+  // SIDE INITIATIVE (Fire-Emblem phases): turn order is NOT rolled — a combatant's `initiative` is
+  // assigned deterministically from its side band (config.mjs sideInitiative), so Foundry groups the
+  // tracker Player → Enemy → Neutral. The formula is neutralized so any stray core roll path (or a
+  // reset) can never scatter a combatant out of its band. See assignSideInitiative + the free-pick
+  // state machine below.
+  CONFIG.Combat.initiative = { formula: "0", decimals: 0 };
 
-  // Extra-turn grants on `nextTurn` — patched on the prototype so every advance path (tracker buttons,
-  // the HUD's End Turn relay) honors them:
-  //   1. COMBO (rules p.13): "the moment it resolves you take an additional turn". A Combo scored on the
-  //      roller's own turn flags the combat (dice.mjs maybeGrantComboTurn, GM-relayed); the next advance
-  //      consumes the flag, STAYS on that combatant, and marks the grant so a Combo during it can't chain.
-  //   2. A forced advance (`_paSkipExtra`, set by the Stunned skip) bypasses the Combo hold so a stunned
-  //      creature loses its turn instead of being handed an extra one.
-  // NOTE: Boss/Elite multi-actions are NOT handled here. A Boss is given several Combatant ENTRIES at
-  // spread initiative values when combat begins (ensureBossSlots), so Foundry's own turn order interleaves
-  // its actions between the players' turns — never back-to-back, exact count, no turn-loop surgery. The
-  // entries share one token (hence HP/defeat), and per-round effects de-dupe per actor. ENEMY-DESIGN Phase 0.
+  // Turn advancement under SIDE INITIATIVE. Foundry's per-combatant `nextTurn` / `nextRound` are
+  // repointed at the free-pick state machine (endActivation / forceNextRound below), so EVERY advance
+  // path — the Anime HUD, the native tracker, a macro — runs the same phase logic: stamp the acting
+  // unit done, auto-skip stunned/defeated, roll on to the next phase, and bump the round once all
+  // three phases are spent. COMBO extra turns and the Stunned skip are handled inside that machine
+  // (endActivation holds a comboing unit for a second action; reconcilePhase skips the stunned).
   const CombatClass = CONFIG.Combat.documentClass ?? Combat;
   if (!CombatClass.prototype._paNextTurnPatched) {
-    const baseNextTurn = CombatClass.prototype.nextTurn;
-    CombatClass.prototype.nextTurn = async function () {
-      // Forced advance (Stunned skip) — no extra turns, just pass.
-      if (this._paSkipExtra) { delete this._paSkipExtra; return baseNextTurn.call(this); }
-      const cur = this.combatant;
-
-      // Combo extra turn (holds the turn on the comboing combatant for one more action).
-      const pending = this.getFlag("project-anime", "comboTurn");
-      if (pending && cur && pending === `${cur.id}:${this.round}`) {
-        await this.update({
-          "flags.project-anime.-=comboTurn": null,
-          "flags.project-anime.comboGranted": `${cur.id}:${this.round}`
-        });
-        if (cur.actor) {
-          ChatMessage.create({
-            speaker: ChatMessage.getSpeaker({ actor: cur.actor }),
-            content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.comboTurn", { name: cur.actor.name })}</em></div></div>`
-          });
-        }
-        return this;
-      }
-      // A stale pending grant (the turn moved on some other way) dies with the advance.
-      if (pending) await this.unsetFlag("project-anime", "comboTurn");
-
-      return baseNextTurn.call(this);
-    };
+    CombatClass.prototype.nextTurn = async function () { await endActivation(this); return this; };
+    CombatClass.prototype.nextRound = async function () { await forceNextRound(this); return this; };
     CombatClass.prototype._paNextTurnPatched = true;
   }
 
@@ -908,67 +915,187 @@ async function tickOncePerRound(combat, key, tokenId) {
   return true;
 }
 
-/** Runaway guard: bounds the chain of consecutive Stunned skips so a status that somehow can't be
- *  cleared can never spin the tracker forever. Reset whenever the turn lands on a non-Stunned actor. */
-let stunnedSkipChain = 0;
+/* -------------------------------------------- */
+/*  Side Initiative — free-pick state machine   */
+/* -------------------------------------------- */
 
-/** Stunned (rules p.13): the creature loses its next turn entirely (no Move, no Action), then Stunned
- *  ends. At the START of a Stunned creature's turn we announce it, remove the status, and auto-advance
- *  the tracker so the turn is skipped. Consecutive Stunned creatures chain (each is skipped in turn).
- *  GM-side only (the caller is gated). Returns true if a turn was skipped. */
-async function tickStunned(combat, started) {
-  const actor = started?.actor;
-  if (!actor?.statuses?.has?.("stunned")) { stunnedSkipChain = 0; return false; }
-  // Safety: if a Stunned status can't be cleared, stop after one full lap rather than loop forever.
-  if (stunnedSkipChain > (combat.combatants?.size ?? 0)) { stunnedSkipChain = 0; return false; }
-  stunnedSkipChain += 1;
-  tickCard(actor, game.i18n.format("PROJECTANIME.Effect.stunnedSkip", { name: actor.name }));
-  await actor.toggleStatusEffect?.("stunned", { active: false });
-  // Force a real advance: this is a SKIP, so the extra-turn grants (Combo / Solo) must not fire and
-  // hand a stunned creature another turn. The flag is consumed at the top of the nextTurn patch.
-  combat._paSkipExtra = true;
-  await combat.nextTurn();   // re-enters combatTurnTick for the now-current combatant (chains if also Stunned)
-  return true;
+/** Deterministically (re)assign each combatant's `initiative` to its side band (config.sideInitiative),
+ *  so the tracker groups Player → Enemy → Neutral with no dice roll. `ids` limits the write to specific
+ *  combatants (a fresh join / a disposition flip); omitted = the whole encounter. GM-side. */
+async function assignSideInitiative(combat, ids = null) {
+  if (!combat || game.users.activeGM?.id !== game.user.id) return;
+  const list = ids ? ids.map((i) => combat.combatants.get(i)).filter(Boolean) : [...combat.combatants];
+  const updates = list
+    .filter((c) => c.initiative !== sideInitiative(c))
+    .map((c) => ({ _id: c.id, initiative: sideInitiative(c) }));
+  if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
 }
 
-/**
- * Combat turn-tick automation (GM-side only, mirroring expireEffects' single-active-GM guard).
- * On a turn/round advance: the combatant whose turn just ENDED takes Decay and counts down its
- * status durations; the one whose turn just STARTED gets Sustain regen, then — if Stunned — has its
- * turn auto-skipped. Reads combat.previous / combat.current. Every per-round tick is gated ONCE PER
- * ROUND PER ACTOR via tickOncePerRound, so a Boss with several combatant entries (ENEMY-DESIGN Phase 0)
- * decays / regenerates / counts down its statuses exactly once — not once per entry — and stepping the
- * tracker backward never re-applies them.
- */
-async function combatTurnTick(combat, change) {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (!("turn" in change) && !("round" in change)) return;
-  const endedC = combat.combatants.get(combat.previous?.combatantId) ?? null;
-  const endedActor = endedC?.actor ?? null;
-  const started = combat.combatants.get(combat.current?.combatantId) ?? null;
-  if (endedActor && await tickOncePerRound(combat, "endTicks", endedC.tokenId)) {
-    await tickDecay(endedActor);
-    await tickStatusDurations(endedActor);
+/** Start-of-activation ticks for one unit (Sustain regen + Channeled upkeep), once per round per token. */
+async function runStartOfTurnTicks(combat, c) {
+  const actor = c?.actor;
+  if (!actor) return;
+  if (await tickOncePerRound(combat, "sustainTicks", c.tokenId)) {
+    await tickSustain(actor);
+    await tickChanneled(actor);
   }
-  if (started?.actor) {
-    // HP/Energy regen + Channeled upkeep (1 EP per open channel, rules v0.01) once per round per creature.
-    if (await tickOncePerRound(combat, "sustainTicks", started.tokenId)) {
-      await tickSustain(started.actor);
-      await tickChanneled(started.actor);
+}
+
+/** End-of-activation ticks for one unit (Lingering damage + status-duration countdown), once per round
+ *  per token. Called explicitly when a unit's turn ends (free-pick has no reliable `combat.previous`). */
+async function runEndOfTurnTicks(combat, c) {
+  const actor = c?.actor;
+  if (!actor) return;
+  if (await tickOncePerRound(combat, "endTicks", c.tokenId)) {
+    await tickDecay(actor);
+    await tickStatusDurations(actor);
+  }
+}
+
+/** Clear every combatant's `actedRound` marker — run when a fresh round begins so the flags stay tidy. */
+async function clearActedMarkers(combat) {
+  const updates = [...combat.combatants]
+    .filter((c) => c.getFlag("project-anime", "actedRound") != null)
+    .map((c) => ({ _id: c.id, "flags.project-anime.-=actedRound": null }));
+  if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
+}
+
+/** Auto-pass a Stunned unit: it still Sustains and its statuses still count down (a turn passes), but it
+ *  takes no action and the Stunned status clears (rules p.13 — lose your next turn, then it ends), then
+ *  it's marked done for the round. */
+async function autoSkipStunned(combat, c) {
+  const actor = c.actor;
+  if (actor?.statuses?.has?.("stunned")) {
+    await runStartOfTurnTicks(combat, c);
+    tickCard(actor, game.i18n.format("PROJECTANIME.Effect.stunnedSkip", { name: actor.name }));
+    await actor.toggleStatusEffect?.("stunned", { active: false });
+    await runEndOfTurnTicks(combat, c);
+  }
+  await c.setFlag("project-anime", "actedRound", combat.round);
+}
+
+/** PUT A UNIT ON (free-pick): make `id` the acting combatant, if it's a valid, un-acted, actable unit on
+ *  the currently-active side. Points `turn` at it (so combat.combatant is the roller — Combo reads it —
+ *  and the UI lights the row), then fires its start-of-turn ticks explicitly. GM-side. */
+async function activateCombatant(combat, id) {
+  if (!combat || game.users.activeGM?.id !== game.user.id) return;
+  const c = combat.combatants.get(id);
+  if (!c || hasActed(c, combat.round) || isSkippable(c)) return;
+  if (combatantSide(c) !== activeSide(combat)) return;   // only the active phase may act
+  const idx = combat.turns.findIndex((t) => t.id === id);
+  if (idx >= 0 && combat.turn !== idx) await combat.update({ turn: idx });
+  await runStartOfTurnTicks(combat, c);                  // Sustain + Channeled upkeep (once per round per token)
+}
+
+/** END THE ACTING UNIT'S TURN (or a given unit's): a COMBO holds it for a second action; otherwise its
+ *  end-of-turn ticks fire, it's marked done for the round, and the phase reconciles. With nothing active,
+ *  this is a plain "advance" — auto-pick the top pending unit of the active side. GM-side. */
+async function endActivation(combat, id = combat.combatant?.id) {
+  if (!combat?.started || game.users.activeGM?.id !== game.user.id) return;
+  const c = id ? combat.combatants.get(id) : null;
+
+  // A valid, actable unit is ending its turn: honor a Combo hold, else run its end-of-turn ticks, mark
+  // it done, and reconcile. Guard isSkippable/hasActed so an explicit id (a socket relay or a stale UI
+  // click) can never fire Lingering/status ticks on a defeated/stunned/already-acted unit.
+  if (c && !isSkippable(c) && !hasActed(c, combat.round)) {
+    // Combo (rules p.13): a Combo scored on this unit's own turn holds it for one more action (no chain —
+    // comboGranted blocks a second grant). maybeGrantComboTurn (dice.mjs) set the round-stamped flag.
+    const comboKey = `${c.id}:${combat.round}`;
+    if (combat.getFlag("project-anime", "comboTurn") === comboKey) {
+      await combat.update({
+        "flags.project-anime.-=comboTurn": null,
+        "flags.project-anime.comboGranted": comboKey
+      });
+      if (c.actor) ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: c.actor }),
+        content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.comboTurn", { name: c.actor.name })}</em></div></div>`
+      });
+      return;                                            // stays the acting unit for a 2nd action
     }
-    await tickStunned(combat, started);
+    await runEndOfTurnTicks(combat, c);
+    await c.setFlag("project-anime", "actedRound", combat.round);
+    return reconcilePhase(combat);
+  }
+
+  // Nobody actable is up (turn parked at null) → the GM "advance" auto-picks the top pending unit of the
+  // active side. Otherwise the target is defeated/stunned/already-acted (a stale relay) → just reconcile.
+  if (!c) {
+    const side = activeSide(combat);
+    const top = side ? pendingOnSide(combat, side).find((x) => !isSkippable(x)) : null;
+    if (top) return activateCombatant(combat, top.id);
+  }
+  return reconcilePhase(combat);
+}
+
+/** Reconcile the phase after a unit ends: auto-pass a side whose only pending units are Stunned, drop the
+ *  now-spent "current" so the active side is free to pick, and when all three phases are done bump the
+ *  round and reopen Player Phase. `turn: null` = "nobody up" — the active side free-picks; no phantom
+ *  current lingers across a phase boundary or at round start. GM-side. */
+async function reconcilePhase(combat) {
+  if (!combat || game.users.activeGM?.id !== game.user.id) return;
+  // Bounded loop: a round boundary re-enters so a new round that opens on an all-stunned side still
+  // auto-advances. autoSkipStunned CLEARS the stun, so a side can't stall a call for more than one lap.
+  for (let guard = 0; guard < 8; guard++) {
+    let side = activeSide(combat);
+    while (side) {
+      const pend = pendingOnSide(combat, side);
+      if (pend.some((c) => !isSkippable(c))) break;      // a real, actable unit remains → await a pick
+      for (const c of pend) await autoSkipStunned(combat, c);
+      side = activeSide(combat);
+    }
+    if (side) {                                          // the active phase awaits a pick
+      const cur = combat.combatant;
+      if (!cur || hasActed(cur, combat.round) || combatantSide(cur) !== side) {
+        if (combat.turn !== null) await combat.update({ turn: null });   // drop the spent / off-phase current
+      }
+      return;
+    }
+    await clearActedMarkers(combat);                     // round complete → next round, Player Phase, loop
+    await combat.update({ round: combat.round + 1, turn: null });
   }
 }
 
-Hooks.on("updateCombat", combatTurnTick);
-// Expand bosses into their multiple combatant entries at the START of round 1. We trigger off the
-// post-update `updateCombat` (round just became 1) rather than the synchronous `combatStart` hook, which
-// fires BEFORE core's start-of-combat `update({round:1,turn:0})` and would race our reordering. Idempotent
-// (the bossExpanded guard), so a reset-and-restart is safe.
-Hooks.on("updateCombat", (combat, change) => {
-  if (change?.round === 1 && game.users.activeGM?.id === game.user.id) ensureBossSlots(combat);
+/** Force the encounter to the next round immediately (the GM "next round" control / native nextRound). */
+async function forceNextRound(combat) {
+  if (!combat?.started || game.users.activeGM?.id !== game.user.id) return;
+  await clearActedMarkers(combat);
+  await combat.update({ round: combat.round + 1, turn: null });
+  await reconcilePhase(combat);
+}
+
+/** Initialize Side Initiative at combat start — fired off the post-update `updateCombat(round→1)`, AFTER
+ *  core's `update({round:1,turn:0})` so it doesn't race. Assign side bands, clear markers, park `turn` at
+ *  null so the whole Player side is free to pick, and reconcile (auto-skip any pre-stunned units). */
+async function startSideInitiative(combat) {
+  if (!combat || game.users.activeGM?.id !== game.user.id) return;
+  await assignSideInitiative(combat);
+  await clearActedMarkers(combat);
+  if (combat.turn !== null) await combat.update({ turn: null });
+  await reconcilePhase(combat);
+}
+
+// Under Side Initiative every per-turn tick is fired EXPLICITLY by the state machine — start-of-turn
+// (Sustain + Channeled) from activateCombatant, end-of-turn (Lingering + status countdown) from
+// endActivation, and both for an auto-skipped Stunned unit from reconcilePhase — each guarded once per
+// round per token by tickOncePerRound. So there is no `updateCombat` turn-tick listener to mis-fire on an
+// incidental `turn` shift (e.g. Foundry re-indexing after a combatant is removed).
+
+// SIDE INITIATIVE wiring. Assign side-initiative bands when an encounter or a combatant is created, and
+// re-band on a `side` override change, so the tracker groups Player → Enemy → Neutral with no roll. At the
+// START of round 1 (post-update, after core's start `update({round:1,turn:0})` so we win the race) run
+// startSideInitiative to park `turn` at null (the Player side free-picks). A disposition flip is re-banded
+// by the updateToken watcher further below.
+Hooks.on("createCombat", (combat) => assignSideInitiative(combat));
+Hooks.on("createCombatant", (combatant) => assignSideInitiative(combatant.parent, [combatant.id]));
+Hooks.on("updateCombatant", (combatant, change) => {
+  if (foundry.utils.hasProperty(change, "flags.project-anime.side")) assignSideInitiative(combatant.parent, [combatant.id]);
 });
-// Clean up a boss's extra entries if its primary leaves combat (the whole set dies with the combat otherwise).
+Hooks.on("updateCombat", (combat, change) => {
+  if (change?.round === 1 && game.users.activeGM?.id === game.user.id) startSideInitiative(combat);
+});
+// ENEMY-REWORK: the boss multi-entry action economy (actionsPerRound / ensureBossSlots / spreadBossInitiative
+// above) is RETAINED but UNWIRED under Side Initiative — a boss acts once, in the Enemy Phase. The clone
+// cleanup below is inert (no clones are created) but kept for when the enemy redesign revives boss slots.
 Hooks.on("deleteCombatant", async (combatant) => {
   if (game.users.activeGM?.id !== game.user.id) return;
   const combat = combatant.parent;
@@ -1118,6 +1245,13 @@ const refreshAuras = foundry.utils.debounce(() => { syncAuras(); globalThis.proj
 // Token movement / visibility / side changes shift who's inside an aura.
 Hooks.on("updateToken", (doc, changes) => {
   if ("x" in changes || "y" in changes || "hidden" in changes || "disposition" in changes) refreshAuras();
+  // A disposition flip mid-combat moves the token's combatant(s) to a different phase — re-band their
+  // side-initiative and reconcile (a unit switching sides can change which phase is active). GM-side.
+  if ("disposition" in changes && game.users.activeGM?.id === game.user.id) {
+    const combat = game.combat;
+    const ids = combat?.combatants?.filter((c) => c.tokenId === doc.id).map((c) => c.id) ?? [];
+    if (ids.length) assignSideInitiative(combat, ids).then(() => { if (combat.started) reconcilePhase(combat); });
+  }
 });
 Hooks.on("createToken", refreshAuras);
 Hooks.on("deleteToken", refreshAuras);
@@ -1897,14 +2031,28 @@ Hooks.once("ready", function () {
       }
     }
     else if (payload?.type === "endTurn") {
-      // A player asked to end their turn. Validate they own the CURRENT combatant, then advance.
+      // A player asked to end a SPECIFIC unit's turn (the one that was acting when they clicked, sent in
+      // the payload — not `combat.combatant`, which a concurrent activation could have changed). Validate
+      // they own that unit; endActivation re-checks it's actable so a stale relay is a safe no-op.
       const combat = game.combats.get(payload.combatId) ?? game.combats.active;
       const user = game.users.get(payload.userId);
-      const cur = combat?.combatant;
-      if (combat?.started && cur && user) {
-        const owns = cur.players?.some((u) => u.id === payload.userId)
-          || !!cur.actor?.testUserPermission(user, "OWNER");
-        if (owns) combat.nextTurn();
+      const c = combat?.combatants?.get(payload.combatantId);
+      if (combat?.started && c && user) {
+        const owns = c.players?.some((u) => u.id === payload.userId)
+          || !!c.actor?.testUserPermission(user, "OWNER");
+        if (owns) endActivation(combat, payload.combatantId);
+      }
+    }
+    else if (payload?.type === "activate") {
+      // A player asked to PUT ONE OF THEIR UNITS ON in the active phase (free-pick). Validate they own the
+      // target; activateCombatant re-checks it's the active phase, un-acted, and not stunned/defeated.
+      const combat = game.combats.get(payload.combatId) ?? game.combats.active;
+      const user = game.users.get(payload.userId);
+      const c = combat?.combatants?.get(payload.combatantId);
+      if (combat?.started && c && user) {
+        const owns = c.players?.some((u) => u.id === payload.userId)
+          || !!c.actor?.testUserPermission(user, "OWNER");
+        if (owns) activateCombatant(combat, payload.combatantId);
       }
     }
     else if (payload?.type === "buildFacility") {

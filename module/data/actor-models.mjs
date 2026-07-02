@@ -115,7 +115,7 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
       max: new fields.NumberField({ ...requiredInteger, initial: 8, min: 0 }),
       // Derived each prepare (never authored): `base` = the un-taxed maximum, so advancement
       // buys/refunds and the creators' "vitals" baseline operate on it; `passiveTax` = the total
-      // max-Energy reduction from owned Passive Skills (each costs half its nominal Energy);
+      // max-Energy reduction from owned Passive Skills (each costs its FULL Energy, SP×2 — v0.03);
       // `servantTax` = the total locked by active servants (flags.project-anime.servants — the
       // ledger helpers/servants.mjs maintains as servants are raised and dismissed).
       base: new fields.NumberField({ ...requiredInteger, initial: 8, min: 0 }),
@@ -139,6 +139,22 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
       overloaded: new fields.BooleanField({ initial: false })
     });
     schema.defense = new fields.SchemaField({
+      bonus: new fields.NumberField({ ...requiredInteger, initial: 0 }),
+      value: new fields.NumberField({ ...requiredInteger, initial: 0 })
+    });
+    schema.res = new fields.SchemaField({
+      bonus: new fields.NumberField({ ...requiredInteger, initial: 0 }),
+      value: new fields.NumberField({ ...requiredInteger, initial: 0 })
+    });
+    schema.atk = new fields.SchemaField({
+      bonus: new fields.NumberField({ ...requiredInteger, initial: 0 }),
+      value: new fields.NumberField({ ...requiredInteger, initial: 0 })
+    });
+    schema.matk = new fields.SchemaField({
+      bonus: new fields.NumberField({ ...requiredInteger, initial: 0 }),
+      value: new fields.NumberField({ ...requiredInteger, initial: 0 })
+    });
+    schema.as = new fields.SchemaField({
       bonus: new fields.NumberField({ ...requiredInteger, initial: 0 }),
       value: new fields.NumberField({ ...requiredInteger, initial: 0 })
     });
@@ -219,48 +235,73 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
 
     const agility = this.attributes.agility.value;
     const might = this.attributes.might.value;
+    const mind = this.attributes.mind.value;
+    const spirit = this.attributes.spirit.value;
 
     // Aggregate contributions from embedded Items (load + equipped gear).
     let load = 0;
-    let defenseFromArmor = 0;
-    let evasionPenalty = 0;
+    let armorDefSplit = 0;
+    let armorResSplit = 0;
+    let armorEvasionMod = 0;
     let shieldEvasion = 0;
     let shieldDefense = 0;
     let containerBonus = 0;
     let passiveEnergyTax = 0;
+    let weaponDmg = 0;
+    let weaponBulk = 0;
+    let hasPhysicalWeapon = false;
+    let hasMagicalWeapon = false;
+    let foundMainWeapon = false;
 
     for (const item of this.parent?.items ?? []) {
       const data = item.system ?? {};
-      // Passive Skills tax max Energy (applied after the loop); they carry no load or gear.
       if (item.type === "skill") {
         passiveEnergyTax += Number(data.passiveEnergyTax) || 0;
         continue;
       }
       const qty = Number(data.quantity ?? 1) || 1;
       load += (Number(data.size ?? 0) || 0) * qty;
-      // Containers (bags) always extend capacity — no "equip" step in the bag UI.
       if (item.type === "container") {
         containerBonus += Number(data.capacityBonus ?? 0) || 0;
         continue;
       }
       if (!data.equipped) continue;
       if (item.type === "armor") {
-        defenseFromArmor += Number(data.defenseBonus ?? 0) || 0;
-        evasionPenalty += Number(data.evasionPenalty ?? 0) || 0;
+        armorDefSplit += Number(data.defSplit ?? data.defenseBonus ?? 0) || 0;
+        armorResSplit += Number(data.resSplit ?? 0) || 0;
+        armorEvasionMod += Number(data.evasionMod ?? -(Number(data.evasionPenalty ?? 0) || 0)) || 0;
       } else if (item.type === "shield") {
-        // With two shields equipped, only the higher bonus of each kind applies.
         shieldEvasion = Math.max(shieldEvasion, Number(data.evasionBonus ?? 0) || 0);
         shieldDefense = Math.max(shieldDefense, Number(data.defenseBonus ?? 0) || 0);
+      } else if (item.type === "weapon" && !foundMainWeapon) {
+        if (data.hand === "main" || !foundMainWeapon) {
+          weaponDmg = Number(data.damage?.mod) || 0;
+          weaponBulk = Number(data.size) || 0;
+          const accA = data.accuracy?.attrA ?? "";
+          const accB = data.accuracy?.attrB ?? "";
+          hasPhysicalWeapon = accA === "might" || accB === "might";
+          hasMagicalWeapon = accA === "mind" || accB === "mind";
+          if (data.hand === "main") foundMainWeapon = true;
+        }
       }
     }
 
-    // Everything Evasion adds on top of the Attribute (manual bonus, armor penalty, shield),
-    // kept separately so Skill Evasion (rules v0.01) can rebuild the total around a DIFFERENT
-    // Attribute: swap Agility for Mind/Charm/Spirit, keep every other bonus and penalty.
-    this.evasion.gearMod = (this.evasion.bonus ?? 0) - evasionPenalty + shieldEvasion;
+    // ATK = Might + Weapon DMG (physical weapons only)
+    this.atk.value = hasPhysicalWeapon ? might + weaponDmg + (this.atk.bonus ?? 0) : 0;
+    // MATK = Mind + Weapon DMG (magical weapons only)
+    this.matk.value = hasMagicalWeapon ? mind + weaponDmg + (this.matk.bonus ?? 0) : 0;
+    // DEF = Might half-score + armor Protection→DEF + shield DEF + bonus
+    this.defense.value = (this.defense.bonus ?? 0) + Math.floor(might / 2) + armorDefSplit + shieldDefense;
+    // RES = Spirit half-score + armor Protection→RES + bonus
+    this.res.value = (this.res.bonus ?? 0) + Math.floor(spirit / 2) + armorResSplit;
+    // EVA = Agility + gear mod (armor evasionMod + shield evasionBonus + manual bonus)
+    this.evasion.gearMod = (this.evasion.bonus ?? 0) + armorEvasionMod + shieldEvasion;
     this.evasion.value = Math.max(0, agility + this.evasion.gearMod);
+    // AS = Agility − Weapon Bulk (minimum 0)
+    this.as.value = Math.max(0, agility - weaponBulk + (this.as.bonus ?? 0));
+    // MOV = floor(Agility/2) + 3 + bonus (unchanged)
     this.movement.value = Math.floor(agility / 2) + 3 + (this.movement.bonus ?? 0);
-    this.defense.value = (this.defense.bonus ?? 0) + defenseFromArmor + shieldDefense;
+    // CAP = Might + 3 + bonus (unchanged)
     this.carryingCapacity.max = might + 3 + (this.carryingCapacity.bonus ?? 0) + containerBonus;
     this.carryingCapacity.value = load;
     this.carryingCapacity.overloaded = load > this.carryingCapacity.max;

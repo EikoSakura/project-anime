@@ -1,4 +1,5 @@
 import { memberPower, partyPower, encounterBudget, encounterLines, effectivePlayers } from "../helpers/encounter.mjs";
+import { stampCompendiumSource } from "../helpers/gear.mjs";
 
 /** Format a Party-Equivalent value for display: trim to at most 2 decimals, drop trailing zeros
  *  (0.25 → "0.25", 1 → "1", 1.5 → "1.5", 2 → "2"). */
@@ -217,6 +218,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       if (item.parent?.id === this.actor.id) return; // already in this stash
       const obj = item.toObject();
       delete obj._id;
+      stampCompendiumSource(obj, item);
       await this.actor.createEmbeddedDocuments("Item", [obj]);
       return;
     }
@@ -339,6 +341,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     if (!item || !member) return;
     const obj = item.toObject();
     delete obj._id;
+    stampCompendiumSource(obj, item);
     await member.createEmbeddedDocuments("Item", [obj]);
     if (item.parent?.id === this.actor.id) await item.delete();
     ui.notifications.info(game.i18n.format("PROJECTANIME.Party.gave", { item: item.name, member: member.name }));
@@ -364,6 +367,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     if (!member) return;
     const obj = item.toObject();
     delete obj._id;
+    stampCompendiumSource(obj, item);
     await member.createEmbeddedDocuments("Item", [obj]);
     await item.delete();
     ui.notifications.info(game.i18n.format("PROJECTANIME.Party.gave", { item: item.name, member: member.name }));

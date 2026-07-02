@@ -26,6 +26,7 @@
  */
 
 import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
+import { stampCompendiumSource } from "./gear.mjs";
 import { elementChoices, elementLabel } from "./elements.mjs";
 import { materialCategoryLabel, materialCategoryChoices } from "./materials.mjs";
 
@@ -153,9 +154,13 @@ export const NCCHECK_MODES = {
 
 /** Derived stats an effect can flat-modify (all carry a `.bonus` field). */
 export const STAT_TARGETS = {
-  evasion: "PROJECTANIME.Stat.evasion",
-  movement: "PROJECTANIME.Stat.movement",
+  atk: "PROJECTANIME.Stat.atk",
+  matk: "PROJECTANIME.Stat.matk",
   defense: "PROJECTANIME.Stat.defense",
+  res: "PROJECTANIME.Stat.resistance",
+  evasion: "PROJECTANIME.Stat.evasion",
+  as: "PROJECTANIME.Stat.attackSpeed",
+  movement: "PROJECTANIME.Stat.movement",
   carryingCapacity: "PROJECTANIME.Stat.carryingCapacity"
 };
 
@@ -432,16 +437,28 @@ export function skillModifierRules(item) {
   const sys = item.system ?? {};
   const mods = sys.modifiers ?? [];
   const out = [];
-  if (mods.includes("protection")) out.push({ type: "stat", key: "defense", value: modifierValue(item, "protection") });
+  if (mods.includes("protection")) out.push({ type: "stat", key: sys.protectionTarget === "res" ? "res" : "defense", value: modifierValue(item, "protection") });
   if (mods.includes("retaliation")) out.push({ type: "retaliation", value: modifierValue(item, "retaliation"), element: sys.retaliationType ?? "" });
   if (mods.includes("affinityDamage")) {
-    // Multi-take: one affinity rule per take, each level clamped to what the Rank allows.
-    const allowed = { resist: 1, immune: 3, absorb: 5 };
+    // Multi-take: one affinity rule per take. v0.03 authors Resist only; stored immune/absorb
+    // takes from the old rank ladder are grandfathered as written.
     for (const t of sys.affinityDamages ?? []) {
       if (!t?.type) continue;
-      const level = (allowed[t.level] ?? 99) <= (Number(sys.rank) || 1) ? t.level : "resist";
-      out.push({ type: "affinity", element: t.type, level });
+      out.push({ type: "affinity", element: t.type, level: t.level in PROJECTANIME.affinityLevels ? t.level : "resist" });
     }
+  }
+  // Affinity (Status) (v0.03): Resist — the chosen Status's duration is halved on the target.
+  if (mods.includes("affinityStatus")) {
+    for (const id of sys.affinityStatusIds ?? []) if (id) out.push({ type: "statusResist", status: id });
+  }
+  // Absorb (v0.03, Heavy): the target takes none of the chosen Damage Type and heals instead.
+  if (mods.includes("absorb") && sys.absorbElement) {
+    out.push({ type: "affinity", element: sys.absorbElement, level: "absorb" });
+  }
+  // Immunity (v0.03, Heavy): full Immunity to a Damage Type or a Status Effect.
+  if (mods.includes("immunity")) {
+    if (sys.immunityKind === "status" && sys.immunityStatus) out.push({ type: "immunity", status: sys.immunityStatus });
+    else if (sys.immunityElement) out.push({ type: "affinity", element: sys.immunityElement, level: "immune" });
   }
   return out;
 }
@@ -1100,6 +1117,39 @@ export function statusImmunities(actor) {
       if (rule?.type === "immunity" && rule.status) out.add(rule.status);
     }
   }
+  // The Immunity Modifier (v0.03, status kind) on a PASSIVE Skill guards its bearer always-on —
+  // active/aura deliveries ride applied copies (skillModifierRules), read by the loop above.
+  for (const item of actor?.items ?? []) {
+    if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
+    if (isEnemyAura(item)) continue;
+    for (const rule of skillModifierRules(item)) {
+      if (rule?.type === "immunity" && rule.status) out.add(rule.status);
+    }
+  }
+  return out;
+}
+
+/**
+ * The set of Status Effect ids the actor currently RESISTS (v0.03 Affinity (Status): the
+ * duration of the chosen Status is HALVED when inflicted). Gathered exactly like
+ * statusImmunities — live `statusResist` rules on applied effects, plus passive Skills
+ * carrying the Affinity (Status) Modifier. Consulted at inflict time (dice.mjs).
+ * @returns {Set<string>}
+ */
+export function statusResists(actor) {
+  const out = new Set();
+  for (const effect of liveEffects(actor)) {
+    for (const rule of effectRules(effect)) {
+      if (rule?.type === "statusResist" && rule.status) out.add(rule.status);
+    }
+  }
+  for (const item of actor?.items ?? []) {
+    if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
+    if (isEnemyAura(item)) continue;
+    for (const rule of skillModifierRules(item)) {
+      if (rule?.type === "statusResist" && rule.status) out.add(rule.status);
+    }
+  }
   return out;
 }
 
@@ -1166,6 +1216,7 @@ export async function syncGrants(item) {
       foundry.utils.setProperty(data, `flags.${FLAG_SCOPE}.granted`, true);
       foundry.utils.setProperty(data, `flags.${FLAG_SCOPE}.grantedBy`, item.id);
       foundry.utils.setProperty(data, `flags.${FLAG_SCOPE}.grantSource`, uuid);
+      stampCompendiumSource(data, src);
       toCreate.push(data);
     }
 

@@ -33,6 +33,7 @@ import {
   statDieFor, statBonusFor, statLabelFor, hqLevel, hqHasteBonus, effectiveMissionDuration
 } from "../helpers/factions.mjs";
 import { getBonds, BOND_MAX_RANK } from "../helpers/bonds.mjs";
+import { stampCompendiumSource } from "../helpers/gear.mjs";
 import { partyMembers, resolveParty } from "../helpers/party-folder.mjs";
 import { PARTY_FACTIONS_SETTING } from "./party-config.mjs";
 import { ShopWindow } from "./shop.mjs";
@@ -1899,6 +1900,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!item?.toObject) return;
     const snap = item.toObject();
     delete snap._id;
+    stampCompendiumSource(snap, item);
     return this.#mutateFaction(id, (f) => {
       const p = (f.perks ?? []).find((x) => x.tier === tier);
       if (p) (p.rewardItems ??= []).push(snap);
@@ -2776,6 +2778,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!item?.toObject) return;
     const snap = item.toObject();
     delete snap._id;
+    stampCompendiumSource(snap, item);
     return this.#mutateMission(id, (m) => { (m.rewardItems ??= []).push(snap); });
   }
 

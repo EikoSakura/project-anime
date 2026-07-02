@@ -1,12 +1,13 @@
 import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
+import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
 } from "./templates.mjs";
 import { squadMembers } from "./squad.mjs";
+import { stampCompendiumSource } from "./gear.mjs";
 
 /**
  * Project: Anime dice engine — Checks/Tests, attacks, damage and skill rolls,
@@ -459,11 +460,11 @@ export async function enrichDescription(item) {
   return flavor ? `${rules}<div class="skill-card-flavor">${flavor}</div>` : rules;
 }
 
-/** Compact stat chips for a Skill card: rank stars · effect type(s) · Energy cost. */
+/** Compact stat chips for a Skill card: SP cost · effect type(s) · Energy cost. */
 export function skillMeta(sys) {
-  const rank = PROJECTANIME.skillRanks[sys.rank] ?? {};
   const chips = [];
-  if (rank.stars) chips.push(`<span class="meta-stars">${rank.stars}</span>`);
+  const sp = Number(sys.spCost) || 0;
+  if (sp > 0) chips.push(`<span class="meta-stars">${sp} ${i18n("PROJECTANIME.Stat.skillPointsAbbr")}</span>`);
   // Effect(s): a Skill carrying the "Secondary Effect" Modifier shows both, joined with " + ".
   const effectLabel = skillEffectKeys(sys).map((k) => i18n(PROJECTANIME.skillEffects[k] ?? "")).filter(Boolean).join(" + ");
   if (effectLabel) chips.push(effectLabel);
@@ -614,14 +615,13 @@ export async function performCheck(actor, { attrA = "might", attrB = "might", mo
 }
 
 /**
- * Roll initiative. If the actor is in the active combat, roll into the tracker;
- * otherwise post the Agility-die + Mind-die formula to chat as a card.
+ * Roll a flavor Agility-die + Mind-die "initiative" total to chat. Under SIDE INITIATIVE turn order is
+ * assigned by side (not rolled), so IN combat there is nothing to roll — this is only the out-of-combat
+ * card (the sheet's Initiative button is removed; kept for any macro use).
  */
 export async function rollInitiative(actor) {
   const inCombat = game.combat?.combatants?.some((c) => c.actorId === actor.id);
-  if (inCombat) return actor.rollInitiative({ rerollInitiative: true });
-  // Out of combat there's no one to tie with, so roll the clean Agility-die + Mind-die total —
-  // the tracker's tiebreak fractions would only show here as stray decimals (see CONFIG.Combat.initiative).
+  if (inCombat) return;   // side-bucketed turn order — no per-actor roll (see project-anime assignSideInitiative)
   const roll = new Roll("1d@attributes.agility.value + 1d@attributes.mind.value", actor.getRollData());
   await roll.evaluate();
   await postRollCard(actor, {
@@ -632,18 +632,54 @@ export async function rollInitiative(actor) {
   return roll;
 }
 
+/** The weapons an actor Follows-Up with: every equipped weapon plus any Dual-Wield shield (an
+ *  off-hand weapon), main hand first. Excludes the always-available Natural Attack (never
+ *  "equipped") and Shield-Only shields (defensive). */
+function equippedWeapons(actor) {
+  const list = (actor?.items ?? []).filter((it) =>
+    it.system?.equipped && (it.type === "weapon" || (it.type === "shield" && it.system?.use === "dual")));
+  const rank = (it) => (it.system?.hand === "main" ? 0 : 1);
+  return list.sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * Follow-Up (v0.03 homebrew, Fire-Emblem "doubling"): the instant an attack resolves against a
+ * target, if the attacker's Attack Speed (AS = Agility − Weapon Bulk) beats the target's by 4 or
+ * more, the attacker may strike AGAIN — once with each equipped weapon (an unarmed attacker follows
+ * up with the weapon that just struck). Auto-prompts the attacker; each Follow-Up strike runs the
+ * normal attack flow (its own card + Roll Damage) but can't itself chain another Follow-Up. Silent
+ * with no target, an unmet AS gap, or nothing to strike with.
+ */
+async function maybeFollowUp(actor, target, item, { event } = {}) {
+  if (!actor || !target) return;
+  const gap = (actor.system?.as?.value ?? 0) - (target.system?.as?.value ?? 0);
+  if (gap < 4) return;
+  let weapons = equippedWeapons(actor);
+  if (!weapons.length && item) weapons = [item];   // unarmed: follow up with the initiating strike
+  if (!weapons.length) return;
+  const go = await foundry.applications.api.DialogV2.confirm({
+    window: { title: i18n("PROJECTANIME.Roll.followUp") },
+    content: `<p class="hint">${i18n("PROJECTANIME.Roll.followUpTrigger", { name: actor.name })}</p>`,
+    yes: { label: i18n("PROJECTANIME.Roll.followUp"), icon: "fas fa-dice" },
+    no: { label: i18n("Cancel") },
+    rejectClose: false
+  });
+  if (!go) return;
+  for (const weapon of weapons) await rollAttack(actor, weapon, { event, target, isFollowUp: true });
+}
+
 /** A weapon/shield attack: Accuracy Check vs the target's Evasion, with Fumble & Combo. */
-export async function rollAttack(actor, item, { event } = {}) {
+export async function rollAttack(actor, item, { event, target = null, isFollowUp = false } = {}) {
   const acc = item.system.accuracy ?? {};
   const attrA = acc.attrA ?? "might";
   const attrB = acc.attrB ?? "agility";
   let mod = Number(acc.mod) || 0;
 
-  const targetActor = firstTargetActor();
+  const targetActor = target ?? firstTargetActor();
   const evasion = targetActor?.system?.evasion?.value ?? null;
 
   // Shift-click skips the situational-modifier dialog.
-  if (!event?.shiftKey) {
+  if (!event?.shiftKey && !isFollowUp) {
     const info = evasion != null
       ? `<p class="hint">${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}</p>`
       : `<p class="hint">${i18n("PROJECTANIME.Roll.noTarget")}</p>`;
@@ -682,11 +718,9 @@ export async function rollAttack(actor, item, { event } = {}) {
   // Attacking reveals a Vanished attacker (rules v0.01) — the attempt itself, hit or miss.
   await revealVanished(actor, lines);
 
-  if (hit === true && targetActor) {
-    for (const c of collectInflictedConditions(item, targetActor)) {
-      await applyConditionFromItem(actor, item, targetActor, c, lines);
-    }
-  }
+  // A weapon's on-hit conditions are NOT inflicted here anymore — they ride the Roll Damage step and
+  // land only if the blow dealt >0 net damage (house rule: a fully mitigated hit inflicts nothing).
+  // See rollDamage → applySkillOnHit.
 
   // A Fumble or Combo is a locked result — Luck can't change it (for anyone, the roller included).
   const buttons = (fumble || combo) ? [] : [luckButton({ d1: r1, d2: r2, mod, evasion, kind: "attack", actorUuid: actor.uuid, itemId: item.id, targetUuid: targetActor?.uuid ?? "" })];
@@ -702,7 +736,7 @@ export async function rollAttack(actor, item, { event } = {}) {
 
   await postCard(actor, cardHTML({
     title: item.name,
-    subtitle: i18n("PROJECTANIME.Roll.attack"),
+    subtitle: i18n(isFollowUp ? "PROJECTANIME.Roll.followUp" : "PROJECTANIME.Roll.attack"),
     icon: item.img,
     badges,
     rollHTML: await roll.render(),
@@ -710,6 +744,10 @@ export async function rollAttack(actor, item, { event } = {}) {
     lines,
     buttons
   }), roll, { combo });
+
+  // Follow-Up (v0.03 homebrew): a fast enough attacker strikes again the moment the blow resolves —
+  // but a Follow-Up strike can't itself chain another. See maybeFollowUp.
+  if (!isFollowUp) await maybeFollowUp(actor, targetActor, item, { event });
   return roll;
 }
 
@@ -761,7 +799,7 @@ export async function rollSquadStrike(actor, weapon, { event } = {}) {
   if (hit) {
     for (let i = 0; i < members; i++) {
       const dmg = await computeDamageRoll(actor, weapon, { target });
-      const adj = adjustForTarget(dmg.raw, dmg.dtype, target, { ignoresDefense: dmg.ignoresDefense, heal: false, pool: dmg.pool });
+      const adj = adjustForTarget(dmg.raw, dmg.dtype, target, { ignoresDefense: dmg.ignoresDefense, heal: false, pool: dmg.pool, defenseKey: dmg.defenseKey });
       total += Math.max(0, adj.amount);
       dtype = dmg.dtype;
       pool = dmg.pool;
@@ -823,116 +861,125 @@ function skillAccuracy(actor, item) {
 }
 
 /**
- * Roll the (target-independent) damage/heal amount for a weapon or skill once. Shared by
+ * Compute the (target-independent) flat damage/heal amount for a weapon or skill. Shared by
  * the single-target, area, and chain damage paths — they each apply this raw to their targets.
- * @returns {Promise<{roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods}>}
+ *
+ * v0.02: damage is a flat calculated value, never rolled.
+ *  - Weapon attacks: ATK (physical) or MATK (magical) from the actor's derived stats.
+ *  - Skill Strikes: Skill Die flat value (= attribute die size, e.g. d8 = 8).
+ *  - Skill Mend: Skill Die flat value (healing, no defense subtraction).
+ *  - Grip: two-handed +2 DMG; dual-wield −1 DMG; shield-only −1 DMG.
  */
 async function computeDamageRoll(actor, item, { target = null, charged = false, spec = null } = {}) {
   const isSkill = item.type === "skill";
-  // A secondary Effect's "Roll Damage/Healing" button carries its own slot spec (which Effect,
-  // attribute die, pool, damage type); the primary button — and every weapon attack — passes
-  // none and reads the item's base fields, so existing behaviour is unchanged.
   const effect = spec?.effect ?? item.system?.effect;
   const slotAttr = spec?.damageAttr ?? item.system?.damageAttr;
   const slotPool = spec?.damagePool ?? item.system?.damagePool;
   const slotType = spec?.damageType ?? item.system?.damageType;
   const heal = isSkill && effect === "mend";
-  // A Weapon-range Skill borrows the equipped weapon's accuracy Attributes & damage (mod, type,
-  // die, grip rules); the Skill's own pool / Pierce / charge still layer on below. `weapon` is
-  // null for ordinary Skills (and for weapons themselves), so they keep their existing behavior.
   const weapon = skillWeapon(actor, item);
-  const usesWeapon = !!weapon || !isSkill;   // compute damage the weapon way
+  const usesWeapon = !!weapon || !isSkill;
   const src = weapon ?? item;
 
-  let attrA, attrB, mod, dtype;
+  let attrA, attrB, dtype;
   if (usesWeapon) {
     attrA = src.system.accuracy?.attrA ?? "might";
     attrB = src.system.accuracy?.attrB ?? "agility";
-    mod = Number(src.system.damage?.mod) || 0;
     dtype = src.system.damage?.type || "physical";
   } else {
     attrA = item.system.attributes?.attrA ?? "might";
     attrB = item.system.attributes?.attrB ?? "spirit";
-    mod = 0;
     dtype = slotType || "physical";
   }
 
-  // Weapons (and Weapon-range Skills) roll the larger of the two Attributes; other Skills roll the
-  // designer-CHOSEN Attribute die (rules: "choose one of its two Attributes").
-  const dieAttr = usesWeapon
-    ? largerAttr(actor, attrA, attrB)
-    : (item.system.attributes?.[slotAttr] ?? attrA);
-  // Weapon/shield grip rules (p.9-10): a two-handed grip Steps the Damage die UP one size (or +1
-  // damage if already d12); dual wielding Steps both dice DOWN one. A shield set to "Just for
-  // Shields" isn't a committed weapon, so bashing with it Steps its OWN Damage die DOWN (and it
-  // doesn't make you a dual-wielder — handled in isDualWielding). Applies to borrowed weapons too.
-  let dieSize = attrValue(actor, dieAttr);
+  // Determine physical vs magical from accuracy attributes.
+  const physical = attrA === "might" || attrB === "might";
+  const magical = attrA === "mind" || attrB === "mind";
+  // Which defense stat this damage checks against.
+  const defenseKey = magical && !physical ? "res" : "defense";
+
+  let flat = 0;
   const dmgReasons = [];
-  if (usesWeapon && !heal) {
+  // The "Power Attribute" (v0.03): a weapon Skill picks one of the WEAPON's two ACC Attributes;
+  // a non-weapon Skill one of its own two. Plain weapon attacks keep the larger for display.
+  const dieAttr = usesWeapon
+    ? (isSkill ? (slotAttr === "attrB" ? attrB : attrA) : largerAttr(actor, attrA, attrB))
+    : (item.system.attributes?.[slotAttr] ?? attrA);
+
+  // Grip / dual-wield flat adjustments, shared by weapon attacks and weapon Skills.
+  const gripAdjust = () => {
     const shieldOnly = src.type === "shield" && src.system.use !== "dual";
-    // A Two-Handed-Only weapon (a bow) lists its two-handed profile as its base Damage — being
-    // gripped in both hands is its nature, not a bonus, so it never gains the grip Step-Up.
     if (src.system.grip === "two" && !src.system.twoHandedOnly) {
-      const up = stepUpValue(dieSize);
-      if (up === dieSize) mod += 1; else dieSize = up;
+      flat += 2;
       dmgReasons.push("twoHanded");
     } else if (shieldOnly) {
-      dieSize = stepDownValue(dieSize);
+      flat -= 1;
       dmgReasons.push("shieldOnly");
     } else if (isDualWielding(actor)) {
-      dieSize = stepDownValue(dieSize);
+      flat -= 1;
       dmgReasons.push("dualWield");
     }
+  };
+
+  if (usesWeapon && !isSkill) {
+    // Weapon damage = ATK or MATK (already includes Might/Mind + Weapon DMG).
+    flat = magical && !physical
+      ? (actor.system?.matk?.value ?? 0)
+      : (actor.system?.atk?.value ?? 0);
+    gripAdjust();
+  } else if (isSkill && usesWeapon) {
+    // v0.03 Power (weapon Skill) = the chosen ACC Attribute + Weapon DMG — for damage AND
+    // healing, so a Skill's base hit lines up with a basic attack.
+    flat = attrValue(actor, dieAttr) + (Number(src.system.damage?.mod) || 0);
+    gripAdjust();
+  } else if (isSkill) {
+    // v0.03 Power (non-weapon Skill) = the chosen Attribute alone (flat, never rolled).
+    flat = attrValue(actor, dieAttr);
   }
 
-  // Pierce (a Skill modifier) and Energy damage both bypass Defense: per the rules,
-  // Defense reduces only Hit Point damage, so damage dealt to the Energy pool ignores
-  // it. ("Energy damage" = damage to the Energy stat — NOT an element/damage type.)
+  // Pool and pierce checks — a Strike deals to, and a Heal restores, the chosen pool (v0.03).
   const isStrike = isSkill && effect === "strike";
-  const pool = (isStrike && slotPool === "energy") ? "energy" : "hp";
+  const isMend = isSkill && effect === "mend";
+  const pool = ((isStrike || isMend) && slotPool === "energy") ? "energy" : "hp";
   const pierces = isSkill && (item.system.modifiers ?? []).includes("pierce");
   const ignoresDefense = pierces || pool === "energy";
 
+  // Flat modifiers from effects, bonds, weapon adjustments, sharpen advancement.
+  let mod = 0;
   const rmods = collectRollModifiers(actor, "damage", { target });
   mod += rmods.flat;
-  // Modifier-scoped Skill adjustments (a Bond/Trait/gear `skillMod` rule): a flat damage bump on Skills
-  // carrying a chosen Modifier (Burst, …), any Skill/weapon attack, or the Unarmed strike — e.g. a
-  // brawler bond raising the Natural Attack's penalty toward 0, or "Burst Skills deal +1". Surfaced
-  // on the card via rmods.sources alongside the roll modifiers.
   const smods = collectSkillModBonuses(actor, item, { target });
   if (smods.damage) { mod += smods.damage; rmods.sources.push(...smods.sources); }
-  // Weapon Adjustments (a Trait/Bond/gear `weaponMod` rule): a flat damage bump on any weapon
-  // attack, the Unarmed strike, or a chosen weapon Type — e.g. "+1 damage with Swords". `src` is
-  // the rolled weapon (borrowed for Weapon-range Skills), so type/unarmed scopes resolve correctly.
   const wmods = collectWeaponModBonuses(actor, item, { src, target });
   if (wmods.damage) { mod += wmods.damage; rmods.sources.push(...wmods.damageSources); }
-  // "Sharpen Damage" / "Sharpen Healing" advancement: a flat bonus (0–3) baked into a Skill's
-  // rolled output — Strike damage or Mend healing (the same field, named for the Effect).
   const sharpen = isSkill ? Math.max(0, Number(item.system.damageMod) || 0) : 0;
   mod += sharpen;
-  let f = `1d${dieSize}`;
-  if (mod) f += `${mod > 0 ? " + " : " - "}${Math.abs(mod)}`;
-  const roll = new Roll(f);
-  await roll.evaluate();
-  // Charge (a Skill modifier): a charged release resolves at double damage/healing (rules p.13).
-  const raw = Math.max(roll.total, 0) * (charged ? 2 : 1);
+  flat += mod;
 
-  return { roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, dmgReasons, rmods, charged, sharpen };
+  // Charge doubles the total.
+  const raw = Math.max(flat, 0) * (charged ? 2 : 1);
+
+  // Create a deterministic Roll for Foundry chat compatibility.
+  const roll = new Roll(String(raw));
+  await roll.evaluate();
+
+  return { roll, raw, dtype, dieAttr, isSkill, heal, pool, pierces, ignoresDefense, defenseKey, dmgReasons, rmods, charged, sharpen };
 }
 
 /**
  * Adjust a raw damage amount for ONE target: affinity (+2 weak / −2 resist / immune→0 /
- * absorb→heal) then −Defense. HP damage then floors at 1 (homebrew: a connecting hit always
- * does at least 1 HP) UNLESS the target's Defense soaked it to 0; Energy-pool damage keeps the
- * rules' minimum of 0. Returns the applied amount, whether it heals, the affinity badges, and a
- * chat line. Defense/affinity are skipped for healing.
+ * absorb→heal) then subtract DEF (physical) or RES (magical). Damage floors at 0 — if the
+ * result is 0, no riders (conditions/effects) apply. Defense/affinity are skipped for healing.
+ *
+ * @param {string} defenseKey - "defense" for physical, "res" for magical.
  */
-export function adjustForTarget(raw, dtype, targetActor, { ignoresDefense = false, heal = false, pool = "hp" } = {}) {
+export function adjustForTarget(raw, dtype, targetActor, { ignoresDefense = false, heal = false, pool = "hp", defenseKey = "defense" } = {}) {
   const badges = [];
   if (heal) return { amount: raw, heal: true, badges, line: i18n("PROJECTANIME.Roll.healsFor", { n: raw }) };
   if (!targetActor) return { amount: raw, heal: false, badges, line: `<strong>${raw}</strong> ${elementLabel(dtype)}` };
 
-  const def = ignoresDefense ? 0 : (targetActor.system?.defense?.value ?? 0);
+  const defValue = ignoresDefense ? 0 : (targetActor.system?.[defenseKey]?.value ?? 0);
+  const defLabel = defenseKey === "res" ? i18n("PROJECTANIME.Stat.resistance") : i18n("PROJECTANIME.Stat.defense");
   const affinity = targetActor.system?.affinities?.[dtype] ?? "none";
   let amount = raw;
   let appliesHeal = false;
@@ -949,19 +996,9 @@ export function adjustForTarget(raw, dtype, targetActor, { ignoresDefense = fals
     const adj = PROJECTANIME.affinityDamage[affinity] ?? 0;
     if (affinity === "weak") { badges.push({ cls: "failure", text: i18n("PROJECTANIME.Affinity.weak") }); parts += ` · +2`; }
     else if (affinity === "resist") { badges.push({ cls: "success", text: i18n("PROJECTANIME.Affinity.resist") }); parts += ` · −2`; }
-    const post = raw + adj - def;
-    if (def) parts += ` − ${def} ${i18n("PROJECTANIME.Stat.defense")}`;
-    // Homebrew floor (overrides PDF p.14, "damage minimum 0"): a connecting hit deals at least
-    // 1 HP — EXCEPT when the target's Defense is what soaked it to 0 (armor can still fully
-    // negate a hit). Energy-pool damage keeps the rules' minimum of 0; Pierce is HP damage with
-    // def = 0, so it always floors at 1.
-    const defenseSoaked = def > 0 && post < 1;
-    if (pool === "hp" && !defenseSoaked) {
-      amount = Math.max(1, post);
-      if (post < 1) parts += ` · ${i18n("PROJECTANIME.Roll.min1")}`;
-    } else {
-      amount = Math.max(0, post);
-    }
+    const post = raw + adj - defValue;
+    if (defValue) parts += ` − ${defValue} ${defLabel}`;
+    amount = Math.max(0, post);
     parts += ` = <strong>${amount}</strong>`;
   }
   return { amount, heal: appliesHeal, badges, line: parts };
@@ -1015,7 +1052,7 @@ function damageRowsHTML(rows) {
  * With `targetUuids` (carried by an area Skill's "Roll Damage" button) it rolls once and
  * applies that raw to every listed target; otherwise it resolves the single primary target.
  */
-export async function rollDamage(actor, item, { targetUuids = null, charged = false, spec = null } = {}) {
+export async function rollDamage(actor, item, { targetUuids = null, charged = false, spec = null, sourceMessageId = null } = {}) {
   let targets = [];
   if (targetUuids?.length) {
     targets = (await Promise.all(targetUuids.map((u) => fromUuid(u)))).filter(Boolean);
@@ -1023,12 +1060,12 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
     const t = firstTargetActor();
     if (t) targets = [t];
   }
-  if (targets.length > 1) return postAoeDamageCard(actor, item, targets, { charged, spec });
+  if (targets.length > 1) return postAoeDamageCard(actor, item, targets, { charged, spec, sourceMessageId });
 
   // Single-target (or no target).
   const targetActor = targets[0] ?? null;
   const dmg = await computeDamageRoll(actor, item, { target: targetActor, charged, spec });
-  const adj = adjustForTarget(dmg.raw, dmg.dtype, targetActor, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool });
+  const adj = adjustForTarget(dmg.raw, dmg.dtype, targetActor, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool, defenseKey: dmg.defenseKey });
 
   const badges = [...adj.badges];
   const notes = damageNotes(dmg);
@@ -1038,16 +1075,26 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
   const rows = [];
   const killed = [];
   let dealt = 0;
-  if (targetActor && adj.heal && curseBlocks(targetActor, "hp")) {
-    notes.push(curseNote(targetActor.name, "hp"));
+  // A Heal restores its CHOSEN pool (v0.03: HP or EP); an Absorb conversion always heals HP.
+  const healPool = dmg.heal ? dmg.pool : "hp";
+  if (targetActor && adj.heal && curseBlocks(targetActor, healPool)) {
+    notes.push(curseNote(targetActor.name, healPool));
   } else if (targetActor && (adj.amount > 0 || adj.heal)) {
-    const pool = adj.heal ? "hp" : dmg.pool;
+    const pool = adj.heal ? healPool : dmg.pool;
     // An active Barrier on that pool eats its share first (the row shows what got through).
     const bc = barrierCalc(targetActor, adj, pool);
     if (killsTarget(targetActor, { ...adj, amount: bc.amount }, pool)) killed.push(targetActor);
     await routeApply(targetActor, targetActor.uuid, adj.amount, adj.heal, pool);
     rows.push({ uuid: targetActor.uuid, name: targetActor.name, img: targetActor.img, amount: bc.amount, heal: adj.heal, pool, calc: bc.calc, undone: false });
     if (!adj.heal) dealt = bc.amount;
+  }
+  // House rule: a damaging attack/skill visits its on-hit riders (conditions / Decay / applied
+  // effects) on the target ONLY when the blow dealt >0 net damage — a fully mitigated hit (immune,
+  // armour-soaked, Barrier-absorbed, or absorbed as healing → dealt 0) inflicts nothing. Riders ride
+  // the PRIMARY Strike, so a secondary damage die (spec) never re-applies them.
+  if (targetActor && dealt > 0 && !spec && isDamagingStrike(item) && !ridersAlreadyDone(sourceMessageId)) {
+    notes.push(...(await applySkillOnHit(actor, item, targetActor)));
+    await markRidersDone(sourceMessageId);
   }
   // Drain HP/Energy: the caster recovers half the damage actually dealt to the target —
   // what a Barrier absorbed never touched the creature, so it feeds no drain. A basic
@@ -1058,6 +1105,8 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
   if (targetActor && dealt > 0) await applyRetaliation(actor, [{ actor: targetActor, amount: dealt }], notes);
   const lines = rows.length ? notes : [adj.line, ...notes];
 
+  // Follow-Up is offered at the ATTACK step now (auto-prompted the moment the to-hit resolves —
+  // see maybeFollowUp), not here off the damage card.
   await postCard(actor, cardHTML({
     title: item.name,
     subtitle: dmg.heal ? i18n("PROJECTANIME.Roll.healing") : i18n("PROJECTANIME.Roll.damage"),
@@ -1089,23 +1138,27 @@ function damageNotes(dmg) {
 }
 
 /** Multi-target damage card: one roll, applied per target (each with its own affinity/Defense). */
-async function postAoeDamageCard(actor, item, targetActors, { charged = false, spec = null } = {}) {
+async function postAoeDamageCard(actor, item, targetActors, { charged = false, spec = null, sourceMessageId = null } = {}) {
   const dmg = await computeDamageRoll(actor, item, { target: targetActors[0], charged, spec });
   const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetActors.length })}</em>`];
   const rows = [];
   const killed = [];
   const hits = [];
   let drainTotal = 0;
+  // Riders apply once per originating card (first Roll Damage click), per target that took >0 damage.
+  const doRiders = !dmg.heal && !spec && isDamagingStrike(item) && !ridersAlreadyDone(sourceMessageId);
+  let ridersApplied = false;
   for (const ta of targetActors) {
-    const adj = adjustForTarget(dmg.raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool });
+    const adj = adjustForTarget(dmg.raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool, defenseKey: dmg.defenseKey });
     let through = 0;
-    if (adj.heal && curseBlocks(ta, "hp")) {
+    const healPool = dmg.heal ? dmg.pool : "hp";   // a Heal restores its chosen pool (v0.03)
+    if (adj.heal && curseBlocks(ta, healPool)) {
       // A Cursed creature regains nothing to its cursed pool — the heal (or Absorb conversion) is voided.
-      lines.push(curseNote(ta.name, "hp"));
+      lines.push(curseNote(ta.name, healPool));
     } else if (adj.amount > 0 || adj.heal) {
       // Apply immediately; the per-target undo row carries the calculation. An active Barrier
       // on that pool eats its share first (the row shows what got through).
-      const pool = adj.heal ? "hp" : dmg.pool;
+      const pool = adj.heal ? healPool : dmg.pool;
       const bc = barrierCalc(ta, adj, pool);
       if (killsTarget(ta, { ...adj, amount: bc.amount }, pool)) killed.push(ta);
       await routeApply(ta, ta.uuid, adj.amount, adj.heal, pool);
@@ -1115,10 +1168,17 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
       // Nothing dealt (e.g. immune) — note it, but there's nothing to apply or undo.
       lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> <span class="muted">${adj.line}</span></span>`);
     }
+    // House rule: an area Strike visits its on-hit riders on each target ONLY where the blow dealt
+    // >0 net damage (a fully mitigated target takes none).
+    if (doRiders && through > 0) {
+      lines.push(...(await applySkillOnHit(actor, item, ta)));
+      ridersApplied = true;
+    }
     // Barrier-absorbed damage never touched the creature, so it feeds no drain.
     if (!adj.heal) drainTotal += through;
     if (!adj.heal && through > 0) hits.push({ actor: ta, amount: through });
   }
+  if (ridersApplied) await markRidersDone(sourceMessageId);
   lines.push(...damageNotes(dmg));
   // Drain HP/Energy: the caster recovers half the total damage the area Skill dealt.
   await applyDrain(actor, item, drainTotal, lines);
@@ -1431,25 +1491,32 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   // buff actually lands on you even with nothing targeted; an offensive Skill inflicts on the creature
   // it hit.
   const inflictTarget = needsAccuracy ? targetActor : (skillEffectTargets(actor, item, null)[0] ?? actor);
-  if (landed) await applyOnHitConditions(actor, item, inflictTarget, lines);
+  // A damaging Strike defers its on-hit riders (conditions / Decay / target ensnare / applied effects)
+  // to the Roll Damage step, where they land only if the blow dealt >0 net damage (house rule). A
+  // non-damaging Skill has no damage step, so it applies them on land here as before.
+  if (landed && !hasStrike) await applyOnHitConditions(actor, item, inflictTarget, lines);
 
   // Vanish (rules v0.01): a landed cast shrouds the CASTER — "you cannot be seen".
   if (effects.includes("vanish") && landed) await applyVanish(actor, item, lines);
 
-  // The ensnaring Effects (Disguise / Illusion / Telepathy) leave a tracked marker on the
-  // affected creature — visible to the table, clearable by the Overcome action. A Disguise
-  // additionally marks the CASTER (they're the one wearing the face).
+  // The ensnaring Effects (Disguise / Illusion / Telepathy) leave a tracked marker on the affected
+  // creature — visible to the table, clearable by the Overcome action. On a Strike the TARGET marker
+  // defers with the other riders (applied only if damage lands); a Disguise still marks the CASTER on
+  // land (it's a self-shroud, not a hit on the target).
   if (landed) {
-    for (const eff of effects.filter((e) => ENSNARE_EFFECTS.includes(e))) {
-      if (targetActor && targetActor !== actor) lines.push(...(await applyEnsnareMarker(actor, item, targetActor, eff)));
+    if (!hasStrike) {
+      for (const eff of effects.filter((e) => ENSNARE_EFFECTS.includes(e))) {
+        if (targetActor && targetActor !== actor) lines.push(...(await applyEnsnareMarker(actor, item, targetActor, eff)));
+      }
     }
     if (effects.includes("disguise")) lines.push(...(await applyEnsnareMarker(actor, item, actor, "disguise", { self: true })));
   }
 
   // A Skill applies its Active Effect(s) whenever it carries any non-die Effect (Bolster / Hinder /
   // Affinity / Sense / Custom) in EITHER slot — to the targeted tokens, or the caster if none are
-  // targeted. Supportive effects always apply; an auto-Hinder lands only on a hit (`landed`).
-  if (hasOther) lines.push(...(await applySkillEffects(actor, item, null, { landed })));
+  // targeted. Supportive effects always apply; an auto-Hinder lands only on a hit (`landed`). A
+  // Strike defers this to the Roll Damage step (applied only where damage landed).
+  if (hasOther && !hasStrike) lines.push(...(await applySkillEffects(actor, item, null, { landed })));
 
   const buttons = [];
   // Spend Luck re-rolls the Accuracy Check — offered for ANY enemy-targeting Skill (Strike, Hinder,
@@ -1552,13 +1619,18 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
     if (didHit) {
       hitUuids.push(ta.uuid);
       hitActors.push(ta);
-      for (const c of collectInflictedConditions(item, ta)) {
-        await applyConditionFromItem(actor, item, ta, c, lines);
-      }
-      await inflictDecay(item, ta, lines);
-      // An ensnaring Effect (Disguise / Illusion / Telepathy) marks every creature it catches.
-      for (const eff of skillEffectKeys(sys).filter((e) => ENSNARE_EFFECTS.includes(e))) {
-        if (ta !== actor) lines.push(...(await applyEnsnareMarker(actor, item, ta, eff)));
+      // A Strike defers its riders (conditions / Decay / ensnare) to the Roll Damage step, applied per
+      // target only where the blow dealt >0 damage (house rule). A non-Strike area attack (Mass Hinder)
+      // has no damage step, so it inflicts on hit here as before.
+      if (!hasStrike) {
+        for (const c of collectInflictedConditions(item, ta)) {
+          await applyConditionFromItem(actor, item, ta, c, lines);
+        }
+        await inflictDecay(item, ta, lines);
+        // An ensnaring Effect (Disguise / Illusion / Telepathy) marks every creature it catches.
+        for (const eff of skillEffectKeys(sys).filter((e) => ENSNARE_EFFECTS.includes(e))) {
+          if (ta !== actor) lines.push(...(await applyEnsnareMarker(actor, item, ta, eff)));
+        }
       }
     }
   }
@@ -1571,8 +1643,9 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
 
   // A secondary non-die Effect (e.g. an area Strike that also Bolsters) — or a Modifier-granted
   // auto rule (Protection / Affinity Damage) — grants its Active Effect(s) to the creatures it
-  // hit. (A secondary damage/heal ROLL on an area Skill resolves single-target only.)
-  if ((skillEffectKeys(sys).some((e) => e !== "strike" && e !== "mend") || skillModifierRules(item).length) && hitActors.length) {
+  // hit. (A secondary damage/heal ROLL on an area Skill resolves single-target only.) An area STRIKE
+  // defers this to the Roll Damage step (applied per target only where damage landed).
+  if (!hasStrike && (skillEffectKeys(sys).some((e) => e !== "strike" && e !== "mend") || skillModifierRules(item).length) && hitActors.length) {
     lines.push(...(await applySkillEffects(actor, item, hitActors)));
   }
 
@@ -1660,7 +1733,8 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   const chosen = new Set(chainTokens);   // the chain may only travel through targeted creatures
   const primaryToken = chainTokens[0];
 
-  // One damage roll (doubled on a charged release); each successive hit deals half the previous.
+  // One damage roll (doubled on a charged release); v0.03: every leap deals the SAME damage
+  // (the old half-per-leap rule introduced fractional math and is gone).
   const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor, charged });
 
   const lines = [];
@@ -1689,7 +1763,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     // Each leap's defender uses its own number — Skill Evasion swaps its Attribute in.
     const { value: ev } = evasionVs(ta, item);
     const didHit = com || (!fum && (ev == null || aroll.total >= ev));
-    const raw = i === 0 ? prevRaw : Math.floor(prevRaw / 2);
+    const raw = prevRaw;   // v0.03: same damage on each leap
 
     const leapTag = i === 0 ? "" : `${i18n("PROJECTANIME.Roll.chainLeap", { n: i })} · `;
     const evText = ev != null ? ` vs ${ev}` : "";
@@ -1697,19 +1771,16 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
 
     if (!didHit) { stoppedName = ta.name; break; }   // must hit before the leap continues
 
-    const adj = adjustForTarget(raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool });
-    for (const c of collectInflictedConditions(item, ta)) {
-      await applyConditionFromItem(actor, item, ta, c, lines);
-    }
-    await inflictDecay(item, ta, lines);
+    const adj = adjustForTarget(raw, dmg.dtype, ta, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool, defenseKey: dmg.defenseKey });
     let through = 0;
-    if (adj.heal && curseBlocks(ta, "hp")) {
+    const healPool = dmg.heal ? dmg.pool : "hp";   // a Heal restores its chosen pool (v0.03)
+    if (adj.heal && curseBlocks(ta, healPool)) {
       // A Cursed creature regains nothing to its cursed pool — the heal (or Absorb conversion) is voided.
-      lines.push(curseNote(ta.name, "hp"));
+      lines.push(curseNote(ta.name, healPool));
     } else if (adj.amount > 0 || adj.heal) {
       // Apply immediately; the per-target undo row carries the calculation. An active Barrier
       // on that pool eats its share first (the row shows what got through).
-      const pool = adj.heal ? "hp" : dmg.pool;
+      const pool = adj.heal ? healPool : dmg.pool;
       const bc = barrierCalc(ta, adj, pool);
       if (killsTarget(ta, { ...adj, amount: bc.amount }, pool)) killed.push(ta);
       await routeApply(ta, ta.uuid, adj.amount, adj.heal, pool);
@@ -1717,6 +1788,13 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
       through = bc.amount;
     } else {
       lines.push(`<span class="card-target-row"><span class="muted">${adj.line}</span></span>`);
+    }
+    // House rule: a leap inflicts its riders (conditions / Decay) only where it actually dealt damage.
+    if (!adj.heal && through > 0) {
+      for (const c of collectInflictedConditions(item, ta)) {
+        await applyConditionFromItem(actor, item, ta, c, lines);
+      }
+      await inflictDecay(item, ta, lines);
     }
     // Barrier-absorbed damage never touched the creature, so it feeds no drain.
     if (!adj.heal) drainTotal += through;
@@ -1833,6 +1911,7 @@ async function devourFromTarget(actor, item, target, { spendEnergy = true, silen
 
   const data = chosen.toObject();
   delete data._id;
+  stampCompendiumSource(data, chosen);
   await actor.createEmbeddedDocuments("Item", [data]);
 
   return postCard(actor, cardHTML({
@@ -1951,7 +2030,10 @@ async function resolveSteal(actor, item, target) {
     && !i.getFlag("project-anime", "natural")
     && !i.getFlag("project-anime", "granted"));
   const loose = lootable.filter((i) => !i.system?.equipped);
-  const equipped = (Number(item.system?.rank) || 1) >= 3 ? lootable.filter((i) => i.system?.equipped) : [];
+  // v0.03: base Steal takes from INVENTORY only — equipped items need the Disarm Modifier
+  // (won through the contested roll below).
+  const canDisarm = (item.system?.modifiers ?? []).includes("disarm");
+  const equipped = canDisarm ? lootable.filter((i) => i.system?.equipped) : [];
   if (!loose.length && !equipped.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.stealNothing", { name: target.name }));
 
   const pickedId = await pickStealDialog(target, loose, equipped);
@@ -1997,6 +2079,7 @@ export async function stealItemTo(stealerUuid, targetUuid, itemId) {
   delete data._id;
   delete data.folder;
   data.sort = 0;
+  stampCompendiumSource(data, picked);
   if (data.system && "equipped" in data.system) data.system.equipped = false;
   if (data.system && "container" in data.system) data.system.container = "";
   for (const k of ["natural", "granted", "grantedBy", "grantSource", "readied"]) {
@@ -2379,7 +2462,7 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
     ensnare: effectKey,
     ensnareSource: item.uuid,
     autoKey: `${item.id}:${effectKey}:${targetActor.id}`,
-    overcomeCT: attrValue(actor, skillDieAttr(item)),
+    overcomeCT: skillPowerValue(actor, item),
     scene
   };
   const channelKey = activeChannelKey(actor, item);
@@ -2478,6 +2561,50 @@ export async function performOvercome(actor, effect) {
     lines
   }), roll, { combo });
   return roll;
+}
+
+/**
+ * Right-click router for an effect entry — shared by the floating Effects Panel and the actor
+ * sheet's Effects drawer so both surfaces behave identically. An overcomeable effect (a Status
+ * condition or an ensnaring Skill marker) that lives on an owned actor opens the Overcome-or-Remove
+ * choice; anything else is removed outright. An effect borne by an item can't be cleared here (its
+ * source item must be unequipped/removed) and an effect you don't own warns instead. `uuid` is the
+ * ActiveEffect UUID from the clicked row/icon.
+ */
+export async function contextRemoveEffect(uuid) {
+  const effect = uuid ? await fromUuid(uuid) : null;
+  if (!effect) return;
+  const flags = effect.flags?.["project-anime"] ?? {};
+  const isCondition = [...(effect.statuses ?? [])].some((s) => (PROJECTANIME.conditionKeys ?? []).includes(s));
+  const onActor = effect.parent?.documentName === "Actor";
+  if (onActor && effect.isOwner && (isCondition || flags.ensnare)) {
+    const action = await foundry.applications.api.DialogV2.wait({
+      window: { title: effect.name },
+      content: "",
+      buttons: [
+        { action: "overcome", label: i18n("PROJECTANIME.Roll.overcome"), icon: "fas fa-hand-fist", default: true },
+        { action: "remove", label: i18n("PROJECTANIME.Effect.remove"), icon: "fas fa-trash" },
+        { action: "cancel", label: i18n("Cancel"), icon: "fas fa-times" }
+      ],
+      rejectClose: false
+    });
+    if (action === "overcome") return performOvercome(effect.parent, effect);
+    if (action !== "remove") return;
+  }
+  return removeEffectDirect(effect);
+}
+
+/** Delete an effect that lives on an owned actor; item-borne or unowned effects are refused with a
+ *  notice instead. Extracted so the panel and drawer share one removal path. */
+async function removeEffectDirect(effect) {
+  if (!effect) return;
+  if (effect.parent?.documentName !== "Actor") {
+    return ui.notifications.info(i18n("PROJECTANIME.Effect.removeFromItem",
+      { name: effect.name, item: effect.parent?.name ?? "" }));
+  }
+  if (!effect.isOwner) return ui.notifications.warn(i18n("PROJECTANIME.Effect.removeNoPermission"));
+  game.tooltip?.deactivate?.();
+  await effect.delete();
 }
 
 /**
@@ -2693,7 +2820,10 @@ async function onRollDamageButton(event) {
   const spec = el.dataset.effect
     ? { effect: el.dataset.effect, damageAttr: el.dataset.damageAttr, damagePool: el.dataset.damagePool, damageType: el.dataset.damageType }
     : null;
-  return rollDamage(actor, item, { targetUuids, charged: el.dataset.charged === "true", spec });
+  // The originating card (holding this button) — stamped once its on-hit riders are applied, so a
+  // second Roll Damage click can't re-inflict them.
+  const sourceMessageId = el.closest?.("[data-message-id]")?.dataset?.messageId ?? null;
+  return rollDamage(actor, item, { targetUuids, charged: el.dataset.charged === "true", spec, sourceMessageId });
 }
 
 /** "Release" a charged Skill: re-activate it — rollSkill sees the charge flag and resolves it. */
@@ -2851,6 +2981,11 @@ export async function applyStatusTo(targetUuid, statusId, active = true, duratio
  *  lifetime is the Skill's Duration or the rules default of 2 (see skillStatusDuration). */
 async function applyStatusEffect(targetActor, statusId, duration = 2, { decayType = "", value = 0, pool = "hp", overcomeCT = 0 } = {}) {
   if (!targetActor || !statusId) return;
+  // Affinity (Status) Resist (v0.03): the target halves the inflicted Status's duration
+  // (round down, minimum 1). Full Immunity is checked earlier (statusImmunities).
+  if (statusResists(targetActor).has(statusId)) {
+    duration = Math.max(1, Math.floor((Number(duration) || 2) / 2));
+  }
   if (targetActor.isOwner) await applyStatusTo(targetActor.uuid, statusId, true, duration, { decayType, value, pool, overcomeCT });
   else if (game.users.activeGM) {
     game.socket.emit("system.project-anime", { type: "applyStatus", targetUuid: targetActor.uuid, statusId, active: true, duration, decayType, value, pool, overcomeCT });
@@ -2865,11 +3000,24 @@ function overcomeImmune(target, sourceKey) {
   return (target.effects ?? []).some((e) => e.flags?.["project-anime"]?.overcomeImmunity === sourceKey);
 }
 
-/** The Skill-Die Attribute key a Skill's valued/contested numbers read (the designer's chosen
- *  die — damageAttr resolves "attrA"/"attrB" to the real Attribute). */
+/** The Power Attribute key a Skill's valued/contested numbers read (the designer's chosen
+ *  Attribute — damageAttr resolves "attrA"/"attrB"; a weapon Skill reads the WEAPON's ACC pair). */
 function skillDieAttr(item) {
+  const weapon = item?.actor ? skillWeapon(item.actor, item) : null;
+  if (weapon) {
+    const a = weapon.system.accuracy ?? {};
+    return (item.system?.damageAttr === "attrB" ? a.attrB : a.attrA) ?? "might";
+  }
   const at = item?.system?.attributes ?? {};
   return at[item?.system?.damageAttr] ?? at.attrA ?? "might";
+}
+
+/** A Skill's POWER (v0.03): the chosen ACC Attribute's value, plus Weapon DMG for a weapon
+ *  Skill. Flat, never rolled — drives Strike damage, Heal amount, and the Overcome CT. */
+function skillPowerValue(actor, item) {
+  if (!actor || item?.type !== "skill") return 0;
+  const weapon = skillWeapon(actor, item);
+  return attrValue(actor, skillDieAttr(item)) + (weapon ? (Number(weapon.system.damage?.mod) || 0) : 0);
 }
 
 /**
@@ -2894,11 +3042,11 @@ async function applyConditionFromItem(actor, item, targetActor, c, lines) {
   const opts = {};
   let label = c.label;
   if (item?.type === "skill") {
-    opts.overcomeCT = attrValue(actor, skillDieAttr(item));
+    opts.overcomeCT = skillPowerValue(actor, item);
     if ((PROJECTANIME.valuedStatuses ?? []).includes(c.id)) {
-      // Regen / Barrier carry the Skill's Rank × 2 (rules), not a die roll: a Rank-N Skill grants
-      // N×2 into the chosen pool — Regen heals it each turn (collectSustain), Barrier absorbs it.
-      opts.value = valuedStatusValue(item.system?.rank);
+      // Barrier carries the Skill's FULL SP cost; Regen half of it (v0.03) — Regen heals the
+      // chosen pool each turn (collectSustain), Barrier absorbs into it.
+      opts.value = valuedStatusValue(item.system?.spCost, c.id);
       opts.pool = item.system?.inflictPool === "energy" ? "energy" : "hp";
       label = `${c.label} ${opts.value} (${i18n(`PROJECTANIME.Stat.${opts.pool}`)})`;
     } else if (c.id === "curse") {
@@ -2933,7 +3081,7 @@ async function inflictDecay(item, targetActor, lines) {
     lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.immune", { name: targetActor.name, condition })}</em>`);
     return;
   }
-  const overcomeCT = item.actor ? attrValue(item.actor, skillDieAttr(item)) : 0;
+  const overcomeCT = item.actor ? skillPowerValue(item.actor, item) : 0;
   await applyStatusEffect(targetActor, "decay", skillStatusDuration(item), { decayType: element, overcomeCT });
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition, name: targetActor.name })}</em>`);
 }
@@ -2963,6 +3111,28 @@ async function applySkillOnHit(actor, item, targetActor) {
     lines.push(...(await applySkillEffects(actor, item, targetActor ? [targetActor] : null, { landed: true })));
   }
   return lines;
+}
+
+/** The damaging attacks whose on-hit riders the house rule defers to actually-dealt damage: a basic
+ *  weapon / shield attack, or a Skill whose Effect includes a Strike. A non-damaging Skill has no
+ *  damage step — it applies its effects on land in its own resolver and never routes through here. */
+function isDamagingStrike(item) {
+  if (item?.type === "weapon" || item?.type === "shield") return true;
+  return item?.type === "skill" && skillEffectKeys(item?.system ?? {}).includes("strike");
+}
+
+/** True once a damaging attack's on-hit riders have been applied for its originating card — so a
+ *  repeated Roll Damage click on the same card can't re-inflict conditions or stack effect copies. */
+function ridersAlreadyDone(sourceMessageId) {
+  return !!(sourceMessageId && game.messages.get(sourceMessageId)?.getFlag("project-anime", "ridersDone"));
+}
+
+/** Stamp the originating card once its riders have landed (owner-only — the attacker authored it). */
+async function markRidersDone(sourceMessageId) {
+  const msg = sourceMessageId ? game.messages.get(sourceMessageId) : null;
+  if (msg?.isOwner && !msg.getFlag("project-anime", "ridersDone")) {
+    await msg.setFlag("project-anime", "ridersDone", true);
+  }
 }
 
 /** The actors a Skill's on-use effects land on: an explicit list (area Skills), else — for a
@@ -3234,7 +3404,7 @@ async function applySkillEffects(actor, item, recipients = null, { landed = true
       if (effectGrantsStatus(effect, "regen")) {
         foundry.utils.setProperty(data, "flags.project-anime.regenValue", {
           pool: item.system?.inflictPool === "energy" ? "energy" : "hp",
-          value: valuedStatusValue(item.system?.rank)
+          value: valuedStatusValue(item.system?.spCost, "regen")
         });
       }
       if (await routeEffectApply(ta, data)) names.push(effect.name);
@@ -3463,8 +3633,12 @@ async function onSpendLuckButton(event) {
     const srcActor = await fromUuid(el.dataset.actorUuid);
     const item = srcActor?.items?.get?.(el.dataset.itemId) ?? null;
     const targetActor = el.dataset.targetUuid ? await fromUuid(el.dataset.targetUuid) : null;
-    // A Skill's on-hit payload (conditions / Decay / Hinder) lands now that the re-roll hit.
-    if (item?.type === "skill") lines.push(...(await applySkillOnHit(srcActor, item, targetActor)));
+    // A non-damaging Skill's on-hit payload (conditions / Decay / Hinder) lands now that the re-roll
+    // hit. A Strike (and any weapon attack) defers its riders to the Roll Damage step below — they
+    // land only if the blow dealt >0 net damage (house rule).
+    if (item?.type === "skill" && !skillEffectKeys(item.system).includes("strike")) {
+      lines.push(...(await applySkillOnHit(srcActor, item, targetActor)));
+    }
     // Roll Damage: weapon attacks always deal damage; a Skill only if it Strikes.
     const dealsDamage = kind === "attack" || (item?.type === "skill" && skillEffectKeys(item.system).includes("strike"));
     if (dealsDamage) {
@@ -3538,8 +3712,10 @@ async function onSpendLuckAoeButton(event) {
     lines.push(`<span class="card-target-row"><strong>${t.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evText}</span>`);
     if (!didHit) continue;
     hitUuids.push(t.uuid);
-    // Apply the Skill's on-hit payload (conditions / Decay / Hinder) to each creature the re-roll hits.
-    if (item?.type === "skill") {
+    // A non-Strike Skill's on-hit payload (conditions / Decay / Hinder) lands on each creature the
+    // re-roll hits. A Strike defers its riders to the Roll Damage step (applied per target only where
+    // damage landed — house rule).
+    if (item?.type === "skill" && !hasStrike) {
       const ta = await fromUuid(t.uuid);
       if (ta) lines.push(...(await applySkillOnHit(srcActor, item, ta)));
     }

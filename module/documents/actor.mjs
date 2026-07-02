@@ -180,6 +180,30 @@ export class ProjectAnimeActor extends Actor {
   }
 
   /**
+   * Spend SEVERAL Skill-Point purchases in one atomic actor update — the staged-Confirm path of the
+   * Advancement dialog. The pool drops by the combined total in a single write, but every purchase
+   * keeps its own refundable log entry, so the Skill Point Log can still undo them one by one. Any
+   * item-side changes (Skill enhancements) are the caller's to apply FIRST, mirroring
+   * recordSkillPointSpend's contract (change, then record). Callers check affordability.
+   * @param {Array<{amount:number, label:string, kind:string, ref?:string, data?:object}>} entries
+   * @param {object} [changes]  Actor update paths written alongside the spend.
+   */
+  async recordSkillPointSpends(entries, changes = {}) {
+    if (!entries?.length) return Object.keys(changes).length ? this.update(changes) : this;
+    const sp = this.system.skillPoints ?? {};
+    const total = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const nextValue = Math.max(0, (sp.value ?? 0) - total);
+    if (Array.isArray(sp.log)) {
+      const log = [...sp.log];
+      for (const { amount, label, kind, ref = "", data = {} } of entries) {
+        log.push({ id: foundry.utils.randomID(), label, amount, kind, ref, data, time: Date.now() });
+      }
+      return this.update({ ...changes, "system.skillPoints.value": nextValue, "system.skillPoints.log": log });
+    }
+    return this.update({ ...changes, "system.skillPoints.value": nextValue, "system.skillPoints.spent": (sp.spent ?? 0) + total });
+  }
+
+  /**
    * Refund a single ledger entry: reverse the change it recorded and return its SP to the pool.
    *  • skill     — delete the Skill (the deleteItem hook refunds + prunes every entry for it).
    *  • improve   — undo the refinement on the Skill (rank, accuracy, energy, range, modifier).
@@ -237,6 +261,7 @@ export class ProjectAnimeActor extends Actor {
       case "damage": return item.update({ "system.damageMod": Math.max(0, (sys.damageMod ?? 0) - 1) });
       case "energy": return item.update({ "system.energyReduction": Math.max(0, (sys.energyReduction ?? 0) - 1) });
       case "range": return item.update({ "system.range.tiles": Math.max(0, (sys.range?.tiles ?? 0) - 1) });
+      case "duration": return item.update({ "system.effectDuration": Math.max(1, (sys.effectDuration ?? 3) - 1) });
       case "modifier": {
         // A multi-take Modifier (Affinity Damage/Status) refunds ONE take — the newest; the key
         // itself only goes when this was the last take.
