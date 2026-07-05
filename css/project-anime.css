@@ -5989,6 +5989,7 @@ body.pa-party-on #players { display: none !important; }
 #project-anime-party.dragging { opacity: 0.92; }
 #project-anime-party.empty { display: none; }
 #project-anime-party .party-hud { display: flex; flex-direction: column; gap: 8px; }
+#project-anime-party.collapsed .ph-card { display: none; }   /* minimized — only the grip title bar shows */
 
 /* drag handle — a slim JRPG title bar; the ONLY drag surface (cards keep their click actions) */
 #project-anime-party .ph-grip {
@@ -6618,8 +6619,6 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .chronicle-app .gm-bar-deadline label.grow input { width: 100%; }
 .chronicle-app .gm-bar-deadline .dl-edit { width: 64px; }
 .chronicle-app .q-budget { margin-left: auto; font-family: var(--pa-font-mono); font-size: 10px; letter-spacing: 0; text-transform: none; color: var(--pa-gold-soft); background: color-mix(in srgb, var(--pa-gold) 12%, transparent); padding: 1px 8px; border-radius: 9px; }
-.chronicle-app .obj-type { flex: 0 0 auto; background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 5px; color: var(--pa-ink); font-size: 11px; padding: 2px 4px; }
-.chronicle-app .obj-type-tag { display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 8px; font-size: 8.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; vertical-align: 1px; color: #1a1622; background: linear-gradient(180deg, color-mix(in srgb, var(--cat) 88%, #fff), var(--cat)); }
 .chronicle-app .q-complication { border: 1.5px dashed color-mix(in srgb, var(--pa-danger) 40%, var(--pa-line)); border-radius: 9px; padding: 10px 14px 12px; }
 .chronicle-app .q-complication > h3 { margin-bottom: 7px; color: color-mix(in srgb, var(--pa-danger) 65%, var(--pa-ink-soft)); }
 .chronicle-app .q-complication > h3::before { background: linear-gradient(135deg, color-mix(in srgb, var(--pa-danger) 70%, #fff), var(--pa-danger)); box-shadow: 0 0 7px color-mix(in srgb, var(--pa-danger) 50%, transparent); }

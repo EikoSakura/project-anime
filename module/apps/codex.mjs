@@ -24,7 +24,6 @@ import {
   questProgress,
   QUEST_CATEGORIES,
   QUEST_SIZES,
-  OBJECTIVE_TYPES,
   postingBudget,
   partyTier,
   grantRewards,
@@ -575,17 +574,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       brief = q.brief ?? "";
     }
 
-    const objectives = (q.objectives ?? [])
-      .filter((o) => this.isGM || !o.hidden)
-      .map((o) => ({
-        ...o,
-        typeLabel: o.type ? game.i18n.localize(`PROJECTANIME.Chronicle.objType.${o.type}`) : "",
-        typeOptions: ["", ...OBJECTIVE_TYPES].map((k) => ({
-          k,
-          label: k ? game.i18n.localize(`PROJECTANIME.Chronicle.objType.${k}`) : "—",
-          sel: k === (o.type ?? "")
-        }))
-      }));
+    const objectives = (q.objectives ?? []).filter((o) => this.isGM || !o.hidden);
 
     const opt = (arr, cur) =>
       arr.map((k) => ({ k, label: game.i18n.localize(`PROJECTANIME.Chronicle.cat.${k}`) || k, sel: k === cur }));
@@ -1127,7 +1116,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async #onAddObjective() {
     await this._mutateSelected((q) => {
-      q.objectives.push({ id: foundry.utils.randomID(), type: "", text: "", done: false, hidden: false, optional: false });
+      q.objectives.push({ id: foundry.utils.randomID(), text: "", done: false, hidden: false, optional: false });
     });
   }
 

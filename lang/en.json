@@ -1275,7 +1275,7 @@
         "down": "Down",
         "hidden": "???",
         "title": "Party",
-        "dragHint": "Drag to move · double-click to reset"
+        "dragHint": "Drag to move · double-click to minimize"
       },
       "sidebar": {
         "skills": "Skills",

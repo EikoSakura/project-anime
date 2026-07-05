@@ -38,6 +38,7 @@ export const HUD_SHOW_PARTY_SETTING = "hudShowParty";
 export const HUD_COMBAT_SETTING = "hudCombat";
 export const HUD_PARTY_POS_SETTING = "hudPartyPos";    // { left, top } viewport px; {} = default corner
 export const HUD_PARTY_SIZE_SETTING = "hudPartySize";  // "280" | "340" | "420" (--ph-w width)
+export const HUD_PARTY_COLLAPSED_SETTING = "hudPartyCollapsed";  // bool — grip double-click minimizes to the title bar
 
 const SLOTS_PER_PAGE = 14;   // 7 columns × 2 rows — packs the shortcut span with no gaps
 const PAGES = 5;
@@ -178,6 +179,14 @@ export function registerHudSettings() {
     config: false,
     type: Object,
     default: {}
+  });
+
+  // Party HUD minimized state (per-client) — double-clicking the grip collapses the roster to its title bar.
+  game.settings.register(SYS, HUD_PARTY_COLLAPSED_SETTING, {
+    scope: "client",
+    config: false,
+    type: Boolean,
+    default: false
   });
 
   game.settings.register(SYS, HUD_PARTY_SIZE_SETTING, {
@@ -913,6 +922,9 @@ export class AnimePartyRail extends HandlebarsApplicationMixin(ApplicationV2) {
     const el = this.element;
     el.classList.toggle("empty", context.empty);
 
+    // MINIMIZED: double-clicking the grip collapses the roster to just its title bar (persisted per-client).
+    el.classList.toggle("collapsed", game.settings.get(SYS, HUD_PARTY_COLLAPSED_SETTING));
+
     // BIGGER: one width var drives the JRPG-scale card metrics (CSS does the rest).
     el.style.setProperty("--ph-w", `${game.settings.get(SYS, HUD_PARTY_SIZE_SETTING)}px`);
 
@@ -965,18 +977,24 @@ export class AnimePartyRail extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Manual pointer-drag on the grip: Draggable's delta math + ~60fps throttle, writing our own inline
    *  styles (core setPosition is a no-op on this positioned:false app) and persisting once on release.
-   *  Double-click the grip resets to the default corner. */
+   *  We flip to top-anchoring (.pinned, which drops the CSS bottom anchor) ONLY once a real drag begins,
+   *  so a plain click / double-click never yanks the panel to the top. Double-click minimizes the roster. */
   #bindDrag(grip) {
     const el = this.element;
     let moveT = 0, start = null, base = null, moved = false;
 
     const onMove = (e) => {
+      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!moved) {
+        if (Math.hypot(dx, dy) < 4) return;              // movement threshold before it counts as a drag
+        moved = true;
+        // Freeze the panel at its current spot BEFORE swapping bottom→top anchoring, so it doesn't jump.
+        el.style.left = `${base.left}px`; el.style.top = `${base.top}px`;
+        el.classList.add("pinned", "dragging");
+      }
       const now = Date.now();
       if (now - moveT < 1000 / 60) return;               // ~60fps throttle
       moveT = now;
-      const dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (!moved && Math.hypot(dx, dy) < 4) return;      // movement threshold before it counts as a drag
-      moved = true;
       const r = el.getBoundingClientRect();
       el.style.left = `${Math.clamp(base.left + dx, 0, Math.max(window.innerWidth - r.width, 0))}px`;
       el.style.top = `${Math.clamp(base.top + dy, 0, Math.max(window.innerHeight - r.height, 0))}px`;
@@ -985,28 +1003,27 @@ export class AnimePartyRail extends HandlebarsApplicationMixin(ApplicationV2) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       el.classList.remove("dragging");
-      if (!moved) return;                                // a plain click on the grip - don't persist
+      if (!moved) return;                                // a plain click on the grip - don't pin or persist
       await game.settings.set(SYS, HUD_PARTY_POS_SETTING, { left: parseFloat(el.style.left), top: parseFloat(el.style.top) });
     };
 
     grip.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
-      el.classList.add("pinned", "dragging");
-      const r = el.getBoundingClientRect();              // seed from the live rect (may still be the CSS corner)
+      const r = el.getBoundingClientRect();              // seed from the live rect at its current anchor
       base = { left: r.left, top: r.top };
-      el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;   // pin before the first move - no jump
       start = { x: e.clientX, y: e.clientY };
       moved = false;
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
     });
 
-    grip.addEventListener("dblclick", async () => {      // quick reset to the default corner
-      await game.settings.set(SYS, HUD_PARTY_POS_SETTING, {});
-      el.classList.remove("pinned");
-      el.style.left = el.style.top = "";
-      this.render();
+    // Double-click the grip → minimize/restore the roster to just the title bar (like a Foundry sheet).
+    grip.addEventListener("dblclick", async (e) => {
+      e.preventDefault();
+      const collapsed = !el.classList.contains("collapsed");
+      el.classList.toggle("collapsed", collapsed);
+      await game.settings.set(SYS, HUD_PARTY_COLLAPSED_SETTING, collapsed);
     });
   }
 
