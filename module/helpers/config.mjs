@@ -114,16 +114,24 @@ PROJECTANIME.ranges = {
 /** Default tile value per Range scope (0 = not a tile distance). */
 PROJECTANIME.rangeTiles = { self: 0, weapon: 0, tiles: 1, scene: 0 };
 
+/** Effects whose reach is INHERENT to the Effect itself — the tile Range is part of what the Effect
+ *  does, not an optional Range Modifier, so it adds NO SP. Each maps to its natural tile reach, which
+ *  the Builder seeds when the Effect is chosen. Sense detects within 5 tiles (homebrew, v0.03). */
+PROJECTANIME.inherentRangeTiles = { sense: 5 };
+
 /** True when a Range scope uses an editable tile count. */
 export function rangeHasTiles(scope) {
   return scope === "tiles";
 }
 
 /** The SP a Skill's Range choice adds (v0.03: Range (X tiles) and Range (Scene) are Modifiers
- *  costing 1 each; Weapon and Self are free). */
+ *  costing 1 each; Weapon and Self are free). An inherent-range Effect (Sense) carries its tile
+ *  reach for free — the tiles ARE the Effect, already priced into its minimum. */
 export function rangeModifierCost(sys) {
   const scope = sys?.range?.scope;
-  return (scope === "tiles" || scope === "scene") ? 1 : 0;
+  if (scope !== "tiles" && scope !== "scene") return 0;
+  if (sys?.effect && sys.effect in (PROJECTANIME.inherentRangeTiles ?? {})) return 0;
+  return 1;
 }
 
 /** Localized display for a Skill's range: "Range · 4 tiles" for the tile scope, else just the

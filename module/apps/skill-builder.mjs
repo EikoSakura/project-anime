@@ -882,6 +882,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (effectChanged) {
         d.target = EFFECT_TARGET_DEFAULTS[d.effect] ?? "any";
         d.duration = EFFECT_DURATION_DEFAULTS[d.effect] ?? "standard";
+        // An inherent-range Effect (Sense) seeds its natural tile reach — free (rangeModifierCost).
+        const inh = CONFIG.PROJECTANIME.inherentRangeTiles ?? {};
+        if (d.effect in inh) d.range = { ...d.range, scope: "tiles", tiles: inh[d.effect] };
       }
     }
     if (!effectChanged) {

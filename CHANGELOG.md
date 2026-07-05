@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9 - 2026-07-05
+
+- Sense Skills no longer pay extra SP for range - a Sense's tile reach is now inherent to the Effect (ranged senses drop 1 SP).
+- New Sense Skills default to a 5-tile detection range.
+
 ## 0.3.8 - 2026-07-05
 
 - Sense Skills can now be built as Passive - an always-on sense, in the Skill Builder and NPC/Monster Creator.
