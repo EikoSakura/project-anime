@@ -26,6 +26,8 @@
     <label class="frew-num" title="{{localize 'PROJECTANIME.Shop.rateBuy'}}"><i class="fa-solid fa-tags"></i><input type="number" data-vendor-field="rateBuy" value="{{rateBuy}}"></label>
     <label class="frew-num" title="{{localize 'PROJECTANIME.Shop.rateSell'}}"><i class="fa-solid fa-hand-holding-dollar"></i><input type="number" data-vendor-field="rateSell" value="{{rateSell}}"></label>
     <div class="shop-stock-drop" data-stock-drop><i class="fa-solid fa-plus"></i> <span>{{localize "PROJECTANIME.Shop.stockDrop"}}</span></div>
+    <label class="shop-draw"><input type="checkbox" data-vendor-field="sellsMaterials" {{#if sellsMaterials}}checked{{/if}}> {{localize "PROJECTANIME.Shop.sellsMaterials"}}</label>
+    <label class="frew-num" title="{{localize 'PROJECTANIME.Shop.settlementTier'}}"><i class="fa-solid fa-layer-group"></i><input type="number" min="1" max="4" data-vendor-field="settlementTier" value="{{settlementTier}}"></label>
   </div>
   {{/if}}
 
@@ -47,6 +49,20 @@
         {{/each}}
       </div>
       {{else}}<div class="shop-empty">{{localize "PROJECTANIME.Shop.noStock"}}</div>{{/if}}
+
+      {{#if hasMaterials}}
+      <h4 class="shop-h shop-h-sub"><i class="fa-solid fa-gem"></i> {{localize "PROJECTANIME.Material.label"}} · {{localize "PROJECTANIME.Material.tier"}} {{matTierRoman}}</h4>
+      <div class="shop-list">
+        {{#each materials}}
+        <div class="shop-row">
+          <span class="shop-ic mat-ic"><i class="{{icon}}"></i></span>
+          <div class="shop-meta"><span class="shop-name">{{@root.commonLabel}} {{label}}</span></div>
+          <span class="shop-price"><i class="fa-solid fa-coins"></i> {{price}}</span>
+          {{#if @root.hasBuyer}}<button type="button" class="shop-btn buy" data-action="buyMaterial" data-category="{{category}}">{{localize "PROJECTANIME.Shop.buyBtn"}}</button>{{/if}}
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
     </div>
 
     {{!-- SELL --}}

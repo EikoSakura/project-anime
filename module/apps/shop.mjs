@@ -13,10 +13,14 @@
  * selling deletes the buyer's item and credits gold. Stock is unlimited (a restocking storefront).
  */
 import { getHQ, saveHQ } from "../helpers/factions.mjs";
+import { hqShopRates } from "../helpers/hq.mjs";
 import { stampCompendiumSource } from "../helpers/gear.mjs";
 import { partyActors, partyMembers } from "../helpers/party-folder.mjs";
 import { getCreationConfig } from "../helpers/creation.mjs";
 import { BASE_BUY_PCT, BASE_SELL_PCT } from "../helpers/effects.mjs";
+import { PROJECTANIME } from "../helpers/config.mjs";
+import { partyTier, tierNumeral } from "../helpers/chronicle.mjs";
+import { depositMaterial, materialTypeLabel, materialGradeLabel } from "../helpers/crafting.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -28,17 +32,39 @@ const clampSell = (v) => Math.max(0, Math.min(100, Math.round(v)));
 
 export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(facilityId, options = {}) {
-    super({ ...options, id: `pa-shop-${facilityId}` });
+    super({ ...options, id: facilityId?.startsWith("vendor-") ? `pa-shop-${facilityId}` : `pa-shop-${facilityId}` });
     this.facilityId = facilityId;
+    this.vendorKind = options.vendorKind ?? null;   // v0.03 catalog vendor ("consumable" | "gear")
   }
 
-  /** Open (or focus) the shop for a vendor facility. */
+  /** Open (or focus) the shop for a legacy vendor facility (by id). */
   static open(facilityId) {
     const existing = foundry.applications.instances.get(`pa-shop-${facilityId}`);
     if (existing) { existing.render(); existing.bringToFront(); return existing; }
     const app = new ShopWindow(facilityId);
     app.render(true);
     return app;
+  }
+
+  /** Open (or focus) the v0.03 HQ Shop for a catalog vendor — the Apothecary ("consumable") or Forge
+   *  ("gear"). Prices come from the HQ rank + the vendor facility's staffed/favor/upgrade lines
+   *  (helpers/hq.mjs `hqShopRates`); stock is drawn from the compendium catalogue, filtered to the kind. */
+  static openVendor(kind) {
+    const vk = kind === "consumable" ? "consumable" : "gear";
+    const id = `vendor-${vk}`;
+    const existing = foundry.applications.instances.get(`pa-shop-${id}`);
+    if (existing) { existing.render(); existing.bringToFront(); return existing; }
+    const app = new ShopWindow(id, { vendorKind: vk });
+    app.render(true);
+    return app;
+  }
+
+  /** Item types this vendor trades in, or null (all). Forge = arms (+ accessories once upgraded). */
+  #vendorTypes() {
+    if (!this.vendorKind) return null;
+    if (this.vendorKind === "consumable") return new Set(["consumable"]);
+    const rates = hqShopRates("gear");
+    return new Set(rates.stocksAccessories ? ["weapon", "armor", "shield", "accessory"] : ["weapon", "armor", "shield"]);
   }
 
   static DEFAULT_OPTIONS = {
@@ -48,7 +74,8 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       buyItem: ShopWindow.#onBuyItem,
       sellItem: ShopWindow.#onSellItem,
-      removeStock: ShopWindow.#onRemoveStock
+      removeStock: ShopWindow.#onRemoveStock,
+      buyMaterial: ShopWindow.#onBuyMaterial
     }
   };
 
@@ -64,8 +91,21 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
 
   get isGM() { return game.user.isGM; }
 
-  /** The vendor facility (HQ recruit entry), or null if it's been removed. */
+  /** The vendor facility. For a v0.03 catalog vendor this is synthesized from the HQ rank + facility
+   *  lines (rates as ±points off the buyer's base 100% buy / 50% sell); otherwise a legacy vendor record. */
   get facility() {
+    if (this.vendorKind) {
+      const r = hqShopRates(this.vendorKind);
+      const name = this.vendorKind === "consumable"
+        ? (CONFIG.PROJECTANIME.hqFacilities?.apothecary?.name ?? "Apothecary")
+        : (CONFIG.PROJECTANIME.hqFacilities?.forge?.name ?? "Forge");
+      const img = this.vendorKind === "consumable" ? "icons/svg/pill.svg" : "icons/svg/anvil.svg";
+      return {
+        id: this.facilityId, name, img, role: "vendor", drawFromShop: true, stock: [], sellsMaterials: false,
+        rateBuy: Math.round(r.buyMult * 100 - 100),          // 0.9 → −10 points off the buy price
+        rateSell: Math.round(r.sellMult * 100 - 50)          // 0.6 → +10 points onto the sell price
+      };
+    }
     return getHQ().facilities.find((e) => e.id === this.facilityId) ?? null;
   }
 
@@ -170,22 +210,37 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     const buyPrice = (cost) => Math.ceil((Number(cost) || 0) * effBuy / 100);
     const typeLabel = (t) => (t ? game.i18n.localize(`TYPES.Item.${t}`) : "");
 
+    // A v0.03 catalog vendor trades only in its own goods (Apothecary = consumables, Forge = arms).
+    const vTypes = this.#vendorTypes();
+
     // BUY catalogue: GM-authored snapshots + (optional) the creation-config compendium catalogue.
     const buy = [];
     (f.stock ?? []).forEach((snap, idx) => {
+      if (vTypes && !vTypes.has(snap?.type)) return;
       const cost = Number(snap?.system?.cost ?? 0) || 0;
       buy.push({ isStock: true, idx, name: snap?.name ?? "—", img: snap?.img ?? "icons/svg/item-bag.svg", type: snap?.type ?? "", typeLabel: typeLabel(snap?.type), cost, price: buyPrice(cost) });
     });
     if (f.drawFromShop) {
       for (const c of await this.#compendiumStock()) {
+        if (vTypes && !vTypes.has(c.type)) continue;
         buy.push({ isStock: false, uuid: c.uuid, name: c.name, img: c.img, type: c.type, typeLabel: typeLabel(c.type), cost: c.cost, price: buyPrice(c.cost) });
       }
     }
     buy.sort((a, b) => a.name.localeCompare(b.name));
 
-    // SELL list: the buyer's tradeable items (skipping the innate Natural Attack).
+    // SELL list: the buyer's tradeable items (skipping the innate Natural Attack), filtered to the vendor's kind.
     const buyerGold = buyer ? (buyer.system.gold ?? 0) : 0;
-    const sell = this.#sellData(buyer, effSell);
+    const sell = this.#sellData(buyer, effSell).filter((s) => !vTypes || vTypes.has(s.type));
+
+    // Material stock (v0.03): Common materials of the settlement's Tier at 50G × Tier. Never Prime;
+    // the flat price ignores the buy-rate. Tier defaults to the party Tier until the GM pins one.
+    const settlementTier = this.#settlementTier(f);
+    const materials = f.sellsMaterials ? PROJECTANIME.materialTypeKeys.map((cat) => ({
+      category: cat,
+      label: materialTypeLabel(cat),
+      icon: PROJECTANIME.materialTypeIcons[cat],
+      price: PROJECTANIME.materialShopPricePerTier * settlementTier
+    })) : [];
 
     return {
       isGM: this.isGM,
@@ -195,9 +250,19 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
       buyerGold,
       rateBuy, rateSell,
       drawFromShop: !!f.drawFromShop,
+      sellsMaterials: !!f.sellsMaterials,
+      settlementTier,
+      matTierRoman: tierNumeral(settlementTier),
+      commonLabel: materialGradeLabel("common"),
+      materials, hasMaterials: materials.length > 0,
       buy, hasBuy: buy.length > 0,
       sell, hasSell: sell.length > 0
     };
+  }
+
+  /** The settlement's Tier for material pricing: the GM's pin, else the current party Tier. */
+  #settlementTier(f) {
+    return Math.max(1, Math.min(4, Number(f?.settlementTier) || partyTier()));
   }
 
   _onRender(context, options) {
@@ -284,6 +349,25 @@ export class ShopWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     ui.notifications.info(game.i18n.format("PROJECTANIME.Shop.bought", { name: snap.name, price, buyer: buyer.name }));
     // Patch the buyer's gold + Sell list in place — the (possibly huge) Buy catalogue never reflows.
     this.#applyBuyerState(buyer);
+  }
+
+  static async #onBuyMaterial(event, target) {
+    const buyer = this.#buyer();
+    const f = this.facility;
+    if (!buyer || !f?.sellsMaterials) return;
+    const category = target.dataset.category;
+    if (!PROJECTANIME.materialTypeKeys.includes(category)) return;
+
+    const tier = this.#settlementTier(f);
+    const price = PROJECTANIME.materialShopPricePerTier * tier;
+    const gold = buyer.system.gold ?? 0;
+    const name = `${materialGradeLabel("common")} ${materialTypeLabel(category)}`;
+    if (price > gold) return ui.notifications.warn(game.i18n.format("PROJECTANIME.Shop.cantAfford", { name, price, gold }));
+
+    await depositMaterial(buyer, { grade: "common", tier, category, qty: 1 });
+    await buyer.update({ "system.gold": gold - price });
+    ui.notifications.info(game.i18n.format("PROJECTANIME.Shop.bought", { name, price, buyer: buyer.name }));
+    this.#applyBuyerState(buyer); // refresh the buyer's gold in place (materials aren't a Sell row)
   }
 
   static async #onSellItem(event, target) {

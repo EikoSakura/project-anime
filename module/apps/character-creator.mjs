@@ -180,7 +180,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
       carry: sys.carryingCapacity.max,
       movement: sys.movement.value
     };
-    ctx.vitalsStale = sys.hp.max !== might * 2 || (sys.energy.base ?? sys.energy.max) !== spirit * 2;
+    ctx.vitalsStale = sys.hp.max !== 6 + might * 2 || (sys.energy.base ?? sys.energy.max) !== spirit * 2;
     ctx.luckDice = sys.luckDice ?? [];
     ctx.luckRolled = !!this.actor.getFlag("project-anime", "luckRolled");
     ctx.charmDie = `d${sys.attributes.charm.base}`;
@@ -337,7 +337,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
       // — that would wipe HP/Energy bought later via Advancement; the manual Recalculate
       // button still lets them re-derive on purpose.
       const a = this.actor.system.attributes;
-      const stale = this.actor.system.hp.max !== a.might.base * 2 || (this.actor.system.energy.base ?? this.actor.system.energy.max) !== a.spirit.base * 2;
+      const stale = this.actor.system.hp.max !== 6 + a.might.base * 2 || (this.actor.system.energy.base ?? this.actor.system.energy.max) !== a.spirit.base * 2;
       if (stale && !this.actor.getFlag("project-anime", "creationComplete")) await this.#applyVitals();
     } else if (key === "gear") {
       // Grant the starting Gold budget exactly once (so re-running the creator, or
@@ -349,10 +349,10 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     }
   }
 
-  /** Set HP and Energy to full from the current attributes (rules p.6). */
+  /** Set HP and Energy to full from the current attributes (v0.03: HP = 6 + ⟪Might⟫×2). */
   async #applyVitals() {
     const a = this.actor.system.attributes;
-    const hp = a.might.base * 2;
+    const hp = 6 + a.might.base * 2;
     const energy = a.spirit.base * 2;
     await this.actor.update({
       "system.hp.max": hp,

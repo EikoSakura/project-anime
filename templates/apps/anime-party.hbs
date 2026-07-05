@@ -1,12 +1,43 @@
-{{!-- Project: Anime — party rail (frameless ApplicationV2 part). Diamond portrait chips at
-      the lower-left, replacing the native names list. Hover shows the name; the viewer's own
-      character is purple-framed. Hidden via `empty` when there are no party members. --}}
-<div class="party-rail">
+{{!-- Project: Anime — Party HUD (frameless ApplicationV2 part). A persistent lower-left stack of
+      party-member cards (Granblue Relink style), replacing the native names list. Each card: diamond
+      portrait, name, condensed HP + Energy bars with values, tinted its owning player's sheet accent.
+      The acting member (side-initiative) glows gold; the viewer's own card is pinned first + tagged.
+      Hidden via `empty` when there are no party members. --}}
+<div class="party-hud">
+  <div class="ph-grip" data-tooltip="{{localize 'PROJECTANIME.Hud.party.dragHint'}}">
+    <i class="fas fa-grip-lines"></i>
+    <span class="ph-grip-label">{{localize "PROJECTANIME.Hud.party.title"}}</span>
+  </div>
   {{#each members}}
-  <div class="chip{{#if me}} me{{/if}}{{#unless online}} off{{/unless}}" data-action="partyClick" data-actor-id="{{id}}" data-tooltip="{{name}}">
-    <div class="frame"></div>
-    <div class="cimg" style="background-image:url('{{img}}')"></div>
-    <div class="chp"><i style="width:{{hpPct}}%"></i></div>
+  <div class="ph-card{{#if me}} me{{/if}}{{#if active}} active{{/if}}{{#if crit}} crit{{/if}}{{#if down}} down{{/if}}{{#unless online}} off{{/unless}}"
+       data-action="partyClick" data-actor-id="{{id}}" data-tooltip="{{name}}"{{#if accent}} style="--acc:{{accent}}"{{/if}}>
+    <div class="ph-dia">
+      <div class="ph-fr"></div>
+      <div class="ph-im" style="background-image:url('{{img}}')"></div>
+      <div class="ph-gl"></div>
+      {{#if down}}<div class="ph-downtag">{{localize "PROJECTANIME.Hud.party.down"}}</div>{{/if}}
+    </div>
+    <div class="ph-body">
+      <div class="ph-name-row">
+        <span class="ph-name">{{name}}</span>
+        {{#if me}}<span class="ph-you">{{localize "PROJECTANIME.Hud.party.you"}}</span>{{/if}}
+        {{#if statuses.length}}<span class="ph-status">{{#each statuses}}<i style="background:{{tint}}"></i>{{/each}}</span>{{/if}}
+      </div>
+      {{#if seeHP}}
+      <div class="ph-res hp">
+        <i class="fas fa-heart"></i>
+        <div class="ph-bar"><div class="ph-fill hp" style="width:{{hp.pct}}%"></div></div>
+        <span class="ph-val">{{hp.value}}/{{hp.max}}</span>
+      </div>
+      <div class="ph-res en">
+        <i class="fas fa-bolt"></i>
+        <div class="ph-bar"><div class="ph-fill en" style="width:{{en.pct}}%"></div></div>
+        <span class="ph-val">{{en.value}}/{{en.max}}</span>
+      </div>
+      {{else}}
+      <div class="ph-hidden">{{localize "PROJECTANIME.Hud.party.hidden"}}</div>
+      {{/if}}
+    </div>
   </div>
   {{/each}}
 </div>

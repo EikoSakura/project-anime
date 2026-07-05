@@ -1,6 +1,6 @@
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices, elementLabel } from "../helpers/elements.mjs";
-import { rangeLabel, physicalRangeLabel, rangeHasTiles, skillEffectKeys, isHeavyModifier, skillTarget, skillDuration, skillEvasionAttr, skillEvasionLabel } from "../helpers/config.mjs";
+import { physicalRangeLabel, rangeHasTiles, skillEffectKeys, isHeavyModifier } from "../helpers/config.mjs";
 import { skillRulesHTML } from "../helpers/skill-description.mjs";
 import { summarizeRules, grantRefs } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
@@ -16,13 +16,15 @@ const { ItemSheetV2 } = foundry.applications.sheets;
  */
 export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV2) {
   static DEFAULT_OPTIONS = {
-    classes: ["project-anime", "sheet", "item"],
+    classes: ["project-anime", "sheet", "item", "pa-glass", "pa-glass-frame"],
     position: { width: 560, height: 620 },
     window: { resizable: true },
     form: { submitOnChange: true, closeOnSubmit: false },
     actions: {
       editImage: ProjectAnimeItemSheet.#onEditImage,
       toggleModifier: ProjectAnimeItemSheet.#onToggleModifier,
+      setTwoHanded: ProjectAnimeItemSheet.#onSetTwoHanded,
+      setChoice: ProjectAnimeItemSheet.#onSetChoice,
       selectTab: ProjectAnimeItemSheet.#onSelectTab,
       addEffect: ProjectAnimeItemSheet.#onAddEffect,
       editEffect: ProjectAnimeItemSheet.#onEditEffect,
@@ -45,6 +47,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     container: { template: "systems/project-anime/templates/item/container.hbs", scrollable: [""] },
     gear: { template: "systems/project-anime/templates/item/gear.hbs", scrollable: [""] },
     package: { template: "systems/project-anime/templates/item/package.hbs", scrollable: [""] },
+    material: { template: "systems/project-anime/templates/item/material.hbs", scrollable: [""] },
     description: { template: "systems/project-anime/templates/item/description.hbs" },
     effects: { template: "systems/project-anime/templates/item/effects.hbs", scrollable: [""] }
   };
@@ -59,7 +62,8 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     container: "fa-solid fa-box-open",
     gear: "fa-solid fa-box-archive",
     skill: "fa-solid fa-bolt",
-    package: "fa-solid fa-gift"
+    package: "fa-solid fa-gift",
+    material: "fa-solid fa-gem"
   };
 
   /** Active sheet tab: "view" (read display) or "edit" (input form). Survives re-render. */
@@ -99,6 +103,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     context.flags = this.item.flags;
     context.config = CONFIG.PROJECTANIME;
     context.damageTypeChoices = elementChoices();
+    if (this.item.type === "material") context.materialTierChoices = { 1: "I", 2: "II", 3: "III", 4: "IV" };
     context.itemUuid = this.item.uuid;
     context.editable = this.isEditable;
     context.typeLabel = game.i18n.localize(`TYPES.Item.${this.item.type}`);
@@ -127,7 +132,12 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         : skillRulesHTML(this.item);
     }
     this.#prepareTypeContext(context);
-    context.displayStats = this.#buildDisplayStats(context);
+    const vm = this.#buildViewModel(context);
+    context.statTiles = vm.tiles;
+    context.metaChips = vm.chips;
+    context.craftBadges = vm.badges;
+    context.headerTags = vm.tags;
+    context.worth = vm.worth;
     return context;
   }
 
@@ -239,10 +249,6 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
   /*  Context helpers                             */
   /* -------------------------------------------- */
 
-  #attrName(key) {
-    return game.i18n.localize(CONFIG.PROJECTANIME.attributes[key] ?? key);
-  }
-
   #prepareTypeContext(context) {
     const sys = this.item.system;
     const cfg = CONFIG.PROJECTANIME;
@@ -279,122 +285,121 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       context.summary = sys.energyCost > 0
         ? `${costTag} · ${sys.energyCost} EN`
         : (sys.actionType === "passive" && sys.passiveEnergyTax > 0 ? `${costTag} · −${sys.passiveEnergyTax} Max EN` : costTag);
-    } else if (this.item.type === "weapon" || this.item.type === "shield") {
-      context.accuracyFormula = `⟪${this.#attrName(sys.accuracy.attrA)}⟫ + ⟪${this.#attrName(sys.accuracy.attrB)}⟫`;
+    } else if (this.item.type === "shield") {
+      // Wield As segmented toggle: only two choices, so a single boolean drives both buttons.
+      context.shieldUseDual = sys.use === "dual";
     } else if (this.item.type === "consumable") {
       context.restoreChoices = cfg.consumableRestore;
     }
   }
 
-  /** Read-only {label, value} rows for the View tab — the item's key info, by type. */
-  #buildDisplayStats(context) {
+  /** Structured read model for the View tab — the item's key info shaped into JRPG status-card
+   *  pieces: big icon `tiles` (primary combat/protection stats), secondary `chips` (bulk, equipped,
+   *  quantity…), a `worth` coin (cost, only when > 0), crafted-mod `badges`, and header `tags`.
+   *  Skills render their own colored rules summary and never reach the tiles. */
+  #buildViewModel(_context) {
     const sys = this.item.system;
     const cfg = CONFIG.PROJECTANIME;
     const L = (k) => (k ? game.i18n.localize(k) : "");
     const signed = (n) => { const v = Number(n) || 0; return v > 0 ? `+${v}` : `${v}`; };
     const onoff = (b) => (b ? "✓" : "—");
-    const rows = [];
-    const push = (label, value) => { if (value !== undefined && value !== null && value !== "") rows.push({ label, value }); };
-    const accuracy = () => `${context.accuracyFormula ?? ""}${sys.accuracy?.mod ? ` ${signed(sys.accuracy.mod)}` : ""}`.trim();
-    const damage = () => `${signed(sys.damage?.mod)} · ${elementLabel(sys.damage?.type)}`;
-    const phRange = () => physicalRangeLabel(sys.range);
+    // 3-letter uppercase abbreviation of an attribute's localized name (JRPG stat-block style).
+    const abbr = (key) => L(cfg.attributes[key] ?? key).slice(0, 3).toUpperCase();
+
+    const tiles = [], chips = [], badges = [], tags = [];
+    const tile = (icon, labelKey, value, opts = {}) => {
+      if (value === undefined || value === null || value === "") return;
+      tiles.push({ icon, label: L(labelKey), value: String(value), small: opts.small || "", em: opts.em || "", kind: opts.kind || "" });
+    };
+    const chip = (labelKey, value, opts = {}) => {
+      if (value === undefined || value === null || value === "") return;
+      chips.push({ label: L(labelKey), value: String(value), on: !!opts.on });
+    };
+    const accuracyTile = () => tile("fa-solid fa-crosshairs", "PROJECTANIME.Stat.accShort",
+      `${abbr(sys.accuracy?.attrA)}+${abbr(sys.accuracy?.attrB)}`, { small: sys.accuracy?.mod ? signed(sys.accuracy.mod) : "" });
+    const damageTile = () => tile("fa-solid fa-burst", "PROJECTANIME.Stat.dmgShort", signed(sys.damage?.mod),
+      { em: elementLabel(sys.damage?.type), kind: "dmg" });
+    const rangeTile = () => tile("fa-solid fa-arrows-left-right-to-line", "PROJECTANIME.Field.range",
+      physicalRangeLabel(sys.range), { em: L("PROJECTANIME.Skill.tiles") });
+    const worthOf = () => (Number(sys.cost) > 0 ? Number(sys.cost) : null);
+    // Crafted modifications (v0.03) — Temper level, Traits, and an ST-authored Flaw, on gear.
+    const craftBadges = () => {
+      const temper = Number(sys.temper) || 0;
+      if (temper) badges.push({ kind: "tmp", icon: "fa-solid fa-gem", text: `${L("PROJECTANIME.Temper.label")} +${temper}` });
+      for (const t of (sys.gearTraits ?? [])) {
+        const name = L(`PROJECTANIME.GearTrait.name.${t.key}`);
+        if (name) badges.push({ kind: "trait", icon: "", text: name });
+      }
+      if (sys.flaw) badges.push({ kind: "flaw", icon: "fa-solid fa-triangle-exclamation", text: sys.flaw });
+    };
+    let worth = null;
 
     switch (this.item.type) {
       case "weapon":
-        push("PROJECTANIME.Field.accuracy", accuracy());
-        push("PROJECTANIME.Field.damage", damage());
-        push("PROJECTANIME.Field.range", phRange());
-        push("PROJECTANIME.Field.hand", L(cfg.hands[sys.hand]));
-        push("PROJECTANIME.Field.grip", L(cfg.grips[sys.grip]));
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
-        push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
+        accuracyTile(); damageTile(); rangeTile();
+        tile("fa-solid fa-hand-fist", "PROJECTANIME.Field.grip", sys.grip === "two" ? "2H" : "1H", { em: L(cfg.hands[sys.hand]) });
+        chip("PROJECTANIME.Field.size", sys.size);
+        chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
+        tags.push({ text: elementLabel(sys.damage?.type) });
+        worth = worthOf(); craftBadges();
         break;
       case "shield":
-        if (sys.evasionBonus) push("PROJECTANIME.Field.evasionBonus", signed(sys.evasionBonus));
-        if (sys.defenseBonus) push("PROJECTANIME.Field.defenseBonus", signed(sys.defenseBonus));
-        push("PROJECTANIME.Field.accuracy", accuracy());
-        push("PROJECTANIME.Field.damage", damage());
-        push("PROJECTANIME.Field.range", phRange());
-        push("PROJECTANIME.Field.hand", L(cfg.hands[sys.hand]));
-        push("PROJECTANIME.Field.shieldUse", L(cfg.shieldUses[sys.use]));
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
-        push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
+        if (sys.evasionBonus) tile("fa-solid fa-wind", "PROJECTANIME.Stat.evaShort", signed(sys.evasionBonus), { kind: sys.evasionBonus < 0 ? "dmg" : "" });
+        if (sys.defenseBonus) tile("fa-solid fa-shield", "PROJECTANIME.Stat.defShort", signed(sys.defenseBonus));
+        accuracyTile(); damageTile(); rangeTile();
+        tile("fa-solid fa-shield-halved", "PROJECTANIME.Field.shieldUse", L(cfg.shieldUses[sys.use]));
+        chip("PROJECTANIME.Field.hand", L(cfg.hands[sys.hand]));
+        chip("PROJECTANIME.Field.size", sys.size);
+        chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
+        tags.push({ text: elementLabel(sys.damage?.type) });
+        worth = worthOf(); craftBadges();
         break;
       case "armor":
-        push("PROJECTANIME.Field.protection", sys.protection);
-        push("PROJECTANIME.Field.defSplit", sys.defSplit);
-        push("PROJECTANIME.Field.resSplit", sys.resSplit);
-        if (sys.evasionMod) push("PROJECTANIME.Field.evasionMod", signed(sys.evasionMod));
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
-        push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
+        // 2×2: Protection · Evasion on top, Defense · Resistance (the Protection split) below.
+        tile("fa-solid fa-shield-halved", "PROJECTANIME.Field.protection", sys.protection);
+        tile("fa-solid fa-wind", "PROJECTANIME.Stat.evaShort", signed(sys.evasionMod || 0), { kind: (sys.evasionMod || 0) < 0 ? "dmg" : "" });
+        tile("fa-solid fa-shield", "PROJECTANIME.Stat.defShort", sys.defSplit);
+        tile("fa-solid fa-hand-sparkles", "PROJECTANIME.Stat.resShort", sys.resSplit);
+        chip("PROJECTANIME.Field.size", sys.size);
+        chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
+        worth = worthOf(); craftBadges();
         break;
       case "consumable":
-        push("PROJECTANIME.Field.quantity", sys.quantity);
         if (sys.restoreType && sys.restoreType !== "none")
-          push("PROJECTANIME.Consumable.restoreType", `${L(cfg.consumableRestore[sys.restoreType])} ${sys.restoreAmount}`);
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
+          chip("PROJECTANIME.Consumable.restoreType", `${L(cfg.consumableRestore[sys.restoreType])} ${sys.restoreAmount}`);
+        chip("PROJECTANIME.Field.quantity", sys.quantity);
+        chip("PROJECTANIME.Field.size", sys.size);
+        worth = worthOf();
         break;
       case "container":
-        push("PROJECTANIME.Field.capacityBonus", `+${sys.capacityBonus ?? 0}`);
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
-        push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
+        chip("PROJECTANIME.Field.capacityBonus", `+${sys.capacityBonus ?? 0}`);
+        chip("PROJECTANIME.Field.size", sys.size);
+        chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
+        worth = worthOf();
         break;
       case "accessory":
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
-        push("PROJECTANIME.Field.equipped", onoff(sys.equipped));
+        chip("PROJECTANIME.Field.size", sys.size);
+        chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
+        worth = worthOf();
         break;
-      case "skill": {
-        push("PROJECTANIME.Skill.field.spCost", `${sys.spCost ?? 0} SP`);
-        push("PROJECTANIME.Skill.field.actionType", L(cfg.actionTypes[sys.actionType]));
-        push("PROJECTANIME.Skill.field.effect", skillEffectKeys(sys).map((k) => L(cfg.skillEffects[k])).join(" + "));
-        push("PROJECTANIME.Skill.field.target", L(cfg.skillTargets[skillTarget(sys)]));
-        // Duration (rules v0.01): Standard shows its turn count; passives are always-on (no row).
-        if (sys.actionType !== "passive") {
-          const dur = skillDuration(sys);
-          push("PROJECTANIME.Skill.field.duration", dur === "standard"
-            ? `${L(cfg.skillDurations.standard)} · ${sys.effectDuration ?? cfg.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`
-            : L(cfg.skillDurations[dur]));
-        }
-        if (skillEvasionAttr(sys)) push("PROJECTANIME.Skill.field.skillEvasion", skillEvasionLabel(skillEvasionAttr(sys)));
-        push("PROJECTANIME.Skill.field.range", rangeLabel(sys.range));
-        push("PROJECTANIME.Skill.field.attrA", `${L(cfg.attributes[sys.attributes?.attrA])} + ${L(cfg.attributes[sys.attributes?.attrB])}`);
-        if (cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie", L(cfg.attributes[sys.attributes?.[sys.damageAttr]]));
-        if (sys.energyCost > 0) push("PROJECTANIME.Skill.field.energyCost", sys.energyCost);
-        else if (sys.actionType === "passive" && sys.passiveEnergyTax > 0) push("PROJECTANIME.Skill.field.energyTax", `−${sys.passiveEnergyTax}`);
-        if (sys.accuracyMod) push("PROJECTANIME.Skill.field.accuracyMod", `+${sys.accuracyMod}`);
-        if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) push(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod", `+${sys.damageMod}`);
-        if (sys.damageType && cfg.damageEffects.includes(sys.effect)) push("PROJECTANIME.Skill.field.damageType", elementLabel(sys.damageType));
-        if ((sys.controlElement ?? "").trim() && skillEffectKeys(sys).includes("elementalControl")) push("PROJECTANIME.Skill.field.controlElement", sys.controlElement.trim());
-        if (sys.actionType === "react" && sys.trigger) push("PROJECTANIME.Skill.field.trigger", L(cfg.triggers[sys.trigger]));
-        if (sys.modifiers?.length) push("PROJECTANIME.Skill.field.modifiers", sys.modifiers.map((m) => L(cfg.skillModifiers[m]) || m).join(", "));
-        // Inflict's chosen Status (+ its chosen pool for a pool-choice one — Barrier/Regen protect
-        // or restore that pool, Curse blocks that pool's recovery).
-        if ((sys.modifiers ?? []).includes("inflict") && sys.inflictStatus) {
-          const cond = (cfg.statusConditions ?? []).find((c) => c.id === sys.inflictStatus);
-          const hasPool = (cfg.poolChoiceStatuses ?? []).includes(sys.inflictStatus);
-          push("PROJECTANIME.Skill.field.inflictStatus",
-            `${cond ? L(cond.name) : sys.inflictStatus}${hasPool ? ` · ${L(cfg.damagePools[sys.inflictPool === "energy" ? "energy" : "hp"])}` : ""}`);
-        }
+      case "material":
+        chip("PROJECTANIME.Material.gradeLabel", L(cfg.materialGrades[sys.grade]));
+        chip("PROJECTANIME.Material.typeLabel", L(cfg.materialTypes[sys.category]));
+        chip("PROJECTANIME.Material.tier", cfg.enemyTierNumerals?.[sys.tier] ?? sys.tier);
+        chip("PROJECTANIME.Field.quantity", sys.quantity);
         break;
-      }
       case "package": {
-        if (sys.category) push("PROJECTANIME.Package.category", sys.category);
+        if (sys.category) chip("PROJECTANIME.Package.category", sys.category);
         const n = grantRefs(this.item).length;
-        if (n) push("PROJECTANIME.Package.grants", n);
+        if (n) chip("PROJECTANIME.Package.grants", n);
         break;
       }
-      default: // gear
-        push("PROJECTANIME.Field.quantity", sys.quantity);
-        push("PROJECTANIME.Field.size", sys.size);
-        push("PROJECTANIME.Field.cost", sys.cost);
+      default: // gear (and any type without a dedicated card)
+        chip("PROJECTANIME.Field.quantity", sys.quantity);
+        chip("PROJECTANIME.Field.size", sys.size);
+        worth = worthOf();
     }
-    return rows;
+    return { tiles, chips, badges, tags, worth };
   }
 
   /* -------------------------------------------- */
@@ -421,6 +426,26 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     if (this.item.type !== "skill" || !this.isEditable) return;
     if (this.item.actor) return SkillBuilderApp.open(this.item.actor, { skillId: this.item.id });
     return SkillBuilderApp.openForItem(this.item);
+  }
+
+  /** Segmented handedness toggle (weapon Edit) — set whether the weapon is inherently Two-Handed.
+   *  Driven as an action (not a bound field) so the Boolean isn't clobbered by "true"/"false"
+   *  string coercion; `grip` follows in the model's derived data. */
+  static async #onSetTwoHanded(event, target) {
+    if (!this.isEditable) return;
+    const two = target.dataset.two === "true";
+    if (!!this.item.system.twoHandedOnly === two) return;
+    await this.item.update({ "system.twoHandedOnly": two });
+  }
+
+  /** Generic segmented-choice toggle for a string field (e.g. shield Wield As) — set the field
+   *  named in `data-field` to `data-value`. Action-driven so it reads like the Handedness toggle. */
+  static async #onSetChoice(event, target) {
+    if (!this.isEditable) return;
+    const field = target.dataset.field;
+    const value = target.dataset.value;
+    if (!field || foundry.utils.getProperty(this.item, field) === value) return;
+    await this.item.update({ [field]: value });
   }
 
   static async #onToggleModifier(event, target) {

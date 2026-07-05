@@ -15,6 +15,9 @@
       {{else}}
       <a class="ct-begin" data-action="combatBegin"><i class="fas fa-play"></i> {{localize 'PROJECTANIME.Hud.combat.begin'}}</a>
       {{/if}}
+      {{#if threat}}
+      <span class="ct-threat" data-band="{{threat.band}}" data-tooltip="{{localize 'PROJECTANIME.Hud.combat.threat'}} · {{threat.label}}"><i class="fas fa-skull"></i> {{threat.total}}/{{threat.party}}</span>
+      {{/if}}
     {{else}}
       <span class="ct-title"><i class="fas fa-swords"></i> {{localize 'PROJECTANIME.Hud.combat.title'}}</span>
     {{/if}}
@@ -52,7 +55,9 @@
         {{/if}}{{/if}}
         {{#if seeHP}}
         <div class="ct-hp" style="--hue:{{hp.hue}}" data-tooltip="{{hp.value}}/{{hp.max}}"><span>{{hp.value}}</span><i class="fas fa-heart"></i></div>
-        {{/if}}
+        {{else}}{{#if health}}
+        <div class="ct-health" style="color:{{health.tint}}" data-tooltip="{{health.label}}">{{health.label}}</div>
+        {{/if}}{{/if}}
         {{#if seeEN}}
         <div class="ct-en" data-tooltip="{{en.value}}/{{en.max}}"><span>{{en.value}}</span><i class="fas fa-bolt"></i></div>
         {{/if}}

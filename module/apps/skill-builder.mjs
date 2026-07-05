@@ -25,7 +25,7 @@
  */
 import { enhanceSelects } from "../helpers/select.mjs";
 import { elementChoices } from "../helpers/elements.mjs";
-import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, modifierBarredByType, effectAttrCount, effectMinCost, skillSpCost, rangeModifierCost, affinityModifierLevels, effectEvasionChoices, skillEvasionLabel, skillDuration, isSelfCenteredArea, modifierValue } from "../helpers/config.mjs";
+import { rangeLabel, rangeHasTiles, skillNeedsAccuracy, isHeavyModifier, modifiersBudget, modifierTakes, modifierBarredByType, effectAttrCount, effectMinCost, skillSpCost, rangeModifierCost, affinityModifierLevels, effectEvasionChoices, skillEvasionLabel, skillDuration, isSelfCenteredArea, modifierValue, effectBarsPassive } from "../helpers/config.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -958,6 +958,12 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if ((d.modifiers ?? []).some((m) => (CONFIG.PROJECTANIME.passiveOnlyModifiers ?? []).includes(m))) {
       d.actionType = "passive";
     }
+    // v0.03: "An Effect with a Duration cannot be Passive" — a printed-Duration Effect bounces
+    // the Action Type back to Action and sheds passive-only Modifiers (they can't ride it).
+    if (d.actionType === "passive" && effectBarsPassive(d)) {
+      d.actionType = "action";
+      d.modifiers = (d.modifiers ?? []).filter((m) => !(CONFIG.PROJECTANIME.passiveOnlyModifiers ?? []).includes(m));
+    }
     // An always-on (Passive Action Type) Skill rides the bearer, so a Self-Range Skill or any
     // passive one Targets Self — UNLESS it's an Aura: the field is centered on you, its Range/carrier
     // don't confine it to you, so the Target (the field's audience — Ally/Foe/Any) stays free and a
@@ -1198,6 +1204,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Aura (and any passive-only Modifier) locks the Skill to Passive — enforce before validating /
     // writing, in case the Action Type was changed after the Modifier was picked.
     if (d.modifiers.some((m) => (cfg.passiveOnlyModifiers ?? []).includes(m))) d.actionType = "passive";
+    // v0.03: an Effect with a Duration cannot be Passive (mirrors #sync; wins over the lock above).
+    if (d.actionType === "passive" && effectBarsPassive(d)) {
+      d.actionType = "action";
+      d.modifiers = d.modifiers.filter((m) => !(cfg.passiveOnlyModifiers ?? []).includes(m));
+    }
     // An always-on (Passive) Skill sheds the Modifiers it can't hold (mirrors #sync — re-asserted
     // here in case steps were jumped). A "None" Effect additionally sheds Secondary Effect on any
     // Action Type (it can never carry it). Animate / Companion shed every Modifier (rules v0.01).

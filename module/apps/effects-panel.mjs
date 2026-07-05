@@ -21,7 +21,7 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "project-anime-effects-panel",
-    classes: ["project-anime", "effects-panel"],
+    classes: ["project-anime", "effects-panel", "pa-glass"],
     // Frameless + unpositioned: render just our content (no window chrome) and anchor it
     // entirely from CSS (position: fixed). Appends to <body> by default.
     window: { frame: false, positioned: false },

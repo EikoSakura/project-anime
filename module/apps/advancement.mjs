@@ -30,6 +30,9 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /** Skill-Point cost to raise a base attribute one step up FROM this die value. */
 const ATTR_STEP_COST = { 4: 1, 6: 2, 8: 3, 10: 4 };
 
+/** Skill-Point cost to learn a crafting Specialty (v0.03: 1 SP, one per character). */
+const SPECIALTY_SP = 1;
+
 /** The attribute die ladder, one node per step on the track. */
 const DIE_LADDER = [4, 6, 8, 10, 12];
 
@@ -52,13 +55,16 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Pending (unconfirmed) purchases. Tracks key on the enhancement op ("accuracy", "damage",
    *  "duration", "energy", "range", "growth:<modifier>"); mods hold staged Expansion picks. */
-  #staged = { attrs: {}, stats: {}, tracks: {}, mods: [] };
+  #staged = { attrs: {}, stats: {}, tracks: {}, mods: [], specialty: null };
   /** The Skill selected in the enhancement grid (sticky across re-renders). */
   #skillId = null;
   /** Current page of the skill icon grid. */
   #page = 0;
   /** Whether the Expansion modifier-picker overlay is open. */
   #picker = false;
+  /** One reminder per session of this window: Skill Enhancement is earned with the Refine
+   *  downtime activity (rest.mjs sets `refineReady`). Soft — never blocks. */
+  #refineWarned = false;
 
   static DEFAULT_OPTIONS = {
     classes: ["project-anime", "advancement-app"],
@@ -71,6 +77,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       openPicker: AdvancementApp.#onOpenPicker,
       closePicker: AdvancementApp.#onClosePicker,
       stageMod: AdvancementApp.#onStageMod,
+      stageSpecialty: AdvancementApp.#onStageSpecialty,
       unstageMod: AdvancementApp.#onUnstageMod,
       confirmAdvance: AdvancementApp.#onConfirm,
       calcVitals: AdvancementApp.#onCalcVitals,
@@ -91,7 +98,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /* -------------------------------------------- */
 
   #resetStaged() {
-    this.#staged = { attrs: {}, stats: {}, tracks: {}, mods: [] };
+    this.#staged = { attrs: {}, stats: {}, tracks: {}, mods: [], specialty: null };
   }
 
   /** Drop only the Skill-side staging (used when the selected Skill changes). */
@@ -110,6 +117,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const [stat, n] of Object.entries(this.#staged.stats)) total += (STAT_BUYS[stat]?.cost ?? 99) * n;
     for (const steps of Object.values(this.#staged.tracks)) total += steps;
     for (const m of this.#staged.mods) total += m.cost;
+    if (this.#staged.specialty) total += SPECIALTY_SP;
     return total;
   }
 
@@ -117,6 +125,29 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
   #selectedSkill() {
     const item = this.actor.items.get(this.#skillId);
     return item && item.type === "skill" ? item : null;
+  }
+
+  /** The crafting Specialty row (v0.03): the learned one (locked), or the 5 choices to learn one for
+   *  1 SP. Characters only; one per character. */
+  #specialtyRow(cfg, sys, spLeft) {
+    if (this.actor.type !== "character") return null;
+    const L = (k) => game.i18n.localize(k);
+    const current = sys.specialty || "";
+    const staged = this.#staged.specialty || "";
+    return {
+      learned: !!current,
+      currentLabel: current ? L(`PROJECTANIME.Specialty.name.${current}`) : "",
+      currentBenefit: current ? L(`PROJECTANIME.Specialty.benefit.${current}`) : "",
+      cost: SPECIALTY_SP,
+      options: cfg.craftSpecialtyKeys.map((k) => ({
+        key: k,
+        label: L(`PROJECTANIME.Specialty.name.${k}`),
+        benefit: L(`PROJECTANIME.Specialty.benefit.${k}`),
+        staged: k === staged,
+        // Selectable if not yet learned, and either already staged (to unstage) or affordable.
+        canPick: !current && (k === staged || spLeft >= SPECIALTY_SP)
+      }))
+    };
   }
 
   /* -------------------------------------------- */
@@ -153,6 +184,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       isCharacter: this.actor.type === "character",
       attributes: this.#attributeRows(cfg, sys, spLeft),
       stats: this.#statRows(sys, spLeft),
+      specialty: this.#specialtyRow(cfg, sys, spLeft),
       ...this.#skillGrid(skills),
       ...(item ? this.#skillPanel(cfg, item, spLeft) : { skill: null }),
       picker: this.#picker && item ? this.#pickerList(cfg, item, spLeft) : null
@@ -403,9 +435,18 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (delta > 0) {
         if (spLeft < 1 || !this.#trackCanRaise(item, key, staged)) return;
         this.#staged.tracks[key] = staged + 1;
+        this.#maybeRefineWarn();
       } else if (staged > 0) this.#staged.tracks[key] = staged - 1;
     }
     this.render();
+  }
+
+  /** Skill Enhancement is earned with the Refine activity during a rest (doc v0.03). Staging one
+   *  without the rest flag gets a one-time reminder — advisory only, nothing is blocked. */
+  #maybeRefineWarn() {
+    if (this.#refineWarned || this.actor.getFlag("project-anime", "refineReady")) return;
+    this.#refineWarned = true;
+    ui.notifications.warn(game.i18n.localize("PROJECTANIME.Advancement.refineWarn"));
   }
 
   /** Whether enhancement op `op` can take one MORE staged step on top of `staged`. */
@@ -463,7 +504,22 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       .find((p) => p.key === key);
     if (!pick || pick.disabled) return;
     this.#staged.mods.push({ key, label: pick.label, cost: pick.cost });
+    this.#maybeRefineWarn();
     this.#picker = false;
+    this.render();
+  }
+
+  /** Stage (or, if already staged, unstage) a crafting Specialty for 1 SP. Characters only; one per
+   *  character — barred once one is learned. */
+  static #onStageSpecialty(event, target) {
+    if (this.actor.type !== "character" || this.actor.system.specialty) return;
+    const key = target.dataset.key;
+    if (!key || !CONFIG.PROJECTANIME.craftSpecialties[key]) return;
+    if (this.#staged.specialty === key) { this.#staged.specialty = null; this.render(); return; }
+    // Staging replaces any prior specialty stage; ensure the pool still covers it.
+    const withoutSpec = this.#stagedCost() - (this.#staged.specialty ? SPECIALTY_SP : 0);
+    if ((this.actor.system.skillPoints?.value ?? 0) - withoutSpec < SPECIALTY_SP) return;
+    this.#staged.specialty = key;
     this.render();
   }
 
@@ -581,6 +637,17 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
+    // Specialty (v0.03) — a single 1-SP purchase, one per character.
+    if (this.#staged.specialty && !sys.specialty) {
+      entries.push({
+        amount: SPECIALTY_SP, kind: "specialty", ref: this.#staged.specialty,
+        label: game.i18n.format("PROJECTANIME.SkillLog.entry.specialty", {
+          name: game.i18n.localize(`PROJECTANIME.Specialty.name.${this.#staged.specialty}`)
+        })
+      });
+      changes["system.specialty"] = this.#staged.specialty;
+    }
+
     if (!entries.length) return;
     const total = entries.reduce((sum, e) => sum + e.amount, 0);
     if (total > (sys.skillPoints?.value ?? 0)) {
@@ -590,6 +657,12 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Item changes first, then the atomic pool-drop + ledger write (recordSkillPointSpend's contract).
     if (Object.keys(itemUpdate).length) await item.update(itemUpdate);
     await this.actor.recordSkillPointSpends(entries, changes);
+    // Committing an Enhancement/Expansion spends the Refine rest flag (rest.mjs sets it).
+    const enhanced = Object.values(this.#staged.tracks).some((n) => n > 0) || this.#staged.mods.length > 0;
+    if (enhanced && this.actor.getFlag("project-anime", "refineReady")) {
+      await this.actor.unsetFlag("project-anime", "refineReady");
+      this.#refineWarned = false;
+    }
     this.#resetStaged();
     this.render();
   }
@@ -600,7 +673,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async #onCalcVitals() {
     const a = this.actor.system.attributes;
-    const hp = a.might.value * 2;
+    const hp = 6 + a.might.value * 2;
     const energy = a.spirit.value * 2;
     await this.actor.update({
       "system.hp.max": hp, "system.hp.value": hp,

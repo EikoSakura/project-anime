@@ -1,361 +1,321 @@
-{{!-- Codex HOME pane — a 3-column nav (Recruitment · Facilities · Missions) that opens slide-in
-      drawers, with the ROSTER as ornate tarot cards in the always-visible main view. The pane stays
-      put; .hq-scroll scrolls; per-entity .section-drawer panels overlay the viewport. --}}
+{{!-- Codex HOME pane — the Headquarters (v0.03). Renown = facilities + resident Followers; Rank C→S.
+      Three tabs: Facilities (build / steward / upgrade) · Residents (move in / favored / steward) ·
+      Missions (the Mission Board, open at rank B). Engine: helpers/hq.mjs. --}}
 <section class="codex-pane pa-hq{{#if onHq}} active{{/if}}" data-pane="hq">
   <div class="hq-scroll">
 
-    {{!-- ===================== IDENTITY — your built faction ===================== --}}
-    <div class="hq-hero{{#if isGM}} hq-edit{{#if hq.identity.hasBanner}} repos{{/if}}{{/if}}" style="--acc:{{hq.identity.accent}}; {{hq.identity.bannerStyle}}"{{#if isGM}} title="{{localize 'PROJECTANIME.HQ.bannerHint'}}"{{/if}}>
-      <div class="scrim"></div>
-      {{#if hq.identity.initial}}<div class="watermark">{{hq.identity.initial}}</div>{{/if}}
+    {{!-- ===================== IDENTITY (flat header — no image banner) ===================== --}}
+    <header class="hq-header{{#if isGM}} hq-edit{{/if}}" style="--acc:{{hq.identity.accent}}">
       <div class="hq-crest{{#if hq.identity.crest}} has-img{{/if}}"{{#if isGM}} data-action="pickHqCrest" title="{{localize 'PROJECTANIME.HQ.crestPick'}}"{{/if}}>
         <div class="hq-crest-inner">
           {{#if hq.identity.crest}}<img src="{{hq.identity.crest}}" alt="">{{else}}<span class="hq-crest-fallback">{{hq.identity.initial}}</span>{{/if}}
           {{#if isGM}}<span class="hq-crest-pick"><i class="fas fa-camera"></i></span>{{/if}}
         </div>
       </div>
-      <div class="hq-hero-id">
+      <div class="hq-id">
         {{#if isGM}}
         <input class="hq-name-edit" data-hq-field="name" value="{{hq.identity.name}}" placeholder="{{localize 'PROJECTANIME.HQ.namePlaceholder'}}">
         <input class="hq-motto-edit" data-hq-field="motto" value="{{hq.identity.motto}}" placeholder="{{localize 'PROJECTANIME.HQ.mottoPlaceholder'}}">
         {{else}}
-        <h3>{{#if hq.identity.name}}{{hq.identity.name}}{{else}}{{localize "PROJECTANIME.HQ.title"}}{{/if}}</h3>
+        <h3 class="hq-name">{{#if hq.identity.name}}{{hq.identity.name}}{{else}}{{localize "PROJECTANIME.HQ.title"}}{{/if}}</h3>
         {{#if hq.identity.motto}}<div class="hq-motto">{{hq.identity.motto}}</div>{{/if}}
         {{/if}}
-        <div class="hq-meta">
-          <span class="hq-level{{#if isGM}} adj{{/if}}">
-            <span class="hq-level-lbl">{{localize "PROJECTANIME.HQ.level"}}</span>
-            {{#if isGM}}<button type="button" class="hq-lvl-step" data-action="hqLevelDown" title="{{localize 'PROJECTANIME.HQ.levelDown'}}"><i class="fas fa-minus"></i></button>{{/if}}
-            <b>{{hq.level}}</b>
-            {{#if isGM}}<button type="button" class="hq-lvl-step" data-action="hqLevelUp" title="{{localize 'PROJECTANIME.HQ.levelUp'}}"><i class="fas fa-plus"></i></button>{{/if}}
+        <div class="hq-rankrow">
+          <span class="hq-rankbadge" title="{{hq.status.rankName}}">
+            <span class="rk">{{hq.status.rankKey}}</span>
+            <span class="rn">{{hq.status.rankName}}</span>
           </span>
-          <span class="hq-count"><i class="fas fa-chess-rook"></i> {{hq.facilityCount}} {{localize "PROJECTANIME.HQ.facilities"}}</span>
-          {{#if isGM}}
-          <label class="hq-turn hq-turn-edit" title="{{localize 'PROJECTANIME.HQ.setTurn'}}"><span class="hq-turn-lbl">{{localize "PROJECTANIME.HQ.turnShort"}}</span> <input type="number" min="0" data-hq-field="turn" value="{{hq.turn}}"></label>
-          {{else}}
-          <span class="hq-turn"><span class="hq-turn-lbl">{{localize "PROJECTANIME.HQ.turnShort"}}</span> <b>{{hq.turn}}</b></span>
-          {{/if}}
         </div>
       </div>
-      {{#if isGM}}
-      <div class="hq-hero-tools">
-        <input type="color" class="hq-color-edit" data-hq-field="accent" value="{{hq.identity.accent}}" title="{{localize 'PROJECTANIME.HQ.accentPick'}}">
-        <button type="button" class="gbtn hq-advance" data-action="advanceHQTurn" title="{{localize 'PROJECTANIME.HQ.advanceTurn'}}"><i class="fas fa-hourglass-half"></i> {{localize "PROJECTANIME.HQ.advanceTurn"}}</button>
-        <button type="button" class="gbtn hq-io" data-action="exportHQ" title="{{localize 'PROJECTANIME.HQ.export'}}"><i class="fas fa-file-export"></i></button>
-        <button type="button" class="gbtn hq-io" data-action="importHQ" title="{{localize 'PROJECTANIME.HQ.import'}}"><i class="fas fa-file-import"></i></button>
+      <div class="hq-side">
+        <div class="hq-treasury" title="{{localize 'PROJECTANIME.HQ.treasury'}}">
+          <div class="t-lbl">{{localize "PROJECTANIME.HQ.treasury"}}</div>
+          <div class="t-amt"><i class="fas fa-coins"></i><b>{{hq.treasury.gold}}</b><span class="g">{{localize "PROJECTANIME.HQ.gold"}}</span>{{#if isGM}}<button type="button" class="t-edit" data-action="hqEditTreasury" title="{{localize 'PROJECTANIME.HQ.treasuryTitle'}}"><i class="fas fa-plus"></i></button>{{/if}}</div>
+          {{#if hq.treasury.hasFlow}}<div class="t-sub"><span class="t-flow"><b>+{{hq.treasury.workGold}} G</b> {{localize "PROJECTANIME.HQ.perRest"}}</span></div>{{/if}}
+        </div>
+        {{#if isGM}}
+        <div class="hq-tools">
+          <input type="color" class="hq-color-edit" data-hq-field="accent" value="{{hq.identity.accent}}" title="{{localize 'PROJECTANIME.HQ.accentPick'}}">
+          {{#unless hq.established}}<button type="button" class="gbtn hq-advance" data-action="establishHQ"><i class="fas fa-map-pin"></i> {{localize "PROJECTANIME.HQ.establish"}}</button>{{/unless}}
+          <button type="button" class="gbtn hq-io" data-action="exportHQ" title="{{localize 'PROJECTANIME.HQ.export'}}"><i class="fas fa-file-export"></i></button>
+          <button type="button" class="gbtn hq-io" data-action="importHQ" title="{{localize 'PROJECTANIME.HQ.import'}}"><i class="fas fa-file-import"></i></button>
+        </div>
+        {{/if}}
       </div>
-      {{/if}}
+    </header>
+
+    {{#unless hq.established}}
+    <div class="hq-empty"><i class="fas fa-map-location-dot"></i><p>{{localize "PROJECTANIME.HQ.noBase"}}</p></div>
+    {{else}}
+
+    {{!-- ===================== RENOWN → NEXT RANK ===================== --}}
+    <div class="hq-renown">
+      <div class="hq-ren-seal {{#if hq.renownMeter.ready}}ready{{else}}cur{{/if}}">
+        <span class="s-l">{{hq.renownMeter.curKey}}</span>
+        <span class="s-n">{{hq.renownMeter.curName}}</span>
+      </div>
+      <div class="hq-ren-mid">
+        <div class="hq-ren-top">
+          <span class="hq-ren-lbl">{{localize "PROJECTANIME.HQ.renown"}}{{#unless hq.renownMeter.isMax}} → {{localize "PROJECTANIME.HQ.toNextRank"}}{{/unless}}</span>
+          {{#unless hq.renownMeter.isMax}}<span class="hq-ren-num"><b>{{hq.renownMeter.renown}}</b> / {{hq.renownMeter.nextRenown}} · {{hq.renownMeter.toGo}} {{localize "PROJECTANIME.HQ.toGo"}}</span>{{/unless}}
+        </div>
+        <div class="hq-segs">
+          {{#each hq.renownMeter.segments}}<span class="hq-seg{{#if on}} on{{/if}}"></span>{{/each}}
+        </div>
+        <div class="hq-uchips">
+          {{#if hq.renownMeter.ready}}<span class="hq-uchip ready"><i class="fas fa-bed"></i> {{localize "PROJECTANIME.HQ.readyRankUp"}}</span>{{/if}}
+          {{#if hq.renownMeter.slotsGain}}<span class="hq-uchip"><i class="fas fa-square-plus"></i> +{{hq.renownMeter.slotsGain}} {{localize "PROJECTANIME.HQ.slots"}}</span>{{/if}}
+          {{#if hq.renownMeter.boardUnlock}}<span class="hq-uchip"><i class="fas fa-scroll"></i> {{localize "PROJECTANIME.HQ.missionBoard"}}</span>{{/if}}
+          {{#if hq.renownMeter.isMax}}<span class="hq-uchip ready"><i class="fas fa-crown"></i> {{localize "PROJECTANIME.HQ.maxRank"}}</span>{{/if}}
+        </div>
+      </div>
+      {{#unless hq.renownMeter.isMax}}
+      <div class="hq-ren-seal next{{#if hq.renownMeter.ready}} ready{{/if}}">
+        <span class="s-l">{{hq.renownMeter.nextKey}}</span>
+        <span class="s-n">{{hq.renownMeter.nextName}}</span>
+      </div>
+      {{/unless}}
     </div>
 
-    {{!-- ===================== RESOURCES — Civ-style stockpile bar (one chip per Resource Type) ===================== --}}
-    {{#if hq.hasResources}}
-    <div class="hq-resources">
-      {{#each hq.resources}}
-      <div class="hq-res" title="{{label}}">
-        <span class="hq-res-icon">{{#if iconImg}}<img src="{{icon}}" alt="">{{else}}<i class="{{icon}}"></i>{{/if}}</span>
-        {{#if @root.isGM}}
-        <input class="hq-res-amt" type="number" min="0" data-resource-field="{{key}}" value="{{amount}}">
-        {{else}}
-        <span class="hq-res-amt">{{amount}}</span>
-        {{/if}}
-        <span class="hq-res-label">{{label}}</span>
-      </div>
+    {{!-- ===================== NEEDS ATTENTION ===================== --}}
+    {{#if hq.hasAttention}}
+    <div class="hq-attn">
+      {{#each hq.attention}}
+      <button type="button" class="hq-callout {{tone}}" data-action="selectHqTab" data-hqtab="{{tab}}">
+        <span class="cico"><i class="{{icon}}"></i></span>
+        <span class="cbody"><span class="ct">{{title}}</span>{{#if sub}}<span class="cs">{{sub}}</span>{{/if}}</span>
+        <span class="cgo"><i class="fas fa-chevron-right"></i></span>
+      </button>
       {{/each}}
     </div>
     {{/if}}
 
-    {{!-- ===================== SUB-TAB NAV — four inline lists (cards still open detail books) ===================== --}}
-    <div class="hq-subnav">
-      <button type="button" class="hq-tab{{#if hq.hqTabIs.roster}} active{{/if}}" data-action="selectHqTab" data-hqtab="roster"><i class="fas fa-users"></i> <span>{{localize "PROJECTANIME.HQ.roster"}}</span>{{#if hq.hasRoster}} <span class="nb">{{hq.roster.length}}</span>{{/if}}</button>
-      <button type="button" class="hq-tab{{#if hq.hqTabIs.recruitment}} active{{/if}}" data-action="selectHqTab" data-hqtab="recruitment"><i class="fas fa-user-plus"></i> <span>{{localize "PROJECTANIME.HQ.recruitment"}}</span>{{#if hq.hasRecruits}} <span class="nb">{{hq.recruits.length}}</span>{{/if}}</button>
-      <button type="button" class="hq-tab{{#if hq.hqTabIs.facilities}} active{{/if}}" data-action="selectHqTab" data-hqtab="facilities"><i class="fas fa-chess-rook"></i> <span>{{localize "PROJECTANIME.HQ.facilitiesTitle"}}</span>{{#if hq.hasFacilities}} <span class="nb">{{hq.facilityCount}}</span>{{/if}}</button>
-      <button type="button" class="hq-tab{{#if hq.hqTabIs.missions}} active{{/if}}" data-action="selectHqTab" data-hqtab="missions"><i class="fas fa-scroll"></i> <span>{{localize "PROJECTANIME.HQ.missions"}}</span>{{#if hq.hasMissions}} <span class="nb">{{hq.missions.length}}</span>{{/if}}</button>
-    </div>
-
-    {{!-- ===================== ROSTER tab — ornate tarot cards ===================== --}}
-    <div class="hq-tabpane{{#if hq.hqTabIs.roster}} active{{/if}}" data-hqtab="roster">
-      {{#if hq.hasRoster}}
-      <div class="tgrid">
-        {{#each hq.roster}}
-        <div class="hq-tcard{{#if away}} away{{/if}}{{#if wounded}} away{{/if}}{{#if atRisk}} atrisk{{/if}}" data-action="openHqDrawer" data-recruit-id="{{id}}" style="--acc:{{@root.hq.identity.accent}}">
-          <div class="r-frame"></div>
-          <div class="r-face">{{#if img}}<img class="r-img" src="{{img}}" alt="">{{else}}<span class="r-ph">{{initial}}</span>{{/if}}<div class="r-scrim"></div><div class="r-name">{{name}}</div></div>
-          <span class="cstud tl"></span><span class="cstud tr"></span><span class="cstud bl"></span><span class="cstud br"></span>
-          <span class="hq-tcrest" title="{{roleLabel}}"><i class="fas {{roleIcon}}"></i></span>
-          {{#if strikes}}<span class="hq-tscars" title="{{localize 'PROJECTANIME.HQ.scars'}}">{{#each strikePips}}<i class="{{#if on}}on{{/if}}"></i>{{/each}}</span>{{/if}}
-        </div>
-        {{/each}}
+    {{!-- ===================== NEXT-REST YIELD ===================== --}}
+    {{#if hq.hasYields}}
+    <div class="hq-yield">
+      <div class="hq-yield-h"><i class="fas fa-hand-holding-heart"></i> {{localize "PROJECTANIME.HQ.nextRestHere"}}</div>
+      <div class="hq-ychips">
+        {{#each hq.yields}}<span class="hq-ychip"><span class="yi {{cls}}"></span> {{label}}{{#if sub}} <small>· {{sub}}</small>{{/if}}</span>{{/each}}
       </div>
-      {{else}}
-      <div class="hq-empty"><i class="fas fa-users"></i><p>{{localize "PROJECTANIME.HQ.noRecruits"}}</p></div>
-      {{/if}}
     </div>
+    {{/if}}
 
-    {{!-- ============ TAB PANES (inline; the per-card detail books still overlay) ============ --}}
-    <div class="hq-tabpane{{#if hq.hqTabIs.recruitment}} active{{/if}}" data-hqtab="recruitment">
-      <div class="rpool">
-        {{#each hq.recruits}}
-        <div class="rcard{{#unless available}} locked{{/unless}}{{#if hidden}} is-hidden{{/if}}" data-action="openHqDrawer" data-recruit-id="{{id}}" style="--acc:{{@root.hq.identity.accent}}">
-          <div class="r-frame"></div>
-          <div class="r-face">{{#if img}}<img class="r-img" src="{{img}}" alt="">{{else}}<span class="r-ph">{{initial}}</span>{{/if}}<div class="r-scrim"></div><div class="r-name">{{name}}</div></div>
-          <span class="cstud tl"></span><span class="cstud tr"></span><span class="cstud bl"></span><span class="cstud br"></span>
-          <span class="hq-tcrest" title="{{roleLabel}}"><i class="fas {{roleIcon}}"></i></span>
-          {{#if @root.isGM}}
-          <span class="rec-pip lock{{#if available}} on{{/if}}" data-action="toggleRecruitLock" data-recruit-id="{{id}}"><i class="fas {{#if available}}fa-lock-open{{else}}fa-lock{{/if}}"></i></span>
-          <span class="rec-pip hide{{#if hidden}} on{{/if}}" data-action="toggleRecruitHidden" data-recruit-id="{{id}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></span>
-          {{/if}}
-          {{#unless available}}<div class="rcard-lock"><i class="fas fa-lock"></i></div>{{/unless}}
-        </div>
-        {{else}}{{#unless @root.isGM}}<div class="hq-rec-empty">{{localize "PROJECTANIME.HQ.noRecruits"}}</div>{{/unless}}{{/each}}
-        {{#if isGM}}<div class="rec-drop" data-recruit-drop><i class="fas fa-user-plus"></i> <span class="frew-drop-hint">{{localize "PROJECTANIME.HQ.recruitDropHint"}}</span></div>{{/if}}
-        </div>
-    </div>
+    {{!-- ===================== TABS ===================== --}}
+    <nav class="hq-tabs">
+      <button type="button" class="hq-tab{{#if hq.hqTabIs.facilities}} active{{/if}}" data-action="selectHqTab" data-hqtab="facilities"><i class="fas fa-chess-rook"></i> {{localize "PROJECTANIME.HQ.facilities"}}{{#if hq.badges.facilities}} <span class="hq-badge g">{{hq.badges.facilities}}</span>{{/if}}</button>
+      <button type="button" class="hq-tab{{#if hq.hqTabIs.residents}} active{{/if}}" data-action="selectHqTab" data-hqtab="residents"><i class="fas fa-users"></i> {{localize "PROJECTANIME.HQ.residents"}}{{#if hq.badges.residents}} <span class="hq-badge g">{{hq.badges.residents}}</span>{{/if}}</button>
+      <button type="button" class="hq-tab{{#if hq.hqTabIs.missions}} active{{/if}}" data-action="selectHqTab" data-hqtab="missions"><i class="fas fa-scroll"></i> {{localize "PROJECTANIME.HQ.missionBoard"}}{{#if hq.badges.missions}} <span class="hq-badge">{{hq.badges.missions}}</span>{{/if}}</button>
+    </nav>
 
+    {{!-- ===================== FACILITIES ===================== --}}
     <div class="hq-tabpane{{#if hq.hqTabIs.facilities}} active{{/if}}" data-hqtab="facilities">
-      {{!-- Active buildings (tier ≥ 1). Unbuilt Structures + all authoring/building live in the
-            standalone Structures window, opened by this button (or by clicking any building). --}}
-      <button type="button" class="hq-structures-open" data-action="openStructures"><i class="fas fa-helmet-safety"></i> {{localize "PROJECTANIME.HQ.structures"}}</button>
+      {{#if isGM}}
+      <div class="hq-shop-row">
+        <button type="button" class="gbtn" data-action="hqVisitShop" data-vendor="gear"><i class="fas fa-hammer"></i> {{localize "PROJECTANIME.HQ.forgeShop"}}</button>
+        <button type="button" class="gbtn" data-action="hqVisitShop" data-vendor="consumable"><i class="fas fa-mortar-pestle"></i> {{localize "PROJECTANIME.HQ.apothShop"}}</button>
+        <button type="button" class="gbtn hq-structures-btn" data-action="openHqDrawer" data-hq-drawer="structures"><i class="fas fa-chess-rook"></i> {{localize "PROJECTANIME.HQ.structures"}}</button>
+      </div>
+      {{/if}}
+
       {{#if hq.hasFacilities}}
-      <div class="fgrid">
+      <div class="hq-fac-grid">
         {{#each hq.facilities}}
-        <div class="hq-card hq-fcard" data-action="openFacility" data-recruit-id="{{id}}" style="--acc:{{@root.hq.identity.accent}}">
-          <div class="hq-fhead"><div class="hq-ric"><i class="fas {{facilityIcon}}"></i></div><div class="hq-fnm">{{#if name}}{{name}}{{else}}{{localize "PROJECTANIME.HQ.newFacility"}}{{/if}}</div></div>
-          <div class="hq-fsub">{{#if produces}}{{producesSummary}}{{else}}{{#if hasBoon}}{{boonSummary}}{{else}}{{roleLabel}}{{/if}}{{/if}}</div>
-          {{#if staffCap}}
-          <div class="hq-fstaff" title="{{staffCount}}/{{staffCap}}">
-            {{#each staff}}<span class="hq-fav{{#if away}} away{{/if}}">{{#if img}}<img src="{{img}}" alt="">{{else}}<i class="fas fa-user"></i>{{/if}}</span>{{/each}}
-            {{#each staffEmpty}}<span class="hq-fav empty"><i class="fas fa-plus"></i></span>{{/each}}
+        <div class="hq-fac{{#if stewarded}} staffed{{/if}}{{#if favorActive}} favor{{/if}}" data-fac-id="{{id}}" data-fac-name="{{name}}" data-fac-icon="{{icon}}">
+          <div class="hq-fac-head">
+            <span class="hq-fac-ic"><i class="{{icon}}"></i></span>
+            <span class="hq-fac-name">{{name}}</span>
+            {{#if upgraded}}<span class="hq-fac-badge up" title="{{localize 'PROJECTANIME.HQ.upgraded'}}"><i class="fas fa-star"></i></span>{{/if}}
+            {{#if favorActive}}<span class="hq-fac-badge fav" title="{{localize 'PROJECTANIME.HQ.favorActive'}}"><i class="fas fa-heart"></i></span>{{/if}}
           </div>
+
+          {{!-- Steward slot: portrait + (GM select / player name) + Bond rank; an empty seat is the CTA. --}}
+          <div class="hq-steward{{#unless stewarded}} empty{{/unless}}">
+            <span class="hq-av{{#unless stewarded}} empty{{/unless}}">
+              {{#if stewarded}}{{#if stewardImg}}<img src="{{stewardImg}}" alt="">{{else}}{{stewardInitial}}{{/if}}{{else}}<i class="fas fa-plus"></i>{{/if}}
+            </span>
+            {{#if @root.isGM}}
+            <select data-hq-steward="{{id}}">
+              <option value="">{{localize "PROJECTANIME.HQ.unstaffed"}}</option>
+              {{#each stewardOpts}}<option value="{{uuid}}"{{#if sel}} selected{{/if}}>{{name}}</option>{{/each}}
+            </select>
+            {{else}}
+            <span class="hq-st-nm{{#unless stewarded}} cta{{/unless}}">{{#if stewarded}}{{stewardName}}{{else}}{{localize "PROJECTANIME.HQ.assignSteward"}}{{/if}}</span>
+            {{/if}}
+            {{#if stewarded}}<span class="hq-st-rank">{{stewardRankLetter}}</span>{{/if}}
+          </div>
+
+          {{#if activeLine}}<div class="hq-fac-yield"><i class="fas fa-caret-right"></i> {{activeLine}}</div>{{/if}}
+
+          {{#if gathers}}
+          <label class="hq-fac-gather">{{localize "PROJECTANIME.HQ.gatherType"}}
+            <input type="text" data-hq-gather="{{id}}" data-slot="1" value="{{gatherType}}" placeholder="Ore, Herb…"{{#unless @root.isGM}} disabled{{/unless}}>
+            {{#if upgraded}}<input type="text" data-hq-gather="{{id}}" data-slot="2" value="{{gatherType2}}" placeholder="…"{{#unless @root.isGM}} disabled{{/unless}}>{{/if}}
+          </label>
           {{/if}}
-          <div class="hq-cfoot"><span class="hq-stars">{{#each tierPips}}<i class="{{#if on}}on{{/if}}">★</i>{{/each}}</span>{{#if isVendor}}<span class="hq-cpill shop" data-action="visitShop" data-recruit-id="{{id}}"><i class="fa-solid fa-store"></i> {{localize "PROJECTANIME.Shop.visit"}}</span>{{/if}}{{#if isWorkshop}}<span class="hq-cpill shop" data-action="visitWorkshop" data-recruit-id="{{id}}"><i class="fa-solid fa-screwdriver-wrench"></i> {{localize "PROJECTANIME.Workshop.visit"}}</span>{{/if}}</div>
+
+          <div class="hq-fac-foot">
+            {{#if upgraded}}
+            <span class="hq-upg maxed"><i class="fas fa-star"></i> {{localize "PROJECTANIME.HQ.maxed"}}</span>
+            {{else if @root.isGM}}
+            <button type="button" class="hq-upg{{#if upgradeAffordable}} ok{{else}}{{#if canUpgrade}} poor{{else}} dis{{/if}}{{/if}}" data-action="hqUpgrade" title="{{upgradeReason}}"{{#unless canUpgrade}} disabled{{/unless}}><i class="fas fa-star"></i> {{localize "PROJECTANIME.HQ.upgrade"}} <span class="cost">{{upgradeCost}}G</span></button>
+            {{else if upgradePreview}}
+            <span class="hq-upg-prev"><i class="fas fa-star"></i> {{upgradePreview}}</span>
+            {{/if}}
+            {{#if @root.isGM}}<button type="button" class="hq-fac-x" data-action="hqDemolish" title="{{localize 'PROJECTANIME.HQ.demolish'}}"><i class="fas fa-trash"></i></button>{{/if}}
+          </div>
+          {{#if @root.isGM}}{{#unless upgraded}}{{#if upgradePreview}}<div class="hq-upg-prev sm"><i class="fas fa-star"></i> {{upgradePreview}}</div>{{/if}}{{/unless}}{{/if}}
         </div>
         {{/each}}
       </div>
       {{else}}
-      <div class="hq-empty sm"><i class="fas fa-house-chimney"></i><p>{{localize "PROJECTANIME.HQ.empty"}}</p></div>
+      <div class="hq-empty sm"><i class="fas fa-helmet-safety"></i><p>{{localize "PROJECTANIME.HQ.noBuildings"}}</p></div>
       {{/if}}
     </div>
 
+    {{!-- ===================== RESIDENTS ===================== --}}
+    <div class="hq-tabpane{{#if hq.hqTabIs.residents}} active{{/if}}" data-hqtab="residents">
+      {{#if hq.hasResidents}}
+      <div class="hq-resident-list">
+        {{#each hq.residents}}
+        <div class="hq-resident" data-res-uuid="{{uuid}}">
+          <img class="hq-resident-img" src="{{img}}" alt="">
+          <div class="hq-resident-body">
+            <div class="hq-resident-top"><span class="hq-resident-nm">{{name}}</span> <span class="hq-resident-rank">{{bondRank}}</span></div>
+            <div class="hq-resident-ctl">
+              <label class="hq-mini"><i class="fas fa-heart"></i>
+                <select data-hq-favored="{{uuid}}"{{#unless @root.isGM}} disabled{{/unless}}>
+                  <option value="">{{localize "PROJECTANIME.HQ.favoredNone"}}</option>
+                  {{#each favoredOptions}}<option value="{{name}}" data-icon="{{icon}}"{{#if sel}} selected{{/if}}>{{name}}</option>{{/each}}
+                </select>
+              </label>
+              <label class="hq-mini"><i class="fas fa-user-tie"></i>
+                <select data-hq-res-steward="{{uuid}}"{{#unless @root.isGM}} disabled{{/unless}}>
+                  <option value="">{{localize "PROJECTANIME.HQ.noPost"}}</option>
+                  {{#each facilityOpts}}<option value="{{id}}"{{#if sel}} selected{{/if}}>{{name}}</option>{{/each}}
+                </select>
+              </label>
+            </div>
+          </div>
+          {{#if @root.isGM}}<button type="button" class="gbtn sm danger hq-resident-out" data-action="hqMoveOut" title="{{localize 'PROJECTANIME.HQ.moveOut'}}"><i class="fas fa-door-open"></i></button>{{/if}}
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="hq-empty sm"><i class="fas fa-users-slash"></i><p>{{localize "PROJECTANIME.HQ.noResidents"}}</p></div>
+      {{/if}}
+
+      {{#if hq.hasCandidates}}
+      <div class="hq-cand">
+        <h4>{{localize "PROJECTANIME.HQ.candidates"}}</h4>
+        <div class="hq-cand-list">
+          {{#each hq.candidates}}
+          <div class="hq-cand-card">
+            <img src="{{img}}" alt=""><span class="hq-cand-nm">{{name}}</span><span class="hq-resident-rank">{{bondRank}}</span>
+            {{#if @root.isGM}}<button type="button" class="gbtn sm" data-action="hqMoveIn" data-uuid="{{uuid}}"><i class="fas fa-door-closed"></i> {{localize "PROJECTANIME.HQ.moveIn"}}</button>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      <details class="hq-asks">
+        <summary>{{localize "PROJECTANIME.HQ.asksTitle"}}</summary>
+        <ul>{{#each hq.askShapes}}<li><b>{{label}}</b> — {{hint}}</li>{{/each}}</ul>
+      </details>
+    </div>
+
+    {{!-- ===================== MISSION BOARD ===================== --}}
     <div class="hq-tabpane{{#if hq.hqTabIs.missions}} active{{/if}}" data-hqtab="missions">
-        {{#if hq.hasMissions}}
-        <div class="mgrid">
-          {{#each hq.missions}}
-          <div class="hq-card hq-mcard" data-action="openHqDrawer" data-mission-id="{{id}}" style="--acc:{{@root.hq.identity.accent}}">
-            <div class="hq-mnm"><i class="fas fa-scroll"></i> {{#if title}}{{title}}{{else}}{{localize "PROJECTANIME.HQ.missionUntitled"}}{{/if}}</div>
-            <div class="hq-stars" style="margin-top:6px">{{#each tierStars}}<i class="{{#if on}}on{{/if}}">✦</i>{{/each}}</div>
-            <div class="hq-mmeta"><span class="hq-cpill"><i class="fas fa-hourglass-half"></i> {{durationTurns}}</span><span class="hq-cpill"><i class="fas fa-dice-d20"></i> {{statLabel}} {{difficulty}}</span>{{#if hasReward}}<span class="hq-cpill gold"><i class="fas fa-gift"></i> {{rewardSummary}}</span>{{/if}}</div>
-            {{#if hasAgentsOut}}<div class="hq-mout"><i class="fas fa-person-walking-arrow-right"></i> {{#each agentsOut}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</div>{{/if}}
-          </div>
-          {{/each}}
-        </div>
-        {{else}}{{#unless isGM}}<div class="hq-rec-empty">{{localize "PROJECTANIME.HQ.noMissions"}}</div>{{/unless}}{{/if}}
-        {{#if isGM}}<button type="button" class="hq-new-mission" data-action="newMission"><i class="fas fa-plus"></i> {{localize "PROJECTANIME.HQ.newMission"}}</button>{{/if}}
-    </div>
-
-  </div>{{!-- /.hq-scroll --}}
-
-  {{!-- Roster member detail --}}
-  {{#each hq.roster}}
-  <aside class="section-drawer{{#if isOpen}} open{{/if}}" data-drawer="{{id}}">
-    <div class="drawer-backdrop" data-action="closeHqDrawer"></div>
-    <div class="hq-book">
-      <a class="hq-book-close" data-action="closeHqDrawer"><i class="fa-solid fa-xmark"></i></a>
-      <div class="hq-page left">
-        <div class="hq-bk-banner"><i class="fas {{roleIcon}}"></i> {{name}}</div>
-        <div class="hq-bk-body">
-          <div class="hq-bk-desc">{{roleLabel}}</div>
-          {{#if posted}}<div class="hq-status posted"><i class="fa-solid fa-user-gear"></i> <span>{{localize "PROJECTANIME.HQ.postedTo"}} {{postedTo}}</span></div>{{/if}}
-          {{#if away}}<div class="hq-status away"><i class="fa-solid fa-person-walking-arrow-right"></i> <span>{{statusLabel}}</span>{{#if @root.isGM}}<button type="button" class="hq-recall" data-action="recallAgent" data-recruit-id="{{id}}">{{localize "PROJECTANIME.HQ.recall"}}</button>{{/if}}</div>{{/if}}
-          {{#if wounded}}<div class="hq-status wounded"><i class="fa-solid fa-kit-medical"></i> <span>{{statusLabel}}</span></div>{{/if}}
-          {{#if strikes}}<div class="hq-status scars"><i class="fa-solid fa-skull"></i> <span>{{localize "PROJECTANIME.HQ.scarsLine"}} {{strikes}}/3</span></div>{{/if}}
-          {{#if @root.isGM}}{{#if canDispatch}}
-          <div class="hq-bk-sec">{{localize "PROJECTANIME.HQ.dispatch"}}</div>
-          <div class="roster-dispatch">
-            <select data-roster-dispatch-mission>{{#each missionOptions}}<option value="{{id}}">{{title}}</option>{{/each}}</select>
-            <button type="button" class="rec-btn" data-action="dispatchFromRoster" data-recruit-id="{{id}}"><i class="fas fa-paper-plane"></i> {{localize "PROJECTANIME.HQ.send"}}</button>
-          </div>
-          {{/if}}{{/if}}
-          {{#if hasTalents}}
-          <div class="hq-bk-sec">{{localize "PROJECTANIME.Talent.title"}}</div>
-          <div class="hq-bk-talents">
-            {{#each talents as |t|}}
-            <div class="hq-bk-talent" title="{{t.label}}"><i class="{{t.icon}}"></i><span>{{t.label}}</span><b>{{t.die}}</b></div>
-            {{/each}}
-          </div>
-          {{/if}}
-          {{#if traitName}}
-          <div class="hq-bk-sec">{{localize "PROJECTANIME.Talent.signature"}}</div>
-          <div class="hq-bk-entry"><b>{{traitName}}</b>{{#if traitDesc}} — {{traitDesc}}{{/if}}</div>
-          {{/if}}
-          <div class="hq-bk-sec">{{localize "PROJECTANIME.HQ.rosterEffects"}}</div>
-          {{#if @root.isGM}}
-          <textarea class="roster-eff-edit" data-recruit-id="{{id}}" data-recruit-field="effect" placeholder="{{localize 'PROJECTANIME.HQ.rosterEffectPlaceholder'}}">{{effect}}</textarea>
-          {{else}}{{#if effect}}<div class="hq-bk-entry">{{effect}}</div>{{else}}<div class="hq-bk-entry" style="opacity:.6">{{localize "PROJECTANIME.HQ.noEffects"}}</div>{{/if}}{{/if}}
-          <div class="hq-drawer-foot">
-            {{#if npcUuid}}<button type="button" class="rec-btn ghost" data-action="openRecruitActor" data-recruit-id="{{id}}"><i class="fas fa-up-right-from-square"></i> {{localize "PROJECTANIME.Covenant.openSheet"}}</button>{{/if}}
-            {{#if @root.isGM}}<a class="hq-drawer-del" data-action="removeRecruit" data-recruit-id="{{id}}" title="{{localize 'PROJECTANIME.Covenant.delete'}}"><i class="fas fa-trash"></i> {{localize "PROJECTANIME.Covenant.delete"}}</a>{{/if}}
-          </div>
-        </div>
+      {{#unless hq.missionBoardOpen}}
+      <div class="hq-empty sm"><i class="fas fa-lock"></i><p>{{localize "PROJECTANIME.HQ.boardLocked"}}</p></div>
+      {{else}}
+      <div class="hq-board-head">
+        <span class="hq-cap"><i class="fas fa-scroll"></i> {{hq.activeCount}}/{{hq.missionCap}} {{localize "PROJECTANIME.HQ.active"}}</span>
+        {{#if isGM}}<button type="button" class="gbtn sm" data-action="hqNewMission"><i class="fas fa-plus"></i> {{localize "PROJECTANIME.HQ.newMission"}}</button>{{/if}}
       </div>
-      <div class="hq-page right">
-        <div class="hq-bk-portrait">{{#if img}}<img src="{{img}}" alt="">{{else}}<span class="ph">{{initial}}</span>{{/if}}</div>
-      </div>
-    </div>
-  </aside>
-  {{/each}}
-
-  {{!-- Recruitment candidate detail (click a pool card → author its role/condition + Recruit here) --}}
-  {{#each hq.recruits}}
-  <aside class="section-drawer{{#if isOpen}} open{{/if}}" data-drawer="{{id}}">
-    <div class="drawer-backdrop" data-action="closeHqDrawer"></div>
-    <div class="hq-book">
-      <a class="hq-book-close" data-action="closeHqDrawer"><i class="fa-solid fa-xmark"></i></a>
-      <div class="hq-page left">
-        <div class="hq-bk-banner"><i class="fas {{roleIcon}}"></i> {{name}}</div>
-        <div class="hq-bk-body">
-          <div class="hq-bk-desc">{{roleLabel}}</div>
-          {{#if @root.isGM}}
-          <div class="hq-bk-sec">{{localize "PROJECTANIME.HQ.recruitment"}}</div>
-          {{!-- All condition pickers render always; CSS shows only those matching data-cond, so changing
-                the condition-type dropdown swaps pickers with no re-render (see #onRecruitFieldChange). --}}
-          <div class="rcard-cfg" data-cond="{{condType}}">
-            <select data-recruit-id="{{id}}" data-recruit-field="condType">{{#each condTypeOptions}}<option value="{{key}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-            <select class="cfg-repTier" data-recruit-id="{{id}}" data-recruit-field="condFaction"><option value="">{{localize "PROJECTANIME.HQ.anyFaction"}}</option>{{#each factionOptions}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}</select>
-            <select class="cfg-repTier" data-recruit-id="{{id}}" data-recruit-field="condTier">{{#each tierOptions}}<option value="{{key}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-            <input class="cfg-hqLevel" type="number" min="0" data-recruit-id="{{id}}" data-recruit-field="condLevel" value="{{condLevel}}">
-            <select class="cfg-quest" data-recruit-id="{{id}}" data-recruit-field="condQuest"><option value="">{{localize "PROJECTANIME.Covenant.condQuestNone"}}</option>{{#each questOptions}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{title}}</option>{{/each}}</select>
-            <input class="cfg-manual" data-recruit-id="{{id}}" data-recruit-field="condLabel" value="{{condLabelRaw}}" placeholder="{{localize 'PROJECTANIME.Covenant.condManualPlaceholder'}}">
+      {{#if hq.hasMissions}}
+      <div class="hq-msn-list">
+        {{#each hq.missions}}
+        <div class="hq-msn status-{{status}}" data-msn-id="{{id}}">
+          <div class="hq-msn-head">
+            {{#if img}}<img class="hq-msn-img" src="{{img}}" alt=""{{#if @root.isGM}} data-action="hqPickMissionImage"{{/if}}>{{else}}{{#if @root.isGM}}<button type="button" class="hq-msn-img ph" data-action="hqPickMissionImage"><i class="fas fa-image"></i></button>{{/if}}{{/if}}
+            {{#if @root.isGM}}
+            <input class="hq-msn-title" data-hq-msn="{{id}}" data-field="title" value="{{title}}" placeholder="{{localize 'PROJECTANIME.HQ.missionUntitled'}}"{{#if isActive}} disabled{{/if}}>
+            {{else}}<span class="hq-msn-title">{{title}}</span>{{/if}}
+            <span class="hq-msn-status">{{#if isActive}}<i class="fas fa-hourglass-half"></i> {{restsLeft}}{{else}}{{#if isDone}}<i class="fas fa-flag-checkered"></i> {{result}}{{/if}}{{/if}}</span>
           </div>
-          <div class="rcard-act">
-            {{#if available}}<button type="button" class="rec-btn" data-action="recruitMember" data-recruit-id="{{id}}">{{localize "PROJECTANIME.Covenant.recruitBtn"}}</button>
-            {{else}}<span class="rec-lock"><i class="fas fa-lock"></i> {{condLabel}}</span>{{/if}}
-            <span class="rec-pip lock{{#if available}} on{{/if}}" data-action="toggleRecruitLock" data-recruit-id="{{id}}"><i class="fas {{#if available}}fa-lock-open{{else}}fa-lock{{/if}}"></i></span>
-            <span class="rec-pip hide{{#if hidden}} on{{/if}}" data-action="toggleRecruitHidden" data-recruit-id="{{id}}"><i class="fas {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}"></i></span>
+          <div class="hq-msn-meta">
+            {{#if @root.isGM}}
+            <select data-hq-msn="{{id}}" data-field="type"{{#if isActive}} disabled{{/if}}>{{#each typeOptions}}<option value="{{key}}"{{#if sel}} selected{{/if}}>{{label}}</option>{{/each}}</select>
+            <label class="hq-mini">{{localize "PROJECTANIME.HQ.duration"}} <select data-hq-msn="{{id}}" data-field="duration"{{#if isActive}} disabled{{/if}}>{{#each durationOptions}}<option value="{{n}}"{{#if sel}} selected{{/if}}>{{n}}</option>{{/each}}</select></label>
+            <label class="hq-mini hq-hard"><input type="checkbox" data-hq-msn="{{id}}" data-field="hard"{{#if hard}} checked{{/if}}{{#if isActive}} disabled{{/if}}> {{localize "PROJECTANIME.HQ.hard"}}</label>
+            {{else}}
+            <span class="hq-chip">{{typeLabel}}</span><span class="hq-chip">{{duration}} {{localize "PROJECTANIME.HQ.rests"}}</span>{{#if hard}}<span class="hq-chip hard">{{localize "PROJECTANIME.HQ.hard"}}</span>{{/if}}
+            {{/if}}
+          </div>
+          {{#if @root.isGM}}
+          <div class="hq-msn-suited">
+            <span class="hq-lbl">{{localize "PROJECTANIME.HQ.suited"}}:</span>
+            {{#each suitedOptions}}<button type="button" class="hq-suit{{#if sel}} on{{/if}}" data-action="hqToggleSuited" data-key="{{key}}"{{#if ../isActive}} disabled{{/if}}>{{label}}</button>{{/each}}
+          </div>
+          <div class="hq-msn-reward">
+            <label class="hq-mini">{{localize "PROJECTANIME.HQ.rewardGold"}} <input type="number" min="0" data-hq-msn="{{id}}" data-field="rewardGold" value="{{rewardGold}}"></label>
+            <input class="hq-msn-rw" data-hq-msn="{{id}}" data-field="reward" value="{{reward}}" placeholder="{{rewardNote}}">
+            <input class="hq-msn-rw" data-hq-msn="{{id}}" data-field="risk" value="{{risk}}" placeholder="{{localize 'PROJECTANIME.HQ.risk'}}">
           </div>
           {{else}}
-          <div class="hq-bk-sec">{{localize "PROJECTANIME.HQ.recruitment"}}</div>
-          <div class="hq-bk-entry">{{#if available}}<span class="rec-avail"><i class="fas fa-circle-check"></i> {{localize "PROJECTANIME.Covenant.availableBadge"}}</span>{{else}}<span class="rcard-cond"><i class="fas fa-lock"></i> {{condLabel}}</span>{{/if}}</div>
+          {{#if suited.length}}<div class="hq-msn-suited"><span class="hq-lbl">{{localize "PROJECTANIME.HQ.suited"}}:</span> {{#each suited}}<span class="hq-chip">{{this}}</span>{{/each}}</div>{{/if}}
+          {{#if reward}}<div class="hq-msn-rwtext"><i class="fas fa-gift"></i> {{reward}}</div>{{/if}}
           {{/if}}
-          <div class="hq-drawer-foot">
-            {{#if npcUuid}}<button type="button" class="rec-btn ghost" data-action="openRecruitActor" data-recruit-id="{{id}}"><i class="fas fa-up-right-from-square"></i> {{localize "PROJECTANIME.Covenant.openSheet"}}</button>{{/if}}
-            {{#if @root.isGM}}<a class="hq-drawer-del" data-action="removeRecruit" data-recruit-id="{{id}}" title="{{localize 'PROJECTANIME.Covenant.delete'}}"><i class="fas fa-trash"></i> {{localize "PROJECTANIME.Covenant.delete"}}</a>{{/if}}
-          </div>
-        </div>
-      </div>
-      <div class="hq-page right">
-        <div class="hq-bk-portrait">{{#if img}}<img src="{{img}}" alt="">{{else}}<span class="ph">{{initial}}</span>{{/if}}</div>
-      </div>
-    </div>
-  </aside>
-  {{/each}}
 
-  {{!-- Mission config / detail — the briefing book (authoring left, poster right) --}}
-  {{#each hq.missions}}
-  <aside class="section-drawer{{#if isOpen}} open{{/if}}" data-drawer="{{id}}">
+          {{!-- Team --}}
+          <div class="hq-msn-team">
+            {{#if isActive}}
+            <span class="hq-lbl">{{localize "PROJECTANIME.HQ.team"}}:</span>
+            {{#each team}}<span class="hq-tmember" title="{{name}}"><img src="{{img}}" alt=""> {{name}}</span>{{/each}}
+            {{#if @root.isGM}}<button type="button" class="gbtn sm" data-action="hqRecall"><i class="fas fa-rotate-left"></i> {{localize "PROJECTANIME.HQ.recall"}}</button>{{/if}}
+            {{else}}{{#unless isDone}}{{#if @root.isGM}}
+            <div class="hq-pick-row">
+              {{#each pickable}}
+              <button type="button" class="hq-pick{{#if chosen}} on{{/if}}{{#if suited}} suit{{/if}}" data-action="hqToggleTeam" data-uuid="{{uuid}}" title="{{name}}{{#if suited}} · {{localize 'PROJECTANIME.HQ.suitedTip'}}{{/if}}"><img src="{{img}}" alt=""></button>
+              {{/each}}
+            </div>
+            <button type="button" class="gbtn sm hq-dispatch" data-action="hqDispatch"{{#unless canDispatch}} disabled{{/unless}}><i class="fas fa-paper-plane"></i> {{localize "PROJECTANIME.HQ.dispatch"}}</button>
+            {{/if}}{{/unless}}{{/if}}
+          </div>
+          {{#if @root.isGM}}{{#unless isActive}}<button type="button" class="gbtn sm danger hq-msn-del" data-action="hqDeleteMission" title="{{localize 'PROJECTANIME.HQ.deleteMission'}}"><i class="fas fa-trash"></i></button>{{/unless}}{{/if}}
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{/unless}}
+    </div>
+
+    {{/unless}}
+  </div>
+
+  {{!-- ===================== STRUCTURES (build menu — slide-in drawer) ===================== --}}
+  {{#if hq.established}}{{#if isGM}}
+  <aside class="section-drawer{{#if hq.structuresDrawerOpen}} open{{/if}}" data-drawer="structures">
     <div class="drawer-backdrop" data-action="closeHqDrawer"></div>
-    <div class="hq-book mb">
-      <a class="hq-book-close" data-action="closeHqDrawer"><i class="fa-solid fa-xmark"></i></a>
-      <div class="hq-page left">
-        <div class="hq-bk-banner"><i class="fas fa-scroll"></i> {{#if title}}{{title}}{{else}}{{localize "PROJECTANIME.HQ.missionUntitled"}}{{/if}}</div>
-        <div class="hq-bk-body">
-        {{#if @root.isGM}}
-        <input class="m-title" data-mission-id="{{id}}" data-mission-field="title" value="{{title}}" placeholder="{{localize 'PROJECTANIME.HQ.missionPlaceholder'}}">
-
-        <span class="hq-bk-sec">{{localize "PROJECTANIME.HQ.briefing"}}</span>
-        <div class="m-brief">
-          <div class="m-bfield">
-            <span class="m-cap">{{localize "PROJECTANIME.HQ.tier"}}</span>
-            <div class="m-pips">{{#each tierPips}}<i class="m-pip{{#if on}} on{{/if}}" data-action="setMissionTier" data-mission-id="{{../id}}" data-mtier="{{n}}">✦</i>{{/each}}</div>
-          </div>
-          <div class="m-bfield">
-            <span class="m-cap">{{localize "PROJECTANIME.HQ.durationLabel"}}</span>
-            <div class="m-step">
-              <button type="button" data-action="bumpMissionDuration" data-mission-id="{{id}}" data-delta="-1" aria-label="−">−</button>
-              <span class="m-stepval">{{durationTurns}}</span>
-              <button type="button" data-action="bumpMissionDuration" data-mission-id="{{id}}" data-delta="1" aria-label="+">＋</button>
-              <span class="m-stepunit">{{localize "PROJECTANIME.HQ.turnsUnit"}}</span>
-            </div>
-          </div>
-        </div>
-
-        <span class="hq-bk-sec">{{localize "PROJECTANIME.HQ.objective"}}</span>
-        <div class="m-objective">
-          <i class="fas fa-bullseye m-obj-ic"></i>
-          <select class="m-statsel" data-mission-id="{{id}}" data-mission-field="stat">
-            {{#each statTalentOpts}}<option value="{{value}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}
-          </select>
-          <span class="m-vs">{{localize "PROJECTANIME.HQ.dcShort"}}</span>
-          <input class="m-dcin" type="number" min="1" data-mission-id="{{id}}" data-mission-field="difficulty" value="{{difficulty}}">
-        </div>
-
-        <span class="hq-bk-sec">{{localize "PROJECTANIME.HQ.rewardsLabel"}}</span>
-        <div class="m-fields">
-          <label class="m-num"><span class="m-num-ic"><i class="fas fa-coins"></i></span><span class="m-num-cap">{{localize "PROJECTANIME.Bond.gold"}}</span><input type="number" min="0" data-mission-id="{{id}}" data-mission-field="rewardGold" value="{{rewardGold}}"></label>
-          <label class="m-num"><span class="m-num-ic"><i class="fas fa-star"></i></span><span class="m-num-cap">{{localize "PROJECTANIME.Bond.sp"}}</span><input type="number" min="0" data-mission-id="{{id}}" data-mission-field="rewardSP" value="{{rewardSP}}"></label>
-        </div>
-        <div class="m-rew-items drop" data-mission-reward-drop="{{id}}">
-          {{#each rewardItems}}
-          <div class="rew-item" title="{{name}}"><img src="{{img}}" alt=""><span>{{name}}</span><a class="rew-x" data-action="removeMissionItem" data-mission-id="{{../id}}" data-mission-item="{{idx}}">✕</a></div>
-          {{else}}
-          <span class="frew-drop-hint">{{localize "PROJECTANIME.HQ.rewardDropHint"}}</span>
-          {{/each}}
-        </div>
-
-        <span class="hq-bk-sec">{{localize "PROJECTANIME.HQ.dispatch"}}</span>
-        <div class="m-odds">
-          <div class="m-odds-head"><span class="m-odds-l">{{statLabel}} · {{localize "PROJECTANIME.HQ.dcShort"}} {{difficulty}}</span><span class="m-pct">{{#if hasPick}}{{squadPct}}%{{else}}—{{/if}}</span></div>
-          <div class="m-bar"><i style="width:{{#if hasPick}}{{squadPct}}{{else}}0{{/if}}%"></i></div>
-          <div class="m-ready"><i class="fas fa-hourglass-half"></i> {{localize "PROJECTANIME.HQ.returnsIn"}} <b class="m-readyn">{{squadReadyTurns}}</b> {{localize "PROJECTANIME.HQ.turnsUnit"}}</div>
-        </div>
-        {{#if hasCandidates}}
-        <div class="m-cand-grid" data-mission-id="{{id}}">
-          {{#each candidates}}
-          <div class="m-cand{{#if selected}} sel-on{{/if}}" data-agent-id="{{id}}" data-faces="{{faces}}" data-bonus="{{bonus}}" data-haste="{{haste}}">
-            <div class="r-frame"></div>
-            <div class="r-face">
-              <div class="m-cface">{{#if img}}<img src="{{img}}" alt="">{{else}}<span class="r-ph">{{initial}}</span>{{/if}}<div class="r-scrim"></div><div class="m-cnm">{{name}}</div></div>
-              <div class="m-cdie"><span class="m-cck"><i class="fas fa-check"></i></span>{{die}}{{#if bonusStr}} <b>{{bonusStr}}</b>{{/if}}</div>
-            </div>
-            <span class="cstud tl"></span><span class="cstud tr"></span><span class="cstud bl"></span><span class="cstud br"></span>
-          </div>
-          {{/each}}
-        </div>
-        <button type="button" class="rec-btn m-send" data-action="dispatchAgent" data-mission-id="{{id}}"><i class="fas fa-paper-plane"></i> {{localize "PROJECTANIME.HQ.sendSquad"}} <span class="m-sendn">{{#if hasPick}}({{squadN}}){{/if}}</span></button>
-        {{else}}
-        <div class="m-no-agents">{{localize "PROJECTANIME.HQ.noAgents"}}</div>
-        {{/if}}
-        {{#if hasAgentsOut}}
-        <div class="m-away"><span class="m-away-lbl">{{localize "PROJECTANIME.HQ.alreadyAway"}}</span>{{#each agentsOut}}<span class="m-away-chip"><span class="m-away-av">{{#if img}}<img src="{{img}}" alt="">{{else}}{{initial}}{{/if}}</span>{{name}} · {{localize "PROJECTANIME.HQ.turnShort"}} {{returnsTurn}}</span>{{/each}}</div>
-        {{/if}}
-
-        <div class="hq-drawer-foot">
-          <button type="button" class="rec-btn ghost" data-action="pickMissionImage" data-mission-id="{{id}}"><i class="fas fa-camera"></i> {{localize "PROJECTANIME.HQ.missionImagePick"}}</button>
-          <a class="hq-drawer-del" data-action="deleteMission" data-mission-id="{{id}}" title="{{localize 'PROJECTANIME.Covenant.delete'}}"><i class="fas fa-trash"></i> {{localize "PROJECTANIME.Covenant.delete"}}</a>
-        </div>
-        {{else}}
-        <div class="m-stars">{{#each tierStars}}<i class="{{#if on}}on{{/if}}">✦</i>{{/each}}</div>
-        <div class="m-meta"><span class="m-chip"><i class="fas fa-hourglass-half"></i> {{durationTurns}} {{localize "PROJECTANIME.HQ.turnsUnit"}}</span><span class="m-chip"><i class="fas fa-dice-d20"></i> {{statLabel}} {{localize "PROJECTANIME.HQ.dcShort"}} {{difficulty}}</span></div>
-        {{#if hasReward}}<div class="hq-bk-entry"><i class="fas fa-gift"></i> {{rewardSummary}}</div>{{/if}}
-        {{#if hasAgentsOut}}<div class="m-away"><span class="m-away-lbl">{{localize "PROJECTANIME.HQ.alreadyAway"}}</span>{{#each agentsOut}}<span class="m-away-chip"><span class="m-away-av">{{#if img}}<img src="{{img}}" alt="">{{else}}{{initial}}{{/if}}</span>{{name}} · {{localize "PROJECTANIME.HQ.turnShort"}} {{returnsTurn}}</span>{{/each}}</div>{{/if}}
-        {{/if}}
-        </div>
+    <div class="drawer-panel hq-structures-panel">
+      <a class="bk-close" data-action="closeHqDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+      <div class="hq-structures-head"><i class="fas fa-chess-rook"></i> {{localize "PROJECTANIME.HQ.structures"}} <span class="hq-cap">{{hq.status.facilities}}/{{hq.status.cap}}</span></div>
+      {{#if hq.hasBuildable}}
+      <div class="hq-build-grid">
+        {{#each hq.buildable}}
+        <button type="button" class="hq-build-card{{#if locked}} locked{{/if}}{{#unless affordable}} poor{{/unless}}" data-action="hqBuild" data-key="{{key}}"{{#if locked}} disabled{{/if}} title="{{#unless rankMet}}{{localize 'PROJECTANIME.HQ.rankReqShort'}} {{rank}}{{/unless}}">
+          <span class="hq-build-ic"><i class="{{icon}}"></i></span>
+          <span class="hq-build-nm">{{name}}</span>
+          <span class="hq-build-cost">{{cost}}G · {{rank}}</span>
+        </button>
+        {{/each}}
       </div>
-      <div class="hq-page right">
-        <div class="m-poster">
-          {{#if img}}<div class="m-poster-img" style="background-image:url('{{img}}')"></div>{{/if}}
-          <div class="m-ptier">{{#each tierStars}}<i class="{{#if on}}on{{/if}}">✦</i>{{/each}}</div>
-          {{#unless img}}<div class="m-emblem"><i class="{{statEmblem}}"></i></div>{{/unless}}
-          <div class="m-pseal"><span class="m-pseal-cap">{{localize "PROJECTANIME.HQ.dcShort"}}</span><b>{{difficulty}}</b></div>
-          <div class="m-ptitle">{{#if title}}{{title}}{{else}}{{localize "PROJECTANIME.HQ.missionUntitled"}}{{/if}}</div>
-          <div class="m-glance">
-            <div class="m-grow"><span>{{localize "PROJECTANIME.HQ.testedBy"}}</span><b class="m-g-stat">{{statLabel}}</b></div>
-            <div class="m-grow"><span>{{localize "PROJECTANIME.HQ.durationLabel"}}</span><b class="m-gd">{{durationTurns}} {{localize "PROJECTANIME.HQ.turnsUnit"}}</b></div>
-            <div class="m-grow"><span>{{localize "PROJECTANIME.HQ.rewardLabel"}}</span><b>{{#if hasReward}}{{rewardSummary}}{{else}}—{{/if}}</b></div>
-          </div>
-        </div>
-      </div>
+      {{else}}
+      <div class="hq-empty sm"><i class="fas fa-circle-check"></i><p>{{localize "PROJECTANIME.HQ.allBuilt"}}</p></div>
+      {{/if}}
+      {{#if hq.canCustom}}<button type="button" class="gbtn hq-custom" data-action="hqCustom"><i class="fas fa-star"></i> {{localize "PROJECTANIME.HQ.customAdd"}} ({{hq.customCount}}/{{hq.customMax}})</button>{{/if}}
     </div>
   </aside>
-  {{/each}}
-
+  {{/if}}{{/if}}
 </section>

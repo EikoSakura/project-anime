@@ -1,0 +1,161 @@
+{{!-- Craft Workbench (v0.03) — Forge / Traits / Temper / Brew / Projects. Crafting never fails;
+      each operation spends its bill + one Craft Activity (a Downtime Slot spent at a rest). --}}
+<section class="craft-body">
+{{#if noCrafter}}
+  <div class="craft-empty">{{localize "PROJECTANIME.Shop.noBuyer"}}</div>
+{{else}}
+
+  <header class="craft-bar">
+    <div class="craft-who"><img src="{{crafterImg}}" alt=""><span>{{crafterName}}</span></div>
+    <label class="craft-as">{{localize "PROJECTANIME.Shop.buyingAs"}}
+      <select data-craft="crafter">{{#each crafters}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+    </label>
+    <span class="craft-gold"><i class="fa-solid fa-coins"></i> {{gold}}</span>
+    <span class="craft-slots" title="{{localize 'PROJECTANIME.Craft.title'}}"><i class="fa-solid fa-hammer"></i> {{slotsText}}</span>
+    {{#if specialtyLabel}}<span class="craft-spec"><i class="fa-solid fa-medal"></i> {{specialtyLabel}}</span>{{/if}}
+  </header>
+
+  {{#unless gateOk}}<div class="craft-gate"><i class="fa-solid fa-triangle-exclamation"></i> {{localize "PROJECTANIME.Craft.gateWarn"}}</div>{{/unless}}
+
+  {{#if hasMaterials}}
+  <div class="craft-mats">
+    {{#each materials}}
+    <span class="mat-chip {{#if prime}}is-prime{{/if}}" title="{{gradeLabel}} {{typeLabel}} · {{localize 'PROJECTANIME.Material.tier'}} {{tierRoman}}">
+      <i class="{{icon}}"></i> {{typeLabel}} <em>{{tierRoman}}</em> ×{{qty}}
+    </span>
+    {{/each}}
+  </div>
+  {{else}}<div class="craft-mats craft-mats-empty">{{localize "PROJECTANIME.Material.empty"}}</div>{{/if}}
+
+  <nav class="craft-tabs">
+    <button type="button" class="craft-tab {{#if tabForge}}active{{/if}}" data-action="pickTab" data-tab="forge">{{localize "PROJECTANIME.Craft.tabs.forge"}}</button>
+    <button type="button" class="craft-tab {{#if tabTrait}}active{{/if}}" data-action="pickTab" data-tab="trait">{{localize "PROJECTANIME.Craft.tabs.trait"}}</button>
+    <button type="button" class="craft-tab {{#if tabTemper}}active{{/if}}" data-action="pickTab" data-tab="temper">{{localize "PROJECTANIME.Craft.tabs.temper"}}</button>
+    <button type="button" class="craft-tab {{#if tabBrew}}active{{/if}}" data-action="pickTab" data-tab="brew">{{localize "PROJECTANIME.Craft.tabs.brew"}}</button>
+    <button type="button" class="craft-tab {{#if tabProject}}active{{/if}}" data-action="pickTab" data-tab="project">{{localize "PROJECTANIME.Craft.tabs.project"}}</button>
+  </nav>
+
+  <div class="craft-scroll">
+
+    {{!-- FORGE --}}
+    {{#if tabForge}}
+    {{#if hasForge}}
+    <div class="craft-list">
+      {{#each forge}}
+      <div class="craft-row">
+        <img class="craft-ic" src="{{img}}" alt="">
+        <div class="craft-meta"><span class="craft-name">{{name}}</span><span class="craft-sub">{{typeLabel}}</span></div>
+        <span class="craft-cost"><i class="fa-solid fa-coins"></i> {{gold}} · {{matQty}} {{matType}}</span>
+        <button type="button" class="craft-btn" data-action="forgeItem" data-idx="{{idx}}" {{#unless affordable}}disabled{{/unless}} {{#unless @root.hasSlots}}disabled{{/unless}}>{{localize "PROJECTANIME.Craft.forge"}}</button>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}<div class="craft-empty">{{localize "PROJECTANIME.Shop.noStock"}}</div>{{/if}}
+    {{/if}}
+
+    {{!-- TRAITS --}}
+    {{#if tabTrait}}
+      {{#if traitItems.length}}
+      <label class="craft-pick">{{localize "PROJECTANIME.Craft.pickItem"}}
+        <select data-craft="traitItem">{{#each traitItems}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+      </label>
+        {{#if selItem}}
+        <div class="craft-item-head">
+          <span class="craft-cap">{{localize "PROJECTANIME.GearTrait.cap" }} {{selItem.capUsed}}/{{selItem.capMax}}</span>
+          {{#if selItem.flaw}}<span class="craft-flaw"><i class="fa-solid fa-heart-crack"></i> {{localize "PROJECTANIME.Flaw.label"}}: {{selItem.flaw}}</span>{{/if}}
+        </div>
+        {{#if selItem.traits.length}}
+        <div class="craft-list craft-has">
+          {{#each selItem.traits}}
+          <div class="craft-row">
+            <div class="craft-meta"><span class="craft-name">{{label}}</span><span class="craft-sub">{{effect}}{{#if param}} — {{param}}{{/if}}</span></div>
+            <button type="button" class="craft-btn ghost" data-action="removeTrait" data-key="{{key}}" {{#unless @root.hasSlots}}disabled{{/unless}}>{{localize "PROJECTANIME.Craft.remove"}}</button>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+        {{#if selItem.sockets.length}}
+        <div class="craft-sockets">
+          {{#each selItem.sockets}}
+          <span class="craft-socket {{#if filled}}filled{{/if}}"><i class="fa-solid fa-gem"></i> {{name}}
+            {{#if filled}}<a data-action="unsocket" data-idx="{{idx}}" title="{{localize 'PROJECTANIME.Socket.remove'}}">✕</a>{{/if}}
+          </span>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        <h4 class="craft-h">{{localize "PROJECTANIME.Craft.pickTrait"}}</h4>
+        <div class="craft-list">
+          {{#each availTraits}}
+          <div class="craft-row craft-trait-row">
+            <div class="craft-meta"><span class="craft-name">{{label}}</span><span class="craft-sub">{{effect}}</span></div>
+            {{#if needsElement}}<select class="craft-param" data-param="element">{{#each @root.elements}}<option value="{{key}}">{{label}}</option>{{/each}}</select>{{/if}}
+            {{#if needsDisguise}}<input class="craft-param" data-param="disguise" type="text" placeholder="{{localize 'PROJECTANIME.GearTrait.concealedDisguise'}}">{{/if}}
+            {{#if needsStatus}}<select class="craft-param" data-param="status">{{#each @root.statuses}}<option value="{{id}}">{{label}}</option>{{/each}}</select>{{/if}}
+            <span class="craft-cost">{{#each cost}}{{#if prime}}{{gradeLabel}} {{/if}}{{qty}} {{typeLabel}}{{#unless @last}} · {{/unless}}{{/each}}</span>
+            <button type="button" class="craft-btn" data-action="applyTrait" data-key="{{key}}" {{#unless affordable}}disabled{{/unless}} {{#unless @root.hasSlots}}disabled{{/unless}}>{{localize "PROJECTANIME.Craft.apply"}}</button>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+      {{else}}<div class="craft-empty">{{localize "PROJECTANIME.Craft.pickItem"}}</div>{{/if}}
+    {{/if}}
+
+    {{!-- TEMPER --}}
+    {{#if tabTemper}}
+    {{#if hasTemper}}
+    <div class="craft-list">
+      {{#each temperItems}}
+      <div class="craft-row">
+        <img class="craft-ic" src="{{img}}" alt="">
+        <div class="craft-meta"><span class="craft-name">{{name}}</span><span class="craft-sub">{{localize "PROJECTANIME.Temper.label"}} {{level}}/{{cap}} · +{{gain}}</span></div>
+        <span class="craft-cost">{{#each cost}}{{gradeLabel}} {{qty}} {{typeLabel}}{{/each}}</span>
+        {{#if atCap}}<span class="craft-atcap">{{localize "PROJECTANIME.Temper.atCap"}}</span>
+        {{else}}<button type="button" class="craft-btn" data-action="temperItem" data-id="{{id}}" {{#unless affordable}}disabled{{/unless}} {{#unless @root.hasSlots}}disabled{{/unless}}>{{localize "PROJECTANIME.Craft.temperUp"}}</button>{{/if}}
+      </div>
+      {{/each}}
+    </div>
+    {{else}}<div class="craft-empty">{{localize "PROJECTANIME.Craft.pickItem"}}</div>{{/if}}
+    {{/if}}
+
+    {{!-- BREW --}}
+    {{#if tabBrew}}
+    <div class="craft-list">
+      {{#each recipes}}
+      <div class="craft-row">
+        <div class="craft-meta"><span class="craft-name">{{name}}</span><span class="craft-sub">{{effect}}</span></div>
+        <span class="craft-cost">{{localize "PROJECTANIME.Material.tier"}} {{tierRoman}} · {{#each cost}}{{#if prime}}{{gradeLabel}} {{/if}}{{qty}} {{typeLabel}}{{/each}}</span>
+        <button type="button" class="craft-btn" data-action="brewRecipe" data-key="{{key}}" {{#unless affordable}}disabled{{/unless}} {{#unless @root.hasSlots}}disabled{{/unless}}>{{localize "PROJECTANIME.Craft.brew"}} ×{{@root.brewBatch}}</button>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{!-- PROJECTS --}}
+    {{#if tabProject}}
+    {{#if isGM}}
+    <div class="craft-newproj">
+      {{#each projectScopes}}<button type="button" class="craft-btn ghost" data-action="newProject" data-scope="{{key}}"><i class="fa-solid fa-plus"></i> {{label}}</button>{{/each}}
+    </div>
+    {{/if}}
+    {{#if projects.length}}
+    <div class="craft-list">
+      {{#each projects}}
+      <div class="craft-row craft-proj">
+        <div class="craft-meta">
+          <span class="craft-name">{{name}} <em>{{scopeLabel}}</em></span>
+          <span class="craft-sub">{{localize "PROJECTANIME.Craft.project.stage" }} {{done}}/{{total}}{{#if result}} — {{result}}{{/if}}</span>
+          <span class="craft-bar-track"><span class="craft-bar-fill" style="width:{{pct}}%"></span></span>
+        </div>
+        <span class="craft-cost">{{#each cost}}{{#if prime}}{{gradeLabel}} {{/if}}{{qty}} {{typeLabel}}{{#unless @last}} · {{/unless}}{{/each}}</span>
+        {{#if @root.isGM}}{{#unless finished}}<button type="button" class="craft-btn" data-action="advanceProject" data-id="{{id}}" {{#unless canAdvance}}disabled{{/unless}} {{#unless @root.hasSlots}}disabled{{/unless}}>{{localize "PROJECTANIME.Craft.project.advance"}}</button>{{/unless}}{{/if}}
+        {{#if @root.isGM}}<a class="craft-x" data-action="abandonProject" data-id="{{id}}" title="{{localize 'PROJECTANIME.Craft.project.abandon'}}">✕</a>{{/if}}
+      </div>
+      {{/each}}
+    </div>
+    {{else}}<div class="craft-empty">{{localize "PROJECTANIME.Craft.project.oncePerRest"}}</div>{{/if}}
+    {{/if}}
+
+  </div>
+{{/if}}
+</section>

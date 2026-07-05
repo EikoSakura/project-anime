@@ -1,154 +1,211 @@
-{{!-- Bonds drawer: a character's OWN relationship cards. The grid uses Headquarters-style tarot
-      cards (hq-tcard); clicking one opens a codex-style detail book (character on the left, info on
-      the right). Carries pa-hq so the HQ tarot-card + book styling applies verbatim, plus pa-bonds for
-      the bond-specific bits. The owner authors + ranks them freely from inside the book. --}}
+{{!-- Bonds drawer (v0.03): a character's PAIRED relationships. Party Bonds (PC↔PC) and Follower Bonds
+      (PC↔NPC) share one grid of Headquarters-style tarot cards; clicking one opens a codex detail book
+      (partner on the left, mechanics on the right): a C/B/A/S rank ladder, a Bond-Point meter with the
+      scene-gated rank-up, the automated benefit ladder, and — at rank S, Party only — the Union Skill.
+      Carries pa-hq so the HQ tarot-card + book styling applies verbatim, plus pa-bonds for the rest. --}}
 <aside class="section-drawer pa-bonds pa-hq{{#if open.bonds}} open{{/if}}" data-section="bonds">
   <div class="drawer-backdrop" data-action="closeDrawer"></div>
   <div class="drawer-panel">
     <div class="drawer-headbar">
-      <h3>{{localize "PROJECTANIME.Tab.bonds"}}</h3>
+      <h3><i class="fa-solid fa-hand-holding-heart"></i> {{localize "PROJECTANIME.Tab.bonds"}}</h3>
       <div class="bonds-head-actions">
-        {{#if editable}}<button type="button" class="bond-new" data-action="newBond">＋ {{localize "PROJECTANIME.Covenant.newBondBtn"}}</button>{{/if}}
+        <div class="bond-cap" title="{{localize 'PROJECTANIME.Bond.capacityHint'}}">
+          <i class="fa-solid fa-link"></i><b>{{bonds.capacity.used}}/{{bonds.capacity.cap}}</b><span class="cap-tag">B+</span>
+        </div>
+        {{#if editable}}<button type="button" class="bond-new" data-action="newBond"><i class="fa-solid fa-plus"></i> {{localize "PROJECTANIME.Bond.newBond"}}</button>{{/if}}
         <a class="drawer-close" data-action="closeDrawer" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
+      </div>
+    </div>
+    <div class="bond-subhead">
+      <div class="bond-seg">
+        <button type="button" class="on" data-action="bondFilter" data-filter="all">{{localize "PROJECTANIME.Bond.filterAll"}}</button>
+        <button type="button" data-action="bondFilter" data-filter="party"><span class="tag party"></span>{{localize "PROJECTANIME.Bond.kind.party"}}</button>
+        <button type="button" data-action="bondFilter" data-filter="follower"><span class="tag follower"></span>{{localize "PROJECTANIME.Bond.kind.follower"}}</button>
       </div>
     </div>
     <div class="drawer-content">
       <div class="bonds-grid tgrid">
-        {{#each bonds as |b|}}
-        {{!-- ===================== CARD (exactly like the Headquarters tarot cards) ===================== --}}
-        <div class="hq-tcard bond-tcard{{#if b.maxed}} maxed{{/if}}{{#if b.locked}} locked{{/if}}"
-             data-action="openBond" data-bond-id="{{b.id}}" style="--acc:{{b.accent}}" title="{{b.name}}">
+        {{#each bonds.cards as |b|}}
+        {{!-- ===================== CARD (Headquarters tarot style) ===================== --}}
+        <div class="hq-tcard bond-tcard {{b.kind}}{{#if b.maxed}} maxed{{/if}}"
+             data-action="openBond" data-bond-id="{{b.id}}" data-kind="{{b.kind}}" style="--acc:{{b.accent}}" title="{{b.name}}">
           <div class="r-frame"></div>
           <div class="r-face">{{#if b.img}}<img class="r-img" src="{{b.img}}" alt="">{{else}}<span class="r-ph">{{b.initial}}</span>{{/if}}<div class="r-scrim"></div><div class="r-name">{{b.name}}</div></div>
+          <span class="bond-kindtag">{{b.kindLabel}}</span>
           <span class="cstud tl"></span><span class="cstud tr"></span><span class="cstud bl"></span><span class="cstud br"></span>
-          <span class="hq-tcrest bond-rankcrest" title="{{b.rankWord}}">{{#if b.maxed}}<i class="fas fa-heart"></i>{{else}}<b>{{b.rankNum}}</b>{{/if}}</span>
+          <span class="hq-tcrest bond-rankcrest" title="{{b.kindLabel}} · {{b.rankLetter}}"><b>{{b.rankLetter}}</b></span>
+          <div class="bond-bpmini"><i style="width:{{b.progPct}}%"></i></div>
         </div>
         {{else}}
         <div class="bonds-empty">
           <i class="fa-solid fa-hand-holding-heart"></i>
-          <p>{{localize "PROJECTANIME.Covenant.noneBondsYet"}}</p>
+          <p>{{localize "PROJECTANIME.Bond.noneYet"}}</p>
         </div>
         {{/each}}
 
         {{#if editable}}
-        <div class="bond-forge" data-bdrop="new-bond" data-action="newBond" title="{{localize 'PROJECTANIME.Covenant.dropNewBond'}}">
-          <i class="fa-solid fa-user-plus"></i>
-          <span>{{localize "PROJECTANIME.Covenant.dropNewBond"}}</span>
+        <div class="bond-forge" data-bdrop="forge" data-action="newBond" title="{{localize 'PROJECTANIME.Bond.forgeHint'}}">
+          <i class="fa-solid fa-handshake-simple"></i>
+          <span>{{localize "PROJECTANIME.Bond.forge"}}<br><small>{{localize "PROJECTANIME.Bond.forgeSub"}}</small></span>
         </div>
         {{/if}}
       </div>
     </div>
   </div>
 
-  {{!-- ===================== DETAIL BOOKS (codex-like overlay; one open at a time) ===================== --}}
-  {{#each bonds as |b|}}
+  {{!-- ===================== DETAIL BOOKS (codex overlay; one open at a time) ===================== --}}
+  {{#each bonds.cards as |b|}}
   <div class="bond-overlay{{#if b.isOpen}} open{{/if}}" data-bond-book="{{b.id}}" data-bond-id="{{b.id}}">
     <div class="bond-backdrop" data-action="closeBond"></div>
-    <div class="hq-book bb" style="--acc:{{b.accent}}">
+    <div class="hq-book bb {{b.kind}}" style="--acc:{{b.accent}}">
       <a class="hq-book-close" data-action="closeBond" title="{{localize 'PROJECTANIME.Defenses.close'}}"><i class="fa-solid fa-xmark"></i></a>
 
-      {{!-- ===================== LEFT PAGE — THE CHARACTER ===================== --}}
-      <div class="hq-page right bb-char">
-        <div class="hq-bk-portrait">
+      {{!-- ===================== LEFT PAGE — THE PARTNER ===================== --}}
+      <div class="hq-page right bb-char{{#if b.maxed}} max{{/if}}">
+        <div class="hq-bk-portrait{{#if @root.editable}} editable{{/if}}"{{#if @root.editable}} data-action="pickBondPortrait" title="{{localize 'PROJECTANIME.Bond.portrait'}}"{{/if}}>
           {{#if b.img}}<img src="{{b.img}}" alt="">{{else}}<span class="ph">{{b.initial}}</span>{{/if}}
-          <div class="bb-rankpip {{#if b.maxed}}maxed{{/if}}">{{b.rankDisplay}}</div>
+          <div class="bb-rankpip {{#if b.maxed}}maxed{{/if}}">{{b.rankLetter}}</div>
+          {{#if @root.editable}}<span class="bb-portrait-edit"><i class="fa-solid fa-camera"></i></span>{{/if}}
         </div>
         <div class="bb-id">
           {{#if @root.editable}}
-          <input class="bb-name-edit" data-bond="{{b.id}}" data-bond-field="name" value="{{b.name}}" placeholder="{{localize 'PROJECTANIME.Covenant.bondNamePlaceholder'}}">
-          <input class="bb-title-edit" data-bond="{{b.id}}" data-bond-field="title" value="{{b.title}}" placeholder="{{localize 'PROJECTANIME.Covenant.titlePlaceholder'}}">
+          <input class="bb-name-edit" data-bond="{{b.id}}" data-bond-field="name" value="{{b.name}}" placeholder="{{localize 'PROJECTANIME.Bond.namePlaceholder'}}">
+          <input class="bb-title-edit" data-bond="{{b.id}}" data-bond-field="title" value="{{b.title}}" placeholder="{{localize 'PROJECTANIME.Bond.titlePlaceholder'}}">
           {{else}}
           <div class="bb-name">{{b.name}}</div>
           {{#if b.title}}<div class="bb-title">{{b.title}}</div>{{/if}}
           {{/if}}
-          {{#if b.faction}}<div class="bb-faction"><span class="crest">{{b.factionSig}}</span>{{b.factionName}}</div>{{/if}}
-          <div class="bb-stars">{{#each b.stars}}<span class="st {{#if full}}full{{else}}empty{{/if}}" data-star="{{idx}}">{{#if full}}★{{else}}☆{{/if}}</span>{{/each}}</div>
-          {{#if b.quote}}<div class="bb-quote">&ldquo;{{b.quote}}&rdquo;</div>{{/if}}
+          <div class="bb-pair"><i class="fa-solid {{#if b.isParty}}fa-handshake-simple{{else}}fa-user{{/if}}"></i> {{b.kindLabel}}{{#if b.hasPartner}} <button type="button" class="bb-open" data-action="openBondActor" title="{{localize 'PROJECTANIME.Bond.openPartner'}}"><i class="fa-solid fa-up-right-from-square"></i></button>{{/if}}</div>
+          {{#if @root.editable}}
+          <input class="bb-quote-edit" data-bond="{{b.id}}" data-bond-field="quote" value="{{b.quote}}" placeholder="{{localize 'PROJECTANIME.Bond.quotePlaceholder'}}">
+          {{else}}{{#if b.quote}}<div class="bb-quote">&ldquo;{{b.quote}}&rdquo;</div>{{/if}}{{/if}}
         </div>
       </div>
 
-      {{!-- ===================== RIGHT PAGE — THE INFO ===================== --}}
+      {{!-- ===================== RIGHT PAGE — THE MECHANICS ===================== --}}
       <div class="hq-page left bb-info">
         <div class="hq-bk-banner"><i class="fa-solid fa-hand-holding-heart"></i> {{b.name}}</div>
         <div class="hq-bk-body">
 
-          {{!-- rank meter --}}
-          <div class="b-meter {{#if b.maxed}}maxed{{/if}}">
-            <div class="b-stars">{{#each b.stars}}<span class="st {{#if full}}full{{else}}empty{{/if}}" data-star="{{idx}}">{{#if full}}★{{else}}☆{{/if}}</span>{{/each}}</div>
-            <div class="b-prog {{#if b.maxed}}maxed{{/if}}">
-              <div class="lab"><span>{{b.towardLabel}}</span><b>{{b.progLabel}}</b></div>
-              <div class="bar"><div class="fill" style="width:{{b.progPct}}%"></div></div>
+          {{!-- rank ladder --}}
+          <span class="hq-bk-sec">{{localize "PROJECTANIME.Bond.standing"}}</span>
+          <div class="bond-ladder">
+            {{#each b.ladder as |r|}}
+            <div class="rung{{#if r.done}} done{{/if}}{{#if r.cur}} cur{{/if}}">
+              {{#if r.cur}}<span class="now">{{localize "PROJECTANIME.Bond.now"}}</span>{{/if}}
+              <div class="rr">{{r.letter}}</div><div class="rt">{{r.benefit}}</div>
             </div>
+            {{/each}}
+          </div>
+
+          {{!-- Bond-Point meter --}}
+          <div class="bond-bp">
+            <div class="bp-top">
+              {{#if b.atMax}}
+              <span class="n"><b>{{b.bp}}</b> BP</span><span class="goal maxed">{{localize "PROJECTANIME.Bond.maxRank"}}</span>
+              {{else}}
+              <span class="n"><b>{{b.bp}}</b> / {{b.need}} BP</span><span class="goal">{{localize "PROJECTANIME.Bond.next"}} <b>{{b.nextLetter}}</b></span>
+              {{/if}}
+            </div>
+            <div class="bp-bar{{#if b.atMax}} maxed{{/if}}"><i style="width:{{b.progPct}}%"></i></div>
             {{#if @root.editable}}
-            <div class="b-rankbtns">
-              {{#unless b.maxed}}<button type="button" class="deepen" data-action="deepenBond">❤ {{localize "PROJECTANIME.Covenant.deepen"}}</button>
-              {{else}}<button type="button" class="deepen" disabled>✦ {{localize "PROJECTANIME.Covenant.maxedLabel"}}</button>{{/unless}}
-              <button type="button" class="rk-minus" data-action="lessenBond" title="{{localize 'PROJECTANIME.Covenant.lessen'}}">−</button>
+            <div class="bp-earn">
+              <button type="button" class="bp-btn" data-action="earnBondScene"{{#unless b.sceneAvailable}} disabled title="{{localize 'PROJECTANIME.Bond.sceneUsed'}}"{{/unless}}><i class="fa-solid fa-heart"></i> {{localize "PROJECTANIME.Bond.bondScene"}}</button>
+              <button type="button" class="bp-btn" data-action="earnStanding"{{#unless b.standingAvailable}} disabled{{/unless}}><i class="fa-solid fa-shield-halved"></i> {{localize "PROJECTANIME.Bond.standingTogether"}}</button>
+              <button type="button" class="bp-btn tiny" data-action="adjustBond" data-delta="1" title="+1 BP">＋</button>
+              <button type="button" class="bp-btn tiny" data-action="adjustBond" data-delta="-1" title="−1 BP">−</button>
             </div>
             {{/if}}
           </div>
 
-          {{!-- dossier --}}
-          <span class="hq-bk-sec">{{localize "PROJECTANIME.Covenant.dossier"}}</span>
-          <div class="vitals">
-            {{#each b.vitals}}
-              {{#if @root.editable}}
-              <div class="vital edit">
-                <input data-bond="{{b.id}}" data-bvital="{{id}}" data-bvital-field="k" value="{{k}}" placeholder="{{localize 'PROJECTANIME.Covenant.vitalKey'}}">
-                <input data-bond="{{b.id}}" data-bvital="{{id}}" data-bvital-field="v" value="{{v}}" placeholder="{{localize 'PROJECTANIME.Covenant.vitalValue'}}">
-                <span class="vital-x" data-action="removeBondVital" data-bvital="{{id}}">✕</span>
-              </div>
-              {{else}}{{#if v}}<div class="vital"><span class="vk">{{k}}</span><span class="vv">{{v}}</span></div>{{/if}}{{/if}}
-            {{/each}}
-            {{#if @root.editable}}<button type="button" class="add-line" data-action="addBondVital">＋ {{localize "PROJECTANIME.Covenant.addVital"}}</button>{{/if}}
+          {{!-- rank-up gate (eligible but not yet risen) --}}
+          {{#if b.ready}}
+          <div class="bond-rankup">
+            <i class="fa-solid fa-arrow-up-right-dots"></i>
+            <div class="tx"><b>{{localize "PROJECTANIME.Bond.readyTitle"}} {{b.eligibleLetter}}</b><small>{{localize "PROJECTANIME.Bond.readyHint"}}</small></div>
+            {{#if @root.editable}}<button type="button" class="bond-rankup-btn" data-action="rankUpBond">{{localize "PROJECTANIME.Bond.rankUp"}} ▸</button>{{/if}}
           </div>
-          {{#if @root.editable}}
-          <textarea class="dossier-edit" data-bond="{{b.id}}" data-bond-field="dossier" rows="5" placeholder="{{localize 'PROJECTANIME.Covenant.dossierPlaceholder'}}">{{b.dossierRaw}}</textarea>
-          <input class="quote-edit" data-bond="{{b.id}}" data-bond-field="quote" value="{{b.quote}}" placeholder="{{localize 'PROJECTANIME.Covenant.quotePlaceholder'}}">
-          {{else}}
-          {{#if b.dossier}}<div class="dossier">{{{b.dossier}}}</div>{{/if}}
           {{/if}}
 
-          {{!-- abilities --}}
-          <span class="hq-bk-sec">{{localize "PROJECTANIME.Covenant.abilities"}}</span>
-          <div class="abilities">
-            {{#each b.abilities}}
-            <div class="ability {{#if on}}on{{/if}}" data-ar="{{rank}}">
-              <div class="medal"><span>{{rank}}</span></div>
-              <div class="ab-txt">
-                {{#if @root.editable}}
-                <input class="an-edit" data-bond="{{b.id}}" data-babil="{{rank}}" data-babil-field="name" value="{{nameRaw}}" placeholder="{{localize 'PROJECTANIME.Covenant.abilityNamePlaceholder'}}">
-                <textarea class="ad-edit" data-bond="{{b.id}}" data-babil="{{rank}}" data-babil-field="desc" rows="2" placeholder="{{localize 'PROJECTANIME.Covenant.abilityDescPlaceholder'}}">{{descRaw}}</textarea>
-                {{else}}
-                <div class="an">{{name}}{{#unless on}} <span class="lk">🔒</span>{{/unless}}</div>
-                <div class="ad">{{desc}}</div>
+          {{!-- benefit ladder --}}
+          <span class="hq-bk-sec">{{#if b.isParty}}{{localize "PROJECTANIME.Bond.partyBenefits"}}{{else}}{{localize "PROJECTANIME.Bond.followerBenefits"}}{{/if}}</span>
+          <div class="bond-benefits">
+            {{#each b.benefits as |ben|}}
+            <div class="ben{{#if ben.on}} on{{else}} off{{/if}}" title="{{ben.desc}}">
+              <div class="medal">{{ben.letter}}</div>
+              <div class="ben-main">
+                <div class="ben-nm">{{ben.name}}{{#if ben.auto}} <span class="ben-tag auto">{{localize "PROJECTANIME.Bond.autoEffect"}}</span>{{/if}}{{#if ben.tracked}} <span class="ben-tag tracked">{{localize "PROJECTANIME.Bond.trackedTag"}}</span>{{/if}}</div>
+                {{#if ben.isAid}}
+                  {{#if @root.editable}}
+                  <select class="aid-pick" data-bond="{{b.id}}" data-bond-field="aidChoice">
+                    <option value="">{{localize "PROJECTANIME.Bond.aidPick"}}</option>
+                    {{#each ben.aidOptions as |o|}}<option value="{{o.id}}"{{#if o.sel}} selected{{/if}}>{{o.label}}</option>{{/each}}
+                  </select>
+                  {{else}}{{#each ben.aidOptions as |o|}}{{#if o.sel}}<div class="aid-chosen">◆ {{o.label}}</div>{{/if}}{{/each}}{{/if}}
                 {{/if}}
-                {{#if rulesHTML}}<div class="ab-fx">{{{rulesHTML}}}</div>{{/if}}
+                {{#if @root.editable}}
+                <textarea class="ben-note" data-bond="{{b.id}}" data-bond-note="{{ben.key}}" rows="1" placeholder="{{localize 'PROJECTANIME.Bond.notePlaceholder'}}">{{ben.note}}</textarea>
+                {{else}}{{#if ben.note}}<div class="ben-note-ro">{{ben.note}}</div>{{/if}}{{/if}}
               </div>
-              <span class="reqflag">{{reqLabel}}</span>
+              <div class="ben-state">{{#if ben.on}}{{localize "PROJECTANIME.Bond.active"}}{{else}}<i class="fa-solid fa-lock"></i> {{ben.letter}}{{/if}}</div>
             </div>
             {{/each}}
           </div>
+
+          {{!-- Union Skill (Party Bonds, unlocks at rank S) --}}
+          {{#if b.isParty}}
+          <div class="bond-union{{#unless b.union.unlocked}} locked{{/unless}}">
+            <div class="u-h">
+              <i class="fa-solid fa-star-of-life"></i><h4>{{localize "PROJECTANIME.Bond.union"}}</h4>
+              <span class="req{{#unless b.union.unlocked}} locked{{/unless}}">{{#if b.union.unlocked}}{{localize "PROJECTANIME.Bond.rankS"}}{{else}}{{localize "PROJECTANIME.Bond.unionLocked"}}{{/if}}</span>
+            </div>
+            {{#if b.union.unlocked}}
+              {{#if b.union.linked}}
+              <div class="u-skill">
+                {{#if b.union.img}}<img class="u-ic" src="{{b.union.img}}" alt="">{{/if}}
+                <div class="u-info"><div class="u-nm">{{b.union.name}}</div><div class="u-meta">{{{b.union.meta}}}</div></div>
+                <div class="u-btns">
+                  <button type="button" class="gbtn" data-action="openUnion">{{localize "PROJECTANIME.Bond.open"}}</button>
+                  {{#if @root.editable}}<button type="button" class="gbtn" data-action="unlinkUnion">{{localize "PROJECTANIME.Bond.unlink"}}</button>{{/if}}
+                </div>
+              </div>
+              {{else}}
+                {{#if @root.editable}}
+                <div class="u-drop" data-union-drop="{{b.id}}">
+                  <i class="fa-solid fa-star-of-life"></i>
+                  <span>{{localize "PROJECTANIME.Bond.unionDrop"}}</span>
+                  <button type="button" class="gbtn" data-action="buildUnion">{{localize "PROJECTANIME.Bond.unionBuild"}}</button>
+                </div>
+                {{/if}}
+              {{/if}}
+            {{else}}
+            <div class="u-body">{{localize "PROJECTANIME.Bond.unionDesc"}}</div>
+            {{/if}}
+          </div>
+          {{/if}}
+
+          {{!-- Follower HQ hooks (feed Renown / stewarding in Phase 6) --}}
+          {{#unless b.isParty}}{{#if @root.editable}}
+          <div class="bond-fhooks">
+            <div class="fh">
+              <span>{{localize "PROJECTANIME.Bond.favoredFacility"}}</span>
+              <div class="fh-drop{{#if b.favoredFacility}} set{{/if}}" data-facility-drop="{{b.id}}" title="{{localize 'PROJECTANIME.Bond.favoredHint'}}">
+                {{#if b.favoredFacility}}
+                <i class="fas {{b.favoredFacilityIcon}}"></i><span class="fh-name">{{b.favoredFacility}}</span>
+                <button type="button" class="fh-x" data-action="clearFacility" data-bond-id="{{b.id}}" title="{{localize 'PROJECTANIME.Bond.clear'}}">✕</button>
+                {{else}}
+                <span class="fh-ph">{{localize "PROJECTANIME.Bond.favoredDrop"}}</span>
+                {{/if}}
+              </div>
+            </div>
+            <label class="fh chk"><input type="checkbox" data-bond="{{b.id}}" data-bond-field="resides"{{#if b.resides}} checked{{/if}}> {{localize "PROJECTANIME.Bond.resides"}}</label>
+          </div>
+          {{/if}}{{/unless}}
 
           {{!-- owner controls --}}
           {{#if @root.editable}}
           <div class="b-actions">
-            {{#if b.actorUuid}}
-            <button type="button" class="gbtn" data-action="openBondActor">☰ {{localize "PROJECTANIME.Covenant.openSheet"}}</button>
-            <button type="button" class="gbtn" data-action="clearBondActor">⊘ {{localize "PROJECTANIME.Covenant.unlinkActor"}}</button>
-            {{else}}
-            <span class="link-drop" data-bdrop="bond-actor:{{b.id}}"><i class="fa-solid fa-user-plus"></i> {{localize "PROJECTANIME.Covenant.linkActor"}}</span>
-            {{/if}}
-            <label class="fac-pick">{{localize "PROJECTANIME.Covenant.faction"}}
-              <select data-bond="{{b.id}}" data-bond-field="faction">
-                <option value="">{{localize "PROJECTANIME.Covenant.unaffiliated"}}</option>
-                {{#each b.factionOptions}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}
-              </select>
-            </label>
-            <input class="color-edit" type="color" data-bond="{{b.id}}" data-bond-field="accent" value="{{b.accent}}" title="{{localize 'PROJECTANIME.Covenant.accentColor'}}">
-            <button type="button" class="gbtn" data-action="pickBondPortrait">🖼 {{localize "PROJECTANIME.Covenant.portrait"}}</button>
-            <button type="button" class="gbtn" data-action="pickBondBanner">🖼 {{localize "PROJECTANIME.Covenant.banner"}}</button>
-            <button type="button" class="gbtn danger" data-action="deleteBond">🗑 {{localize "PROJECTANIME.Covenant.delete"}}</button>
+            <button type="button" class="gbtn danger" data-action="breakBond"><i class="fa-solid fa-heart-crack"></i> {{localize "PROJECTANIME.Bond.break"}}</button>
           </div>
           {{/if}}
 

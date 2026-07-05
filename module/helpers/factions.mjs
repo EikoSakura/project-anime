@@ -537,10 +537,58 @@ function normalizeCraftJob(j) {
   };
 }
 
-/** Normalize the HQ into the People/Facilities model (idempotent; tolerates a never-saved {}). A
- *  pre-split world stores everything fused in `recruits[]` — derive the new people/facilities shape on
- *  read (stable, deterministic facility ids) so every consumer sees the new model even before the
- *  one-time migrateHQModel persists it. */
+/** Normalize one v0.03 BUILT FACILITY (idempotent) — a catalog facility (or custom, up to 3) built once
+ *  with Gold, run by a resident steward. The engine + UI live in helpers/hq.mjs; this just keeps the
+ *  shape stable on the shared `covenantHQ` object. */
+function normalizeBuiltFacility(f) {
+  const e = f && typeof f === "object" ? f : {};
+  const rankKeys = globalThis.CONFIG?.PROJECTANIME?.hqRankKeys ?? ["C", "B", "A", "S"];
+  return {
+    id: e.id || foundry.utils.randomID(),
+    key: e.custom ? "" : (e.key || ""),                              // catalog key, or "" for custom
+    custom: !!e.custom,
+    name: e.name || "",
+    img: e.img || "",
+    stewardUuid: e.stewardUuid || "",                               // NPC uuid of the resident stewarding
+    upgraded: !!e.upgraded,
+    gatherType: e.gatherType || "",                                 // Gathering Grounds chosen Common type(s)
+    gatherType2: e.gatherType2 || "",
+    // custom-only Four-Rails fields (printed lines the GM authors):
+    rank: rankKeys.includes(e.rank) ? e.rank : "C",
+    cost: Math.max(0, Math.round(Number(e.cost) || 0)),
+    upgradeCost: Math.max(0, Math.round(Number(e.upgradeCost) || 0)),
+    unstaffed: e.unstaffed || "", staffed: e.staffed || "", favor: e.favor || "", upgrade: e.upgrade || ""
+  };
+}
+
+/** Normalize one v0.03 MISSION BOARD posting (idempotent). Residents dispatched while the party is away;
+ *  resolves on a party rest via a 2d6 Check (helpers/hq.mjs). */
+function normalizeBoardMission(m) {
+  const e = m && typeof m === "object" ? m : {};
+  const types = globalThis.CONFIG?.PROJECTANIME?.missionTypes ?? {};
+  return {
+    id: e.id || foundry.utils.randomID(),
+    title: e.title || "",
+    img: e.img || "",
+    type: types[e.type] ? e.type : "scout",
+    duration: Math.min(3, Math.max(1, Math.round(Number(e.duration) || 1))),
+    suited: Array.isArray(e.suited) ? e.suited.filter(Boolean).slice(0, 2) : [],
+    hard: !!e.hard,
+    risk: e.risk || "",
+    reward: e.reward || "",
+    rewardGold: Math.max(0, Math.round(Number(e.rewardGold) || 0)),
+    rewardItems: Array.isArray(e.rewardItems) ? e.rewardItems : [],
+    team: Array.isArray(e.team) ? e.team.filter(Boolean).slice(0, 3) : [],
+    status: ["open", "active", "done", "failed"].includes(e.status) ? e.status : "open",
+    result: e.result || "",
+    restsLeft: Math.max(0, Math.round(Number(e.restsLeft) || 0))
+  };
+}
+
+/** Normalize the HQ (idempotent; tolerates a never-saved {}). Carries the legacy People/Facilities layer
+ *  (unsurfaced since v0.3.5 — pools/dispatch retired) alongside the v0.03 fields the doc's HQ runs on
+ *  (`established`, `rank`, `built`, `board`; engine in helpers/hq.mjs). A pre-split world stores the old
+ *  layer fused in `recruits[]` — still derived on read so nothing throws. */
 export function normalizeHQ(hq) {
   const h = hq && typeof hq === "object" ? hq : {};
   let people, facilities;
@@ -566,7 +614,14 @@ export function normalizeHQ(hq) {
     people,
     facilities,
     missions: (Array.isArray(h.missions) ? h.missions : []).map(normalizeMission),
-    crafting: (Array.isArray(h.crafting) ? h.crafting : []).map(normalizeCraftJob) // in-progress craft jobs (Workshop)
+    crafting: (Array.isArray(h.crafting) ? h.crafting : []).map(normalizeCraftJob), // in-progress craft jobs (Workshop)
+
+    // v0.03 Headquarters (the doc's model; engine in helpers/hq.mjs). Additive so the legacy layer above
+    // keeps loading; the Home tab and rest/shop wiring read only these.
+    established: !!h.established,
+    rank: (globalThis.CONFIG?.PROJECTANIME?.hqRankKeys ?? ["C", "B", "A", "S"]).includes(h.rank) ? h.rank : "C",
+    built: (Array.isArray(h.built) ? h.built : []).map(normalizeBuiltFacility),
+    board: (Array.isArray(h.board) ? h.board : []).map(normalizeBoardMission)
   };
 }
 

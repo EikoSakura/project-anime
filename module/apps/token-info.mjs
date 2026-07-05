@@ -15,7 +15,7 @@
  * self-contained dark palette (matching `.pa-tooltip`) so it reads the same in any theme.
  */
 import { collectReveals } from "../helpers/effects.mjs";
-import { PROJECTANIME } from "../helpers/config.mjs";
+import { PROJECTANIME, healthStatus } from "../helpers/config.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -247,6 +247,10 @@ export class TokenInfoPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       name: token.document.name || actor.name,
       badge,
       vitals,
+      // When vitals are gated, offer a qualitative wound word in their place (pf2e-hud token tooltip).
+      health: (!vitals && (Number(hp.max) || 0) > 0)
+        ? (() => { const h = healthStatus(actor); return h ? { label: game.i18n.localize(h.key), tint: h.tint } : null; })()
+        : null,
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, pct: pct(hp.value, hp.max) },
       // Minion Squad: living / total members (the pooled-HP unit reads "3 / 6 standing").
       squad: sys.squad?.isSquad ? { members: sys.squad.members ?? 0, max: sys.squad.maxMembers ?? 0 } : null,

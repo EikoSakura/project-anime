@@ -1,7 +1,7 @@
 import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
-import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll } from "./effects.mjs";
+import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckSteps, stepUpDie } from "./effects.mjs";
 import { resolveAnimate, resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
@@ -19,11 +19,6 @@ const i18n = (k, data) => (data ? game.i18n.format(k, data) : game.i18n.localize
 /** Current value (= die size) of an actor attribute. */
 function attrValue(actor, key) {
   return actor?.system?.attributes?.[key]?.value ?? 4;
-}
-
-/** The larger of two attributes — the natural pick for a damage/effect die. */
-function largerAttr(actor, a, b) {
-  return attrValue(actor, a) >= attrValue(actor, b) ? a : b;
 }
 
 const DIE_SIZES = [4, 6, 8, 10, 12];
@@ -201,16 +196,17 @@ function validateSkillTarget(actor, item) {
 
 /** The Evasion this defender pits against this Skill's Accuracy Check (rules v0.01: Skill
  *  Evasion). A Skill may name an alternate Attribute (Mind / Charm / Spirit): the defender's
- *  Evasion is rebuilt around that Attribute's die — every other bonus and penalty (manual bonus,
- *  armor, shield: actor-models' evasion.gearMod) still applies, only Agility swaps out. The
- *  Banish / Nullify Modifiers let the target "use Spirit as their Skill Evasion": the defender
- *  takes whichever number is better. Returns the value plus the Attribute it stood on ("" =
- *  normal Evasion) for the card line. Weapons never define a Skill Evasion. */
+ *  Evasion is rebuilt on the v0.03 formula (5 + Attribute half-score) around that Attribute's
+ *  die — every other bonus and penalty (manual bonus, armor, shield: actor-models'
+ *  evasion.gearMod) still applies, only Agility swaps out. The Banish / Nullify Modifiers
+ *  target ⟪Spirit⟫ outright (v0.03 — a straight swap, no better-of). Returns the value plus
+ *  the Attribute it stood on ("" = normal Evasion) for the card
+ *  line. Weapons never define a Skill Evasion. */
 function evasionVs(targetActor, item) {
   const sysT = targetActor?.system;
   if (!sysT) return { value: null, attr: "" };
   const gear = sysT.evasion?.gearMod ?? 0;
-  const alt = (k) => Math.max(0, (sysT.attributes?.[k]?.value ?? 4) + gear);
+  const alt = (k) => Math.max(0, 5 + Math.floor((sysT.attributes?.[k]?.value ?? 4) / 2) + gear);
   let value = sysT.evasion?.value ?? 0;
   let attr = "";
   const se = item?.type === "skill" ? skillEvasionAttr(item.system) : "";
@@ -221,9 +217,10 @@ function evasionVs(targetActor, item) {
     attr = se;
   }
   const mods = item?.type === "skill" ? (item.system?.modifiers ?? []) : [];
+  // Banish / Nullify "Target ⟪Spirit⟫" outright (v0.03) — a straight swap, no defender better-of.
   if (mods.includes("banish") || mods.includes("nullify")) {
-    const spirit = alt("spirit");
-    if (spirit > value) { value = spirit; attr = "spirit"; }
+    value = alt("spirit");
+    attr = "spirit";
   }
   return { value, attr };
 }
@@ -266,7 +263,7 @@ const CT_PRESETS = [
  * Open the roll-configuration dialog.
  * @returns {Promise<object|null>} `{ attrA?, attrB?, mod, ct? }` or null if cancelled.
  */
-async function promptRoll({ title, actor, attrA, attrB, selector = "check", showAttrs = true, showCT = true, infoHTML = "", ct = null }) {
+async function promptRoll({ title, actor, attrA, attrB, selector = "check", showAttrs = true, showCT = true, showCover = false, infoHTML = "", ct = null }) {
   // No <form> wrapper: DialogV2 supplies the form, so a nested one would break
   // `button.form` field reading. The class lives on a plain <div> for styling.
   const ctOptions = CT_PRESETS
@@ -298,8 +295,11 @@ async function promptRoll({ title, actor, attrA, attrB, selector = "check", show
         ${showAttrs ? `
         <div class="form-group"><label>${i18n("PROJECTANIME.Roll.attrA")}</label>${attrSelect("attrA", actor, attrA)}</div>
         <div class="form-group"><label>${i18n("PROJECTANIME.Roll.attrB")}</label>${attrSelect("attrB", actor, attrB)}</div>` : ""}
-        <div class="form-group span2"><label>${i18n("PROJECTANIME.Roll.modifier")}</label>
+        <div class="form-group${showCover ? "" : " span2"}"><label>${i18n("PROJECTANIME.Roll.modifier")}</label>
           <input type="number" name="mod" value="0" step="1" /></div>
+        ${showCover ? `
+        <div class="form-group"><label>${i18n("PROJECTANIME.Roll.cover")}</label>
+          <select name="cover"><option value="0">—</option><option value="1">+1</option><option value="2">+2</option></select></div>` : ""}
         ${showCT ? `
         <div class="form-group"><label>${i18n("PROJECTANIME.Roll.ct")}</label>
           <select name="ctPreset"><option value="">—</option>${ctOptions}</select></div>
@@ -553,13 +553,27 @@ function evalPair(a, b, mod, { ct = null, evasion = null } = {}) {
 /*  Public roll functions                       */
 /* -------------------------------------------- */
 
-/** A general Check / Test (two attribute dice vs an optional Challenge Threshold). */
+/** A general Check / Test (two attribute dice vs an optional Challenge Threshold). With a
+ *  targeted token, the dialog offers a CONTESTED Check instead (both sides roll, higher total
+ *  wins, ties re-roll — v0.03); the defender rolls the same Attribute pair by default. */
 export async function rollCheck(actor, { attrA = "might", attrB = "might", mod = 0, ct = null } = {}) {
+  const targetActor = firstTargetActor();
+  const contestable = !!targetActor && targetActor !== actor;
+  const info = contestable
+    ? `<label class="roll-contested"><input type="checkbox" name="contested" /> <span>${game.i18n.format("PROJECTANIME.Roll.contestedVs", { name: targetActor.name })}</span></label>`
+    : "";
   const choice = await promptRoll({
     title: i18n("PROJECTANIME.Roll.checkTitle"),
-    actor, attrA, attrB
+    actor, attrA, attrB, infoHTML: info
   });
   if (!choice) return null;
+  if (contestable && choice.contested) {
+    return contestedRoll({
+      actor, attrs: [choice.attrA, choice.attrB], mod: choice.mod,
+      defender: targetActor, defAttrs: [choice.attrA, choice.attrB],
+      title: i18n("PROJECTANIME.Roll.contested")
+    });
+  }
   return performCheck(actor, { attrA: choice.attrA, attrB: choice.attrB, modifier: choice.mod, ct: choice.ct });
 }
 
@@ -668,6 +682,38 @@ async function maybeFollowUp(actor, target, item, { event } = {}) {
   for (const weapon of weapons) await rollAttack(actor, weapon, { event, target, isFollowUp: true });
 }
 
+/** True if this weapon/shield's Accuracy uses BOTH Might and Mind — the attacker chooses which
+ *  ATK formula each strike uses (doc v0.03: "If a weapon uses both, the attacker chooses"). */
+function weaponIsDualAcc(item) {
+  const acc = item?.system?.accuracy ?? {};
+  const keys = [acc.attrA, acc.attrB];
+  return keys.includes("might") && keys.includes("mind");
+}
+
+/** The dual-ACC weapon's remembered ATK formula ("physical" | "magical") — rollAttack's prompt
+ *  stores it on the weapon, and the (possibly later, possibly relayed) damage step reads it. */
+function weaponAtkMode(item) {
+  return item?.getFlag?.("project-anime", "atkMode") === "magical" ? "magical" : "physical";
+}
+
+/** Two-button choice for a dual-ACC strike: Physical (Might, vs DEF) or Magical (Mind, vs RES).
+ *  The last choice per weapon is the default. Returns the mode, or null if dismissed. */
+async function promptWeaponAtkMode(item) {
+  const current = weaponAtkMode(item);
+  const mode = await foundry.applications.api.DialogV2.wait({
+    window: { title: item.name, icon: "fas fa-wand-sparkles" },
+    classes: ["project-anime"],
+    buttons: [
+      { action: "physical", label: i18n("PROJECTANIME.Roll.atkModePhysical"), icon: "fas fa-hand-fist", default: current === "physical" },
+      { action: "magical", label: i18n("PROJECTANIME.Roll.atkModeMagical"), icon: "fas fa-wand-sparkles", default: current === "magical" }
+    ],
+    rejectClose: false
+  });
+  if (!mode) return null;
+  if (mode !== current) await item.setFlag("project-anime", "atkMode", mode);
+  return mode;
+}
+
 /** A weapon/shield attack: Accuracy Check vs the target's Evasion, with Fumble & Combo. */
 export async function rollAttack(actor, item, { event, target = null, isFollowUp = false } = {}) {
   const acc = item.system.accuracy ?? {};
@@ -675,17 +721,27 @@ export async function rollAttack(actor, item, { event, target = null, isFollowUp
   const attrB = acc.attrB ?? "agility";
   let mod = Number(acc.mod) || 0;
 
+  // A dual-ACC weapon (Might AND Mind): pick this strike's ATK formula up front — the damage
+  // step reads the stored choice. A Follow-Up strike reuses the initiating choice unprompted.
+  if (!isFollowUp && weaponIsDualAcc(item)) {
+    if (!(await promptWeaponAtkMode(item))) return null;
+  }
+
   const targetActor = target ?? firstTargetActor();
-  const evasion = targetActor?.system?.evasion?.value ?? null;
+  let evasion = targetActor?.system?.evasion?.value ?? null;
+  let cover = 0;
 
   // Shift-click skips the situational-modifier dialog.
   if (!event?.shiftKey && !isFollowUp) {
     const info = evasion != null
       ? `<p class="hint">${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}</p>`
       : `<p class="hint">${i18n("PROJECTANIME.Roll.noTarget")}</p>`;
-    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.attack"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, infoHTML: info });
+    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.attack"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, showCover: evasion != null, infoHTML: info });
     if (!choice) return null;
     mod += choice.mod;
+    // Cover raises the target's Evasion by 1 or 2 while the obstacle holds (v0.03).
+    cover = Number(choice.cover) || 0;
+    if (evasion != null) evasion += cover;
   }
 
   const rmods = collectRollModifiers(actor, "attack", { target: targetActor });
@@ -712,7 +768,7 @@ export async function rollAttack(actor, item, { event, target = null, isFollowUp
 
   const lines = [...stepNotes(reasons)];
   const atkModLine = rollModLine(rmods); if (atkModLine) lines.push(atkModLine);
-  if (evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}`);
+  if (evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsEvasion")} <strong>${targetActor.name}</strong>: ${evasion}${cover ? ` <em class="muted">(${i18n("PROJECTANIME.Roll.coverBonus", { n: cover })})</em>` : ""}`);
   else lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.noTarget")}</em>`);
   if (combo) { lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`); maybeGrantComboTurn(actor); }
   // Attacking reveals a Vanished attacker (rules v0.01) — the attempt itself, hit or miss.
@@ -771,14 +827,16 @@ export async function rollSquadStrike(actor, weapon, { event } = {}) {
   const attrA = acc.attrA ?? "might";
   const attrB = acc.attrB ?? "agility";
   let mod = Number(acc.mod) || 0;
-  const evasion = Number(target.system?.evasion?.value) || 0;
+  let evasion = Number(target.system?.evasion?.value) || 0;
 
   // One situational-modifier prompt for the squad's shared action (Shift-click skips it).
   if (!event?.shiftKey) {
     const info = `<p class="hint">${i18n("PROJECTANIME.Roll.squadStrikeHint", { n: members, name: target.name, eva: evasion })}</p>`;
-    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.squadStrike"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, infoHTML: info });
+    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.squadStrike"), actor, attrA, attrB, selector: "attack", showAttrs: false, showCT: false, showCover: true, infoHTML: info });
     if (!choice) return null;
     mod += choice.mod;
+    // Cover raises the target's Evasion by 1 or 2 (v0.03).
+    evasion += Number(choice.cover) || 0;
   }
   // Shared roll / weapon Attack modifiers, read once for the unit.
   const rmods = collectRollModifiers(actor, "attack", { target });
@@ -865,7 +923,9 @@ function skillAccuracy(actor, item) {
  * the single-target, area, and chain damage paths — they each apply this raw to their targets.
  *
  * v0.02: damage is a flat calculated value, never rolled.
- *  - Weapon attacks: ATK (physical) or MATK (magical) from the actor's derived stats.
+ *  - Weapon attacks: the ATK formula's Attribute (Might physical / Mind magical; a dual-ACC
+ *    weapon uses the attacker's choice) + the STRIKING weapon's own DMG — never the sheet's
+ *    main-hand ATK/MATK snapshot, so off-hand and Natural Attack strikes carry their own DMG.
  *  - Skill Strikes: Skill Die flat value (= attribute die size, e.g. d8 = 8).
  *  - Skill Mend: Skill Die flat value (healing, no defense subtraction).
  *  - Grip: two-handed +2 DMG; dual-wield −1 DMG; shield-only −1 DMG.
@@ -895,16 +955,21 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
   // Determine physical vs magical from accuracy attributes.
   const physical = attrA === "might" || attrB === "might";
   const magical = attrA === "mind" || attrB === "mind";
-  // Which defense stat this damage checks against.
-  const defenseKey = magical && !physical ? "res" : "defense";
 
   let flat = 0;
   const dmgReasons = [];
   // The "Power Attribute" (v0.03): a weapon Skill picks one of the WEAPON's two ACC Attributes;
-  // a non-weapon Skill one of its own two. Plain weapon attacks keep the larger for display.
-  const dieAttr = usesWeapon
-    ? (isSkill ? (slotAttr === "attrB" ? attrB : attrA) : largerAttr(actor, attrA, attrB))
-    : (item.system.attributes?.[slotAttr] ?? attrA);
+  // a non-weapon Skill one of its own two. A plain weapon strike damages with its ATK formula's
+  // Attribute — Might (physical) or Mind (magical); a dual-ACC weapon (both) uses the attacker's
+  // choice, stored on the weapon by rollAttack's prompt.
+  let dieAttr;
+  if (!usesWeapon) dieAttr = item.system.attributes?.[slotAttr] ?? attrA;
+  else if (isSkill) dieAttr = slotAttr === "attrB" ? attrB : attrA;
+  else dieAttr = (magical && !physical) || (magical && physical && weaponAtkMode(src) === "magical") ? "mind" : "might";
+
+  // Which defense stat this damage checks against — a dual-ACC weapon routes by the chosen /
+  // Power Attribute (Physical → DEF, Magical → RES).
+  const defenseKey = (magical && !physical) || (magical && physical && usesWeapon && dieAttr === "mind") ? "res" : "defense";
 
   // Grip / dual-wield flat adjustments, shared by weapon attacks and weapon Skills.
   const gripAdjust = () => {
@@ -922,10 +987,8 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
   };
 
   if (usesWeapon && !isSkill) {
-    // Weapon damage = ATK or MATK (already includes Might/Mind + Weapon DMG).
-    flat = magical && !physical
-      ? (actor.system?.matk?.value ?? 0)
-      : (actor.system?.atk?.value ?? 0);
+    // Weapon damage = the ATK formula's Attribute + THIS weapon's DMG (per striking weapon).
+    flat = attrValue(actor, dieAttr) + (Number(src.system.damage?.mod) || 0);
     gripAdjust();
   } else if (isSkill && usesWeapon) {
     // v0.03 Power (weapon Skill) = the chosen ACC Attribute + Weapon DMG — for damage AND
@@ -1047,6 +1110,28 @@ function damageRowsHTML(rows) {
   return rows.map((row, i) => damageAppliedRow(row, i)).join("");
 }
 
+/** Pick how much Energy a Heal (EP) hands over — a transfer, up to Power and capped by what the
+ *  caster holds (v0.03). Returns the clamped amount, or null if dismissed. */
+async function promptEpTransferAmount(title, cap) {
+  const content = `
+    <div class="project-anime roll-dialog">
+      <div class="form-group"><label>${i18n("PROJECTANIME.Roll.epTransferAmount")} (1–${cap})</label>
+        <input type="number" name="amount" value="${cap}" min="1" max="${cap}" step="1" autofocus /></div>
+    </div>`;
+  const res = await foundry.applications.api.DialogV2.wait({
+    window: { title, icon: "fas fa-bolt" },
+    classes: ["project-anime"],
+    content,
+    buttons: [
+      { action: "ok", label: i18n("PROJECTANIME.Roll.epTransfer"), icon: "fas fa-right-left", default: true, callback: (event, button) => Number(button.form.elements.amount?.value) },
+      { action: "cancel", label: i18n("Cancel"), icon: "fas fa-times" }
+    ],
+    rejectClose: false
+  });
+  if (res == null || res === "cancel") return null;
+  return Math.clamp(Math.round(Number(res) || 0), 1, cap);
+}
+
 /**
  * Roll a weapon's / skill's damage (or healing), reduced by the target's Defense.
  * With `targetUuids` (carried by an area Skill's "Roll Damage" button) it rolls once and
@@ -1065,6 +1150,21 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
   // Single-target (or no target).
   const targetActor = targets[0] ?? null;
   const dmg = await computeDamageRoll(actor, item, { target: targetActor, charged, spec });
+
+  // Heal (EP) is a TRANSFER (v0.03): the caster gives their own Energy to a willing creature,
+  // up to Power — the caster picks the amount, capped by what they actually have. Self-aimed
+  // stays a plain restore (a self-transfer would be a net 0).
+  let epTransfer = null;
+  if (dmg.heal && dmg.pool === "energy" && targetActor && targetActor !== actor) {
+    const have = Math.max(0, Number(actor.system?.energy?.value ?? 0));
+    const cap = Math.min(dmg.raw, have);
+    if (cap <= 0) return ui.notifications.warn(i18n("PROJECTANIME.Roll.epTransferEmpty"));
+    const amount = await promptEpTransferAmount(item.name, cap);
+    if (amount == null) return null;
+    dmg.raw = amount;
+    epTransfer = amount;
+  }
+
   const adj = adjustForTarget(dmg.raw, dmg.dtype, targetActor, { ignoresDefense: dmg.ignoresDefense, heal: dmg.heal, pool: dmg.pool, defenseKey: dmg.defenseKey });
 
   const badges = [...adj.badges];
@@ -1087,6 +1187,12 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
     await routeApply(targetActor, targetActor.uuid, adj.amount, adj.heal, pool);
     rows.push({ uuid: targetActor.uuid, name: targetActor.name, img: targetActor.img, amount: bc.amount, heal: adj.heal, pool, calc: bc.calc, undone: false });
     if (!adj.heal) dealt = bc.amount;
+    // The EP-transfer's other half: the caster pays what they gave (the undo arrow restores the
+    // TARGET only — hand the caster theirs back manually if the table rewinds a transfer).
+    if (epTransfer != null) {
+      await actor.update({ "system.energy.value": Math.max(0, Number(actor.system?.energy?.value ?? 0) - epTransfer) });
+      notes.push(`<em class="muted">${game.i18n.format("PROJECTANIME.Roll.epTransferred", { name: actor.name, n: epTransfer })}</em>`);
+    }
   }
   // House rule: a damaging attack/skill visits its on-hit riders (conditions / Decay / applied
   // effects) on the target ONLY when the blow dealt >0 net damage — a fully mitigated hit (immune,
@@ -1203,11 +1309,44 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
  * other Skill resolves against the single primary target (unchanged). Energy is spent only
  * once targeting commits, so cancelling template placement / the Mass pick costs nothing.
  */
+/** The per-encounter use ledger for 1/Conflict Skills: { [skillId]: usesSpent }. */
+function conflictUsesMap(actor) {
+  return actor?.flags?.["project-anime"]?.conflictUses ?? {};
+}
+
+/** Uses left this Conflict for a 1/Conflict Skill (Infinity for an unlimited Skill). */
+export function conflictUsesLeft(actor, item) {
+  const sys = item?.system ?? {};
+  if (!sys.perConflict) return Infinity;
+  const limit = Number(sys.usesLimit) || 1;
+  const used = Number(conflictUsesMap(actor)[item.id]) || 0;
+  return Math.max(0, limit - used);
+}
+
+/** Record one 1/Conflict use of a Skill on its owner. */
+async function spendConflictUse(actor, item) {
+  if (!item?.system?.perConflict || !actor) return;
+  const used = Number(conflictUsesMap(actor)[item.id]) || 0;
+  await actor.setFlag("project-anime", `conflictUses.${item.id}`, used + 1);
+}
+
+/** Clear an actor's 1/Conflict ledger — fired at combat start and end (project-anime.mjs). GM/owner. */
+export async function resetConflictUses(actor) {
+  if (actor?.flags?.["project-anime"]?.conflictUses) await actor.unsetFlag("project-anime", "conflictUses");
+}
+
 export async function rollSkill(actor, item) {
   const sys = item.system;
   // Exhausted prevents activating Skills (passive Skills are always-on, not activated).
   if (actor.statuses?.has?.("exhausted") && sys.actionType !== "passive") {
     return ui.notifications.warn(i18n("PROJECTANIME.Roll.exhausted"));
+  }
+
+  // 1/Conflict (v0.03 Enemies): a Skill flagged usesPerConflict — or any Skill that inflicts Stunned /
+  // Sealed (Exhausted) / Bound — may be used only once per encounter. Enforced only inside a live
+  // Conflict (combat); the counter resets when combat starts and ends (project-anime.mjs).
+  if (sys.perConflict && game.combat?.started && conflictUsesLeft(actor, item) <= 0) {
+    return ui.notifications.warn(i18n("PROJECTANIME.Roll.perConflictSpent"));
   }
 
   const mods = sys.modifiers ?? [];
@@ -1232,6 +1371,8 @@ export async function rollSkill(actor, item) {
   const isChargeSkill = mods.includes("charge");
   const releasingCharge = isChargeSkill && actor.getFlag("project-anime", "charge") === item.id;
   if (isChargeSkill && !releasingCharge) return startCharge(actor, item);
+  // v0.03 Charge: the focus turn already rolled — a stored hit strikes true at release, no re-roll.
+  const chargeLockedHit = releasingCharge && !!actor.getFlag("project-anime", "chargeHit");
 
   const kind = aoeKind(item);
 
@@ -1260,8 +1401,13 @@ export async function rollSkill(actor, item) {
 
   // 2) Spend Energy (rank×2; Passive = free). A charge release already paid on the focus turn,
   // so releasing is free — but it consumes the charge whether the follow-up hits or misses.
-  if (releasingCharge) await actor.unsetFlag("project-anime", "charge");
-  else if (!(await spendSkillEnergy(actor, sys, item))) return null;
+  if (releasingCharge) {
+    await actor.unsetFlag("project-anime", "charge");
+    if (chargeLockedHit) await actor.unsetFlag("project-anime", "chargeHit");
+  } else if (!(await spendSkillEnergy(actor, sys, item))) return null;
+
+  // Commit one 1/Conflict use now the cast is going through (inside a live Conflict).
+  if (sys.perConflict && game.combat?.started) await spendConflictUse(actor, item);
 
   // 2b) Channeled (Duration Modifier): using the Skill opens its channel — the marker upkeeps
   // 1 EP at the start of the caster's turns and every effect copy applied below rides its key.
@@ -1449,7 +1595,12 @@ async function resolveSingleSkill(actor, item, { charged = false } = {}) {
   const badges = [];
   let roll = null, r1 = null, r2 = null, fumble = false, combo = false, hit = null;
 
-  if (needsAccuracy) {
+  if (needsAccuracy && chargeLockedHit) {
+    // The focus turn's Accuracy Check already landed (v0.03 Charge) — the release strikes true.
+    hit = true;
+    badges.push({ cls: "success", text: i18n("PROJECTANIME.Roll.hit") });
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chargeHitCarried")}</em>`);
+  } else if (needsAccuracy) {
     const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
     const rmods = collectRollModifiers(actor, hasStrike ? "attack" : "check", { target: targetActor });
     // "Sharpen Accuracy" advancement: a flat bonus baked into the Skill's Check.
@@ -1827,11 +1978,64 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
 /*  Charge & Devour (Skill modifiers)           */
 /* -------------------------------------------- */
 
-/** Begin charging a Charge Skill: pay its Energy now (the focus turn's cost), flag the actor, and
- *  post a card with a Release button. Re-activating the Skill — or clicking Release — on a later
- *  turn resolves it at double power (rules p.13). One charge is held at a time per actor. */
+/** Begin charging a Charge Skill: pay its Energy and — v0.03 — ROLL TO HIT on the focus turn.
+ *  A miss fades the charge on the spot; a hit locks in, and the release (re-activating the
+ *  Skill or its card's Release button) resolves next turn at double power without re-rolling.
+ *  Non-accuracy and area Charges keep resolving at release (nothing to hit yet). One charge is
+ *  held at a time per actor. */
 async function startCharge(actor, item) {
-  if (!(await spendSkillEnergy(actor, item.system, item))) return null;
+  const sys = item.system;
+  const targetToken = firstTargetToken();
+  const targetActor = targetToken?.actor ?? null;
+  const needsAccuracy = !aoeKind(item)
+    && skillNeedsAccuracy(sys, { enemyTarget: tokensAreEnemies(casterToken(actor), targetToken) });
+  if (needsAccuracy && !targetActor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
+  if (!(await spendSkillEnergy(actor, sys, item))) return null;
+
+  if (needsAccuracy) {
+    const { attrA, attrB, mod: accMod } = skillAccuracy(actor, item);
+    const accBonus = Math.max(0, Number(sys.accuracyMod) || 0);
+    const rmods = collectRollModifiers(actor, "attack", { target: targetActor });
+    const wsrc = skillWeapon(actor, item);
+    const wmods = wsrc ? collectWeaponModBonuses(actor, item, { src: wsrc, target: targetActor }) : { attack: 0, attackSources: [] };
+    if (wmods.attack) rmods.sources.push(...wmods.attackSources);
+    const { value: evasion, attr: evasionAttr } = evasionVs(targetActor, item);
+    const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, attrA), attrValue(actor, attrB), { accuracy: true, target: targetActor });
+    const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + accBonus + accMod + wmods.attack));
+    await roll.evaluate();
+    const [r1, r2] = dieResults(roll);
+    const fumble = r1 === 1 && r2 === 1;
+    const combo = r1 === r2 && r1 >= 6;
+    const hit = combo || (!fumble && (evasion == null || roll.total >= evasion));
+    const badges = [];
+    if (fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
+    else if (combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
+    badges.push(hit ? { cls: "success", text: i18n("PROJECTANIME.Roll.hit") } : { cls: "failure", text: i18n("PROJECTANIME.Roll.miss") });
+    const lines = [...stepNotes(reasons)];
+    const ml = rollModLine(rmods); if (ml) lines.push(ml);
+    if (evasion != null) lines.push(`${vsEvasionText(evasionAttr)} <strong>${targetActor.name}</strong>: ${evasion}`);
+    if (combo) { lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`); maybeGrantComboTurn(actor); }
+    await revealVanished(actor, lines);
+    if (!hit) {
+      lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chargeDissipated")}</em>`);
+      return postCard(actor, cardHTML({
+        title: item.name, subtitle: i18n("PROJECTANIME.Roll.charge"), icon: item.img,
+        badges, rollHTML: await roll.render(), description: await enrichDescription(item), lines
+      }), roll, { combo });
+    }
+    await actor.setFlag("project-anime", "chargeHit", { targetUuid: targetActor.uuid });
+    await actor.setFlag("project-anime", "charge", item.id);
+    lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chargeReleases")}</em>`);
+    return postCard(actor, cardHTML({
+      title: item.name, subtitle: i18n("PROJECTANIME.Roll.charge"), icon: item.img,
+      badges, rollHTML: await roll.render(), description: await enrichDescription(item), lines,
+      buttons: [{
+        data: `data-action="releaseCharge" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
+        label: `<i class="fas fa-bolt"></i> ${i18n("PROJECTANIME.Roll.release")}`
+      }]
+    }), roll, { combo });
+  }
+
   await actor.setFlag("project-anime", "charge", item.id);
   return postCard(actor, cardHTML({
     title: item.name,
@@ -2441,9 +2645,9 @@ const ENSNARE_EFFECTS = ["disguise", "illusion", "telepathy"];
 
 /**
  * Stamp an ensnare marker on the affected creature: the Skill's name + icon, its Duration as
- * the lifetime (Scene/Channeled ride the usual flags), the Skill-Die size as the Overcome CT,
- * and an autoKey so a re-cast refreshes rather than stacks. `self` marks the caster's own
- * Disguise shroud. Skipped while the target is Overcome-immune to this Skill.
+ * the lifetime (Scene/Channeled ride the usual flags), 7 + the Skill's SP cost (max 16) as the
+ * Overcome CT (v0.03), and an autoKey so a re-cast refreshes rather than stacks. `self` marks
+ * the caster's own Disguise shroud. Skipped while the target is Overcome-immune to this Skill.
  */
 async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = false } = {}) {
   if (!targetActor) return [];
@@ -2462,7 +2666,7 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
     ensnare: effectKey,
     ensnareSource: item.uuid,
     autoKey: `${item.id}:${effectKey}:${targetActor.id}`,
-    overcomeCT: skillPowerValue(actor, item),
+    overcomeCT: overcomeCTFor(item),
     scene
   };
   const channelKey = activeChannelKey(actor, item);
@@ -2491,8 +2695,8 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
 /**
  * The Overcome action: shrug off a Status Effect or an ensnaring Skill (Disguise / Illusion /
  * Telepathy). The bearer describes the attempt and rolls a Check of their chosen two Attributes
- * against a Challenge Threshold — prefilled with the inflicting Skill's die size when one was
- * stamped ("the Difficulty is set by the Skill die"), otherwise the table sets it. Success ends
+ * against a Challenge Threshold — prefilled with 7 + the inflicting Skill's SP cost, max 16
+ * (v0.03), when one was stamped; otherwise the table sets it. Success ends
  * the effect and grants immunity to re-application from the same source for the next 2 turns.
  * Opened from the Effects Panel's right-click. Returns the roll, or null if cancelled/invalid.
  */
@@ -2620,12 +2824,34 @@ function maybeGrantComboTurn(actor) {
   if (!cur || cur.actor !== actor) return;
   const key = `${cur.id}:${combat.round}`;   // round-stamped, so a stale grant can't resurface
   const flags = combat.flags?.["project-anime"] ?? {};
-  if (flags.comboGranted === key) return;    // no combo chains
+  if (flags.comboGranted === key) {          // no combo chains — instead, a Go-Again Combo
+    restoreLuckDieOnGoAgain(actor);          // restores one spent Luck Die (v0.03)
+    return;
+  }
   if (flags.comboTurn === key) return;       // already pending
   if (game.user.isGM) combat.setFlag("project-anime", "comboTurn", key);
   else if (game.users.activeGM) {
     game.socket.emit("system.project-anime", { type: "comboTurn", combatId: combat.id, combatantId: cur.id, actorUuid: actor.uuid });
   }
+}
+
+/**
+ * A Combo rolled during a Go-Again turn can't chain another extra turn — instead it restores one
+ * spent Luck Die: roll the ⟪Charm⟫ die and record the result (v0.03). Characters only (NPCs hold
+ * no Luck Dice); a full pool (3) restores nothing. Honors "luck" effects' Charm Step Up, like
+ * every other Luck Dice roll. Fire-and-forget from the sync combo path.
+ */
+async function restoreLuckDieOnGoAgain(actor) {
+  if (actor?.type !== "character" || !actor.isOwner) return;
+  const sys = actor.system;
+  if ((sys.luckDice?.length ?? 0) >= 3) return;
+  const die = stepUpDie(sys.attributes.charm.value, collectLuckSteps(actor));
+  const roll = await new Roll(`1d${die}`).evaluate();
+  await actor.update({ "system.luckDice": [...(sys.luckDice ?? []), roll.total] });
+  await roll.toMessage({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    flavor: game.i18n.format("PROJECTANIME.Roll.goAgainLuck", { name: actor.name, value: roll.total })
+  });
 }
 
 /**
@@ -2894,8 +3120,57 @@ export async function applyDamageTo(targetUuid, amount, heal, pool = "hp", { ign
   }
   if (!(applied > 0) && !heal) return;
   const stat = target.system[key] ?? { value: 0, max: 0 };
+  // Boss Bars (v0.03): HP damage that would empty the current Bar breaks it instead of defeating the
+  // Boss — unless it's the last Bar. On a break the excess is lost, the Bar refills, every Status ends,
+  // Desperation rises (+2 ATK/Bar via the broken count), and Resolve resets. The last Bar dies normally.
+  if (!heal && key === "hp" && target.type === "npc" && target.system.boss?.enabled) {
+    const remaining = Number(target.system.boss.remaining) || 1;
+    if (stat.value - applied <= 0) {
+      if (remaining > 1) { await breakBossBar(target); return; }
+      await postBossNote(target, "PROJECTANIME.Boss.defeated", { name: target.name });
+      await target.update({ "system.hp.value": 0, "system.boss.remaining": 0 });
+      return;
+    }
+  }
   const next = Math.clamp(stat.value + (heal ? applied : -applied), 0, stat.max);
   await target.update({ [`system.${key}.value`]: next });
+}
+
+/** Statuses that are BENEFICIAL (never shrugged by Boss Resolve, which only gates Detrimental ones). */
+const BENEFICIAL_STATUSES = new Set(["barrier", "regen", "reflect", "vanished"]);
+
+/** True for a Detrimental Status (a real condition that isn't beneficial) — what Boss Resolve shrugs. */
+function isDetrimentalStatus(id) {
+  return (PROJECTANIME.conditionKeys ?? []).includes(id) && !BENEFICIAL_STATUSES.has(id);
+}
+
+/** Post a Boss-bar announcement to chat (bar break / defeat / Resolve shrug). GM/owner side. */
+async function postBossNote(actor, key, data) {
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<div class="pa-boss-note"><i class="fas fa-crown"></i> ${i18n(key, data)}</div>`
+  });
+}
+
+/** Break the Boss's current Bar (rules v0.03): refill to one Bar, end every Status on it, count the
+ *  broken Bar (Desperation +2 ATK), reset the Bar's Resolve, and announce the break (it may Shift). */
+async function breakBossBar(target) {
+  const boss = target.system.boss ?? {};
+  const barHp = Number(boss.barHp) || Number(target.system.hp?.max) || 1;
+  const remaining = Math.max(0, (Number(boss.remaining) || 1) - 1);
+  const broken = (Number(boss.broken) || 0) + 1;
+  // End every Status Effect on the Boss (excess damage is lost; the Bar refills).
+  for (const s of [...(target.statuses ?? [])]) {
+    try { await applyStatusTo(target.uuid, s, false); } catch (_e) { /* ignore a stubborn status */ }
+  }
+  await target.update({
+    "system.hp.value": barHp,
+    "system.boss.remaining": remaining,
+    "system.boss.broken": broken,
+    "system.boss.resolveUsed": false
+  });
+  await postBossNote(target, "PROJECTANIME.Boss.barBroken",
+    { name: target.name, remaining, total: Number(boss.bars) || 0 });
 }
 
 /** A status condition that auto-expires by counting down the target's own turns (rules: default
@@ -2933,6 +3208,15 @@ function effectGrantsStatus(effect, status) {
 export async function applyStatusTo(targetUuid, statusId, active = true, duration = 2, { decayType = "", value = 0, pool = "hp", overcomeCT = 0 } = {}) {
   const target = await fromUuid(targetUuid);
   if (!target?.toggleStatusEffect) return;
+  // Boss Resolve (v0.03): once per Bar, a Boss shrugs off a Detrimental Status that WOULD apply (the
+  // damage still landed — this only gates the status). Spend the Bar's Resolve + announce, don't apply.
+  if (active && target.type === "npc" && target.system.boss?.enabled
+      && !target.system.boss.resolveUsed && isDetrimentalStatus(statusId)) {
+    await target.update({ "system.boss.resolveUsed": true });
+    await postBossNote(target, "PROJECTANIME.Boss.resolveShrug",
+      { name: target.name, status: i18n(`PROJECTANIME.Status.${statusId}`) });
+    return;
+  }
   await target.toggleStatusEffect(statusId, { active });
   // Lingering (`decay`) carries an optional Element (its damage type) so the end-of-turn tick can
   // affinity-adjust the 1 HP it deals. Stash it on apply (or clear a stale one when applied
@@ -2961,8 +3245,8 @@ export async function applyStatusTo(targetUuid, statusId, active = true, duratio
     if (active && (pool === "hp" || pool === "energy")) await target.setFlag("project-anime", "curse", { pool });
     else if (!active && target.getFlag("project-anime", "curse")) await target.update({ "flags.project-anime.-=curse": null });
   }
-  // The Overcome action's Difficulty "is set by the Skill die" (rules v0.01) — a Skill-inflicted
-  // status stamps its die size so the Overcome dialog can prefill the CT. Cleared with the status.
+  // The Overcome action's Difficulty is 7 + the Skill's SP cost, max 16 (v0.03) — a
+  // Skill-inflicted status stamps it so the Overcome dialog can prefill the CT. Cleared with the status.
   if (active && overcomeCT > 0) await target.setFlag("project-anime", "overcomeCT", { [statusId]: Math.round(overcomeCT) });
   else if (!active && statusId in (target.getFlag("project-anime", "overcomeCT") ?? {})) {
     await target.update({ [`flags.project-anime.overcomeCT.-=${statusId}`]: null });
@@ -3013,11 +3297,19 @@ function skillDieAttr(item) {
 }
 
 /** A Skill's POWER (v0.03): the chosen ACC Attribute's value, plus Weapon DMG for a weapon
- *  Skill. Flat, never rolled — drives Strike damage, Heal amount, and the Overcome CT. */
+ *  Skill. Flat, never rolled — drives Strike damage and Heal amount (the Overcome CT is
+ *  7 + SP cost, overcomeCTFor). */
 function skillPowerValue(actor, item) {
   if (!actor || item?.type !== "skill") return 0;
   const weapon = skillWeapon(actor, item);
   return attrValue(actor, skillDieAttr(item)) + (weapon ? (Number(weapon.system.damage?.mod) || 0) : 0);
+}
+
+/** The Overcome action's Difficulty against a Skill-inflicted effect (v0.03): 7 + the Skill's
+ *  SP cost, to a maximum of 16. */
+function overcomeCTFor(item) {
+  if (item?.type !== "skill") return 0;
+  return Math.min(16, 7 + (Number(item.system?.spCost) || 0));
 }
 
 /**
@@ -3042,7 +3334,7 @@ async function applyConditionFromItem(actor, item, targetActor, c, lines) {
   const opts = {};
   let label = c.label;
   if (item?.type === "skill") {
-    opts.overcomeCT = skillPowerValue(actor, item);
+    opts.overcomeCT = overcomeCTFor(item);
     if ((PROJECTANIME.valuedStatuses ?? []).includes(c.id)) {
       // Barrier carries the Skill's FULL SP cost; Regen half of it (v0.03) — Regen heals the
       // chosen pool each turn (collectSustain), Barrier absorbs into it.
@@ -3081,7 +3373,7 @@ async function inflictDecay(item, targetActor, lines) {
     lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.immune", { name: targetActor.name, condition })}</em>`);
     return;
   }
-  const overcomeCT = item.actor ? skillPowerValue(item.actor, item) : 0;
+  const overcomeCT = overcomeCTFor(item);
   await applyStatusEffect(targetActor, "decay", skillStatusDuration(item), { decayType: element, overcomeCT });
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition, name: targetActor.name })}</em>`);
 }

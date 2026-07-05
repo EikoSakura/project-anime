@@ -9,15 +9,14 @@
     <button type="button" data-action="openDrawer" data-section="effects"><i class="fas fa-wand-magic-sparkles"></i><span>{{localize "PROJECTANIME.Effect.title"}}</span></button>
     {{/unless}}
     {{#if isCharacter}}<button type="button" data-action="openDrawer" data-section="bonds"><i class="fas fa-hand-holding-heart"></i><span>{{localize "PROJECTANIME.Tab.bonds"}}</span></button>{{/if}}
-    {{#if isNpcRole}}<button type="button" data-action="openDrawer" data-section="npcbond"><i class="fas fa-hand-holding-heart"></i><span>{{localize "PROJECTANIME.NpcBond.tab"}}</span></button>{{/if}}
     <button type="button" data-action="openDrawer" data-section="biography"><i class="fas fa-feather"></i><span>{{localize "PROJECTANIME.Tab.biography"}}</span></button>
   </nav>
 
   {{#if isNpcRole}}
-  {{!-- NPC identity dossier — leads with who they are + the Bond they offer; combat stats fold below. --}}
+  {{!-- NPC identity dossier — leads with who they are; combat stats fold below. --}}
   <section class="npc-dossier">
-    {{!-- Identity fields live on the Biography tab; the Bond offer on the Bond tab. This dossier is the
-          HQ work profile: Talents (work dice) + Unique Trait + Trait Bonuses. --}}
+    {{!-- Identity fields live on the Biography tab. This dossier is the HQ work profile:
+          Talents (work dice) + Unique Trait + Trait Bonuses. --}}
     <div class="nd-talents">
       <div class="nd-thead"><i class="fas fa-dice-d20"></i> {{localize "PROJECTANIME.Talent.title"}}</div>
       <div class="attributes nd-talents-grid">
@@ -76,6 +75,7 @@
   <div class="statblock">
     <div class="statblock-body">
 
+  {{#unless isCharacter}}
   <div class="attributes">
     {{#each attributeList as |attr|}}
     <div class="attribute-card" data-attribute="{{attr.key}}">
@@ -85,63 +85,107 @@
       </div>
       <div class="attr-die rollable" data-action="rollCheck" data-attribute="{{attr.key}}"
            title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span class="die-face">{{attr.die}}</span></div>
-      {{!-- Base value: kept wired (same data path) but tucked away — reveals on hover/focus to edit. --}}
+      {{!-- Base value: kept wired (same data path) but tucked away — reveals on hover/focus to edit. A
+            Monster's dice derive from its Role × Tier (Strong/Weak), so its base is not hand-edited here. --}}
+      {{#unless @root.isMonster}}
       <label class="attr-base-edit" title="{{localize 'PROJECTANIME.Field.base'}}">
         <span class="abe-label">{{localize "PROJECTANIME.Field.base"}}</span>
         <input class="attr-base" type="number" name="system.attributes.{{attr.key}}.base"
                value="{{attr.base}}" min="4" max="12" step="2" />
       </label>
+      {{else}}
+      <span class="attr-sw {{#if attr.strong}}strong{{else}}weak{{/if}}">{{#if attr.strong}}{{localize "PROJECTANIME.EnemyRole.strongShort"}}{{else}}{{localize "PROJECTANIME.EnemyRole.weakShort"}}{{/if}}</span>
+      {{/unless}}
     </div>
     {{/each}}
   </div>
+  {{/unless}}
 
-  <div class="quickbar">
-    <section class="quick-block weapons">
-      <div class="qs-head"><h3>{{localize "PROJECTANIME.Quick.weapons"}}</h3></div>
-      <div class="item-grid quick-grid">
+  <div class="quickbar cmd-wrap">
+    <section class="cmd-sec cmd-equip">
+      <div class="cmd-sechead"><h3>{{localize "PROJECTANIME.Quick.weapons"}}</h3><span class="cmd-ln"></span></div>
+      <div class="cmd-list">
         {{#each quickWeapons as |w|}}
-        <div class="item-tile quick-tile{{#if w.natural}} natural{{/if}}" data-item-id="{{w.id}}" data-readied-type="weapon">
-          <div class="tile-icon" data-action="rollItem"><img src="{{w.img}}" alt="{{w.name}}" />{{#if w.natural}}<span class="tile-qty natural" title="{{localize 'PROJECTANIME.NaturalAttack.hint'}}"><i class="fas fa-hand-fist"></i></span>{{/if}}{{#if w.shield}}<span class="tile-qty shield" title="{{localize 'PROJECTANIME.Quick.shieldBash'}}"><i class="fas fa-shield-halved"></i></span>{{/if}}</div>
-          <span class="tile-name">{{w.name}}</span>
+        <div class="cmd-row eq{{#if w.natural}} natural{{/if}}" data-item-id="{{w.id}}" data-readied-type="weapon">
+          <div class="cmd-head">
+            <span class="cmd-ico" data-action="rollItem"><img src="{{w.img}}" alt="{{w.name}}" /></span>
+            <div class="cmd-mid">
+              <span class="cmd-name" data-action="rollItem">{{w.name}}</span>
+              <span class="cmd-tag">{{w.typeLabel}}</span>
+            </div>
+            <div class="cmd-right">
+              {{#if w.hasMeta}}<span class="cmd-caret">›</span>{{/if}}
+            </div>
+          </div>
+          {{#if w.hasMeta}}
+          <div class="cmd-desc">
+            <div class="eq-card">
+              <div class="eq-card-strip"></div>
+              <div class="eq-body">
+                <div class="eq-rows">
+                  {{#if w.accHTML}}<div class="eq-row"><span class="k"><i class="fas fa-crosshairs"></i>{{localize "PROJECTANIME.Field.accuracy"}}</span><span class="v">{{{w.accHTML}}}</span></div>{{/if}}
+                  {{#if w.dmgLabel}}<div class="eq-row"><span class="k"><i class="fas fa-burst"></i>{{localize "PROJECTANIME.Roll.damage"}}</span><span class="v">{{w.dmgLabel}}</span></div>{{/if}}
+                  {{#if w.rangeText}}<div class="eq-row"><span class="k"><i class="fas fa-arrows-left-right-to-line"></i>{{localize "PROJECTANIME.Field.range"}}</span><span class="v">{{w.rangeText}}</span></div>{{/if}}
+                </div>
+                {{#if w.descHTML}}<div class="eq-desc">{{{w.descHTML}}}</div>{{/if}}
+                {{#if w.natural}}<div class="eq-tags"><span class="eq-tag"><i class="fas fa-hand-fist"></i>{{localize "PROJECTANIME.NaturalAttack.tag"}}</span></div>{{/if}}
+                {{#if w.shield}}<div class="eq-tags"><span class="eq-tag"><i class="fas fa-shield-halved"></i>{{localize "PROJECTANIME.Quick.shieldBash"}}</span></div>{{/if}}
+              </div>
+            </div>
+          </div>
+          {{/if}}
         </div>
         {{else}}
-        <div class="tile-empty muted">—</div>
+        <div class="cmd-empty muted">—</div>
         {{/each}}
       </div>
     </section>
 
-    <section class="quick-block skills">
-      <div class="qs-head">
-        <h3>{{localize "PROJECTANIME.Quick.skills"}}</h3>
-        {{#if @root.editable}}
-        <a class="qs-add" data-action="addReadied" title="{{localize 'PROJECTANIME.Quick.addSkill'}}"><i class="fas fa-plus"></i></a>
-        {{/if}}
+    <section class="cmd-sec cmd-skills">
+      <div class="cmd-sechead">
+        <h3>{{localize "PROJECTANIME.Quick.skills"}}</h3><span class="cmd-ln"></span>
+        {{#if @root.editable}}<a class="cmd-add" data-action="buildSkill" title="{{localize 'PROJECTANIME.SkillBuilder.title'}}"><i class="fas fa-plus"></i></a>{{/if}}
       </div>
-      {{#each quickSkillGroups as |g|}}
-      <div class="qs-group">
-        <h4 class="qs-sub">{{g.label}}</h4>
-        <div class="item-grid quick-grid">
-          {{#each g.skills as |s|}}
-          <div class="item-tile quick-tile" data-item-id="{{s.id}}" data-readied-type="skill">
-            <div class="tile-icon" data-action="rollItem"><img src="{{s.img}}" alt="{{s.name}}" />{{#if s.energyCost}}<span class="tile-qty energy"><i class="fas fa-bolt"></i>{{s.energyCost}}</span>{{/if}}</div>
-            <span class="tile-name">{{s.name}}</span>
-            {{#if @root.editable}}<a class="tile-unready" data-action="unreadySkill"><i class="fas fa-xmark"></i></a>{{/if}}
+      {{#each skillGroups as |g|}}
+      <div class="cmd-group">◆ {{g.label}} <span class="cmd-gc">{{g.skills.length}}</span></div>
+      <div class="cmd-list" data-reorder data-group="{{g.key}}">
+        {{#each g.skills as |s|}}
+        <div class="cmd-row sk{{#if s.pinned}} pinned{{/if}}" data-item-id="{{s.id}}" data-readied-type="skill">
+          <div class="cmd-head">
+            {{#if @root.editable}}<span class="cmd-grip" title="{{localize 'PROJECTANIME.Quick.reorder'}}">⠿</span>{{/if}}
+            <span class="cmd-ico" data-action="rollItem"><img src="{{s.img}}" alt="{{s.name}}" /></span>
+            <div class="cmd-mid">
+              <span class="cmd-name" data-action="rollItem">{{s.name}}</span>
+              {{#if s.granted}}<span class="cmd-tag granted" title="{{s.grantedTip}}"><i class="fas fa-gift"></i></span>{{/if}}
+            </div>
+            <div class="cmd-right">
+              {{#if s.energyCost}}<span class="cmd-cost{{#unless s.affordable}} short{{/unless}}" title="{{localize 'PROJECTANIME.Skill.field.energyCost'}}"><i class="fas fa-bolt"></i>{{s.energyCost}}</span>{{/if}}
+              {{#if s.descHTML}}<span class="cmd-caret">›</span>{{/if}}
+            </div>
           </div>
-          {{/each}}
+          {{#if s.descHTML}}<div class="cmd-desc"><div class="cmd-desc-in">{{{s.descHTML}}}</div></div>{{/if}}
         </div>
+        {{/each}}
       </div>
+      {{else}}
+      <div class="cmd-empty muted">{{localize "PROJECTANIME.Empty"}}</div>
       {{/each}}
     </section>
 
     {{#if quickItems.length}}
-    <section class="quick-block items">
-      <div class="qs-head"><h3>{{localize "PROJECTANIME.Quick.items"}}</h3></div>
-      <div class="item-grid quick-grid">
+    <section class="cmd-sec cmd-items">
+      <div class="cmd-sechead"><h3>{{localize "PROJECTANIME.Quick.items"}}</h3><span class="cmd-ln"></span></div>
+      <div class="cmd-list">
         {{#each quickItems as |it|}}
-        <div class="item-tile quick-tile" data-item-id="{{it.id}}" data-readied-type="item">
-          <div class="tile-icon" data-action="rollItem"><img src="{{it.img}}" alt="{{it.name}}" />{{#if it.qty}}<span class="tile-qty">{{it.qty}}</span>{{/if}}</div>
-          <span class="tile-name">{{it.name}}</span>
-          {{#if @root.editable}}<a class="tile-unready" data-action="unreadySkill" title="{{localize 'PROJECTANIME.Quick.unpinItem'}}"><i class="fas fa-xmark"></i></a>{{/if}}
+        <div class="cmd-row eq" data-item-id="{{it.id}}" data-readied-type="item">
+          <div class="cmd-head">
+            <span class="cmd-ico" data-action="rollItem"><img src="{{it.img}}" alt="{{it.name}}" /></span>
+            <div class="cmd-mid"><span class="cmd-name" data-action="rollItem">{{it.name}}</span></div>
+            <div class="cmd-right">
+              {{#if it.qty}}<span class="cmd-mini">×{{it.qty}}</span>{{/if}}
+              {{#if @root.editable}}<a class="cmd-pin on" data-action="unreadySkill" title="{{localize 'PROJECTANIME.Quick.unpinItem'}}"><i class="fas fa-xmark"></i></a>{{/if}}
+            </div>
+          </div>
         </div>
         {{/each}}
       </div>

@@ -4,19 +4,22 @@
       only for Characters ({{isCharacter}}); a Monster just gets carry + paperdoll + bags + grid.
       Context keys: paperdoll, bags, bagItems, actor, system, isCharacter, @root.editable. --}}
 {{#*inline "pdSlot"}}
-<div class="pd-slot{{#if item}} filled{{/if}}" data-slot="{{key}}"
-     {{#if @root.editable}}data-action="pickSlot"{{/if}}
+<div class="pd-slot{{#if item}} filled{{/if}}{{#if locked}} locked{{/if}}" data-slot="{{key}}"
+     {{#if @root.editable}}{{#unless locked}}data-action="pickSlot"{{/unless}}{{/if}}
      title="{{label}}{{#if item}} — {{item.name}}{{/if}}">
   <div class="pd-cell">
     {{#if item}}
     <img class="pd-icon" src="{{item.img}}" alt="{{item.name}}" data-item-id="{{item.id}}"{{#if @root.editable}} draggable="true"{{/if}} />
     {{#if @root.editable}}<a class="pd-unequip" data-action="unequipSlot" data-slot="{{key}}" title="{{localize 'PROJECTANIME.Action.unequip'}}"><i class="fas fa-xmark"></i></a>{{/if}}
     {{#if item.shield}}{{#if @root.editable}}<a class="pd-mode" data-action="cycleShieldUse" data-item-id="{{item.id}}" title="{{#if item.dualWield}}{{localize 'PROJECTANIME.Action.useShieldOnly'}}{{else}}{{localize 'PROJECTANIME.Action.useDualWield'}}{{/if}}"><i class="fas {{#if item.dualWield}}fa-hand-fist{{else}}fa-shield-halved{{/if}}"></i></a>{{/if}}{{/if}}
+    {{#if item.gripToggle}}{{#if @root.editable}}<a class="pd-mode pd-grip" data-action="cycleGrip" data-item-id="{{item.id}}" title="{{#if item.twoHanded}}{{localize 'PROJECTANIME.Action.gripOne'}}{{else}}{{localize 'PROJECTANIME.Action.gripTwo'}}{{/if}}"><i class="fas {{#if item.twoHanded}}fa-hands{{else}}fa-hand{{/if}}"></i></a>{{/if}}{{/if}}
+    {{else}}{{#if locked}}
+    <i class="pd-lock fas fa-lock"></i>
     {{else}}
     <i class="pd-placeholder fas {{icon}}"></i>
-    {{/if}}
+    {{/if}}{{/if}}
   </div>
-  <span class="pd-name">{{#if item}}{{item.name}}{{else}}{{label}}{{/if}}</span>
+  <span class="pd-name">{{#if item}}{{item.name}}{{else}}{{#if locked}}{{localize "PROJECTANIME.Equipment.twoHandedHeld"}}{{else}}{{label}}{{/if}}{{/if}}</span>
 </div>
 {{/inline}}
 
@@ -51,6 +54,37 @@
   </div>
 </div>
 
+{{!-- Reusable inventory tile — shared by the single-bag grid and the combined-view sections. Called
+      with the item as context: {{> itemTile item}}. --}}
+{{#*inline "itemTile"}}
+<div class="item-tile{{#if equipped}} equipped{{/if}}" data-item-id="{{id}}"{{#if @root.editable}} draggable="true"{{/if}} title="{{name}}">
+  <div class="tile-icon" data-action="{{#if @root.gearChatClick}}postItem{{else}}editItem{{/if}}">
+    <img src="{{img}}" alt="{{name}}" />
+    {{#if qty}}<span class="tile-qty">{{qty}}</span>{{/if}}
+  </div>
+  <span class="tile-name">{{name}}</span>
+  {{!-- Actor sheet: no hover icons — left-click posts to chat, right-click opens the full gear menu
+        (equip / pin / edit / delete). The Monster Creator builder grid keeps them. --}}
+  {{#unless @root.gearChatClick}}
+  <div class="tile-actions">
+    <a data-action="rollItem" title="{{localize 'PROJECTANIME.Action.toChat'}}"><i class="fas fa-comment"></i></a>
+    {{#if equippable}}
+    <a data-action="toggleEquip" class="{{#if equipped}}active{{/if}}" title="{{localize 'PROJECTANIME.Action.equip'}}"><i class="fas fa-shield-halved"></i></a>
+    {{/if}}
+    {{#if @root.editable}}
+    <a data-action="deleteItem" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>
+    {{/if}}
+  </div>
+  {{/unless}}
+</div>
+{{/inline}}
+
+{{#*inline "addTile"}}
+<div class="item-tile add-tile" data-action="createMenu" title="{{localize 'PROJECTANIME.Action.addItem'}}">
+  <div class="tile-icon add-icon"><i class="fas fa-plus"></i></div>
+</div>
+{{/inline}}
+
 <div class="bag-bar">
   {{#each bags as |bag|}}
   <div class="bag-tab{{#if bag.selected}} active{{/if}}" data-bag-id="{{bag.id}}" data-action="selectBag"
@@ -68,32 +102,83 @@
   {{#if @root.editable}}
   <a class="bag-add" data-action="createItem" data-type="container" title="{{localize 'PROJECTANIME.Container.add'}}"><i class="fas fa-plus"></i></a>
   {{/if}}
+  {{#if @root.gearChatClick}}
+  <a class="bag-view-toggle{{#if bagViewCombined}} on{{/if}}" data-action="toggleBagView"
+     title="{{#if bagViewCombined}}{{localize 'PROJECTANIME.Container.viewSingle'}}{{else}}{{localize 'PROJECTANIME.Container.viewCombined'}}{{/if}}">
+    <i class="fas fa-layer-group"></i>
+  </a>
+  {{/if}}
 </div>
 
-<div class="pd-bag">
-  <div class="item-grid">
-    {{#each bagItems as |item|}}
-    <div class="item-tile{{#if item.equipped}} equipped{{/if}}" data-item-id="{{item.id}}"{{#if @root.editable}} draggable="true"{{/if}} title="{{item.name}}">
-      <div class="tile-icon" data-action="editItem">
-        <img src="{{item.img}}" alt="{{item.name}}" />
-        {{#if item.qty}}<span class="tile-qty">{{item.qty}}</span>{{/if}}
+{{#if @root.gearChatClick}}
+  {{#if bagViewCombined}}
+  {{!-- Combine Bags (WoW retail): a labeled section per container, backpack first. The active bag
+        (last-clicked tab) holds the "add" tile so new items file into it. --}}
+  <div class="pd-bag bag-combined">
+    {{#each bagSections as |sec|}}
+    <div class="bag-section{{#if sec.selected}} active{{/if}}">
+      <div class="sec-head" data-bag-id="{{sec.id}}" data-action="selectBag">
+        {{#if sec.backpack}}<i class="sec-ico fas {{sec.icon}}"></i>{{else}}<img class="sec-ico img" src="{{sec.img}}" alt="" />{{/if}}
+        <span class="sec-name">{{sec.name}}</span>
+        <span class="sec-line"></span>
+        {{#if sec.capacityBonus}}<span class="sec-bonus" title="{{localize 'PROJECTANIME.Field.capacityBonus'}}">+{{sec.capacityBonus}}</span>{{/if}}
+        <span class="sec-cap">{{sec.count}}</span>
       </div>
-      <span class="tile-name">{{item.name}}</span>
-      <div class="tile-actions">
-        <a data-action="rollItem" title="{{localize 'PROJECTANIME.Action.toChat'}}"><i class="fas fa-comment"></i></a>
-        {{#if item.equippable}}
-        <a data-action="toggleEquip" class="{{#if item.equipped}}active{{/if}}" title="{{localize 'PROJECTANIME.Action.equip'}}"><i class="fas fa-shield-halved"></i></a>
-        {{/if}}
-        {{#if @root.editable}}
-        <a data-action="deleteItem" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>
-        {{/if}}
+      <div class="item-grid">
+        {{#each sec.items as |item|}}{{> itemTile item}}{{/each}}
+        {{#if @root.editable}}{{#if sec.selected}}{{> addTile}}{{/if}}{{/if}}
       </div>
     </div>
     {{/each}}
-    {{#if @root.editable}}
-    <div class="item-tile add-tile" data-action="createMenu" title="{{localize 'PROJECTANIME.Action.addItem'}}">
-      <div class="tile-icon add-icon"><i class="fas fa-plus"></i></div>
+  </div>
+  {{else}}
+  {{!-- Open a Bag (WoW classic): the selected container as a framed panel with its own grid. --}}
+  <div class="pd-bag">
+    <div class="bag-open">
+      <div class="open-head">
+        {{#if openBag.backpack}}<i class="open-ico fas {{openBag.icon}}"></i>{{else}}<img class="open-ico img" src="{{openBag.img}}" alt="" />{{/if}}
+        <div class="open-titles">
+          <div class="open-name">{{openBag.name}}</div>
+          <div class="open-cap">{{openBag.count}} {{localize "PROJECTANIME.Container.items"}}{{#if openBag.capacityBonus}} · +{{openBag.capacityBonus}} {{localize "PROJECTANIME.Field.capacityBonus"}}{{/if}}</div>
+        </div>
+      </div>
+      <div class="open-body">
+        <div class="item-grid">
+          {{#each bagItems as |item|}}{{> itemTile item}}{{/each}}
+          {{#if @root.editable}}{{> addTile}}{{/if}}
+        </div>
+      </div>
     </div>
-    {{/if}}
+  </div>
+  {{/if}}
+{{else}}
+  {{!-- Monster Creator builder grid — the original flat single grid, unchanged. --}}
+  <div class="pd-bag">
+    <div class="item-grid">
+      {{#each bagItems as |item|}}{{> itemTile item}}{{/each}}
+      {{#if @root.editable}}{{> addTile}}{{/if}}
+    </div>
+  </div>
+{{/if}}
+
+{{#if hasMaterials}}
+<div class="mat-section">
+  <h4 class="mat-h"><i class="fa-solid fa-gem"></i> {{localize "PROJECTANIME.Material.label"}}</h4>
+  <div class="mat-list">
+    {{#each materials}}
+    <div class="mat-row{{#if prime}} is-prime{{/if}}" data-item-id="{{id}}" title="{{name}}">
+      <span class="mat-ico"><i class="{{icon}}"></i></span>
+      <span class="mat-name">{{name}}</span>
+      <span class="mat-tier">{{tierRoman}}</span>
+      <span class="mat-qty">×{{qty}}</span>
+      {{#if @root.editable}}
+      <span class="mat-actions">
+        <a data-action="editItem" data-item-id="{{id}}" title="{{localize 'PROJECTANIME.Action.edit'}}"><i class="fas fa-edit"></i></a>
+        <a data-action="deleteItem" data-item-id="{{id}}" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>
+      </span>
+      {{/if}}
+    </div>
+    {{/each}}
   </div>
 </div>
+{{/if}}

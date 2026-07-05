@@ -1,11 +1,21 @@
-{{!-- Item header (all types) --}}
+{{!-- Item header (all types) — JRPG status-card hero: framed art with corner studs,
+      display-serif name, type badge + tags, and a gold worth coin (only when cost > 0). --}}
 <header class="sheet-header item-header">
-  <img class="profile-img" src="{{item.img}}" data-action="editImage" data-edit="img"
-       title="{{item.name}}" alt="{{item.name}}" />
+  <div class="item-portrait">
+    <div class="ip-frame">
+      <img class="profile-img" src="{{item.img}}" data-action="editImage" data-edit="img"
+           title="{{item.name}}" alt="{{item.name}}" />
+    </div>
+    <i class="stud s-n"></i><i class="stud s-e"></i><i class="stud s-s"></i><i class="stud s-w"></i>
+  </div>
   <div class="header-fields">
-    <input class="item-name" type="text" name="name" value="{{item.name}}" placeholder="{{localize 'Name'}}" />
+    <div class="header-title-row">
+      <input class="item-name" type="text" name="name" value="{{item.name}}" placeholder="{{localize 'Name'}}" />
+      {{#if worth}}<span class="item-worth" title="{{localize 'PROJECTANIME.Field.cost'}}"><span class="coin"></span>{{worth}}</span>{{/if}}
+    </div>
     <div class="header-sub">
       <span class="type-badge">{{#if typeIcon}}<i class="{{typeIcon}}"></i> {{/if}}{{typeLabel}}</span>
+      {{#each headerTags as |t|}}{{#if t.text}}<span class="sub-tag">{{t.text}}</span>{{/if}}{{/each}}
       {{#if summary}}<span class="item-summary muted">{{summary}}</span>{{/if}}
     </div>
   </div>

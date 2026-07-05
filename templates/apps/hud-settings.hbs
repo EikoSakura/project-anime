@@ -6,6 +6,11 @@
   </div>
 
   <div class="ts-field">
+    <label class="ts-label" for="pa-hud-select">{{localize "PROJECTANIME.Settings.hud.selectMode.name"}}</label>
+    <select id="pa-hud-select" name="selectMode">{{selectOptions selectModeChoices selected=selectMode}}</select>
+  </div>
+
+  <div class="ts-field">
     <label class="ts-label" for="pa-hud-intensity">{{localize "PROJECTANIME.Settings.hud.intensity.name"}}</label>
     <select id="pa-hud-intensity" name="intensity">{{selectOptions intensityChoices selected=intensity}}</select>
   </div>
@@ -18,6 +23,11 @@
   <div class="ts-field">
     <label class="ts-label" for="pa-hud-size">{{localize "PROJECTANIME.Settings.hud.size.name"}}</label>
     <select id="pa-hud-size" name="size">{{selectOptions sizeChoices selected=size}}</select>
+  </div>
+
+  <div class="ts-field">
+    <label class="ts-label" for="pa-hud-party-size">{{localize "PROJECTANIME.Settings.hud.partySize.name"}}</label>
+    <select id="pa-hud-party-size" name="partySize">{{selectOptions partySizeChoices selected=partySize}}</select>
   </div>
 
   <div class="ts-field ts-check">
@@ -33,6 +43,7 @@
   </div>
 
   <footer class="ec-footer">
+    <button type="button" class="ec-reset" data-action="resetPartyPos"><i class="fa-solid fa-arrows-to-dot"></i> {{localize "PROJECTANIME.Settings.hud.resetPartyPos"}}</button>
     <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.hudSettings.save"}}</button>
   </footer>
 </div>

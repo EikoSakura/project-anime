@@ -14,6 +14,11 @@
       <span class="dia"><span class="face">{{#if isNpcRole}}<i class="fas fa-user"></i>{{else}}<i class="fas fa-dragon"></i>{{/if}}</span></span>
     </button>
     {{/if}}
+    {{#if tierRoman}}
+    <span class="tier-crest" title="{{localize 'PROJECTANIME.EnemyTier.tier'}} {{tierRoman}}">
+      <span class="dia"><span class="face">{{tierRoman}}</span></span>
+    </span>
+    {{/if}}
   </div>
 
   <input class="char-name" type="text" name="name" value="{{actor.name}}" placeholder="{{localize 'Name'}}" />
@@ -37,9 +42,11 @@
     {{#if isMonster}}<button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.MonsterCreator.title'}}">
       <i class="fas fa-dragon"></i><span>{{localize "PROJECTANIME.MonsterCreator.open"}}</span>
     </button>{{/if}}
+    {{#if isNpcRole}}
     <button type="button" class="advance-btn" data-action="openAdvancement" title="{{localize 'PROJECTANIME.Advancement.title'}}">
       <i class="fas fa-arrow-up-right-dots"></i><span>{{localize "PROJECTANIME.Advancement.open"}}</span>
     </button>
+    {{/if}}
   </div>
   {{/if}}
 
@@ -51,13 +58,36 @@
     {{#if isNPC}}
     <select name="system.disposition">{{selectOptions config.dispositions selected=system.disposition localize=true}}</select>
     {{#if tierBadge}}
-    <span class="tier-badge{{#if tierBadge.apex}} apex{{/if}}" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
-      {{#if tierBadge.stars}}<span class="tier-stars">{{#each tierBadge.stars}}<i class="fas fa-star"></i>{{/each}}</span>{{/if}}
-      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>
+    <span class="tier-badge" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
+      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>{{#if tierBadge.tierNumeral}}<span class="tier-numeral">{{localize "PROJECTANIME.EnemyTier.tier"}} {{tierBadge.tierNumeral}}</span>{{/if}}
     </span>
+    {{#if tierBadge.rival}}<span class="enemy-chip rival" title="{{localize 'PROJECTANIME.Rival.badgeHint'}}"><i class="fas fa-chess-king"></i>{{localize "PROJECTANIME.Rival.badge"}}</span>{{/if}}
+    {{#if tierBadge.boss}}<span class="enemy-chip boss" title="{{localize 'PROJECTANIME.Boss.badgeHint'}}"><i class="fas fa-crown"></i>{{localize "PROJECTANIME.Boss.badge"}}</span>{{/if}}
+    <span class="enemy-threat" title="{{localize 'PROJECTANIME.Threat.hint'}}"><i class="fas fa-skull"></i>{{tierBadge.threat}}</span>
     {{/if}}
     {{/if}}
   </div>
+
+  {{#if isCharacter}}
+  <div class="panel-rule"></div>
+  <div class="panel-attrs">
+    {{#each attributeList as |attr|}}
+    <div class="pattr" data-attribute="{{attr.key}}">
+      <div class="pattr-die rollable" data-action="rollCheck" data-attribute="{{attr.key}}" title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span>{{attr.die}}</span></div>
+      <label class="pattr-base" title="{{localize 'PROJECTANIME.Field.base'}}"><input class="attr-base" type="number" name="system.attributes.{{attr.key}}.base" value="{{attr.base}}" min="4" max="12" step="2" /></label>
+      <span class="pattr-name">{{#if attr.icon}}<i class="attr-icon {{attr.icon}}"></i>{{/if}}<span>{{attr.short}}</span></span>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if bossBars}}
+  <div class="boss-bars" title="{{localize 'PROJECTANIME.Boss.barsHint'}}">
+    <span class="boss-bars-label">{{localize "PROJECTANIME.Boss.bars"}}</span>
+    <span class="boss-bars-pips">{{#each bossBars.pips}}<i class="boss-pip{{#if this.full}} full{{/if}}"></i>{{/each}}</span>
+    <span class="boss-bars-count">{{bossBars.remaining}}/{{bossBars.total}}</span>
+  </div>
+  {{/if}}
 
   <div class="panel-rule"></div>
 

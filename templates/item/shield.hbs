@@ -1,40 +1,51 @@
 {{!-- Shield details --}}
 <section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
-  <p class="formula-preview">{{localize "PROJECTANIME.Field.accuracy"}}: <strong>{{accuracyFormula}}</strong></p>
-
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.attack"}}</h4>
     <div class="form-grid">
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.weaponType"}}</label>
         <input type="text" name="system.weaponType" value="{{system.weaponType}}" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyA"}}</label>
-        <select name="system.accuracy.attrA">{{selectOptions config.attributes selected=system.accuracy.attrA localize=true}}</select></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyB"}}</label>
-        <select name="system.accuracy.attrB">{{selectOptions config.attributes selected=system.accuracy.attrB localize=true}}</select></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.damageMod"}}</label>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyMod"}}</label>
+        <input type="number" name="system.accuracy.mod" value="{{system.accuracy.mod}}" /></div>
+      <div class="form-group span-2 accuracy-pair"><label>{{localize "PROJECTANIME.Field.accuracy"}}</label>
+        <div class="acc-attrs">
+          <select name="system.accuracy.attrA">{{selectOptions config.attributes selected=system.accuracy.attrA localize=true}}</select>
+          <span class="acc-plus">+</span>
+          <select name="system.accuracy.attrB">{{selectOptions config.attributes selected=system.accuracy.attrB localize=true}}</select>
+        </div>
+      </div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.weaponDmg"}}</label>
         <input type="number" name="system.damage.mod" value="{{system.damage.mod}}" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.rangeTiles"}}</label>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.range"}}</label>
         <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" /></div>
     </div>
   </div>
 
   <div class="form-section">
-    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.equipment"}}</h4>
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.defense"}}</h4>
     <div class="form-grid">
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.evasionBonus"}}</label>
         <input type="number" name="system.evasionBonus" value="{{system.evasionBonus}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.defenseBonus"}}</label>
         <input type="number" name="system.defenseBonus" value="{{system.defenseBonus}}" min="0" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.hand"}}</label>
-        <select name="system.hand">{{selectOptions config.hands selected=system.hand localize=true}}</select></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.shieldUse"}}</label>
-        <select name="system.use">{{selectOptions config.shieldUses selected=system.use localize=true}}</select></div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.properties"}}</h4>
+    <div class="form-grid">
+      {{!-- Wield As mirrors the weapon's Handedness toggle: dual-wield the shield as an off-hand
+            weapon, or carry it for defense only. --}}
+      <div class="form-group span-2 fg-center"><label>{{localize "PROJECTANIME.Field.shieldUse"}}</label>
+        <div class="pa-seg-toggle" role="group" aria-label="{{localize 'PROJECTANIME.Field.shieldUse'}}">
+          <button type="button" class="seg-opt{{#if shieldUseDual}} on{{/if}}" data-action="setChoice" data-field="system.use" data-value="dual">{{localize "PROJECTANIME.ShieldUse.dual"}}</button>
+          <button type="button" class="seg-opt{{#unless shieldUseDual}} on{{/unless}}" data-action="setChoice" data-field="system.use" data-value="shield">{{localize "PROJECTANIME.ShieldUse.shield"}}</button>
+        </div>
+      </div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.size"}}</label>
         <input type="number" name="system.size" value="{{system.size}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
         <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
-      <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>
-        <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} /></div>
     </div>
   </div>
 </section>

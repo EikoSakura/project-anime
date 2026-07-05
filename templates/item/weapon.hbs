@@ -1,44 +1,46 @@
 {{!-- Weapon details --}}
 <section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
-  <p class="formula-preview">{{localize "PROJECTANIME.Field.accuracy"}}: <strong>{{accuracyFormula}}</strong></p>
-
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.attack"}}</h4>
     <div class="form-grid">
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.weaponType"}}</label>
         <input type="text" name="system.weaponType" value="{{system.weaponType}}" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyA"}}</label>
-        <select name="system.accuracy.attrA">{{selectOptions config.attributes selected=system.accuracy.attrA localize=true}}</select></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyB"}}</label>
-        <select name="system.accuracy.attrB">{{selectOptions config.attributes selected=system.accuracy.attrB localize=true}}</select></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.accuracyMod"}}</label>
         <input type="number" name="system.accuracy.mod" value="{{system.accuracy.mod}}" /></div>
+      {{!-- Accuracy = Attribute A + Attribute B, one centered field (which two attributes it rolls). --}}
+      <div class="form-group span-2 accuracy-pair"><label>{{localize "PROJECTANIME.Field.accuracy"}}</label>
+        <div class="acc-attrs">
+          <select name="system.accuracy.attrA">{{selectOptions config.attributes selected=system.accuracy.attrA localize=true}}</select>
+          <span class="acc-plus">+</span>
+          <select name="system.accuracy.attrB">{{selectOptions config.attributes selected=system.accuracy.attrB localize=true}}</select>
+        </div>
+      </div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.weaponDmg"}}</label>
         <input type="number" name="system.damage.mod" value="{{system.damage.mod}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.damageType"}}</label>
         <select name="system.damage.type">{{selectOptions damageTypeChoices selected=system.damage.type}}</select></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.rangeMin"}}</label>
         <input type="number" name="system.range.minTiles" value="{{system.range.minTiles}}" min="0" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.rangeTiles"}}</label>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.range"}}</label>
         <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" /></div>
     </div>
   </div>
 
   <div class="form-section">
-    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.equipment"}}</h4>
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.properties"}}</h4>
     <div class="form-grid">
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.hand"}}</label>
-        <select name="system.hand">{{selectOptions config.hands selected=system.hand localize=true}}</select></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.grip"}}</label>
-        <select name="system.grip" {{#if system.twoHandedOnly}}disabled{{/if}}>{{selectOptions config.grips selected=system.grip localize=true}}</select></div>
-      <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.twoHandedOnly"}}</label>
-        <input type="checkbox" name="system.twoHandedOnly" {{#if system.twoHandedOnly}}checked{{/if}} /></div>
+      {{!-- Handedness is the weapon's inherent grip (One- vs Two-Handed). Which hand it's equipped
+            in is chosen on the character sheet. --}}
+      <div class="form-group span-2 fg-center"><label>{{localize "PROJECTANIME.Field.handedness"}}</label>
+        <div class="pa-seg-toggle" role="group" aria-label="{{localize 'PROJECTANIME.Field.handedness'}}">
+          <button type="button" class="seg-opt{{#unless system.twoHandedOnly}} on{{/unless}}" data-action="setTwoHanded" data-two="false">{{localize "PROJECTANIME.Grip.one"}}</button>
+          <button type="button" class="seg-opt{{#if system.twoHandedOnly}} on{{/if}}" data-action="setTwoHanded" data-two="true">{{localize "PROJECTANIME.Grip.two"}}</button>
+        </div>
+      </div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.size"}}</label>
         <input type="number" name="system.size" value="{{system.size}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
         <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
-      <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>
-        <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} /></div>
     </div>
   </div>
 </section>

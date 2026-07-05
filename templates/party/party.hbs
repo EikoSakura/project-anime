@@ -1,44 +1,127 @@
-{{!-- Party tab: dashboard cards (HP/Energy + Evasion/Defense/Movement) + the party's total SP. --}}
+{{!-- Party tab: an Eiyuden/Suikoden status screen — a party band over a grid of six member cards.
+      Each card is a scannable readout (diamond portrait, name, Power, HP hero bar + condensed Energy
+      bar, the full derived-stat block in two columns) that opens an in-place detail drawer
+      (attribute dice, equipped gear, bonds). No formation rows — this combat has none. --}}
 <section class="party-pane{{#if onParty}} active{{/if}}" data-pane="party">
-  <div class="party-section">
-    <h3 class="party-title">
-      <i class="fas fa-user-group"></i> {{localize "PROJECTANIME.Party.roster"}}
-      <span class="party-sp-pill"><i class="fas fa-star"></i> {{partyPower}} {{localize "PROJECTANIME.Party.power"}}</span>
-    </h3>
-    <div class="party-drop party-cards" data-drop="members">
-      {{#each members as |m|}}
-      <div class="party-card{{#if m.missing}} missing{{/if}}" data-ref="{{m.ref}}">
-        <img class="party-card-img" src="{{m.img}}" alt="" data-action="openActor" />
-        <div class="party-card-body">
-          <div class="party-card-top">
-            <span class="party-card-name" data-action="openActor">{{m.name}}</span>
-            <span class="party-card-sp" title="{{localize 'PROJECTANIME.Party.power'}}"><i class="fas fa-star"></i> {{m.power}}</span>
+
+  {{!-- Party band — Tier crest · Members · Gold · Party Power · Rest --}}
+  <div class="party-band">
+    <div class="pt-crest">
+      <div class="pt-diamond"><span>{{tier}}</span></div>
+      <div class="pt-crest-label">
+        <span class="k">{{localize "PROJECTANIME.Party.tier"}}</span>
+        {{#if isGM}}
+        <select class="party-tier-select" title="{{localize 'PROJECTANIME.Party.tier'}}">
+          {{#each tierOptions}}<option value="{{v}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+        {{/if}}
+      </div>
+    </div>
+    <div class="pt-spacer"></div>
+    <div class="pt-counter">
+      <span class="n"><b>{{memberCount}}</b> / 6</span>
+      <span class="l">{{localize "PROJECTANIME.Party.members"}}</span>
+    </div>
+    <span class="pt-pill"><i class="fas fa-coins"></i> {{gold}}</span>
+    {{#if isGM}}
+    <button type="button" class="pt-rest" data-action="restParty"><i class="fas fa-campground"></i> {{localize "PROJECTANIME.Rest.title"}}</button>
+    {{/if}}
+  </div>
+
+  {{!-- The party grid (drag Characters onto it / onto a ghost slot to add). --}}
+  <div class="party-drop party-cards" data-drop="members">
+    {{#each members as |m|}}
+    <div class="pcard{{#if m.crit}} crit{{/if}}{{#if m.me}} me{{/if}}{{#if m.expanded}} expanded{{/if}}" data-ref="{{m.ref}}">
+      <div class="pcard-row">
+        <div class="pcard-dia" data-action="toggleMember" title="{{m.name}}">
+          <div class="pd-frame"></div>
+          <img class="pd-img" src="{{m.img}}" alt="" />
+          <div class="pd-gloss"></div>
+        </div>
+
+        <div class="pcard-mid">
+          <div class="pcard-top">
+            <span class="pcard-name" data-action="toggleMember">{{m.name}}</span>
+            {{#if m.me}}<span class="pcard-you">{{localize "PROJECTANIME.Party.you"}}</span>{{/if}}
             {{#if @root.editable}}
-            <button type="button" class="party-x" data-action="removeMember" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
+            <button type="button" class="pcard-x" data-action="removeMember" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
             {{/if}}
           </div>
-          {{#unless m.missing}}
-          <div class="pm-res hp">
+          <div class="pres hp">
             <i class="fas fa-heart"></i>
-            <div class="pm-bar"><div class="pm-fill" style="width: {{m.hpPct}}%"></div></div>
-            <span class="pm-res-val">{{m.hp}}/{{m.hpMax}}</span>
+            <div class="pbar"><div class="pfill hp" style="width:{{m.hpPct}}%"></div></div>
+            <span class="pval">{{m.hp}}/{{m.hpMax}}</span>
           </div>
-          <div class="pm-res energy">
+          <div class="pres energy">
             <i class="fas fa-bolt"></i>
-            <div class="pm-bar"><div class="pm-fill" style="width: {{m.energyPct}}%"></div></div>
-            <span class="pm-res-val">{{m.energy}}/{{m.energyMax}}</span>
+            <div class="pbar"><div class="pfill energy" style="width:{{m.energyPct}}%"></div></div>
+            <span class="pval">{{m.energy}}/{{m.energyMax}}</span>
           </div>
-          <div class="party-card-vitals">
-            <span title="{{localize 'PROJECTANIME.Stat.evasion'}}"><i class="fas fa-wind"></i> {{m.evasion}}</span>
-            <span title="{{localize 'PROJECTANIME.Stat.defense'}}"><i class="fas fa-shield-halved"></i> {{m.defense}}</span>
-            <span title="{{localize 'PROJECTANIME.Stat.movement'}}"><i class="fas fa-shoe-prints"></i> {{m.movement}}</span>
-          </div>
-          {{/unless}}
+        </div>
+
+        <div class="pcard-stats">
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.atk'}}"><i class="fas fa-hand-fist"></i><b>{{m.atk}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.matk'}}"><i class="fas fa-wand-sparkles"></i><b>{{m.matk}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.defense'}}"><i class="fas fa-shield-halved"></i><b>{{m.defense}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.resistance'}}"><i class="fas fa-shield-heart"></i><b>{{m.res}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.evasion'}}"><i class="fas fa-wind"></i><b>{{m.evasion}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.attackSpeed'}}"><i class="fas fa-gauge-high"></i><b>{{m.as}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.movement'}}"><i class="fas fa-shoe-prints"></i><b>{{m.mov}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.carryingCapacity'}}"><i class="fas fa-weight-hanging"></i><b>{{m.carry}}</b></span>
         </div>
       </div>
-      {{else}}
-      <p class="party-empty muted">{{localize "PROJECTANIME.Party.dropPCs"}}</p>
-      {{/each}}
+
+      {{!-- Detail drawer — attribute dice, equipped gear, bonds. Revealed on card click. --}}
+      <div class="pcard-drawer">
+        <div class="pdrawer-h"><i class="fas fa-dice-d20"></i> {{localize "PROJECTANIME.Party.drawerAttributes"}}<span class="rule"></span></div>
+        <div class="pdrawer-attrs">
+          {{#each m.attrs}}
+          <div class="pattr{{#if big}} big{{/if}}"><span class="pd-die">{{die}}</span><span class="pd-lab"><i class="{{icon}}"></i> {{label}}</span></div>
+          {{/each}}
+        </div>
+
+        <div class="pdrawer-h"><i class="fas fa-shield-halved"></i> {{localize "PROJECTANIME.Party.drawerEquipped"}}<span class="rule"></span></div>
+        <div class="pdrawer-gear">
+          <div class="pg-slot">
+            <span class="pg-ic">{{#if m.gear.weapon}}<img src="{{m.gear.weapon.img}}" alt="" />{{else}}<i class="fas fa-khanda"></i>{{/if}}</span>
+            <span class="pg-t"><small>{{localize "PROJECTANIME.Party.slotWeapon"}}</small>{{#if m.gear.weapon}}<b>{{m.gear.weapon.name}}</b>{{else}}<b class="muted">{{localize "PROJECTANIME.Party.slotEmpty"}}</b>{{/if}}</span>
+          </div>
+          <div class="pg-slot">
+            <span class="pg-ic">{{#if m.gear.offhand}}<img src="{{m.gear.offhand.img}}" alt="" />{{else}}<i class="fas fa-shield"></i>{{/if}}</span>
+            <span class="pg-t"><small>{{localize "PROJECTANIME.Party.slotOffhand"}}</small>{{#if m.gear.offhand}}<b>{{m.gear.offhand.name}}</b>{{else}}<b class="muted">{{localize "PROJECTANIME.Party.slotEmpty"}}</b>{{/if}}</span>
+          </div>
+          <div class="pg-slot">
+            <span class="pg-ic">{{#if m.gear.armor}}<img src="{{m.gear.armor.img}}" alt="" />{{else}}<i class="fas fa-shirt"></i>{{/if}}</span>
+            <span class="pg-t"><small>{{localize "PROJECTANIME.Party.slotArmor"}}</small>{{#if m.gear.armor}}<b>{{m.gear.armor.name}}</b>{{else}}<b class="muted">{{localize "PROJECTANIME.Party.slotEmpty"}}</b>{{/if}}</span>
+          </div>
+          <div class="pg-slot">
+            <span class="pg-ic">{{#if m.gear.accessory}}<img src="{{m.gear.accessory.img}}" alt="" />{{else}}<i class="fas fa-ring"></i>{{/if}}</span>
+            <span class="pg-t"><small>{{localize "PROJECTANIME.Party.slotAccessory"}}</small>{{#if m.gear.accessory}}<b>{{m.gear.accessory.name}}</b>{{else}}<b class="muted">{{localize "PROJECTANIME.Party.slotEmpty"}}</b>{{/if}}</span>
+          </div>
+        </div>
+
+        {{#if m.bonds.length}}
+        <div class="pdrawer-h"><i class="fas fa-hands-holding"></i> {{localize "PROJECTANIME.Party.drawerBonds"}}<span class="rule"></span></div>
+        <div class="pdrawer-bonds">
+          {{#each m.bonds}}
+          <div class="pbond"><span class="pb-dia"><img src="{{img}}" alt="" /></span><span class="pb-info"><b>{{name}}</b><small>{{kind}}</small></span><span class="pb-rank">{{rank}}</span></div>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        <div class="pdrawer-foot">
+          <a data-action="openActor"><i class="fas fa-up-right-from-square"></i> {{localize "PROJECTANIME.Party.viewSheet"}}</a>
+        </div>
+      </div>
     </div>
+    {{/each}}
+
+    {{#each ghosts}}
+    <div class="pcard ghost">
+      <div class="pg-dia"><i class="fas fa-plus"></i></div>
+      <span class="pg-lab">{{localize "PROJECTANIME.Party.addMember"}}</span>
+    </div>
+    {{/each}}
   </div>
+
 </section>

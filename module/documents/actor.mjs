@@ -86,8 +86,8 @@ export function naturalAttackData() {
     img: NATURAL_ATTACK_IMG,
     system: {
       accuracy: { attrA: "might", attrB: "agility", mod: 0 },
-      // Unarmed strikes hit at full Accuracy but land light (weapon table: Unarmed DMG −2).
-      damage: { mod: -2, type: "physical" },
+      // Unarmed strikes deal ⟪Might⟫ flat (v0.03 weapon table: Unarmed DMG 0).
+      damage: { mod: 0, type: "physical" },
       // Base Type "Unarmed" — so a "By weapon type: Unarmed" Weapon Adjustment matches it too
       // (alongside the dedicated "Unarmed" scope, which keys off the `natural` flag).
       weaponType: "Unarmed",
@@ -245,6 +245,11 @@ export class ProjectAnimeActor extends Actor {
         "system.skillPoints.value": value + refund,
         "system.skillPoints.log": log.filter((e) => !ids.has(e.id))
       });
+    }
+
+    if (entry.kind === "specialty") {
+      // Unlearn the crafting Specialty (v0.03) — clear it and return its SP.
+      return this.update({ "system.specialty": "", "system.skillPoints.value": value + amount, "system.skillPoints.log": without });
     }
 
     // stat — reverse the combat-stat purchase in the same update as the refund.

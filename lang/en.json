@@ -11,9 +11,18 @@
   "TYPES.Item.container": "Container",
   "TYPES.Item.gear": "Gear",
   "TYPES.Item.package": "Package",
-
+  "TYPES.Item.material": "Material",
   "PROJECTANIME": {
     "Chronicle": {
+      "milestone": "Milestone",
+      "award": "Award",
+      "milestoneNoParty": "No party members found — set up the party folder first.",
+      "seasonAdvanced": "Season {n} concluded — the party's Tier may rise.",
+      "milestones": {
+        "episode": "Episode",
+        "arc": "Arc",
+        "season": "Season"
+      },
       "newQuest": "New Quest",
       "untitled": "Untitled Quest",
       "new": "New",
@@ -79,10 +88,57 @@
       "reopen": "Reopen",
       "abandon": "Abandon",
       "completed": "Quest Complete",
-      "tab": { "all": "All", "completed": "Completed" },
-      "cat": { "main": "Main Story", "side": "Side Quest", "personal": "Personal" },
-      "state": { "active": "Active", "done": "Complete", "failed": "Abandoned" },
-      "reward": { "sp": "Skill Points", "gold": "Gold", "rep": "Reputation", "bond": "Bond", "item": "Item", "unlock": "Unlock", "recruit": "Recruit" },
+      "sizeLabel": "Size",
+      "size": {
+        "job": "Job",
+        "request": "Request",
+        "commission": "Commission"
+      },
+      "budget": "Budget {g} G",
+      "deadline": "Deadline",
+      "deadlineOne": "1 rest left",
+      "deadlineMany": "{n} rests left",
+      "deadlineTick": "{title} — {n} left",
+      "deadlineExpired": "{title} — expired",
+      "expired": "Posting Expired",
+      "consequence": "Consequence",
+      "consequencePlaceholder": "What happens when it expires…",
+      "complication": "Complication",
+      "complicationPlaceholder": "The hidden truth the client didn't say…",
+      "objType": {
+        "clear": "Clear",
+        "deliver": "Deliver",
+        "duel": "Duel",
+        "escort": "Escort",
+        "hunt": "Hunt",
+        "protect": "Protect",
+        "recover": "Recover",
+        "scout": "Scout",
+        "survive": "Survive"
+      },
+      "tab": {
+        "all": "All",
+        "completed": "Completed"
+      },
+      "cat": {
+        "main": "Main Story",
+        "side": "Side Quest",
+        "personal": "Personal"
+      },
+      "state": {
+        "active": "Active",
+        "done": "Complete",
+        "failed": "Abandoned"
+      },
+      "reward": {
+        "sp": "Skill Points",
+        "gold": "Gold",
+        "rep": "Reputation",
+        "bond": "Bond",
+        "item": "Item",
+        "unlock": "Unlock",
+        "recruit": "Recruit"
+      },
       "grant": {
         "sp": "+{n} Skill Points to {members} party member(s)",
         "gold": "+{n} Gold to the party stash",
@@ -227,8 +283,22 @@
       "repApplied": "{name} standing is now {standing} ({tier}).",
       "tierRewardGranted": "Reached {tier} — {rewards}",
       "rosterNeedsNpc": "Only NPCs can be added as a recruit.",
-      "role": { "party": "Recruit", "service": "Service", "vendor": "Vendor", "passive": "Passive", "dispatch": "Dispatch", "upgrade": "Upgrade", "workshop": "Workshop" },
-      "cond": { "auto": "Available Now", "repTier": "Reputation Tier", "hqLevel": "HQ Level", "quest": "Quest Complete", "manual": "GM Unlocks" },
+      "role": {
+        "party": "Recruit",
+        "service": "Service",
+        "vendor": "Vendor",
+        "passive": "Passive",
+        "dispatch": "Dispatch",
+        "upgrade": "Upgrade",
+        "workshop": "Workshop"
+      },
+      "cond": {
+        "auto": "Available Now",
+        "repTier": "Reputation Tier",
+        "hqLevel": "HQ Level",
+        "quest": "Quest Complete",
+        "manual": "GM Unlocks"
+      },
       "condRepTierFaction": "Reach {tier} with {faction}",
       "condHqLevel": "Reach HQ Level {level}",
       "condHqLevelField": "Required HQ Level",
@@ -264,7 +334,119 @@
     "Bond": {
       "gold": "Gold",
       "sp": "SP",
-      "rewardGranted": "{name} received from the bond with {bond}: {rewards}."
+      "rewardGranted": "{name} received from the bond with {bond}: {rewards}.",
+      "newBondName": "New Bond",
+      "newBond": "New Bond",
+      "bondForged": "Bond with {name} forged (rank {rank}).",
+      "bondAdvanced": "Bond with {name} deepened to rank {rank}.",
+      "deepened": "Bond Deepened",
+      "rankWord": "Rank {rank}",
+      "capacity": "Rank B+ Capacity",
+      "capacityHint": "You may hold rank B-or-higher Bonds with a number of characters equal to your Charm half-score.",
+      "filterAll": "All",
+      "noneYet": "No bonds yet — forge your first.",
+      "forge": "Forge a Bond",
+      "forgeSub": "drop a character or NPC",
+      "forgeHint": "Drop a Character (Party Bond) or an NPC (Follower Bond) to open a bond.",
+      "noSelfBond": "A character can't bond with themselves.",
+      "namePlaceholder": "Bond name…",
+      "titlePlaceholder": "Role / epithet…",
+      "quotePlaceholder": "A signature line, in their voice…",
+      "standing": "Standing",
+      "now": "Now",
+      "next": "Next:",
+      "maxRank": "Max rank reached",
+      "bondScene": "Bond Scene",
+      "standingTogether": "Standing Together",
+      "sceneUsed": "This pair already shared a Bond Scene this rest.",
+      "readyTitle": "Ready to deepen to Rank",
+      "readyHint": "Threshold met — the next Bond Scene the pair shares becomes the rank-up.",
+      "rankUp": "Rank Up",
+      "partyBenefits": "Party Benefits · cumulative · auto-applied",
+      "followerBenefits": "Follower Benefits · shaped with the GM",
+      "autoEffect": "Auto Effect",
+      "trackedTag": "Reaction",
+      "active": "Active",
+      "aidPick": "Choose an Aid…",
+      "notePlaceholder": "GM note for this benefit…",
+      "union": "Union Skill",
+      "rankS": "Rank S",
+      "unionLocked": "Unlocks at Rank S",
+      "unionDesc": "At rank S the pair builds one shared Skill: split the SP cost, both Actions in one Phase, within 2 tiles, each pays half EP.",
+      "unionDrop": "Build a Skill, then drop it here to make it this bond's Union Skill.",
+      "unionBuild": "Open Skill Builder",
+      "unionNeedsSkill": "Drop a Skill to set the Union Skill.",
+      "unionOwnSkill": "The Union Skill must be one of your own Skills.",
+      "open": "Open",
+      "unlink": "Unlink",
+      "openBond": "Open Bond",
+      "openPartner": "Open Partner",
+      "portrait": "Portrait",
+      "accent": "Bond colour",
+      "break": "Break Bond",
+      "breakTitle": "Break Bond",
+      "breakConfirm": "Break your bond with \"{name}\"? For a Party Bond this removes both sides.",
+      "breakNeedsGM": "A GM must break this Party Bond (you don't control the partner).",
+      "favoredFacility": "Favored Facility",
+      "favoredHint": "Drag a facility here from the Headquarters",
+      "favoredDrop": "Drop a facility",
+      "clear": "Clear",
+      "resides": "Resides at HQ",
+      "kind": {
+        "party": "Party",
+        "follower": "Follower"
+      },
+      "aid": {
+        "livelihood": "Livelihood",
+        "hearth": "Hearth",
+        "access": "Access"
+      },
+      "rankUpFail": {
+        "notReady": "Not enough Bond Points to rank up yet.",
+        "capacitySelf": "You're at your rank-B+ Bond capacity (Charm half-score).",
+        "capacityPartner": "Your partner is at their rank-B+ Bond capacity."
+      },
+      "standingFail": {
+        "noCombat": "Standing Together is earned during a Conflict.",
+        "standing": "This pair already earned Standing Together this Conflict."
+      },
+      "benefit": {
+        "sideBySide": {
+          "name": "Side by Side",
+          "short": "Side by Side",
+          "desc": "+1 to hit while within 1 tile of your partner."
+        },
+        "backToBack": {
+          "name": "Back to Back",
+          "short": "Back to Back",
+          "desc": "+1 DEF and +1 RES while within 1 tile of your partner."
+        },
+        "dualStrike": {
+          "name": "Dual Strike",
+          "short": "Dual Strike",
+          "desc": "Once per Conflict, when your partner hits a foe, immediately make a Basic Attack against it if it's within your range."
+        },
+        "welcome": {
+          "name": "Welcome",
+          "short": "Welcome",
+          "desc": "Small favors — shelter for a night, an introduction, what they know of local matters."
+        },
+        "aid": {
+          "name": "Aid",
+          "short": "Aid",
+          "desc": "Choose one when you reach this rank:"
+        },
+        "lesson": {
+          "name": "Lesson",
+          "short": "Lesson",
+          "desc": "Teaches a unique Modifier only you may take — add it to a Skill through Expansion at the normal cost."
+        },
+        "devotion": {
+          "name": "Devotion",
+          "short": "Devotion",
+          "desc": "Once per Season they intervene decisively on your behalf; you may also learn one Skill they know, paying its SP."
+        }
+      }
     },
     "HQ": {
       "title": "Headquarters",
@@ -285,7 +467,7 @@
       "roleField": "Role",
       "anyFaction": "Any faction",
       "level": "Level",
-      "facilities": "facilities",
+      "facilities": "Facilities",
       "facility": "Facility",
       "output": "Output",
       "storefront": "Storefront",
@@ -381,7 +563,88 @@
       "upgradeNone": "— none —",
       "upgradesLabel": "Upgrades",
       "upgraded": "upgraded {target} to tier {tier}",
-      "empty": "No facilities yet."
+      "empty": "No facilities yet.",
+      "noParty": "No party to pay for this.",
+      "tooPoor": "The party can’t afford this ({cost}G · treasury {have}G).",
+      "capFull": "Facility cap reached — rank the base up to build more.",
+      "rankLocked": "Requires Headquarters rank {rank}.",
+      "builtCard": "Built the {name} ({cost}G).",
+      "customFull": "All {max} custom facility slots are in use.",
+      "upgradeLocked": "An upgrade needs a steward whose Follower Bond is rank B or higher.",
+      "upgradedCard": "Upgraded the {name} ({cost}G).",
+      "missionCapFull": "The Mission Board is full ({cap} active).",
+      "mission": "Mission",
+      "missionWon": "<b>{title}</b> — success ({roll} vs {dc}). Reward: {gold}G · +1 BP with {bp}.",
+      "missionLost": "<b>{title}</b> — failed ({roll} vs {dc}). The reward is lost; a resident may return with a complication.",
+      "needSteward": "Assign a steward first.",
+      "needBondB": "The steward’s Follower Bond must be rank B or higher.",
+      "customName": "Name",
+      "customRank": "Rank required",
+      "customCost": "Build cost (G)",
+      "customUpCost": "Upgrade cost (G)",
+      "lineUnstaffed": "Unstaffed line",
+      "lineStaffed": "Staffed line",
+      "lineFavor": "Favor line",
+      "lineUpgrade": "Upgrade line",
+      "customTitle": "Custom Facility",
+      "demolish": "Demolish",
+      "demolishConfirm": "Demolish this facility? Gold is not refunded.",
+      "teamTooSmall": "A mission team is 2–3 residents.",
+      "establish": "Establish Base",
+      "renown": "Renown",
+      "treasury": "Treasury",
+      "gold": "Gold",
+      "toNextRank": "Next Rank",
+      "unlocks": "Unlocks",
+      "slots": "Facility Slots",
+      "toGo": "To Go",
+      "readyRankUp": "Rest to Rank Up",
+      "maxRank": "Max Rank",
+      "perRest": "/ Rest on Work",
+      "nextRestHere": "On Your Next Rest Here",
+      "assignSteward": "Assign a Steward",
+      "maxed": "Maxed",
+      "structures": "Structures",
+      "noBuildings": "No buildings yet — raise one from Structures.",
+      "allBuilt": "Every structure is built.",
+      "treasuryTitle": "Manage Treasury",
+      "amount": "Amount",
+      "addGold": "Add",
+      "removeGold": "Remove",
+      "noBase": "No Headquarters yet. The Storyteller grants one — a reward, a conquest, a ruin claimed.",
+      "rankReady": "Renown is ready for rank",
+      "rankReadyRest": "it rises at your next rest here.",
+      "missionBoard": "Missions",
+      "favorActive": "Favor active",
+      "gatherType": "Yield",
+      "forgeShop": "Forge",
+      "apothShop": "Apothecary",
+      "rankReqShort": "Needs rank",
+      "customAdd": "Custom Facility",
+      "favoredNone": "— favored —",
+      "noPost": "— no post —",
+      "moveOut": "Move out",
+      "moveIn": "Move in",
+      "noResidents": "No residents yet. Recruit a Follower and move them in.",
+      "candidates": "Candidates",
+      "asksTitle": "Recruiting — the six Asks",
+      "boardLocked": "The Mission Board opens at rank B (Stronghold).",
+      "active": "active",
+      "hard": "Hard",
+      "rests": "rests",
+      "suited": "Suited",
+      "suitedTip": "Favored facility fits this job — steps up a die.",
+      "rewardGold": "Gold",
+      "risk": "Risk / what failure costs",
+      "team": "Team",
+      "deleteMission": "Delete mission",
+      "duration": "Duration",
+      "grantCraft": "{name}: one free Craft Activity.",
+      "grantConsumable": "Apothecary: free {name}.",
+      "grantBondScene": "{name}: a free Bond Scene with a resident.",
+      "grantMaterials": "Gathering Grounds: +{qty} Common {type} (Tier {tier}) to the stash.",
+      "rankedUp": "The Headquarters rises to rank {rank}!",
+      "restHere": "At our Headquarters"
     },
     "Shop": {
       "title": "Shop",
@@ -400,6 +663,8 @@
       "rateBuy": "Buy-price adjustment (percentage points)",
       "rateSell": "Sell-price adjustment (percentage points)",
       "stockDrop": "Drag an item here to stock it",
+      "sellsMaterials": "Sell materials",
+      "settlementTier": "Settlement Tier",
       "cantAfford": "Not enough gold for {name}: {price} needed, {gold} available.",
       "bought": "{buyer} bought {name} for {price}.",
       "sold": "{buyer} sold {name} for {price}."
@@ -458,7 +723,9 @@
       "Item": "Project: Anime Item Sheet"
     },
     "Empty": "Nothing here yet.",
-    "MaterialOrphansPurged": "Removed {count} orphaned material item(s) left by a retired design.",
+    "Migration": {
+      "materialsV003": "Seeded {n} material(s) into the party stash from the legacy resource pools."
+    },
     "Overloaded": "Overloaded — Step Down both dice on every Check.",
     "Tab": {
       "skills": "Skills",
@@ -478,13 +745,17 @@
     "Equipment": {
       "mainHand": "Main Hand",
       "offHand": "Off-Hand",
+      "twoHandedHeld": "Two-Handed",
       "armor": "Armor",
       "accessory": "Accessory",
       "empty": "— Empty —"
     },
     "Container": {
       "backpack": "Backpack",
-      "add": "New Container"
+      "add": "New Container",
+      "viewSingle": "Open one bag at a time",
+      "viewCombined": "Combine all bags",
+      "items": "items"
     },
     "Package": {
       "category": "Category",
@@ -506,6 +777,188 @@
       "herb": "Herbs",
       "manacite": "Manacite"
     },
+    "Material": {
+      "label": "Materials",
+      "grade": {
+        "common": "Common",
+        "prime": "Prime"
+      },
+      "type": {
+        "essence": "Essence",
+        "hide": "Hide",
+        "ore": "Ore",
+        "reagent": "Reagent"
+      },
+      "tier": "Tier",
+      "quantity": "Quantity",
+      "gradeLabel": "Grade",
+      "typeLabel": "Type",
+      "defaultName": "{grade} {type}",
+      "stack": "{grade} {type} · Tier {tier}",
+      "empty": "No materials carried."
+    },
+    "Gather": {
+      "title": "Materials Gathered",
+      "from": "From {name}",
+      "line": "{qty}× {material}",
+      "toStash": "Added to the party stash."
+    },
+    "GearTrait": {
+      "label": "Traits",
+      "cap": "Traits",
+      "socketSlot": "Socket",
+      "socketEmpty": "Empty Socket",
+      "socketFilled": "Socket: {name}",
+      "name": {
+        "attuned": "Attuned",
+        "collapsible": "Collapsible",
+        "concealed": "Concealed",
+        "extended": "Extended",
+        "fitted": "Fitted",
+        "honed": "Honed",
+        "insulated": "Insulated",
+        "lightened": "Lightened",
+        "luminous": "Luminous",
+        "marked": "Marked",
+        "reinforced": "Reinforced",
+        "socket": "Socket",
+        "sturdy": "Sturdy",
+        "warded": "Warded"
+      },
+      "effect": {
+        "attuned": "Deals your chosen Damage Type.",
+        "collapsible": "While stowed, Bulk is 1 lower (min 0).",
+        "concealed": "Passes as a mundane object; Hard (13) Test to find.",
+        "extended": "Trade 1 Hit for +1 maximum Range.",
+        "fitted": "Trade 1 Protection for +1 Evasion, up to the printed penalty.",
+        "honed": "Trade +1 Hit for +1 DMG.",
+        "insulated": "Step Up both dice on Checks to endure natural extremes.",
+        "lightened": "Trade 1 Hit for 1 less Bulk.",
+        "luminous": "Sheds light to 3 tiles, on command.",
+        "marked": "You always know the distance to this item.",
+        "reinforced": "Trade 1 Evasion for +1 Protection.",
+        "socket": "The item gains one empty Socket.",
+        "sturdy": "Step Up both dice to resist Disarm or Steal.",
+        "warded": "Step Up both dice on Overcome Checks against your chosen Status."
+      },
+      "attunedElement": "Damage Type",
+      "concealedDisguise": "Disguised as",
+      "wardedStatus": "Warded against"
+    },
+    "Temper": {
+      "label": "Temper",
+      "level": "Temper {n}",
+      "atCap": "At cap (party Tier − 1)"
+    },
+    "Brew": {
+      "label": "Brewing",
+      "name": {
+        "elixir": "Elixir",
+        "energyDrink": "Energy Drink",
+        "fieldMeal": "Field Meal",
+        "hpPotion": "HP Potion",
+        "strongEnergyDrink": "Strong Energy Drink",
+        "strongHpDrink": "Strong HP Drink",
+        "wardSalve": "Ward Salve"
+      },
+      "effect": {
+        "elixir": "Restore a creature within 1 tile to full HP or full EP.",
+        "energyDrink": "Restores 4 EP.",
+        "fieldMeal": "During a Camp, restore +2 HP and EP. One per character per Camp.",
+        "hpPotion": "Restores 4 HP.",
+        "strongEnergyDrink": "Restores 8 EP.",
+        "strongHpDrink": "Restores 8 HP.",
+        "wardSalve": "Gain Resist to your chosen Damage Type for the Scene."
+      },
+      "batch": "Batch of {n}",
+      "brewed": "Brewed {n}× {name}."
+    },
+    "Specialty": {
+      "label": "Specialty",
+      "none": "None",
+      "name": {
+        "brewer": "Brewer",
+        "fieldcrafter": "Fieldcrafter",
+        "salvager": "Salvager",
+        "smith": "Smith",
+        "steward": "Steward"
+      },
+      "benefit": {
+        "brewer": "Batches contain 4. Once per rest, brew one Tier above the party.",
+        "fieldcrafter": "Make one Craft Activity during a Camp with an Artisan's Kit.",
+        "salvager": "Recover half a removed Trait's cost. Once per rest, convert 3 Commons into 2 of another type.",
+        "smith": "Forging costs no Gold. Trait bills cost 1 Common less (min 1).",
+        "steward": "One HQ gathering facility yields double. Project Stages cost 1 Common less (min 1)."
+      },
+      "pick": "Learn a Specialty",
+      "downtimeOnly": "Learned at a rest, with Storyteller approval."
+    },
+    "Flaw": {
+      "label": "Flaw",
+      "none": "",
+      "remove": "Remove Flaw",
+      "removed": "Removed the Flaw from {name}."
+    },
+    "Craft": {
+      "title": "Craft",
+      "open": "Craft",
+      "workbench": "Craft Workbench",
+      "noCrafter": "No character available to craft with.",
+      "slots": "Craft Activities: {n}",
+      "noSlots": "No Craft Activities left — spend one at a rest.",
+      "gateWarn": "Crafting outside a Town needs an Artisan's Kit and the Fieldcrafter Specialty.",
+      "tabs": {
+        "forge": "Forge",
+        "trait": "Traits",
+        "temper": "Temper",
+        "brew": "Brew",
+        "project": "Projects"
+      },
+      "forge": "Forge",
+      "forgeCost": "½ list + 3 {type}",
+      "forgePick": "Choose gear to forge",
+      "forged": "Forged {name}.",
+      "apply": "Apply",
+      "remove": "Remove",
+      "pickItem": "Choose an item",
+      "pickTrait": "Choose a Trait",
+      "pickRecipe": "Choose a recipe",
+      "temperUp": "Temper +1",
+      "brew": "Brew",
+      "cost": "Cost",
+      "have": "Have",
+      "short": "Not enough materials",
+      "shortGold": "Not enough Gold",
+      "accessoryNoTrait": "Accessories can't hold Traits.",
+      "traitCapFull": "This item already holds 2 Traits.",
+      "traitHas": "This item already has that Trait.",
+      "applied": "Applied {trait} to {name}.",
+      "removedTrait": "Removed {trait} from {name}.",
+      "tempered": "Tempered {name} to Temper {n}.",
+      "advanced": "Advanced {name}: Stage {done}/{total}.",
+      "finished": "Finished {name}.",
+      "project": {
+        "new": "New Project",
+        "scope": "Scope",
+        "stage": "Stage",
+        "advance": "Advance Stage",
+        "abandon": "Abandon",
+        "oncePerRest": "One Stage per rest.",
+        "scopeName": {
+          "personal": "Personal",
+          "grand": "Grand",
+          "legendary": "Legendary"
+        }
+      }
+    },
+    "Socket": {
+      "label": "Socket",
+      "place": "Place",
+      "remove": "Remove",
+      "empty": "Empty",
+      "recovered": "Recovered {name}.",
+      "destroyWarn": "Removing the Socket destroys its content."
+    },
     "Roll": {
       "check": "Check",
       "test": "Test",
@@ -526,6 +979,18 @@
       "ct": "Challenge Threshold",
       "roll": "Roll",
       "vsEvasion": "vs Evasion",
+      "cover": "Cover — target the creature that takes this hit, then click.",
+      "coverBonus": "+{n} Cover",
+      "goAgainLuck": "{name} combos through the Go Again — one Luck Die returns as {value}.",
+      "contested": "Contested Check",
+      "contestedVs": "Contested vs {name}",
+      "epTransfer": "Transfer Energy",
+      "epTransferAmount": "Energy to transfer",
+      "epTransferEmpty": "No Energy left to transfer.",
+      "epTransferred": "{name} transfers {n} of their own Energy.",
+      "chargeHitCarried": "The focus turn's hit carries — no new roll.",
+      "atkModePhysical": "Physical — ⟪Might⟫ vs DEF",
+      "atkModeMagical": "Magical — ⟪Mind⟫ vs RES",
       "vsSkillEvasion": "vs Skill Evasion ({attr})",
       "skillEvasionWith": "Skill Evasion ({attr})",
       "allyNotSelf": "This Skill targets an ally — it can't be used on yourself. Target an ally first.",
@@ -558,7 +1023,6 @@
       "undo": "Undo",
       "undone": "Undone",
       "reverted": "Reverted {n} {unit} on {name}.",
-      "cover": "Cover — target the creature that takes this hit, then click.",
       "coveredFor": "Covered for {name}",
       "covered": "{coverer} covered {target}, taking {n} {unit}.",
       "coverNoTarget": "Target the covering creature first (one target), then click Cover.",
@@ -603,6 +1067,7 @@
       "targetGone": "That target no longer exists.",
       "noGM": "No active GM is online to apply this.",
       "exhausted": "Sealed — cannot use Skills.",
+      "perConflictSpent": "Already used this Conflict (1/Conflict).",
       "steppedDown": "Blinded — Accuracy dice Stepped Down.",
       "steppedUpProne": "Target is Prone — Accuracy dice Stepped Up.",
       "steppedOverload": "Overloaded — both dice Stepped Down.",
@@ -635,7 +1100,6 @@
       "chainLeap": "Leap {n}",
       "chainStopped": "Chain stopped — missed {name}.",
       "barrierAbsorbed": "{n} absorbed by Barrier",
-      "contested": "Contested Check",
       "contestedTie": "tie — roll again",
       "contestedWon": "Won",
       "contestedLost": "Lost",
@@ -692,11 +1156,26 @@
       "companionCreated": "{name} is bonded to {master} as a loyal companion."
     },
     "Attribute": {
-      "might":   { "long": "Might" },
-      "agility": { "long": "Agility" },
-      "mind":    { "long": "Mind" },
-      "spirit":  { "long": "Spirit" },
-      "charm":   { "long": "Charm" }
+      "might": {
+        "long": "Might",
+        "abbr": "MIG"
+      },
+      "agility": {
+        "long": "Agility",
+        "abbr": "AGI"
+      },
+      "mind": {
+        "long": "Mind",
+        "abbr": "MND"
+      },
+      "spirit": {
+        "long": "Spirit",
+        "abbr": "SPT"
+      },
+      "charm": {
+        "long": "Charm",
+        "abbr": "CHM"
+      }
     },
     "Talent": {
       "title": "Talents",
@@ -710,12 +1189,27 @@
       "traitUntitled": "Untitled",
       "traitTitle": "Trait",
       "traitFallback": "Trait",
-      "combat":      { "long": "Combat" },
-      "commerce":    { "long": "Commerce" },
-      "craft":       { "long": "Craft" },
-      "exploration": { "long": "Exploration" },
-      "lore":        { "long": "Lore" },
-      "hq": { "gold": "Gold yield", "sp": "SP yield", "success": "Mission Success", "haste": "Mission Haste" }
+      "combat": {
+        "long": "Combat"
+      },
+      "commerce": {
+        "long": "Commerce"
+      },
+      "craft": {
+        "long": "Craft"
+      },
+      "exploration": {
+        "long": "Exploration"
+      },
+      "lore": {
+        "long": "Lore"
+      },
+      "hq": {
+        "gold": "Gold yield",
+        "sp": "SP yield",
+        "success": "Mission Success",
+        "haste": "Mission Haste"
+      }
     },
     "Stat": {
       "hp": "Hit Points",
@@ -747,6 +1241,14 @@
       "accShort": "ACC",
       "dmgShort": "DMG"
     },
+    "Health": {
+      "fine": "Perfectly Fine",
+      "barely": "Barely Hurt",
+      "wounded": "Wounded",
+      "hurt": "Badly Hurt",
+      "dying": "At Death's Door",
+      "down": "Down"
+    },
     "Hud": {
       "dragHint": "Drag Skills · weapons · items from your sheet → slots",
       "choose": "Choose your character",
@@ -758,6 +1260,34 @@
       "noActor": "Select a token, or click the portrait to choose your character.",
       "noOwned": "No characters you own.",
       "noPermission": "You don't have permission to edit this character's HUD.",
+      "carry": "Carry",
+      "luck": "Luck",
+      "page": "Loadout Page",
+      "clearPage": "Clear This Page",
+      "alliance": {
+        "friendly": "Ally",
+        "neutral": "Neutral",
+        "hostile": "Enemy",
+        "secret": "Secret"
+      },
+      "party": {
+        "you": "You",
+        "down": "Down",
+        "hidden": "???",
+        "title": "Party",
+        "dragHint": "Drag to move · double-click to reset"
+      },
+      "sidebar": {
+        "skills": "Skills",
+        "arms": "Arms",
+        "items": "Items",
+        "filter": "Filter",
+        "empty": "Empty"
+      },
+      "selectMode": {
+        "character": "My Character",
+        "selection": "Selected Token"
+      },
       "intensity": {
         "restrained": "Restrained",
         "cinematic": "Cinematic",
@@ -793,18 +1323,20 @@
         "prevRound": "Previous round",
         "nextRound": "Next round",
         "target": "Target",
-        "ping": "Ping"
+        "ping": "Ping",
+        "threat": "Threat"
       }
     },
     "Action": {
       "addItem": "Add",
       "toChat": "Post to Chat",
       "equip": "Toggle Equipped",
+      "equipHand": "Equip",
       "equipMainHand": "Equip — Main Hand",
       "equipOffHand": "Equip — Off-Hand",
       "unequip": "Unequip",
-      "gripOne": "Grip — One-Handed",
-      "gripTwo": "Grip — Two-Handed",
+      "gripOne": "Change Grip (1H)",
+      "gripTwo": "Change Grip (2H)",
       "useDualWield": "Switch to Dual Wield",
       "useShieldOnly": "Switch to Shield Only",
       "edit": "Edit",
@@ -827,16 +1359,19 @@
       "react": "React",
       "passive": "Passive",
       "manageTitle": "Manage Skills",
+      "reorder": "Drag to reorder",
       "save": "Save"
     },
     "NaturalAttack": {
       "name": "Unarmed Strike",
+      "tag": "Natural",
       "hint": "Natural attack — always available, costs no Energy"
     },
     "Section": {
       "attack": "Attack",
       "defense": "Defense",
       "equipment": "Equipment",
+      "properties": "Properties",
       "details": "Details",
       "effect": "Effect"
     },
@@ -867,15 +1402,18 @@
       "damage": "Damage",
       "rangeType": "Range Type",
       "rangeTiles": "Range (tiles)",
-      "rangeMin": "Min Range (0 = none)",
+      "rangeMin": "Min Range",
       "range": "Range",
       "hand": "Hand",
       "grip": "Grip",
+      "handedness": "Handedness",
       "twoHandedOnly": "Two-Handed Only",
       "shieldUse": "Wield As",
       "weaponType": "Type"
     },
     "Skill": {
+      "passive": "Passive",
+      "perConflict": "1/Conflict",
       "field": {
         "rank": "Rank",
         "actionType": "Action Type",
@@ -1120,6 +1658,7 @@
         "deals": "deals {dmg} {type} damage",
         "dealsPlain": "deals {dmg} damage",
         "restores": "restores {dmg} {pool}",
+        "transfers": "transfers up to {dmg} of the caster's own {pool}",
         "toTarget": "to {target}",
         "affects": "affects {target}",
         "targetSelf": "you",
@@ -1359,6 +1898,8 @@
       "statusExpired": "{status} wears off {name}.",
       "defeated": "{name} is Defeated!",
       "recovered": "{name} recovers to {hp} HP as combat ends.",
+      "criticalEntered": "{name} is in Critical — below 25% HP.",
+      "criticalReacts": "Critical-trigger React Skills: {skills}",
       "comboTurn": "{name} takes an extra turn from the Combo!",
       "extraAction": "{name} cuts in for an extra action — {n} of {total}!"
     },
@@ -1489,28 +2030,39 @@
         "factionsTabName": "Show Factions & Home panes",
         "factionsTabHint": "Adds the Factions and Home panes to Headquarters — the world's factions and their standing (fed by Chronicle reputation rewards) and the HQ built from recruited members. The GM authors them; everyone can view.",
         "save": "Save",
-        "saved": "Party sheet settings updated."
+        "saved": "Headquarters settings updated."
       },
       "rangeLine": {
-        "name": "Range Line",
+        "name": "Canvas — Range Line",
+        "hint": "Hovering a token while one of yours is selected draws a measured line between them with the tile distance. Each player can hide it for themselves from the Token scene controls.",
         "toggle": "Range Line"
       },
       "trackerVisible": {
-        "name": "Show Quest Tracker",
+        "name": "Quests — Show Tracker",
         "hint": "Show the floating on-canvas tracker for the quest you're following. The tracker's eye-slash button also hides it; tracking a quest turns it back on."
       },
+      "phaseBanner": {
+        "name": "Combat — Phase Banner (show for me)",
+        "hint": "Sweep a PLAYER PHASE / ENEMY PHASE banner across the screen when the side phase flips."
+      },
       "comboSplash": {
-        "name": "Combo Splash",
-        "clientName": "Combo Splash — show for me"
+        "name": "Combat — Combo Splash",
+        "hint": "A cinematic full-screen flash when someone rolls a Combo (matching 6+).",
+        "clientName": "Combat — Combo Splash (show for me)",
+        "clientHint": "Hide the Combo flash just for you; the table setting stays on for everyone else."
       },
       "accentColor": {
-        "name": "Player Accent Color",
+        "name": "Sheets — Player Accent Color",
         "hint": "Tints your character sheets — window trim, glow, Energy bar, and highlights. Every player sees their own color."
       },
       "hud": {
         "enabled": {
           "name": "Cinematic HUD",
           "hint": "Replace the macro hotbar and the bottom-left names with the anime HUD console + party rail. Turn this off to use Foundry's default bars."
+        },
+        "selectMode": {
+          "name": "Bar Follows",
+          "hint": "My Character keeps the bar on your assigned character. Selected Token makes it follow whichever token you own and have selected — driving that creature's full stats + sidebars without opening its sheet."
         },
         "intensity": {
           "name": "HUD Style Intensity",
@@ -1522,9 +2074,14 @@
         "size": {
           "name": "HUD Slot Size"
         },
+        "partySize": {
+          "name": "Party HUD Size"
+        },
+        "resetPartyPos": "Reset Party HUD Position",
+        "resetPartyPosDone": "Party HUD position reset.",
         "party": {
-          "name": "Show Party Rail",
-          "hint": "Show party member portraits at the lower-left in place of the names list."
+          "name": "Show Party HUD",
+          "hint": "Show party member cards at the lower-left (draggable) in place of the names list."
         },
         "combat": {
           "name": "Encounter Tracker",
@@ -1540,7 +2097,8 @@
         "saved": "HUD settings updated."
       },
       "encounterPower": {
-        "name": "Monster Encounter Power"
+        "name": "Monsters — Encounter Power",
+        "hint": "The party-power baseline the Monster Creator scales from (≈ a typical PC's total Skill Points). Raise it as the party advances so newly-built monsters keep up."
       },
       "tokenFields": {
         "name": "Token Info: Custom Fields",
@@ -1559,7 +2117,7 @@
     },
     "Advancement": {
       "title": "Advancement",
-      "open": "Advancement",
+      "open": "Advance",
       "attributes": "Attributes",
       "max": "Max",
       "combatStats": "Combat Stats",
@@ -1584,7 +2142,8 @@
       "hintDuration": "+1 turn",
       "hintEfficiency": "−1 Energy cost",
       "hintRange": "+1 tile",
-      "hintArea": "+1 tile"
+      "hintArea": "+1 tile",
+      "refineWarn": "Skill Enhancement is earned with the Refine activity during a rest."
     },
     "Rest": {
       "title": "Rest",
@@ -1594,13 +2153,24 @@
       "minor": "Minor Downtime",
       "major": "Major Downtime",
       "downtime": "Downtime",
+      "days": "Days",
+      "slots": "Slots",
       "complete": "Complete Rest",
       "luckRestored": "Restored a Luck Die ({value}).",
       "luckRerolled": "Luck Dice rerolled.",
       "activitySp": "+{sp} SP",
+      "activityGold": "+{g} G",
+      "craftNote": "Craft Workbench",
+      "campRecent": "{names} camped within the last 24 hours. Rest anyway?",
+      "deadlines": "Deadlines",
       "activity": {
-        "none": "Just Rest",
-        "training": "Training"
+        "bond": "Bond",
+        "craft": "Craft",
+        "pursuit": "Pursuit",
+        "recover": "Recover",
+        "refine": "Refine",
+        "train": "Train",
+        "work": "Work"
       }
     },
     "SkillBuilder": {
@@ -1677,7 +2247,8 @@
         "improveHealing": "Power +1 (Healing) — {skill}",
         "improveModifier": "Expansion ({mod}) — {skill}",
         "improveArea": "Area +1 ({mod}) — {skill}",
-        "improveGrowth": "Tune Modifier ({mod}) — {skill}"
+        "improveGrowth": "Tune Modifier ({mod}) — {skill}",
+        "specialty": "Specialty — {name}"
       }
     },
     "Creator": {
@@ -1734,19 +2305,26 @@
       "pickImage": "Choose portrait",
       "conceptField": "Concept — appearance & behavior",
       "disposition": "Disposition",
-      "tierStepUps": "Step-Ups",
-      "tierVital": "HP / Energy",
-      "tierEvaDef": "Eva / Def",
-      "stars": "Star Rating",
-      "encounterPower": "Power",
-      "pickTierFirst": "Pick a Tier first.",
-      "stepsLeft": "Step-Ups left",
-      "stepsRemaining": "Distribute all Step-Ups first ({n} left).",
-      "noStepsLeft": "No Step-Ups left.",
-      "recalc": "Recalculate from attributes & tier",
-      "squad": "Squad Size",
-      "squadNote": "Minions field as one pooled squad — per-member HP × members",
-      "vitalNote": "×{mult} ({tier})",
+      "pickRoleTierFirst": "Pick a Role and a Tier first.",
+      "recalc": "Recalculate from Role & Tier",
+      "path": {
+        "row": "Take a Row",
+        "reshape": "Role & Twist",
+        "custom": "Build Your Own"
+      },
+      "rails": "Four Rails",
+      "rail": {
+        "damageIn": "Damage In (ATK)",
+        "damageOut": "Damage Out (DEF)",
+        "speed": "Speed (AS)",
+        "evasion": "Evasion (EVA)"
+      },
+      "railExempt": "Skirmisher (exempt)",
+      "statblock": "Statblock",
+      "twistsHeading": "Twists",
+      "twistOver": "3+ Twists — this should be an Elite.",
+      "boss": "Boss",
+      "bossReadout": "{bars} Bars × {barHp} HP",
       "basicAttacks": "Basic Attacks",
       "addBasicAttack": "Add Basic Attack",
       "basicAttackName": "Strike",
@@ -1754,7 +2332,8 @@
       "removeAttack": "Remove",
       "noAttacks": "No basic attacks yet.",
       "skillsHeading": "Skills",
-      "openSkillBuilder": "Open Skill Builder",
+      "browseSkills": "Browse",
+      "openSkillBuilder": "Skill Builder",
       "removeSkill": "Remove",
       "noSkills": "No abilities yet.",
       "noTier": "Untiered",
@@ -1763,6 +2342,69 @@
       "reviewAbilities": "Abilities",
       "finish": "Finish",
       "done": "{name} is ready!"
+    },
+    "SkillBrowser": {
+      "title": "Skill Compendium",
+      "search": "Search skills…",
+      "all": "All Skills",
+      "world": "World",
+      "empty": "No skills found.",
+      "onMonster": "On this monster",
+      "refresh": "Refresh",
+      "missing": "That skill's source could not be found.",
+      "done": "Done"
+    },
+    "Twist": {
+      "heading": "Twists",
+      "add": "Add Twist",
+      "counter": {
+        "name": "Counter",
+        "desc": "React · Attack from range 1: strike back first."
+      },
+      "drainTouch": {
+        "name": "Drain Touch",
+        "desc": "On hit, recover HP equal to half the damage dealt."
+      },
+      "dreadAura": {
+        "name": "Dread Aura",
+        "desc": "Passive · Foes within 2 tiles Step Down Charm."
+      },
+      "ensnare": {
+        "name": "Ensnare",
+        "desc": "On hit: Bound (Duration 2)."
+      },
+      "fade": {
+        "name": "Fade",
+        "desc": "Unseen until you attack (Duration 2)."
+      },
+      "guard": {
+        "name": "Guard",
+        "desc": "React · An ally within 2 tiles is attacked: take the hit instead."
+      },
+      "mend": {
+        "name": "Mend",
+        "desc": "Restore HP equal to the Strong die value to an ally within range 3."
+      },
+      "piercingShot": {
+        "name": "Piercing Shot",
+        "desc": "Attack ignores DEF and RES."
+      },
+      "reinforce": {
+        "name": "Reinforce",
+        "desc": "One Swarm of the same tier arrives at a board edge."
+      },
+      "stunningBlow": {
+        "name": "Stunning Blow",
+        "desc": "On hit: Stunned."
+      },
+      "sweep": {
+        "name": "Sweep",
+        "desc": "Attack all targets within 2 tiles of a point in range."
+      },
+      "warcry": {
+        "name": "Warcry",
+        "desc": "Allies within 2 tiles Step Up one Attribute (Duration 2)."
+      }
     },
     "Tier": {
       "minion": "Minion",
@@ -1777,11 +2419,83 @@
       "elite": "2 PCs",
       "solo": "the party"
     },
+    "EnemyRole": {
+      "label": "Role",
+      "grunt": "Grunt",
+      "brute": "Brute",
+      "skirmisher": "Skirmisher",
+      "caster": "Caster",
+      "support": "Support",
+      "swarm": "Swarm",
+      "elite": "Elite",
+      "strongShort": "Strong",
+      "weakShort": "Weak",
+      "strongPick": "Strong Attributes",
+      "strongPickHint": "An Elite picks three Strong Attributes; the rest use the Weak die.",
+      "gruntBlurb": "Chaff — its threat is numbers and position, not damage.",
+      "bruteBlurb": "A heavy hitter: more HP and ATK, slow and easy to dodge.",
+      "skirmisherBlurb": "Fast and evasive — may cross the Follow-Up line.",
+      "casterBlurb": "The damage. Attacks target RES; magic answers armour.",
+      "supportBlurb": "Buffs and denies with two Twists; hits softly.",
+      "swarmBlurb": "One flat-HP body that bounces off armour and hunts the back line.",
+      "eliteBlurb": "A cut above: tougher, sharper, and carries a Twist."
+    },
+    "EnemyTier": {
+      "1": "I",
+      "2": "II",
+      "3": "III",
+      "4": "IV",
+      "label": "Tier",
+      "tier": "Tier",
+      "pick": "Tier",
+      "pickHint": "The party's power band. Strong die = the tier die; Weak die is two steps down."
+    },
+    "Threat": {
+      "label": "Threat",
+      "hint": "Threat — this enemy's cost against the encounter budget.",
+      "swarmHalf": "Swarms may not exceed half the budget.",
+      "over": "Over budget"
+    },
+    "Rival": {
+      "label": "Rival",
+      "badge": "Rival",
+      "badgeHint": "A recurring named villain built on full PC rules — counts as Elite + 1 Threat and grows with the party.",
+      "toggle": "Rival — grows with the party (Elite + 1 Threat)"
+    },
+    "Boss": {
+      "label": "Boss",
+      "badge": "Boss",
+      "badgeHint": "One enemy built to fight the whole party. Its HP is split into Bars.",
+      "bars": "Bars",
+      "barsHint": "The Boss takes one full turn per remaining Bar. A broken Bar loses excess damage, ends its statuses, and may let it Shift.",
+      "toggle": "Boss — replace HP with Bars",
+      "barBroken": "{name}'s Bar breaks! ({remaining} of {total} left) — statuses cleared; it may Shift.",
+      "defeated": "{name}'s last Bar breaks — the Boss is defeated!",
+      "shift": "Shift",
+      "resolveShrug": "{name} shrugs off {status} (Resolve).",
+      "turnOf": "Bar {n}"
+    },
     "Party": {
       "name": "Party",
       "portrait": "Choose portrait",
       "roster": "Party",
+      "tier": "Tier",
+      "tierAuto": "Auto",
       "power": "Power",
+      "members": "Members",
+      "you": "You",
+      "addMember": "Add a Member",
+      "drawerAttributes": "Attributes",
+      "drawerEquipped": "Equipped",
+      "drawerBonds": "Bonds",
+      "slotWeapon": "Weapon",
+      "slotOffhand": "Off-hand",
+      "slotArmor": "Armor",
+      "slotAccessory": "Accessory",
+      "slotEmpty": "Empty",
+      "viewSheet": "Open Sheet",
+      "bondParty": "Party",
+      "bondFollower": "Follower",
       "difficulty": "Difficulty",
       "budget": "Budget",
       "encounter": "Encounter",
@@ -1843,9 +2557,9 @@
     "Encounter": {
       "difficulty": {
         "easy": "Easy",
-        "medium": "Medium",
+        "standard": "Standard",
         "hard": "Hard",
-        "extreme": "Extreme"
+        "climax": "Climax"
       }
     },
     "Status": {

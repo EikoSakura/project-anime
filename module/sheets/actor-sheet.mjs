@@ -1,23 +1,30 @@
 import { rollCheck, useConsumable, contextRemoveEffect } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { rangeLabel, physicalRangeLabel, skillEffectKeys } from "../helpers/config.mjs";
+import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, enemyStrongAttrs } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, narrateRule, normalizeRule, applyEffectCopy } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 import { AdvancementApp } from "../apps/advancement.mjs";
 import { RestApp } from "../apps/rest.mjs";
+import { materialTypeLabel } from "../helpers/crafting.mjs";
+import { tierNumeral, partyTier } from "../helpers/chronicle.mjs";
+import { skillRulesHTML } from "../helpers/skill-description.mjs";
 import { SkillBuilderApp } from "../apps/skill-builder.mjs";
 import { CharacterCreatorApp } from "../apps/character-creator.mjs";
 import { MonsterCreatorApp } from "../apps/monster-creator.mjs";
 import { SkillLogApp } from "../apps/skill-log.mjs";
 import { skillPointLedger } from "../helpers/skill-points.mjs";
-import { blankBond, getBonds, saveBonds, BOND_MAX_RANK, npcBond, npcBondRanks, forgeBondFromNpc } from "../helpers/bonds.mjs";
-import { getFactions, clampStanding } from "../helpers/factions.mjs";
+import {
+  blankBond, getBonds, saveBonds, BOND_MAX_RANK, bondById, rankLetter, bondEligible, canRankUp,
+  bondProgress, capacityInfo, forgeBond, earnBondScene, earnStandingTogether, adjustBondPoints,
+  rankUpBond, breakBond
+} from "../helpers/bonds.mjs";
+import { getFactions } from "../helpers/factions.mjs";
 import { confirmAndDismiss } from "../helpers/servants.mjs";
 import {
   GEAR_GROUPS, EQUIPPABLE, SLOT_ACCEPTS, bySort,
-  buildGearContext, slotOccupant, equipToSlot, clearSlot, importDroppedItem, readDrag, draggedItem, stampCompendiumSource
+  buildGearContext, slotOccupant, equipToSlot, equipToAvailableHand, clearSlot, importDroppedItem, readDrag, draggedItem
 } from "../helpers/gear.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -63,7 +70,7 @@ const bondHeroGrad = (acc) =>
 
 /** Sections that open as slide-in drawers (Stats is the always-visible main view). The Bonds
  *  drawer (a character's own relationship cards) is Character-only — see _configureRenderOptions. */
-const DRAWER_SECTIONS = ["skills", "gear", "biography", "defenses", "effects", "bonds", "npcbond"];
+const DRAWER_SECTIONS = ["skills", "gear", "biography", "defenses", "effects", "bonds"];
 
 /**
  * ApplicationV2 actor sheet shared by Character and NPC. Stats is the always-on
@@ -83,6 +90,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       editItem: ProjectAnimeActorSheet.#onEditItem,
       deleteItem: ProjectAnimeActorSheet.#onDeleteItem,
       rollItem: ProjectAnimeActorSheet.#onRollItem,
+      postItem: ProjectAnimeActorSheet.#onPostItem,
       addReadied: ProjectAnimeActorSheet.#onAddReadied,
       unreadySkill: ProjectAnimeActorSheet.#onUnreadySkill,
       togglePin: ProjectAnimeActorSheet.#onTogglePin,
@@ -90,7 +98,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       pickSlot: ProjectAnimeActorSheet.#onPickSlot,
       unequipSlot: ProjectAnimeActorSheet.#onUnequipSlot,
       cycleShieldUse: ProjectAnimeActorSheet.#onCycleShieldUse,
+      cycleGrip: ProjectAnimeActorSheet.#onCycleGrip,
       selectBag: ProjectAnimeActorSheet.#onSelectBag,
+      toggleBagView: ProjectAnimeActorSheet.#onToggleBagView,
       toggleCondition: ProjectAnimeActorSheet.#onToggleCondition,
       toggleEffectEnabled: ProjectAnimeActorSheet.#onToggleEffectEnabled,
       flipToggle: ProjectAnimeActorSheet.#onFlipToggle,
@@ -114,22 +124,20 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       openBond: ProjectAnimeActorSheet.#onOpenBond,
       closeBond: ProjectAnimeActorSheet.#onCloseBond,
       newBond: ProjectAnimeActorSheet.#onNewBond,
-      deleteBond: ProjectAnimeActorSheet.#onDeleteBond,
-      deepenBond: ProjectAnimeActorSheet.#onDeepenBond,
-      lessenBond: ProjectAnimeActorSheet.#onLessenBond,
-      addBondVital: ProjectAnimeActorSheet.#onAddBondVital,
-      removeBondVital: ProjectAnimeActorSheet.#onRemoveBondVital,
+      breakBond: ProjectAnimeActorSheet.#onBreakBond,
+      rankUpBond: ProjectAnimeActorSheet.#onRankUpBond,
+      earnBondScene: ProjectAnimeActorSheet.#onEarnBondScene,
+      earnStanding: ProjectAnimeActorSheet.#onEarnStanding,
+      adjustBond: ProjectAnimeActorSheet.#onAdjustBond,
+      bondFilter: ProjectAnimeActorSheet.#onBondFilter,
       pickBondPortrait: ProjectAnimeActorSheet.#onPickBondPortrait,
-      pickBondBanner: ProjectAnimeActorSheet.#onPickBondBanner,
       openBondActor: ProjectAnimeActorSheet.#onOpenBondActor,
-      clearBondActor: ProjectAnimeActorSheet.#onClearBondActor,
+      buildUnion: ProjectAnimeActorSheet.#onBuildUnion,
+      openUnion: ProjectAnimeActorSheet.#onOpenUnion,
+      unlinkUnion: ProjectAnimeActorSheet.#onUnlinkUnion,
+      clearFacility: ProjectAnimeActorSheet.#onClearFacility,
       toggleRole: ProjectAnimeActorSheet.#onToggleRole,
       toggleStatblock: ProjectAnimeActorSheet.#onToggleStatblock,
-      removeRewardItem: ProjectAnimeActorSheet.#onRemoveRewardItem,
-      editBondRankEffect: ProjectAnimeActorSheet.#onEditBondRankEffect,
-      pickNpcBondBanner: ProjectAnimeActorSheet.#onPickNpcBondBanner,
-      openNpcBondRank: ProjectAnimeActorSheet.#onOpenNpcBondRank,
-      closeNpcBondRank: ProjectAnimeActorSheet.#onCloseNpcBondRank,
       dismissServant: ProjectAnimeActorSheet.#onDismissServant
     }
   };
@@ -142,8 +150,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     biography: { template: "systems/project-anime/templates/actor/biography.hbs", scrollable: [""] },
     defenses: { template: "systems/project-anime/templates/actor/defenses-drawer.hbs" },
     effects: { template: "systems/project-anime/templates/actor/effects-drawer.hbs" },
-    bonds: { template: "systems/project-anime/templates/actor/bonds.hbs", scrollable: [".bonds-grid"] },
-    npcbond: { template: "systems/project-anime/templates/actor/npc-bond.hbs", scrollable: [".npcbond-scroll"] }
+    bonds: { template: "systems/project-anime/templates/actor/bonds.hbs", scrollable: [".bonds-grid"] }
   };
 
   /** Which section drawer is open ("skills"/"gear"/"biography"/"defenses"), or null.
@@ -154,12 +161,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
    *  render so the open book survives the re-render an edit triggers. */
   #openBond = null;
 
-  /** The NPC bond-offer RANK whose detail book is currently open (rank number), or null. Transient UI
-   *  state, re-applied on render so the open rank book survives the re-render an edit triggers. */
-  #openNpcRank = null;
+  /** Bonds-grid segment filter: "all" | "party" | "follower". Client-side show/hide (no re-render),
+   *  re-applied on render. */
+  #bondFilter = "all";
 
-  /** Queued "bond deepened" flourish: { rank, id }, set by Deepen and consumed once in _onRender
-   *  after the data-driven re-render (so the gala + star-pop fire exactly once). */
+  /** Queued "bond deepened" flourish: { rank, id }, set by a rank-up and consumed once in _onRender
+   *  after the data-driven re-render (so the gala fires exactly once). */
   #bondGala = null;
 
   /** One-shot flag → plays the role crest's flip animation once after a Monster⇄NPC toggle. */
@@ -172,6 +179,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /** Which bag (container) the Gear inventory is scoped to: "" = backpack, else a
    *  container item id. Drives the WoW-style bag view; survives re-renders. */
   #selectedBag = "";
+
+  /** Gear inventory view: "single" (one open bag) or "combined" (all bags as sections, WoW
+   *  Combine-Bags style). Persisted per user so it sticks across reloads. */
+  #bagView = game.user?.getFlag("project-anime", "bagView") || "single";
 
   /** Skills drawer filter — a set of selected action-type chips ("action"/"react"/"passive";
    *  empty = "all", i.e. show everything) plus the name-search query. Multi-select: chips
@@ -201,8 +212,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     options.parts.push("stats", "skills", "gear", "biography", "defenses", "effects");
     // Bonds are a Player Character's own relationship cards — not shown for NPCs.
     if (this.document.type === "character") options.parts.push("bonds");
-    // A social NPC (role "npc") authors a Bond OFFER in its own drawer; Monsters don't.
-    if (this.document.type === "npc" && this.document.system?.role === "npc") options.parts.push("npcbond");
   }
 
   /** @override */
@@ -224,17 +233,24 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.isMonster = context.isNPC && context.npcRole !== "npc";
     // A social NPC's combat statblock is collapsible (default folded) — see stats.hbs.
     context.statblockOpen = this.#statblockOpen;
-    // Monster ★-Tier badge — only on a Monster-role NPC (a social NPC isn't Tiered). The star count
-    // is the per-NPC power rating; rendered as N filled stars before the tier label ("★★★ Elite").
-    const tierKey = context.isMonster ? this.actor.system.tier : null;
-    const tierCfg = tierKey ? CONFIG.PROJECTANIME.monsterTiers?.[tierKey] : null;
-    const tierStars = context.isMonster ? (Number(this.actor.system.stars) || 0) : 0;
-    context.tierBadge = tierCfg
-      ? { label: game.i18n.localize(tierCfg.label), icon: tierCfg.icon, color: tierCfg.color,
-          stars: tierStars >= 1 ? Array.from({ length: tierStars }, (_, i) => i) : null,
-          apex: tierStars >= CONFIG.PROJECTANIME.maxStars,
-          // Encounter-budget worth (Party-Equivalents) surfaced at a glance — see helpers/encounter.mjs.
-          worth: game.i18n.localize(`PROJECTANIME.Worth.${tierKey}`) }
+    // Enemy Role · Tier badge (v0.03) — only on a Monster-role NPC (a social NPC isn't a combat enemy).
+    // Reads "⟨Role⟩ · Tier ⟨I–IV⟩", with a Rival / Boss chip when flagged. Threat is the encounter cost.
+    const eRole = context.isMonster ? this.actor.system.enemyRole : "";
+    const eTier = context.isMonster ? (Number(this.actor.system.enemyTier) || 0) : 0;
+    const roleCfg = eRole ? CONFIG.PROJECTANIME.enemyRoles?.[eRole] : null;
+    context.tierBadge = roleCfg
+      ? { label: game.i18n.localize(roleCfg.label), icon: roleCfg.icon, color: roleCfg.color,
+          tierNumeral: CONFIG.PROJECTANIME.enemyTierNumerals?.[eTier] ?? "",
+          rival: !!this.actor.system.rival,
+          boss: !!this.actor.system.boss?.enabled,
+          threat: this.actor.system.rival ? 3 : (roleCfg.threat ?? 1) }
+      : null;
+    // Boss Bars readout (v0.03): the pip strip under the header + the current-Bar note.
+    context.bossBars = (context.isMonster && this.actor.system.boss?.enabled)
+      ? { remaining: Number(this.actor.system.boss.remaining) || 0,
+          total: Number(this.actor.system.boss.bars) || 0,
+          broken: Number(this.actor.system.boss.broken) || 0,
+          pips: Array.from({ length: Number(this.actor.system.boss.bars) || 0 }, (_, i) => ({ full: i < (Number(this.actor.system.boss.remaining) || 0) })) }
       : null;
     // The toggled <prose-mirror> shows enriched HTML while collapsed and loads the raw
     // value (+ this UUID, for content links) when editing — the PF2e click-to-edit
@@ -257,10 +273,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       iconImg: isImageIcon(f.icon),
       long: f.type === "long"
     }));
-    // Faction affiliation for a social NPC — relocated to the Biography "Profile" (was the Bond drawer).
-    // Stored at system.bond.faction; the bio select uses name= so the actor form saves it directly.
+    // Faction affiliation for a social NPC — authored on the Biography "Profile". Stored at
+    // system.faction; the bio select uses name= so the actor form saves it directly.
     if (context.isNpcRole) {
-      const facId = this.actor.system.bond?.faction ?? "";
+      const facId = this.actor.system.faction ?? "";
       const facs = getFactions();
       context.npcFaction = {
         value: facId,
@@ -330,16 +346,30 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     });
 
     // Attribute cards (with the Skill-Point cost to raise each one).
+    // For a Monster, tag each Attribute Strong / Weak (its die derives from the Role × Tier) so the
+    // statblock shows the two-die model at a glance.
+    const monsterStrong = context.isMonster && this.actor.system.enemyRole
+      ? enemyStrongAttrs(this.actor.system.enemyRole, this.actor.system.strongAttrs)
+      : null;
     context.attributeList = cfg.attributeKeys.map((k) => {
       const a = this.actor.system.attributes[k];
       return {
         key: k,
         label: game.i18n.localize(cfg.attributes[k]),
+        short: cfg.attributeAbbr?.[k] ? game.i18n.localize(cfg.attributeAbbr[k]) : game.i18n.localize(cfg.attributes[k]),
         die: a.die ?? `d${a.value}`,
         base: a.base,
-        icon: cfg.attributeIcons?.[k] ?? ""
+        icon: cfg.attributeIcons?.[k] ?? "",
+        strong: monsterStrong ? monsterStrong.includes(k) : false
       };
     });
+
+    // Party Tier → the Roman-numeral gem crest on the status-window portrait (characters). Gold is
+    // shown/edited on the Gear tab, not here.
+    if (context.isCharacter) {
+      const t = partyTier();
+      context.tierRoman = t ? tierNumeral(t) : "";
+    }
 
     // NPC HQ work profile — Talents (work dice) + the Signature Trait + Traits (npc actor type only).
     if (context.isNPC) {
@@ -364,12 +394,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       }));
     }
 
-    // BONDS drawer (Characters only) — the player's own relationship cards (flip-cards).
+    // BONDS drawer (Characters only) — the player's own paired relationships (v0.03).
     if (context.isCharacter) context.bonds = await this.#bondContext();
-    // BOND OFFER drawer (social NPCs) — the bond this NPC offers + its per-rank rewards.
-    if (context.isNpcRole) context.npcBond = this.#npcBondContext();
 
-    this.#prepareItems(context);
+    await this.#prepareItems(context);
     return context;
   }
 
@@ -384,18 +412,16 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       this.#bindItemContext();
       this.#bindSheetDnD();
       this.#bindHudDrag();
+      this.#bindSkillReorder();
       this.#bindBondsDrawer();
-      this.#bindNpcBond();
       this.#bindEnergyMax();
     }
-    // A queued Deepen flourish fires once, after the data re-render that raised the rank.
+    this.#applyBondFilter();
+    // A queued rank-up flourish fires once, after the data re-render that raised the rank.
     if (this.#bondGala != null) {
-      const { rank, id } = this.#bondGala;
+      const { rank } = this.#bondGala;
       this.#bondGala = null;
       ProjectAnimeActorSheet.#playBondGala(rank);
-      const book = this.element?.querySelector?.(`.bond-overlay[data-bond-book="${id}"]`);
-      book?.querySelectorAll?.(`.st[data-star="${rank - 1}"]`).forEach((s) => s.classList.add("pop"));
-      book?.querySelector?.(`.ability[data-ar="${rank}"]`)?.classList.add("just");
     }
     // The Monster⇄NPC crest flips once, right after a role toggle's re-render.
     if (this.#roleFlip) {
@@ -445,14 +471,15 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       return;
     }
     if (data?.type === "Actor" && data.uuid && this.actor.type === "character") {
-      // Drag a social NPC onto a Player → forge/sync the bond it offers + deliver its rank rewards.
-      // A monster / plain NPC (no offer) is ignored. Re-drag safe (matches by the NPC's UUID).
+      // Drag a Character or NPC onto a Player Character → open a Bond with it (Party for a PC,
+      // Follower for an NPC). Idempotent (an existing bond just re-opens); a Party Bond mirrors.
       ev.preventDefault();
-      const npc = await fromUuid(data.uuid).catch(() => null);
-      if (!npc) return;
-      this.#openSection = "bonds";              // reveal the card on the re-render the forge triggers
-      const res = await forgeBondFromNpc(this.actor, npc);
-      if (!res) this.#openSection = null;       // no offer → nothing forged, leave drawers closed
+      const other = await fromUuid(data.uuid).catch(() => null);
+      if (!other || other.uuid === this.actor.uuid) return;
+      this.#openSection = "bonds";              // reveal the drawer on the re-render the forge triggers
+      const res = await forgeBond(this.actor, other);
+      if (res?.bond) { this.#openBond = res.bond.id; this.render(); }
+      else this.#openSection = null;
       return;
     }
     if (data?.type === "Item" && data.uuid) {
@@ -507,11 +534,64 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     }
   }
 
+  /** Drag-to-reorder for the Skills command list on the Stats view. Each action group (Active /
+   *  Reaction / Passive) is its own `.cmd-list[data-reorder]`; dragging is confined to the group a
+   *  skill belongs to (its group IS its action type). On drop, the new on-screen order is written to
+   *  each skill item's `sort` so it survives reloads. Scoped to the section + stopPropagation so the
+   *  sheet's own item-drop handler never sees these internal drags. */
+  #bindSkillReorder() {
+    const section = this.element?.querySelector?.(".cmd-skills");
+    if (!section) return;
+    let dragged = null;
+    for (const list of section.querySelectorAll(".cmd-list[data-reorder]")) {
+      for (const row of list.querySelectorAll(".cmd-row")) row.setAttribute("draggable", "true");
+      list.addEventListener("dragstart", (ev) => {
+        const row = ev.target.closest(".cmd-row");
+        if (!row || !list.contains(row)) return;
+        dragged = row;
+        ev.stopPropagation();
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", "");
+        section.classList.add("reordering");
+        requestAnimationFrame(() => row.classList.add("dragging"));
+      });
+      list.addEventListener("dragover", (ev) => {
+        if (!dragged || !list.contains(dragged)) return;   // only reorder within the source group
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.dataTransfer.dropEffect = "move";
+        const over = ev.target.closest(".cmd-row");
+        if (!over || over === dragged || !list.contains(over)) return;
+        const r = over.getBoundingClientRect();
+        if (ev.clientY - r.top > r.height / 2) over.after(dragged);
+        else over.before(dragged);
+      });
+      list.addEventListener("drop", (ev) => { ev.preventDefault(); ev.stopPropagation(); });
+    }
+    section.addEventListener("dragend", () => {
+      if (!dragged) return;
+      dragged.classList.remove("dragging");
+      dragged = null;
+      section.classList.remove("reordering");
+      this.#persistSkillOrder(section);
+    });
+  }
+
+  /** Write the current on-screen order of the Skills lists to each skill's `sort`, but only if it
+   *  actually changed (skip a redundant update + re-render on a no-op drag). */
+  async #persistSkillOrder(section) {
+    const ids = [...section.querySelectorAll(".cmd-row[data-item-id]")].map((r) => r.dataset.itemId);
+    const current = this.actor.items.filter((i) => i.type === "skill").sort(bySort).map((i) => i.id);
+    if (ids.join("|") === current.join("|")) return;
+    const updates = ids.map((id, idx) => ({ _id: id, sort: (idx + 1) * 100000 }));
+    await this.actor.updateEmbeddedDocuments("Item", updates);
+  }
+
   /* -------------------------------------------- */
   /*  Context helpers                             */
   /* -------------------------------------------- */
 
-  #prepareItems(context) {
+  async #prepareItems(context) {
     const skills = [];
     const packages = [];
     const groups = Object.fromEntries(GEAR_GROUPS.map((k) => [k, []]));
@@ -534,12 +614,22 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const granted = !!i.getFlag("project-anime", "granted");
       const byId = granted ? i.getFlag("project-anime", "grantedBy") : null;
       const source = byId ? this.actor.items.get(byId)?.name : "";
+      // Rules summary for the command-row hover drawer: a manual override wins, else the auto
+      // colour-coded line (helpers/skill-description). Rendered with {{{descHTML}}}. Guarded so a
+      // single malformed skill can never abort the whole sheet render.
+      const ov = i.system?.rulesOverride;
+      let descHTML = "";
+      try { descHTML = (ov && String(ov).trim()) ? ov : skillRulesHTML(i); } catch (_e) { descHTML = ""; }
+      const actionType = i.system?.actionType || "action";
       return {
         id: i.id,
         name: i.name,
         img: i.img,
         stars: `${i.system.spCost ?? 0} SP`,
         energyCost: cost,
+        actionType,
+        passive: actionType === "passive",
+        descHTML,
         pinned: !!i.getFlag("project-anime", "readied"),
         affordable: cost <= curEnergy,
         granted,
@@ -580,9 +670,44 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     // the Weapons block when EITHER equipped or pinned — surfaced like a real weapon. Shield-Only
     // shields are defensive and never land here (a pinned one stays in the Items block below).
     const isWeaponShield = (i) => i.type === "shield" && i.system?.use === "dual" && (i.system?.equipped || isReadied(i));
-    context.quickWeapons = [...groups.weapon.filter((i) => i.system?.equipped || isNatural(i)), ...groups.shield.filter(isWeaponShield)]
+    // The hover drawer unfolds a rich stat card (accuracy / damage / range rows + enriched
+    // description) — the same fields #itemTooltip formats for the floating tooltip.
+    const cfgW = CONFIG.PROJECTANIME;
+    const TE = foundry.applications.ux.TextEditor?.implementation ?? globalThis.TextEditor;
+    const escW = foundry.utils.escapeHTML;
+    const aNameW = (k) => game.i18n.localize(cfgW.attributes[k] ?? k);
+    const elNameW = (k) => (k ? (getElements().find((e) => e.key === k)?.label ?? k) : "");
+    const signedW = (n) => (n ? ` ${n > 0 ? "+" : ""}${n}` : "");
+    context.quickWeapons = await Promise.all([...groups.weapon.filter((i) => i.system?.equipped || isNatural(i)), ...groups.shield.filter(isWeaponShield)]
       .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || (isNatural(a) - isNatural(b)) || bySort(a, b))
-      .map((i) => ({ id: i.id, name: i.name, img: i.img, natural: isNatural(i), shield: i.type === "shield" }));
+      .map(async (i) => {
+        const sys = i.system ?? {};
+        const isSh = i.type === "shield";
+        const nat = isNatural(i);
+        const dmgMod = Number(sys.damage?.mod) || 0;
+        const rangeTiles = Number(sys.range?.tiles) || 0;
+        // Accuracy: the two rolled Attributes (accent-coloured) + the weapon's flat mod.
+        const acc = sys.accuracy ?? {};
+        const accParts = [acc.attrA, acc.attrB].filter(Boolean).map((k) => `<span class="att">${escW(aNameW(k))}</span>`);
+        const accHTML = accParts.length ? `${accParts.join(' <span class="op">+</span> ')}${escW(signedW(acc.mod))}` : "";
+        const dmgType = elNameW(sys.damage?.type);
+        const dmgLabel = (dmgType || dmgMod) ? `${dmgType}${signedW(dmgMod)}`.trim() : "";
+        const rangeText = rangeTiles > 0 ? physicalRangeLabel(sys.range) : "";
+        let descHTML = "";
+        if (sys.description && String(sys.description).trim()) {
+          try { descHTML = await TE.enrichHTML(String(sys.description), { relativeTo: i, secrets: false }); } catch (_e) { descHTML = ""; }
+        }
+        return {
+          id: i.id, name: i.name, img: i.img, natural: nat, shield: isSh,
+          equipped: !!sys.equipped,
+          typeLabel: nat ? game.i18n.localize("PROJECTANIME.NaturalAttack.tag")
+            : game.i18n.localize(`TYPES.Item.${i.type}`),
+          dmgMod, rangeTiles, accHTML, dmgLabel, rangeText, descHTML,
+          hand: sys.hand || "",
+          // gates the hover dropdown + caret
+          hasMeta: !!(accHTML || dmgLabel || rangeText || descHTML || nat)
+        };
+      }));
     const readied = skills.filter((i) => i.getFlag("project-anime", "readied"));
     const mapSkill = (i) => ({ id: i.id, name: i.name, img: i.img, energyCost: i.system?.energyCost ?? 0 });
     // Pinned skills, split into the three action-type groups (empty groups drop out).
@@ -611,9 +736,28 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     // Carried gear (bag bar + inventory grid + paperdoll) — shared with the Monster Creator's Gear
     // step. buildGearContext also corrects a stale selected bag (deleted → backpack), so write the
     // corrected id back to our state.
-    const gear = buildGearContext(this.actor, { selectedBag: this.#selectedBag });
+    const gear = buildGearContext(this.actor, { selectedBag: this.#selectedBag, bagView: this.#bagView });
     this.#selectedBag = gear.selectedBag;
     Object.assign(context, gear);
+    context.bagViewCombined = this.#bagView === "combined";
+    // Actor-sheet gear is the live inventory: left-clicking a bag tile posts it to chat (the
+    // Monster Creator's builder grid keeps click-to-edit). Gates the tile action in gear-body.hbs.
+    context.gearChatClick = true;
+
+    // Carried Materials (v0.03 Crafting) — a dedicated Gear-tab section (they're not in the bag grid,
+    // and bundle 3-per-Bulk rather than 1-per-item). Renameable like gear via the item sheet.
+    context.materials = this.actor.items
+      .filter((i) => i.type === "material")
+      .map((i) => ({
+        id: i.id, name: i.name, img: i.img,
+        prime: i.system.grade === "prime",
+        typeLabel: materialTypeLabel(i.system.category),
+        tierRoman: tierNumeral(Number(i.system.tier) || 1),
+        qty: Number(i.system.quantity) || 0,
+        icon: CONFIG.PROJECTANIME.materialTypeIcons?.[i.system.category] ?? "fa-solid fa-cube"
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    context.hasMaterials = context.materials.length > 0;
   }
 
   /* -------------------------------------------- */
@@ -659,6 +803,14 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     this.render();
   }
 
+  /** Toggle the Gear inventory between the single-bag panel and the combined (all-bags) sections
+   *  view — the WoW "Combine Bags" switch. Persisted per user. */
+  static #onToggleBagView(event, target) {
+    this.#bagView = this.#bagView === "combined" ? "single" : "combined";
+    game.user?.setFlag("project-anime", "bagView", this.#bagView);
+    this.render();
+  }
+
   static #getItem(target) {
     const id = target.closest("[data-item-id]")?.dataset.itemId;
     return id ? this.actor.items.get(id) : null;
@@ -684,6 +836,12 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
 
   static async #onRollItem(event, target) {
     ProjectAnimeActorSheet.#getItem.call(this, target)?.roll({ event });
+  }
+
+  /** Post an item's info card to chat (bag/grid click) — distinct from #onRollItem, which rolls
+   *  the attack/skill from the main-screen quick panel. */
+  static async #onPostItem(event, target) {
+    ProjectAnimeActorSheet.#getItem.call(this, target)?.toChat();
   }
 
   static #onAddReadied() {
@@ -724,6 +882,26 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const item = ProjectAnimeActorSheet.#getItem.call(this, target);
     if (!item || item.type !== "shield") return;
     await item.update({ "system.use": item.system.use === "dual" ? "shield" : "dual" });
+  }
+
+  /** Paperdoll: flip a weapon's grip in place (shares #toggleGrip with the gear context menu). */
+  static async #onCycleGrip(event, target) {
+    await this.#toggleGrip(ProjectAnimeActorSheet.#getItem.call(this, target));
+  }
+
+  /** Flip a weapon's grip one-/two-handed — the SINGLE path used by both the paperdoll badge and the
+   *  gear context menu, so the off-hand lock registers identically from either. Two-handed spans both
+   *  hands → enforceEquipExclusivity frees the off hand, which then reads as locked. A Two-Handed-Only
+   *  weapon has no grip to flip. */
+  async #toggleGrip(item) {
+    if (!item || item.type !== "weapon" || item.system?.twoHandedOnly) return;
+    const toTwo = item.system.grip !== "two";
+    await item.update({ "system.grip": toTwo ? "two" : "one" });
+    // A two-handed grip occupies both hands: equip it into the main hand so the off hand frees and
+    // locks — so the grip change itself runs the whole lock mechanism (from the context menu too, not
+    // only the equipped paperdoll). equipToSlot reads the now-current grip to clear the off hand.
+    // Switching back to one-handed leaves the weapon equipped and simply frees the off hand for use.
+    if (toTwo) await equipToSlot(this.actor, item, "mainHand");
   }
 
   /* -------------------------------------------- */
@@ -863,6 +1041,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     if (!root) return;
     const cache = new Map();
     for (const el of root.querySelectorAll("[data-item-id]")) {
+      // Gear drawer shows no hover tooltips — it's for managing inventory, not previewing stats
+      // (left-click posts to chat; edit via the tile action). Strip the native title too.
+      if (el.closest('[data-section="gear"]')) {
+        el.removeAttribute("title");
+        el.querySelectorAll("[title]").forEach((c) => c.removeAttribute("title"));
+        continue;
+      }
+      // Command rows with their own inline hover dropdown (skills, and weapons with stat chips) reveal
+      // their info in place — a floating rich tooltip on top would be redundant, so skip those. Rows
+      // with no dropdown (pinned items, meta-less weapons) still get the tooltip.
+      if (el.classList.contains("cmd-row") && el.querySelector(".cmd-desc")) continue;
       const item = this.actor.items.get(el.dataset.itemId);
       if (!item) continue;
       if (!cache.has(item.id)) cache.set(item.id, await this.#itemTooltip(item));
@@ -1058,20 +1247,18 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const equipped = !!item.system?.equipped;
     const pinned = !!item.getFlag("project-anime", "readied");
     const { add, show } = this.#contextMenu(ev);
-    // Consumables get a one-click Use (consume now) above "Post to Chat" — the posted card carries
-    // its own ▶ Use button, so both routes run the same restore-then-leave-inventory action.
+    // Consumables get a one-click Use (consume now); the posted card carries its own ▶ Use button.
     if (item.type === "consumable") add("fa-play", "PROJECTANIME.Action.use", () => useConsumable(this.actor, item));
-    add("fa-comment", "PROJECTANIME.Action.toChat", () => item.roll({ event: ev }));
-    // The innate Natural Attack isn't carried gear — offer only chat + tuning (no equip / delete).
+    // The innate Natural Attack isn't carried gear — offer only tuning (no equip / delete).
     if (item.getFlag("project-anime", "natural")) {
       add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
       show();
       return;
     }
     if (item.type === "weapon" || item.type === "shield") {
-      add("fa-hand-fist", "PROJECTANIME.Action.equipMainHand", () => equipToSlot(this.actor, item, "mainHand"));
-      add("fa-shield-halved", "PROJECTANIME.Action.equipOffHand", () => equipToSlot(this.actor, item, "offHand"));
+      // One "Equip" drops it into a free hand (weapon→main, shield→off; a two-handed weapon claims both).
       if (equipped) add("fa-xmark", "PROJECTANIME.Action.unequip", () => item.update({ "system.equipped": false }));
+      else add("fa-hand-fist", "PROJECTANIME.Action.equipHand", () => equipToAvailableHand(this.actor, item));
     } else if (EQUIPPABLE.has(item.type)) {
       const key = equipped ? "PROJECTANIME.Action.unequip" : "PROJECTANIME.Action.equip";
       add("fa-shield-halved", key, () => item.update({ "system.equipped": !equipped }));
@@ -1082,7 +1269,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     if (item.type === "weapon" && !item.system?.twoHandedOnly) {
       const twoH = item.system?.grip === "two";
       add(twoH ? "fa-hand" : "fa-hands", twoH ? "PROJECTANIME.Action.gripOne" : "PROJECTANIME.Action.gripTwo",
-        () => item.update({ "system.grip": twoH ? "one" : "two" }));
+        () => this.#toggleGrip(item));
     }
     // Shields flip Use in place: dual-wield (counts as a weapon, both dice Step Down) vs just-a-
     // shield (defensive; a bash Steps the shield's own die Down). Mirrors the weapon grip toggle.
@@ -1247,10 +1434,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   static #onCloseDrawer() {
     this.#openSection = null;
     this.#openBond = null;
-    this.#openNpcRank = null;
     this.#applyDrawers();
     this.#applyBondBooks();
-    this.#applyNpcRankBooks();
   }
 
   /** Reflect #openSection on the live DOM so the slide transition plays without a
@@ -1265,70 +1450,88 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   /*  Bonds drawer (per-character relationships)  */
   /* -------------------------------------------- */
 
-  /** Build the view-model for every bond on this character: the tarot card (HQ-style art) plus the
-   *  codex detail book (stars, dossier, vitals, quote, per-rank abilities) shown when the card is
-   *  opened. `isOpen` reflects which book is open so it survives the re-render an edit triggers. */
+  /** Build the Bonds drawer view-model (v0.03): the Charm-capacity meter, the segment filter, and one
+   *  entry per bond — its tarot card plus the codex detail book (rank ladder, BP meter, benefit ladder,
+   *  Union Skill). `isOpen` reflects which book is open so it survives the re-render an edit triggers. */
   async #bondContext() {
-    const factions = getFactions();
-    const accentFor = (b) => b.accent || factions.find((f) => f.id === b.faction)?.accent || "#8a6fc0";
-    const TE = foundry.applications.ux.TextEditor?.implementation ?? globalThis.TextEditor;
     const L = (k) => game.i18n.localize(k);
     const F = (k, d) => game.i18n.format(k, d);
-    const out = [];
+    const rt = String(this.actor.flags?.["project-anime"]?.lastRestAt ?? "none");
+    const cid = game.combat?.id || "";
+
+    const cards = [];
     for (const b of getBonds(this.actor)) {
-      const f = factions.find((x) => x.id === b.faction) ?? null;
-      const maxed = b.rank >= BOND_MAX_RANK;
-      const accent = accentFor(b);
-      const stars = Array.from({ length: BOND_MAX_RANK }, (_v, i) => ({ full: i < b.rank, idx: i }));
-      const abilities = (b.abilities ?? []).map((a) => {
-        const on = a.rank <= b.rank;
+      const isParty = b.kind === "party";
+      const accent = b.accent || (isParty ? "#9a78e0" : "#d8b257");
+      const rank = Number(b.rank) || 0;
+      const maxed = rank >= BOND_MAX_RANK;
+      const prog = bondProgress(b);
+      const eligible = bondEligible(b);
+      const defs = isParty ? PROJECTANIME.partyBondBenefits : PROJECTANIME.followerBondBenefits;
+
+      // The four-rung Standing ladder (C/B/A/S): the benefit that unlocks at each rank, or "".
+      const ladder = PROJECTANIME.bondRanks.map((letter, i) => {
+        const def = defs.find((d) => d.rank === i);
         return {
-          rank: a.rank,
-          nameRaw: a.name ?? "",
-          descRaw: a.desc ?? "",
-          name: a.name || F("PROJECTANIME.Covenant.abilityUnnamed", { rank: a.rank }),
-          desc: on ? (a.desc || "") : F("PROJECTANIME.Covenant.abilityLocked", { rank: a.rank }),
-          // Auto-summary of the rank's mechanical Effect (Grants / buffs / Skill adjustments), shown read-only
-          // once the rank is unlocked — players see what the bond actually does (the GM authors it).
-          rulesHTML: on ? traitCardDescHTML(a.rules, "") : "",
-          on,
-          reqLabel: on ? L("PROJECTANIME.Covenant.unlocked") : F("PROJECTANIME.Covenant.rankN", { rank: a.rank })
+          letter, done: i <= rank, cur: i === rank,
+          benefit: def ? L(`PROJECTANIME.Bond.benefit.${def.key}.short`) : "—"
         };
       });
-      out.push({
-        id: b.id,
-        name: b.name,
-        title: b.title,
-        accent,
-        img: b.img,
-        initial: initialOf(b.name),
-        bannerStyle: b.banner ? `background-image:url('${b.banner}')` : `background:${bondHeroGrad(accent)}`,
-        faction: f ? { id: f.id, name: f.name, sigil: f.sigil, accent: f.accent } : null,
-        factionName: f?.name ?? L("PROJECTANIME.Covenant.unaffiliated"),
-        factionSig: f?.sigil ?? "◆",
-        actorUuid: b.actorUuid,
-        locked: !!b.locked,
-        maxed,
-        rankNum: b.rank,
-        rankDisplay: maxed ? "★" : b.rank,
-        rankWord: maxed ? L("PROJECTANIME.Covenant.bondMax") : L("PROJECTANIME.Covenant.bondRank"),
-        stars,
-        progPct: maxed ? 100 : clampStanding(b.prog),
-        progLabel: maxed ? "★ ★ ★ ★ ★" : `${clampStanding(b.prog)}%`,
-        towardLabel: maxed ? L("PROJECTANIME.Covenant.bondComplete") : F("PROJECTANIME.Covenant.towardRank", { rank: b.rank + 1 }),
-        vitals: (b.vitals ?? []).map((v) => ({ id: v.id, k: v.k, v: v.v })),
-        dossier: await TE.enrichHTML(b.dossier ?? "", { relativeTo: this.actor, secrets: this.actor.isOwner }),
-        dossierRaw: b.dossier ?? "",
-        quote: b.quote,
-        abilities,
-        factionOptions: factions.map((x) => ({ id: x.id, name: x.name, sel: x.id === b.faction })),
+
+      // The detailed benefit list for the info page.
+      const benefits = defs.map((def) => {
+        const on = rank >= def.rank;
+        const note = (b.notes ?? {})[def.key] ?? "";
+        const row = {
+          key: def.key, letter: PROJECTANIME.bondRanks[def.rank], rank: def.rank, on,
+          name: L(`PROJECTANIME.Bond.benefit.${def.key}.name`),
+          desc: L(`PROJECTANIME.Bond.benefit.${def.key}.desc`),
+          note, tracked: !!def.tracked, auto: !!def.rules
+        };
+        if (def.choice) {
+          row.isAid = true;
+          row.aidOptions = Object.entries(PROJECTANIME.bondAidChoices).map(([id, lk]) => ({ id, label: L(lk), sel: b.aidChoice === id }));
+        }
+        return row;
+      });
+
+      // Union Skill (party, rank S): resolve the linked skill item for display.
+      let union = null;
+      if (isParty) {
+        let skill = null;
+        if (b.unionSkillId) skill = await fromUuid(b.unionSkillId).catch(() => null);
+        union = {
+          unlocked: rank >= 3,
+          linked: !!skill,
+          name: skill?.name ?? "",
+          img: skill?.img ?? "",
+          meta: skill ? skillRulesHTML(skill) : ""
+        };
+      }
+
+      cards.push({
+        id: b.id, kind: b.kind, isParty,
+        name: b.name || (isParty ? L("PROJECTANIME.Bond.kind.party") : L("PROJECTANIME.Bond.kind.follower")),
+        title: b.title, quote: b.quote, accent, img: b.img, initial: initialOf(b.name),
+        bannerStyle: `background:${bondHeroGrad(accent)}`,
+        partnerUuid: b.partnerUuid, hasPartner: !!b.partnerUuid,
+        kindLabel: L(`PROJECTANIME.Bond.kind.${b.kind}`),
+        rank, rankLetter: rankLetter(rank), maxed,
+        bp: Number(b.bp) || 0, need: prog.need, progPct: prog.pct, atMax: prog.need == null,
+        eligible, eligibleLetter: rankLetter(eligible), ready: canRankUp(b), nextLetter: maxed ? "" : rankLetter(rank + 1),
+        ladder, benefits,
+        aidChoice: b.aidChoice,
+        favoredFacility: b.favoredFacility ?? "", favoredFacilityIcon: b.favoredFacilityIcon || "fa-chess-rook", resides: !!b.resides,
+        union,
+        sceneAvailable: (b.sceneRestId || "") !== rt,
+        standingAvailable: !!cid && (b.standingCombatId || "") !== cid,
         isOpen: this.#openBond === b.id
       });
     }
-    // Display the cards (and their books) alphabetically by name — case-insensitive, natural number
-    // order. Display-only: the stored bonds array keeps its order so forge/reward matching is unaffected.
-    out.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base", numeric: true }));
-    return out;
+    // Display alphabetically by name (case-insensitive, natural). Storage order is untouched.
+    cards.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base", numeric: true }));
+
+    return { cards, capacity: capacityInfo(this.actor), filter: this.#bondFilter };
   }
 
   /** Mutate one bond on this actor and persist the whole list (mirrors the Covenant pattern). Pass
@@ -1358,98 +1561,127 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     });
   }
 
-  /** Commit an inline bond edit (a field, a vital, or an ability). The inputs carry data-* (never
-   *  `name`), so the actor form's submitOnChange never collects them — we persist here instead. */
+  /** Commit an inline bond edit (a scalar field or a per-benefit GM note). The inputs carry data-*
+   *  (never `name`), so the actor form's submitOnChange never COLLECTS them — but a themed <select>
+   *  still dispatches a bubbling `change` (helpers/select.mjs) that reaches the form and forces a full
+   *  re-render (which resets the drawer scroll + jumps to the top). We stop that bubble and persist
+   *  here quietly (render:false) instead. */
   async #onBondFieldChange(event) {
     const el = event.currentTarget;
     const id = el.dataset.bond;
-    // No re-render on an inline edit (keeps the Bonds drawer's scroll position).
-    const quiet = { render: false };
     if (!id) return;
+    event.stopPropagation();
+    const quiet = { render: false };
     const val = el.type === "checkbox" ? el.checked : el.value;
-    if (el.dataset.bvital !== undefined) {
-      return this.#mutateBond(id, (b) => {
-        const v = (b.vitals ?? []).find((x) => x.id === el.dataset.bvital);
-        if (v) v[el.dataset.bvitalField] = val;
-      }, quiet);
+    if (el.dataset.bondNote !== undefined) {
+      return this.#mutateBond(id, (b) => { (b.notes ??= {})[el.dataset.bondNote] = val; }, quiet);
     }
-    if (el.dataset.babil !== undefined) {
-      return this.#mutateBond(id, (b) => {
-        const a = (b.abilities ?? []).find((x) => x.rank === Number(el.dataset.babil));
-        if (a) a[el.dataset.babilField] = val;
-      }, quiet);
-    }
-    const field = el.dataset.bondField;
+    const field = el.dataset.bondField;   // title / quote / accent / aidChoice / favoredFacility / resides
     if (field) return this.#mutateBond(id, (b) => { b[field] = val; }, quiet);
   }
 
-  /** Bind the Bonds drawer's inline-edit listeners + actor-link drop zones (owner only). */
+  /** Bind the Bonds drawer's inline-edit listeners + drop zones (forge a bond, link a Union Skill). */
   #bindBondsDrawer() {
     const drawer = this.element?.querySelector?.('.section-drawer[data-section="bonds"]');
     if (!drawer) return;
-    for (const el of drawer.querySelectorAll("[data-bond-field], [data-bvital], [data-babil]")) {
+    for (const el of drawer.querySelectorAll("[data-bond-field], [data-bond-note]"))
       el.addEventListener("change", this.#onBondFieldChange.bind(this));
-    }
+    // Forge zone (drag a Character or NPC to open a bond).
     for (const zone of drawer.querySelectorAll("[data-bdrop]")) {
       zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
       zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        zone.classList.remove("drag-over");
-        this.#onBondActorDrop(ev, zone.dataset.bdrop);
-      });
+      zone.addEventListener("drop", (ev) => { ev.preventDefault(); ev.stopPropagation(); zone.classList.remove("drag-over"); this.#onBondForgeDrop(ev); });
     }
-    // Right-click a bond card → context menu (open / open NPC sheet / delete).
-    for (const card of drawer.querySelectorAll(".bond-tcard[data-bond-id]")) {
+    // Union Skill zone (drag one of your own Skills onto a rank-S Party Bond).
+    for (const zone of drawer.querySelectorAll("[data-union-drop]")) {
+      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop", (ev) => { ev.preventDefault(); ev.stopPropagation(); zone.classList.remove("drag-over"); this.#onUnionDrop(ev, zone.dataset.unionDrop); });
+    }
+    // Favored Facility zone (drag an HQ facility card from the Codex onto a Follower Bond).
+    for (const zone of drawer.querySelectorAll("[data-facility-drop]")) {
+      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop", (ev) => { ev.preventDefault(); ev.stopPropagation(); zone.classList.remove("drag-over"); this.#onFacilityDrop(ev, zone.dataset.facilityDrop); });
+    }
+    for (const card of drawer.querySelectorAll(".bond-tcard[data-bond-id]"))
       card.addEventListener("contextmenu", (ev) => { ev.preventDefault(); this.#openBondContext(card, ev); });
-    }
   }
 
-  /** Bond-card right-click menu: open the detail book, open a linked NPC's sheet, and delete the bond.
-   *  Row actions reuse the existing handlers (delete confirms via #onDeleteBond). */
+  /** Bond-card right-click menu: open the book, open the partner's sheet, break the bond. */
   #openBondContext(card, ev) {
     const id = card?.dataset.bondId;
-    const bond = getBonds(this.actor).find((b) => b.id === id);
+    const bond = bondById(id, getBonds(this.actor));
     if (!bond) return;
     const { add, show } = this.#contextMenu(ev);
-    add("fa-book-open", "PROJECTANIME.Covenant.openBond", () => { this.#openBond = id; this.#applyBondBooks(); });
-    if (bond.actorUuid) add("fa-up-right-from-square", "PROJECTANIME.Covenant.openSheet", () => ProjectAnimeActorSheet.#onOpenBondActor.call(this, ev, card));
-    if (this.isEditable) add("fa-trash", "PROJECTANIME.Covenant.delete", () => ProjectAnimeActorSheet.#onDeleteBond.call(this, ev, card), "danger");
+    add("fa-book-open", "PROJECTANIME.Bond.openBond", () => { this.#openBond = id; this.#applyBondBooks(); });
+    if (bond.partnerUuid) add("fa-up-right-from-square", "PROJECTANIME.Bond.openPartner", () => ProjectAnimeActorSheet.#onOpenBondActor.call(this, ev, card));
+    if (this.isEditable) add("fa-heart-crack", "PROJECTANIME.Bond.break", () => ProjectAnimeActorSheet.#onBreakBond.call(this, ev, card), "danger");
     show();
   }
 
-  /** Drop an Actor onto a bond zone: "new-bond" forges a fresh bond from it; "bond-actor:<id>"
-   *  links it to an existing bond (filling portrait + name). */
-  async #onBondActorDrop(event, spec) {
-    if (!this.isEditable || !spec) return;
+  /** Drop a Character or NPC onto the forge zone → open a bond with it (Party for a PC, Follower for
+   *  an NPC). Idempotent (an existing bond just re-opens); a Party Bond mirrors onto the partner. */
+  async #onBondForgeDrop(event) {
+    if (!this.isEditable) return;
     const data = readDrag(event);
     if (data?.type !== "Actor" || !data.uuid) return;
     const actor = await fromUuid(data.uuid).catch(() => null);
     if (!actor) return;
-    // A social NPC that OFFERS a Bond → forge/sync from its definition + deliver rewards (re-drag
-    // safe). On a card's "link actor" zone it targets that card; on the forge zone it forges fresh.
-    if (npcBond(actor)) {
-      const bondId = spec.startsWith("bond-actor:") ? spec.slice("bond-actor:".length) : null;
-      await forgeBondFromNpc(this.actor, actor, { bondId });
-      return;
-    }
-    if (spec === "new-bond") {
-      const bonds = getBonds(this.actor);
-      const bond = blankBond({ name: actor.name, img: actor.img || "", actorUuid: actor.uuid });
-      bonds.unshift(bond);
-      this.#openBond = bond.id;
-      await saveBonds(this.actor, bonds);
-      return;
-    }
-    if (spec.startsWith("bond-actor:")) {
-      const id = spec.slice("bond-actor:".length);
-      await this.#mutateBond(id, (b) => {
-        b.actorUuid = actor.uuid;
-        b.img = actor.img || b.img;
-        if (!b.name || b.name === game.i18n.localize("PROJECTANIME.Covenant.newBondName")) b.name = actor.name;
-      });
-    }
+    if (actor.uuid === this.actor.uuid) return ui.notifications?.warn(game.i18n.localize("PROJECTANIME.Bond.noSelfBond"));
+    const res = await forgeBond(this.actor, actor);
+    if (res?.bond) { this.#openBond = res.bond.id; this.render(); }
+  }
+
+  /** Drop one of this actor's own Skills onto a rank-S Party Bond's Union panel → designate it the
+   *  bond's Union Skill (flag the item, store its uuid on the bond; syncPartyBonds mirrors it). */
+  async #onUnionDrop(event, bondId) {
+    if (!this.isEditable) return;
+    const data = readDrag(event);
+    if (data?.type !== "Item" || !data.uuid) return;
+    const item = await fromUuid(data.uuid).catch(() => null);
+    if (item?.type !== "skill") return ui.notifications?.warn(game.i18n.localize("PROJECTANIME.Bond.unionNeedsSkill"));
+    if (item.parent?.id !== this.actor.id) return ui.notifications?.warn(game.i18n.localize("PROJECTANIME.Bond.unionOwnSkill"));
+    const bonds = getBonds(this.actor);
+    const b = bondById(bondId, bonds);
+    if (!b || b.kind !== "party") return;
+    await item.setFlag("project-anime", "union", { bondId: b.id, partnerUuid: b.partnerUuid, partnerName: b.name });
+    b.unionSkillId = item.uuid;
+    await saveBonds(this.actor, bonds);
+  }
+
+  /** Drop an HQ facility card (dragged from the Codex Home) onto a Follower Bond's Favored Facility
+   *  slot → store a snapshot of its name + icon. Saves quietly and repaints the slot in place so the
+   *  book keeps its scroll position. */
+  async #onFacilityDrop(event, bondId) {
+    if (!this.isEditable) return;
+    const fac = readDrag(event)?.paFacility;
+    if (!fac) return;
+    const name = (fac.name || "").trim() || game.i18n.localize("PROJECTANIME.HQ.newFacility");
+    const icon = fac.icon || "fa-chess-rook";
+    await this.#mutateBond(bondId, (b) => { b.favoredFacility = name; b.favoredFacilityIcon = icon; }, { render: false });
+    const zone = event.currentTarget;
+    zone.classList.add("set");
+    zone.replaceChildren();
+    const i = document.createElement("i"); i.className = `fas ${icon}`;
+    const s = document.createElement("span"); s.className = "fh-name"; s.textContent = name;
+    const x = document.createElement("button");
+    x.type = "button"; x.className = "fh-x"; x.dataset.action = "clearFacility"; x.dataset.bondId = bondId;
+    x.title = game.i18n.localize("PROJECTANIME.Bond.clear"); x.textContent = "✕";
+    zone.append(i, s, x);
+  }
+
+  /** Clear a Follower Bond's Favored Facility (✕) — quiet save + repaint the empty slot in place. */
+  static async #onClearFacility(event, target) {
+    if (!this.isEditable) return;
+    const zone = target.closest(".fh-drop");
+    const id = zone?.dataset.facilityDrop;
+    if (!id) return;
+    await this.#mutateBond(id, (b) => { b.favoredFacility = ""; b.favoredFacilityIcon = ""; }, { render: false });
+    zone.classList.remove("set");
+    zone.replaceChildren();
+    const s = document.createElement("span"); s.className = "fh-ph"; s.textContent = game.i18n.localize("PROJECTANIME.Bond.favoredDrop");
+    zone.append(s);
   }
 
   /** Open a bond's codex detail book — instant, no re-render (the template also reflects #openBond
@@ -1474,62 +1706,93 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     }
   }
 
+  /** New blank Follower bond (for an NPC you haven't linked yet) — opened to its editable book. */
   static async #onNewBond() {
     if (!this.isEditable) return;
     const bonds = getBonds(this.actor);
-    const bond = blankBond();
+    const bond = blankBond({ kind: "follower" });
     bonds.unshift(bond);
-    this.#openBond = bond.id; // open the new bond's book to its editable form
+    this.#openBond = bond.id;
     await saveBonds(this.actor, bonds);
   }
 
-  static async #onDeleteBond(event, target) {
+  /** Break a bond (removes both sides of a Party Bond) after a confirm. */
+  static async #onBreakBond(event, target) {
     if (!this.isEditable) return;
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    const bonds = getBonds(this.actor);
-    const b = bonds.find((x) => x.id === id);
-    if (!b) return;
+    const bond = bondById(id, getBonds(this.actor));
+    if (!bond) return;
     const ok = await foundry.applications.api.DialogV2.confirm({
-      window: { title: game.i18n.localize("PROJECTANIME.Covenant.deleteBondTitle") },
-      content: `<p>${game.i18n.format("PROJECTANIME.Covenant.deleteConfirm", { name: b.name })}</p>`
+      window: { title: game.i18n.localize("PROJECTANIME.Bond.breakTitle") },
+      content: `<p>${game.i18n.format("PROJECTANIME.Bond.breakConfirm", { name: bond.name })}</p>`
     }).catch(() => false);
     if (!ok) return;
     if (this.#openBond === id) this.#openBond = null;
-    await saveBonds(this.actor, bonds.filter((x) => x.id !== id));
+    await breakBond(this.actor, id);
   }
 
-  static async #onDeepenBond(event, target) {
+  /** Play the rank-up Bond Scene: raise the bond one rank if eligible (enforces Charm capacity). */
+  static async #onRankUpBond(event, target) {
     if (!this.isEditable) return;
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
     const bonds = getBonds(this.actor);
-    const b = bonds.find((x) => x.id === id);
-    if (!b || b.rank >= BOND_MAX_RANK) return;
-    b.rank += 1;
-    b.prog = b.rank >= BOND_MAX_RANK ? 100 : 20;
-    b.locked = false;
-    this.#bondGala = { rank: b.rank, id }; // consumed once in _onRender after the re-render
+    const b = bondById(id, bonds);
+    if (!b) return;
+    const res = rankUpBond(this.actor, b);
+    if (!res.ok) return ui.notifications?.warn(game.i18n.localize(`PROJECTANIME.Bond.rankUpFail.${res.reason}`));
+    this.#bondGala = { rank: b.rank, id };   // consumed once in _onRender after the re-render
     await saveBonds(this.actor, bonds);
   }
 
-  static async #onLessenBond(event, target) {
+  /** Earn +1 BP from a Bond Scene (1/rest per pair). */
+  static async #onEarnBondScene(event, target) {
     if (!this.isEditable) return;
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    await this.#mutateBond(id, (b) => {
-      if (b.rank <= 0) return;
-      b.rank -= 1;
-      b.prog = b.rank >= BOND_MAX_RANK ? 100 : 20;
-    });
+    const bonds = getBonds(this.actor);
+    const b = bondById(id, bonds);
+    if (!b) return;
+    const res = await earnBondScene(this.actor, b);
+    if (!res.ok) return ui.notifications?.info(game.i18n.localize("PROJECTANIME.Bond.sceneUsed"));
+    await saveBonds(this.actor, bonds);
   }
 
-  static async #onAddBondVital(event, target) {
+  /** Earn +1 BP from Standing Together (1/Conflict per pair). */
+  static async #onEarnStanding(event, target) {
+    if (!this.isEditable) return;
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    await this.#mutateBond(id, (b) => { (b.vitals ??= []).push({ id: foundry.utils.randomID(), k: "", v: "" }); });
+    const bonds = getBonds(this.actor);
+    const b = bondById(id, bonds);
+    if (!b) return;
+    const res = await earnStandingTogether(this.actor, b);
+    if (!res.ok) return ui.notifications?.info(game.i18n.localize(`PROJECTANIME.Bond.standingFail.${res.reason}`));
+    await saveBonds(this.actor, bonds);
   }
 
-  static async #onRemoveBondVital(event, target) {
+  /** Manual BP adjust (GM tool — data-delta ±N, no guard). */
+  static async #onAdjustBond(event, target) {
+    if (!this.isEditable) return;
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    const vid = target.dataset.bvital;
-    await this.#mutateBond(id, (b) => { b.vitals = (b.vitals ?? []).filter((x) => x.id !== vid); });
+    const bonds = getBonds(this.actor);
+    const b = bondById(id, bonds);
+    if (!b) return;
+    adjustBondPoints(b, Number(target.dataset.delta) || 0);
+    await saveBonds(this.actor, bonds);
+  }
+
+  /** Segment filter (All / Party / Followers) — client-side show/hide, no re-render. */
+  static #onBondFilter(event, target) {
+    this.#bondFilter = target.dataset.filter || "all";
+    this.#applyBondFilter();
+  }
+
+  /** Reflect #bondFilter on the live grid (segment button state + card visibility). */
+  #applyBondFilter() {
+    const drawer = this.element?.querySelector?.('.section-drawer[data-section="bonds"]');
+    if (!drawer) return;
+    for (const btn of drawer.querySelectorAll(".bond-seg [data-filter]"))
+      btn.classList.toggle("on", (btn.dataset.filter || "all") === this.#bondFilter);
+    for (const card of drawer.querySelectorAll(".bond-tcard[data-kind]"))
+      card.classList.toggle("filtered-out", !(this.#bondFilter === "all" || card.dataset.kind === this.#bondFilter));
   }
 
   /* ---- NPC Talents & Trait (HQ work profile) ---- */
@@ -1624,33 +1887,49 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     if (!this.isEditable) return;
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
     const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
-    const cur = getBonds(this.actor).find((x) => x.id === id)?.img ?? "";
+    const cur = bondById(id, getBonds(this.actor))?.img ?? "";
     new FP({ type: "image", current: cur, callback: (path) => this.#mutateBond(id, (b) => { b.img = path; }) }).browse();
   }
 
-  static async #onPickBondBanner(event, target) {
-    if (!this.isEditable) return;
-    const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
-    const cur = getBonds(this.actor).find((x) => x.id === id)?.banner ?? "";
-    new FP({ type: "image", current: cur, callback: (path) => this.#mutateBond(id, (b) => { b.banner = path; }) }).browse();
-  }
-
+  /** Open the partner's sheet (the other character in the pair). */
   static async #onOpenBondActor(event, target) {
     const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    const b = getBonds(this.actor).find((x) => x.id === id);
-    if (!b?.actorUuid) return;
-    const actor = await fromUuid(b.actorUuid).catch(() => null);
+    const b = bondById(id, getBonds(this.actor));
+    if (!b?.partnerUuid) return;
+    const actor = await fromUuid(b.partnerUuid).catch(() => null);
     actor?.sheet?.render(true);
   }
 
-  static async #onClearBondActor(event, target) {
-    const id = target.closest("[data-bond-id]")?.dataset.bondId;
-    await this.#mutateBond(id, (b) => { b.actorUuid = ""; });
+  /** Open the Skill Builder to build a Union Skill — then drag the result onto the bond's Union panel. */
+  static #onBuildUnion() {
+    return ProjectAnimeActorSheet.#onBuildSkill.call(this);
   }
 
-  /** A full-screen "Bond Deepened — RANK N" flourish on a detached overlay (survives re-renders).
-   *  Ported from the old Covenant gala. */
+  /** Open the linked Union Skill's sheet. */
+  static async #onOpenUnion(event, target) {
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const b = bondById(id, getBonds(this.actor));
+    if (!b?.unionSkillId) return;
+    const skill = await fromUuid(b.unionSkillId).catch(() => null);
+    skill?.sheet?.render(true);
+  }
+
+  /** Unlink the Union Skill (clears the item's union flag if it's ours; leaves the skill itself). */
+  static async #onUnlinkUnion(event, target) {
+    if (!this.isEditable) return;
+    const id = target.closest("[data-bond-id]")?.dataset.bondId;
+    const bonds = getBonds(this.actor);
+    const b = bondById(id, bonds);
+    if (!b) return;
+    if (b.unionSkillId) {
+      const skill = await fromUuid(b.unionSkillId).catch(() => null);
+      if (skill?.parent?.id === this.actor.id) await skill.unsetFlag("project-anime", "union").catch(() => {});
+    }
+    b.unionSkillId = "";
+    await saveBonds(this.actor, bonds);
+  }
+
+  /** A full-screen "Bond Deepened — RANK X" flourish on a detached overlay (survives re-renders). */
   static #playBondGala(rank) {
     document.querySelector(".pa-bond-gala")?.remove();
     const el = document.createElement("div");
@@ -1659,8 +1938,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     for (let i = 0; i < 12; i++) rays += `<span class="burst" style="--r:${i * 30}deg"></span>`;
     el.innerHTML = `${rays}<span class="ringp"></span>
       <div class="gmsg">
-        <div class="k">${game.i18n.localize("PROJECTANIME.Covenant.bondDeepened")}</div>
-        <div class="t">${game.i18n.format("PROJECTANIME.Covenant.rankWord", { rank })}</div>
+        <div class="k">${game.i18n.localize("PROJECTANIME.Bond.deepened")}</div>
+        <div class="t">${game.i18n.format("PROJECTANIME.Bond.rankWord", { rank: rankLetter(rank) })}</div>
       </div>`;
     document.body.appendChild(el);
     void el.offsetWidth; // force reflow so the animation always restarts
@@ -1669,112 +1948,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   /* -------------------------------------------- */
-  /*  Bond OFFER drawer (social NPC → players)    */
+  /*  NPC role toggle (Monster ⇄ social NPC)      */
   /* -------------------------------------------- */
 
-  /** View-model for the NPC's Bond-offer editor: identity + five rank rows (ability boon + rewards).
-   *  Reward items render as chips read straight from the stored snapshots (no async resolve). */
-  #npcBondContext() {
-    const def = this.actor.system.bond ?? {};
-    const accent = def.accent || "#8a6fc0";
-    return {
-      title: def.title ?? "",
-      accent,
-      banner: def.banner ?? "",
-      bannerStyle: def.banner ? `background-image:url('${def.banner}')` : `background:${bondHeroGrad(accent)}`,
-      npcName: this.actor.name,
-      npcImg: this.actor.img,
-      ranks: npcBondRanks(this.actor).map((r) => ({
-        rank: r.rank,
-        rankLabel: game.i18n.format("PROJECTANIME.Covenant.rankN", { rank: r.rank }),
-        abilityName: r.abilityName,
-        abilityDesc: r.abilityDesc,
-        rewardGold: r.rewardGold,
-        rewardSP: r.rewardSP,
-        rewardItems: r.rewardItems.map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" })),
-        rewardCount: (r.rewardItems ?? []).length,
-        // The rank's mechanical Effect, auto-summarized (Grants / buffs / Skill adjustments) — same colored
-        // rules line as the Signature Trait cards; "" when the rank has no Effect authored yet.
-        rulesHTML: traitCardDescHTML(r.rules, ""),
-        hasRules: (r.rules ?? []).length > 0,
-        // Which rank's detail book is open survives the re-render an edit triggers (mirrors bonds' isOpen).
-        isOpen: this.#openNpcRank === r.rank
-      }))
-    };
-  }
-
-  /** Read this NPC's bond offer as a fully-normalized mutable object (scalars + vitals + the five
-   *  rank rows), apply `fn`, and persist the whole `system.bond`. Pass `{ render: false }` for an
-   *  inline field edit so the drawer doesn't re-render and lose its scroll position. */
-  async #mutateNpcBond(fn, { render = true } = {}) {
-    if (!this.isEditable) return;
-    const sys = this.actor.system.bond ?? {};
-    const bond = {
-      title: sys.title ?? "", accent: sys.accent ?? "", banner: sys.banner ?? "",
-      faction: sys.faction ?? "", dossier: sys.dossier ?? "", quote: sys.quote ?? "",
-      vitals: (sys.vitals ?? []).map((v) => ({ id: v.id, k: v.k, v: v.v })),
-      ranks: npcBondRanks(this.actor)
-    };
-    fn(bond);
-    await this.actor.update({ "system.bond": bond }, { render });
-  }
-
-  /** Commit an inline edit to the NPC's bond offer (a scalar field or a rank's ability text /
-   *  reward number). data-* attributes only → never collected by the actor form. */
-  async #onNpcBondFieldChange(event) {
-    const el = event.currentTarget;
-    const val = el.value;
-    // No re-render: the edited input already shows its value, and nothing derived needs rebuilding —
-    // so the Bond drawer keeps its scroll position instead of snapping to the top on every field.
-    const quiet = { render: false };
-    if (el.dataset.npcbondRankField !== undefined) {
-      const rank = Number(el.dataset.npcbondRank);
-      const field = el.dataset.npcbondRankField;
-      const num = field === "rewardGold" || field === "rewardSP";
-      return this.#mutateNpcBond((b) => {
-        const r = b.ranks.find((x) => x.rank === rank);
-        if (r) r[field] = num ? Math.max(0, Math.round(Number(val) || 0)) : val;
-      }, quiet);
-    }
-    const field = el.dataset.npcbondField;
-    if (field) return this.#mutateNpcBond((b) => { b[field] = val; }, quiet);
-  }
-
-  /** Bind the Bond-offer editor's inline listeners + reward-item drop zones (owner only). */
-  #bindNpcBond() {
-    const drawer = this.element?.querySelector?.('.section-drawer[data-section="npcbond"]');
-    if (!drawer) return;
-    for (const el of drawer.querySelectorAll("[data-npcbond-field], [data-npcbond-rank-field]"))
-      el.addEventListener("change", this.#onNpcBondFieldChange.bind(this));
-    for (const zone of drawer.querySelectorAll("[data-reward-drop]")) {
-      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
-      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        zone.classList.remove("drag-over");
-        this.#onRewardItemDrop(ev, zone.dataset.rewardDrop);
-      });
-    }
-  }
-
-  /** Drop an Item onto a rank's reward slot → store a self-contained snapshot as that rank's reward. */
-  async #onRewardItemDrop(event, rank) {
-    if (!this.isEditable) return;
-    const data = readDrag(event);
-    if (data?.type !== "Item" || !data.uuid) return;
-    const item = await fromUuid(data.uuid).catch(() => null);
-    if (!item?.toObject) return;
-    const snap = item.toObject();
-    delete snap._id;
-    stampCompendiumSource(snap, item);
-    await this.#mutateNpcBond((b) => {
-      const r = b.ranks.find((x) => x.rank === Number(rank));
-      if (r) (r.rewardItems ??= []).push(snap);
-    });
-  }
-
-  /** Flip an NPC between the Monster statblock and the social-NPC (Bond offer) layout. */
+  /** Flip an NPC between the Monster statblock and the social-NPC layout (a social NPC is one a PC can
+   *  forge a Follower Bond with — see helpers/bonds.mjs). */
   static async #onToggleRole() {
     if (!this.isEditable || this.actor.type !== "npc") return;
     const next = this.actor.system.role === "npc" ? "monster" : "npc";
@@ -1791,72 +1969,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   static #onToggleStatblock() {
     this.#statblockOpen = !this.#statblockOpen;
     this.element?.querySelector?.(".statblock.foldable")?.classList.toggle("open", this.#statblockOpen);
-  }
-
-  static async #onRemoveRewardItem(event, target) {
-    const rank = Number(target.dataset.npcbondRank);
-    const idx = Number(target.dataset.rewardItem);
-    await this.#mutateNpcBond((b) => {
-      const r = b.ranks.find((x) => x.rank === rank);
-      if (r && Array.isArray(r.rewardItems)) r.rewardItems.splice(idx, 1);
-    });
-  }
-
-  /** Author a bond RANK's mechanical Effect in the shared Effect Builder (data mode) — Grant
-   *  Items/Skills + buffs + Skill adjustments. Saves the rules (and the rank's ability name) back to
-   *  `system.bond`; the player's bond copies them on forge and reconcileBonds projects/delivers
-   *  them as the bond deepens (helpers/bond-effect.mjs). */
-  static async #onEditBondRankEffect(event, target) {
-    if (!this.isEditable) return;
-    const rank = Number(target.dataset.rank ?? target.closest("[data-rank]")?.dataset.rank);
-    if (!(rank >= 1)) return;
-    const actor = this.actor;
-    const row = npcBondRanks(actor).find((r) => r.rank === rank) ?? {};
-    const id = `bondrank-${actor.id}-${rank}`;
-    const existing = foundry.applications.instances.get(`pa-effect-builder-${id}`);
-    if (existing) return existing.bringToFront();
-    EffectBuilder.forData({
-      id,
-      title: game.i18n.format("PROJECTANIME.NpcBond.effectTitle", { rank }),
-      name: row.abilityName || "",
-      img: actor.img || DEFAULT_TRAIT_IMG,
-      rules: row.rules ?? [],
-      toggle: !!row.toggle,
-      allowToggle: true,   // a bond boon can be player-toggleable (e.g. "+1 Charm vs nobles")
-      onSave: ({ name, rules, toggle }) => this.#mutateNpcBond((b) => {
-        const r = b.ranks.find((x) => x.rank === rank);
-        if (r) { r.abilityName = name; r.rules = rules; r.toggle = !!toggle; }
-      })
-    }).render(true);
-  }
-
-  static async #onPickNpcBondBanner() {
-    if (!this.isEditable) return;
-    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
-    const cur = this.actor.system.bond?.banner ?? "";
-    new FP({ type: "image", current: cur, callback: (path) => this.#mutateNpcBond((b) => { b.banner = path; }) }).browse();
-  }
-
-  /** Open a bond RANK's detail book — instant, no re-render (the template also reflects #openNpcRank
-   *  via `isOpen`, so the open book survives the re-render an edit triggers). */
-  static #onOpenNpcBondRank(event, target) {
-    const rank = Number(target.closest("[data-rank]")?.dataset.rank);
-    if (!(rank >= 1)) return;
-    this.#openNpcRank = rank;
-    this.#applyNpcRankBooks();
-  }
-
-  /** Close the open bond-rank book (backdrop / close button). */
-  static #onCloseNpcBondRank() {
-    this.#openNpcRank = null;
-    this.#applyNpcRankBooks();
-  }
-
-  /** Reflect #openNpcRank on the live DOM so a rank book opens/closes without a full re-render. */
-  #applyNpcRankBooks() {
-    for (const el of this.element?.querySelectorAll?.(".nbr-overlay") ?? []) {
-      el.classList.toggle("open", Number(el.dataset.rankBook) === this.#openNpcRank);
-    }
   }
 
   /* -------------------------------------------- */

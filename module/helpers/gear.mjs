@@ -16,7 +16,7 @@ export const GEAR_GROUPS = ["weapon", "armor", "shield", "accessory", "consumabl
 export const EQUIPPABLE = new Set(["weapon", "armor", "shield", "accessory"]);
 
 /** Item types that can be copied onto an actor via drag-drop (every embeddable Item type). */
-export const TRANSFERABLE_ITEM_TYPES = new Set([...GEAR_GROUPS, "skill", "container", "package"]);
+export const TRANSFERABLE_ITEM_TYPES = new Set([...GEAR_GROUPS, "skill", "container", "package", "material"]);
 
 /** Paperdoll equip slots, positioned over the portrait in the Gear drawer (the
  *  template places each by `key` via CSS). The two accessory slots use the
@@ -59,7 +59,7 @@ export function slotOccupant(slotKey, equipped) {
  * selected bag, and the paperdoll. `selectedBag` is corrected here (a deleted bag falls back to the
  * backpack) and returned so the caller can write the corrected value back to its own state.
  */
-export function buildGearContext(actor, { selectedBag = "" } = {}) {
+export function buildGearContext(actor, { selectedBag = "", bagView = "single" } = {}) {
   const containers = [];
   const groups = Object.fromEntries(GEAR_GROUPS.map((k) => [k, []]));
   for (const item of actor.items) {
@@ -82,30 +82,43 @@ export function buildGearContext(actor, { selectedBag = "" } = {}) {
   // The innate Natural Attack is surfaced in the quick panel, not the carried-gear grid — keep
   // it out of the bags (and their counts) so it never reads as droppable/loose equipment.
   const containable = GEAR_GROUPS.flatMap((k) => groups[k]).filter((i) => !i.getFlag("project-anime", "natural"));
-  const countIn = (id) => containable.reduce((n, i) => n + (bagOf(i) === id ? 1 : 0), 0);
 
-  const bags = [
-    { id: "", name: game.i18n.localize("PROJECTANIME.Container.backpack"), icon: "fa-box-open", count: countIn(""), selected: sel === "", backpack: true },
-    ...containers.sort(bySort).map((c) => ({ id: c.id, name: c.name, img: c.img, count: countIn(c.id), selected: sel === c.id }))
-  ];
-
-  // Inventory — one flat icon grid (FFXIV-style, no type headers) of the items in
-  // the selected bag, lightly ordered by type so like items cluster together.
-  const bagItems = containable
-    .filter((i) => bagOf(i) === sel)
+  // One reusable tile mapping: lite item + stack qty badge + equip flags.
+  const mapItem = (i) => {
+    const l = lite(i);
+    const q = Number(i.system?.quantity);
+    l.qty = q > 1 ? q : null;          // quantity badge (stacks)
+    l.equippable = EQUIPPABLE.has(i.type);
+    l.equipped = !!i.system?.equipped;
+    return l;
+  };
+  // Items filed under a bag, lightly ordered by type so like items cluster (FFXIV-style, no headers).
+  const itemsInBag = (id) => containable
+    .filter((i) => bagOf(i) === id)
     .sort((a, b) => GEAR_GROUPS.indexOf(a.type) - GEAR_GROUPS.indexOf(b.type) || bySort(a, b))
-    .map((i) => {
-      const l = lite(i);
-      const q = Number(i.system?.quantity);
-      l.qty = q > 1 ? q : null;          // quantity badge (stacks)
-      l.equippable = EQUIPPABLE.has(i.type);
-      l.equipped = !!i.system?.equipped;
-      return l;
-    });
+    .map(mapItem);
+
+  // Per-bag sections (the WoW "Combine Bags" view): backpack first, then each container. Weight-based
+  // system → a bag's badge is its item COUNT (no slot cap); global carry weight lives in the tab-meta.
+  const bagSections = [
+    { id: "", name: game.i18n.localize("PROJECTANIME.Container.backpack"), icon: "fa-box-open", backpack: true, capacityBonus: 0 },
+    ...containers.sort(bySort).map((c) => ({ id: c.id, name: c.name, img: c.img, backpack: false, capacityBonus: Number(c.system?.capacityBonus) || 0 }))
+  ].map((m) => { const items = itemsInBag(m.id); return { ...m, count: items.length, selected: m.id === sel, items }; });
+
+  // Bag-bar tabs derive from the sections (counts stay in sync).
+  const bags = bagSections.map((s) => ({ id: s.id, name: s.name, icon: s.icon, img: s.img, backpack: s.backpack, count: s.count, selected: s.selected }));
+
+  // Single-bag ("Open a Bag") view: the selected bag + its items.
+  const openBag = bagSections.find((s) => s.selected) ?? bagSections[0];
+  const bagItems = openBag.items;
 
   // Paperdoll: resolve each slot's current occupant. A flat list — the template
   // positions each slot over the portrait by its `key`.
   const equipped = actor.items.filter((i) => i.system?.equipped);
+  // A two-handed main weapon spans both hands, so the off-hand slot reads as locked (empty but held).
+  const mainWeapon = slotOccupant("mainHand", equipped);
+  const twoHandedMain = !!mainWeapon && mainWeapon.type === "weapon"
+    && (mainWeapon.system.grip === "two" || mainWeapon.system.twoHandedOnly);
   const paperdoll = PAPERDOLL_SLOTS.map((def) => {
     const it = slotOccupant(def.key, equipped);
     let label = game.i18n.localize(`PROJECTANIME.Equipment.${def.base}`);
@@ -114,17 +127,23 @@ export function buildGearContext(actor, { selectedBag = "" } = {}) {
       key: def.key,
       icon: def.icon,
       label,
+      locked: def.key === "offHand" && !it && twoHandedMain,
       // Shields carry their Wield-As mode so the slot can show an inline toggle (Dual Wield ↔
       // Shield Only) — see the `pdSlot` partial + the host's cycleShieldUse handler.
       item: it ? {
         id: it.id, name: it.name, img: it.img,
         shield: it.type === "shield",
-        dualWield: it.type === "shield" && it.system.use === "dual"
+        dualWield: it.type === "shield" && it.system.use === "dual",
+        // The main-hand weapon slot shows an inline one-/two-handed grip toggle (a Two-Handed-Only
+        // weapon has no grip to flip). Two-handed spans both hands → the off hand reads as locked.
+        weapon: it.type === "weapon",
+        gripToggle: def.key === "mainHand" && it.type === "weapon" && !it.system.twoHandedOnly,
+        twoHanded: it.type === "weapon" && it.system.grip === "two"
       } : null
     };
   });
 
-  return { selectedBag: sel, bags, bagItems, paperdoll };
+  return { selectedBag: sel, bagView, bags, bagItems, bagSections, openBag, paperdoll };
 }
 
 /** Equip `item` into a paperdoll slot on `actor`, clearing whatever it displaces. */
@@ -172,6 +191,28 @@ export async function equipToSlot(actor, item, slotKey) {
 
   updates.push(target);
   await actor.updateEmbeddedDocuments("Item", updates);
+}
+
+/** Equip a weapon/shield into a free hand — weapons prefer the main hand, shields the off; fall back
+ *  to whichever hand is open, else swap the preferred one. A two-handed weapon always claims the main
+ *  hand (freeing the off). Used by the gear menu's single "Equip". */
+export async function equipToAvailableHand(actor, item) {
+  if (!item || (item.type !== "weapon" && item.type !== "shield")) return;
+  if (item.type === "weapon" && (item.system?.twoHandedOnly || item.system?.grip === "two")) {
+    return equipToSlot(actor, item, "mainHand");
+  }
+  const hands = actor.items.filter((i) => i.system?.equipped && i.id !== item.id
+    && (i.type === "weapon" || i.type === "shield"));
+  const mainItem = hands.find((i) => i.system.hand === "main") ?? null;
+  const offItem = hands.find((i) => i.system.hand === "off") ?? null;
+  const mainTwoH = !!mainItem && mainItem.type === "weapon"
+    && (mainItem.system.grip === "two" || mainItem.system.twoHandedOnly);
+  const mainFree = !mainItem;
+  const offFree = !offItem && !mainTwoH;   // a two-handed main weapon locks the off hand
+  let slot;
+  if (item.type === "shield") slot = offFree ? "offHand" : (mainFree ? "mainHand" : "offHand");
+  else slot = mainFree ? "mainHand" : (offFree ? "offHand" : "mainHand");
+  return equipToSlot(actor, item, slot);
 }
 
 /** Unequip whatever fills `slotKey` on `actor`. */

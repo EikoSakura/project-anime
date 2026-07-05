@@ -94,9 +94,9 @@ export function skillRulesHTML(item) {
       const t = ds.damageType ? elementLabel(ds.damageType) : "";
       core.push(t ? N("deals", { dmg: dmgAmount(ds.damageAttr), type: t }) : N("dealsPlain", { dmg: dmgAmount(ds.damageAttr) }));
     } else if (ds.effect === "mend") {
-      // v0.03: a Heal restores HP or EP (chosen at creation).
+      // v0.03: a Heal restores HP — or TRANSFERS the caster's own EP (chosen at creation).
       const pool = loc(cfg.damagePools[(ds.damagePool === "energy") ? "energy" : "hp"]);
-      core.push(N("restores", { dmg: dmgAmount(ds.damageAttr), pool }));
+      core.push(N(ds.damagePool === "energy" ? "transfers" : "restores", { dmg: dmgAmount(ds.damageAttr), pool }));
     }
   }
 

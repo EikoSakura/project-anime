@@ -22,6 +22,15 @@ PROJECTANIME.attributes = {
 /** Iteration order for the five attributes. */
 PROJECTANIME.attributeKeys = ["might", "agility", "mind", "spirit", "charm"];
 
+/** Three-letter abbreviations — used where space is tight (the status-window rail attribute strip). */
+PROJECTANIME.attributeAbbr = {
+  might: "PROJECTANIME.Attribute.might.abbr",
+  agility: "PROJECTANIME.Attribute.agility.abbr",
+  mind: "PROJECTANIME.Attribute.mind.abbr",
+  spirit: "PROJECTANIME.Attribute.spirit.abbr",
+  charm: "PROJECTANIME.Attribute.charm.abbr"
+};
+
 /** Font Awesome icon shown on each attribute card (FA6 Free Solid). */
 PROJECTANIME.attributeIcons = {
   might: "fa-solid fa-hand-fist",
@@ -155,16 +164,18 @@ export function effectMinCost(effect) {
 PROJECTANIME.retiredEffects = ["animate", "affinity"];
 
 /**
- * A Skill's derived SP cost (v0.03): max(Effect minimum, Modifier weight + Range surcharge).
- * With the Secondary Effect Modifier the second Effect's minimum must also be met. This is the
- * single cost authority — the data model, the Builder, and the SP reconcile all read it.
+ * A Skill's derived SP cost — ADDITIVE per the doc's Skill Cost rule (v0.03): the Effect's cost
+ * plus 1 per Modifier (Heavy 🔶 add 2; Range overrides count as Modifiers; Targeting, React, and
+ * Passive are free). A Skill with no Effect costs only its Modifiers. With the Secondary Effect
+ * Modifier the total must still meet the second Effect's minimum cost. This is the single cost
+ * authority — the data model, the Builder, and the SP reconcile all read it.
  */
 export function skillSpCost(sys) {
   if (!sys) return 0;
   const weight = modifiersBudget(sys.modifiers ?? [], sys) + rangeModifierCost(sys);
-  let min = effectMinCost(sys.effect);
-  if (skillHasSecondary(sys)) min = Math.max(min, effectMinCost(sys.secondaryEffect));
-  return Math.max(min, weight);
+  let cost = effectMinCost(sys.effect) + weight;
+  if (skillHasSecondary(sys)) cost = Math.max(cost, effectMinCost(sys.secondaryEffect));
+  return cost;
 }
 
 /** Card/badge label for a Skill's cost — "2 SP" (replaces the old rank stars). */
@@ -269,6 +280,18 @@ export function skillDuration(sys) {
 
 /** A Standard-duration Skill's turn count: its set count, else the rules' default 2. */
 PROJECTANIME.standardDurationTurns = 2;
+
+/** Effects whose printed text carries a Duration — v0.03: "An Effect with a Duration cannot be
+ *  Passive." Choosing one bounces the Passive Action Type in the Builder (stored Passives are
+ *  grandfathered until re-edited). Empower = bolster, Weaken = hinder. */
+PROJECTANIME.durationEffects = ["bolster", "disguise", "gate", "hinder", "illusion", "sense", "telepathy", "transform", "vanish"];
+
+/** True when this Skill's Effect (or its Secondary Effect) is a printed-Duration Effect and so
+ *  may not be Passive (v0.03). Pass the Skill data or the Builder draft. */
+export function effectBarsPassive(sys) {
+  const list = PROJECTANIME.durationEffects;
+  return list.includes(sys?.effect) || (skillHasSecondary(sys) && list.includes(sys?.secondaryEffect));
+}
 
 /** The alternate Attributes a Skill Evasion may swap in for Agility (rules v0.01: Skill Evasion).
  *  All other Evasion bonuses and penalties still apply — only the Attribute changes. The doc
@@ -391,12 +414,18 @@ PROJECTANIME.skillModifiers = {
  *  effective weight. */
 PROJECTANIME.heavyModifiers = ["absorb", "devour", "immunity", "mass", "secondaryEffect"];
 
-/** Whether a Modifier counts as Heavy (two toward the Rank's Modifier budget) on a given Skill.
- *  The static Heavy set (Devour / Mass / Secondary Effect) is fixed; "Custom" and "Re-equip" are
- *  Heavy only when that Skill's flag is set. Pass the Skill's system data OR the Builder draft —
- *  both carry `customModifierHeavy` / `reequipHeavy`. */
+/** Detrimental statuses that make Inflict a HEAVY Modifier (v0.03: "If the chosen effect is
+ *  Stunned, Sealed, or Bound, Inflict is instead a Heavy Modifier"). Sealed's stored id is
+ *  `exhausted` (label-only rename, see the Status list note above). */
+PROJECTANIME.heavyInflictStatuses = ["stunned", "exhausted", "bound"];
+
+/** Whether a Modifier counts as Heavy (weighs two SP) on a given Skill. The static Heavy set is
+ *  fixed; "Inflict" is Heavy when its chosen status is Stunned/Sealed/Bound (v0.03); "Custom"
+ *  and "Re-equip" are Heavy only when that Skill's flag is set. Pass the Skill's system data OR
+ *  the Builder draft — both carry `inflictStatus` / `customModifierHeavy` / `reequipHeavy`. */
 export function isHeavyModifier(key, sys) {
   if (PROJECTANIME.heavyModifiers.includes(key)) return true;
+  if (key === "inflict") return PROJECTANIME.heavyInflictStatuses.includes(sys?.inflictStatus);
   if (key === "custom") return !!sys?.customModifierHeavy;
   return key === "reequip" && !!sys?.reequipHeavy;
 }
@@ -793,6 +822,119 @@ PROJECTANIME.materialCategoryIcons = {
   wood: "fa-solid fa-tree"
 };
 
+/* -------------------------------------------- */
+/*  Crafting (v0.03) — carried materials        */
+/* -------------------------------------------- */
+
+/** The four canonical Material TYPES (rules doc "Crafting"). DISTINCT from the legacy HQ resource
+ *  pools (materialCategories, cloth/herb/…) that still feed the parallel HQ Workshop until Phase 6.
+ *  A `material` Item's `category` is one of these keys; Forging, Brewing, Traits and Temper all key
+ *  off them. Worlds may reflavor the LABELS, but the keys are the stable mechanical axis. */
+PROJECTANIME.materialTypes = {
+  essence: "PROJECTANIME.Material.type.essence",
+  hide:    "PROJECTANIME.Material.type.hide",
+  ore:     "PROJECTANIME.Material.type.ore",
+  reagent: "PROJECTANIME.Material.type.reagent"
+};
+PROJECTANIME.materialTypeIcons = {
+  essence: "fa-solid fa-atom",
+  hide:    "fa-solid fa-paw",
+  ore:     "fa-solid fa-gem",
+  reagent: "fa-solid fa-mortar-pestle"
+};
+PROJECTANIME.materialTypeKeys = ["essence", "hide", "ore", "reagent"];
+
+/** Material grades. A Prime counts as TWO Commons toward any Commons cost, and as 2 units toward
+ *  its Bulk bundle. Prime is earned in the field (Elites / Bosses / finds); shops never sell it. */
+PROJECTANIME.materialGrades = {
+  common: "PROJECTANIME.Material.grade.common",
+  prime:  "PROJECTANIME.Material.grade.prime"
+};
+
+/** Materials bundle at this many units per 1 Bulk (a Prime is 2 units). */
+PROJECTANIME.materialBundleSize = 3;
+
+/** Per-unit shop price of a Common material = this × the settlement's Tier (50G × Tier). */
+PROJECTANIME.materialShopPricePerTier = 50;
+
+/** Gear TRAITS (rules doc "Traits") — permanent modifications crafted onto a weapon / shield / armor.
+ *  DISTINCT from NPC Signature Traits (helpers/trait-effect.mjs, system.traits, PROJECTANIME.Talent.*).
+ *  Each row: `applies` (weapon|armor|shield|any — the item kinds it may be crafted onto) and `cost`
+ *  (the materials for ONE application, which must match the party's Tier). `wired` rows adjust the
+ *  item's derived stats (helpers/crafting.mjs `applyGearTraits`); the rest are display-only rules on
+ *  the item. Traded stats floor at their printed minimums (DMG and Bulk stop at 0); Traits never
+ *  spend DMG. An item holds up to `gearTraitCap` Traits (a Socket counts as one; Temper does not),
+ *  each at most once, and accessories can hold none. `needs` marks a Trait that picks a parameter
+ *  when crafted (an Element, a disguise, or a Status). */
+PROJECTANIME.gearTraits = {
+  attuned:     { applies: "weapon", cost: [{ type: "essence", qty: 3 }], needs: "element", wired: true },
+  collapsible: { applies: "any",    cost: [{ type: "ore",     qty: 3 }], wired: true },
+  concealed:   { applies: "weapon", cost: [{ type: "hide",    qty: 3 }], needs: "disguise" },
+  extended:    { applies: "weapon", cost: [{ type: "ore",     qty: 3 }], wired: true },
+  fitted:      { applies: "armor",  cost: [{ type: "hide",    qty: 3 }], wired: true },
+  honed:       { applies: "weapon", cost: [{ type: "ore",     qty: 3 }], wired: true },
+  insulated:   { applies: "armor",  cost: [{ type: "hide",    qty: 3 }] },
+  lightened:   { applies: "weapon", cost: [{ type: "ore",     qty: 3 }], wired: true },
+  luminous:    { applies: "any",    cost: [{ type: "essence", qty: 3 }] },
+  marked:      { applies: "any",    cost: [{ type: "essence", qty: 3 }] },
+  reinforced:  { applies: "armor",  cost: [{ type: "hide",    qty: 3 }], wired: true },
+  socket:      { applies: "any",    cost: [{ type: "essence", qty: 2 }, { type: "essence", qty: 1, grade: "prime" }], socket: true },
+  sturdy:      { applies: "any",    cost: [{ type: "hide",    qty: 3 }] },
+  warded:      { applies: "armor",  cost: [{ type: "essence", qty: 3 }], needs: "status" }
+};
+PROJECTANIME.gearTraitKeys = [
+  "attuned", "collapsible", "concealed", "extended", "fitted", "honed", "insulated",
+  "lightened", "luminous", "marked", "reinforced", "socket", "sturdy", "warded"
+];
+/** Max Traits on one item (a Socket counts as a Trait; Temper does not). */
+PROJECTANIME.gearTraitCap = 2;
+
+/** BREWING recipes (rules doc "Brewing"). One Craft Activity brews a batch of `brewBatchSize`
+ *  consumables of one recipe (a Brewer makes `brewBatchSizeBrewer`). Materials must match the
+ *  recipe's Tier or higher. `out` is the consumable produced: `restore`/`amount` map to the normal
+ *  consumable engine where possible; recipes whose effect the engine can't model (Field Meal's Camp
+ *  bonus, Ward Salve's typed Resist, the "or EP" half of an Elixir) ship as display-only rules text.
+ *  NOTE: the doc prints HP Potion two ways — "remove a Status" (Brewing table) vs "4 HP" (shop
+ *  table). Resolved here to 4 HP to match its name, the shop, and the existing consumable. */
+PROJECTANIME.brewRecipes = {
+  elixir:            { tier: 4, cost: [{ type: "reagent", qty: 2, grade: "prime" }], out: { restore: "hp", amount: 999 } },
+  energyDrink:       { tier: 1, cost: [{ type: "reagent", qty: 3 }], out: { restore: "energy", amount: 4 } },
+  fieldMeal:         { tier: 1, cost: [{ type: "reagent", qty: 3 }], out: { restore: "none" } },
+  hpPotion:          { tier: 1, cost: [{ type: "reagent", qty: 3 }], out: { restore: "hp", amount: 4 } },
+  strongEnergyDrink: { tier: 2, cost: [{ type: "reagent", qty: 3 }], out: { restore: "energy", amount: 8 } },
+  strongHpDrink:     { tier: 2, cost: [{ type: "reagent", qty: 3 }], out: { restore: "hp", amount: 8 } },
+  wardSalve:         { tier: 3, cost: [{ type: "reagent", qty: 3 }], out: { restore: "none" }, needs: "element" }
+};
+PROJECTANIME.brewRecipeKeys = [
+  "elixir", "energyDrink", "fieldMeal", "hpPotion", "strongEnergyDrink", "strongHpDrink", "wardSalve"
+];
+PROJECTANIME.brewBatchSize = 3;
+PROJECTANIME.brewBatchSizeBrewer = 4;
+
+/** Crafting SPECIALTIES (rules doc "Specialties") — 1 SP, one per character, downtime-only. Each
+ *  tweaks a Craft mechanic (see helpers/crafting.mjs): Brewer (batch 4 + a Tier-above brew),
+ *  Fieldcrafter (Craft during a Camp with an Artisan's Kit), Salvager (recover half a removed
+ *  Trait's cost + convert materials), Smith (Forging costs no Gold; Trait bills −1 Common min 1),
+ *  Steward (a HQ gathering facility yields double; Project Stages −1 Common min 1). */
+PROJECTANIME.craftSpecialties = {
+  brewer:       { icon: "fa-solid fa-flask" },
+  fieldcrafter: { icon: "fa-solid fa-screwdriver-wrench" },
+  salvager:     { icon: "fa-solid fa-recycle" },
+  smith:        { icon: "fa-solid fa-hammer" },
+  steward:      { icon: "fa-solid fa-clipboard-check" }
+};
+PROJECTANIME.craftSpecialtyKeys = ["brewer", "fieldcrafter", "salvager", "smith", "steward"];
+
+/** PROJECT scopes (rules doc "Projects"). Stage-based works; one Stage per rest max. Personal's
+ *  bill is the combined Forge+Trait+Temper cost split across its 2 Stages (author it freely); Grand
+ *  and Legendary carry the printed per-Stage material bill. */
+PROJECTANIME.projectScopes = {
+  personal:  { stages: 2, bill: [] },
+  grand:     { stages: 3, bill: [{ grade: "common", qty: 6 }, { grade: "prime", qty: 1 }] },
+  legendary: { stages: 4, bill: [{ grade: "common", qty: 6 }, { grade: "prime", qty: 2 }] }
+};
+PROJECTANIME.projectScopeKeys = ["personal", "grand", "legendary"];
+
 /** Weapon/Skill physical range categories. */
 PROJECTANIME.rangeTypes = {
   melee: "PROJECTANIME.RangeType.melee",
@@ -915,13 +1057,287 @@ export function activeSide(combat) {
 }
 
 /** An NPC actor's role — which face of the sheet it shows. "monster" is the combat statblock (Tier,
- *  the Monster Creator, hostile by default); "npc" is a social/ally NPC that offers a Bond (a bond
- *  definition + per-rank rewards) players forge by dragging the NPC onto their sheet. Toggled on the
+ *  the Monster Creator, hostile by default); "npc" is a social/ally NPC a Player Character can forge a
+ *  Follower Bond with (drag the NPC onto the PC's Bonds drawer — helpers/bonds.mjs). Toggled on the
  *  sheet header; defaults monster so existing NPCs are unchanged. */
 PROJECTANIME.npcRoles = {
   monster: "PROJECTANIME.NpcRole.monster",
   npc: "PROJECTANIME.NpcRole.npc"
 };
+
+/* -------------------------------------------- */
+/*  Bonds (v0.03)                               */
+/* -------------------------------------------- */
+
+/**
+ * A Bond (rules doc "Variant Rules: Bond") is a relationship shared between EXACTLY two characters,
+ * tracked per-character on `system.bonds` (data/actor-models.mjs). Two kinds:
+ *   • Party Bond    — between two Player Characters. Grants the automated Party benefits below.
+ *   • Follower Bond — between a Player Character and an NPC (role "npc"). Grants the Follower benefits.
+ * A bond starts at rank C with 0 Bond Points; it deepens as the pair earns BP and plays a Bond Scene
+ * (the scene gate). Both sides of the bond are kept in sync (helpers/bonds.mjs).
+ */
+PROJECTANIME.bondKinds = {
+  party: "PROJECTANIME.Bond.kind.party",
+  follower: "PROJECTANIME.Bond.kind.follower"
+};
+
+/** Bond ranks low→high. Stored on the bond as an index 0–3; these are the display letters. */
+PROJECTANIME.bondRanks = ["C", "B", "A", "S"];
+PROJECTANIME.bondMaxRank = 3; // index of "S"
+
+/** Cumulative Bond-Point thresholds to become ELIGIBLE for each rank (index → BP needed): C free,
+ *  B at 2, A at 4, S at 7. Reaching a threshold only unlocks the rank — the pair must still share a
+ *  Bond Scene to actually rise (bondEligibleRank vs the stored rank drives the "ready to rank up" gate). */
+PROJECTANIME.bondThresholds = [0, 2, 4, 7];
+
+/** Party-Bond benefits, cumulative at their rank index. `rules` (Effect-Builder rules) project as a
+ *  player-TOGGLEABLE Active Effect the player flips on while within 1 tile of the partner
+ *  (helpers/bond-effect.mjs); a `tracked` benefit (Dual Strike) is a 1/Conflict reaction surfaced in
+ *  the book rather than an automatic effect. */
+PROJECTANIME.partyBondBenefits = [
+  { rank: 0, key: "sideBySide", rules: [{ type: "roll", selector: "attack", value: 1 }], toggle: true },
+  { rank: 2, key: "backToBack", rules: [{ type: "stat", key: "defense", value: 1 }, { type: "stat", key: "res", value: 1 }], toggle: true },
+  { rank: 3, key: "dualStrike", tracked: true }
+];
+
+/** Follower-Bond benefits, cumulative at their rank index. All four are qualitative ("shaped with the
+ *  GM") — surfaced as preset text; Aid (rank B) additionally carries a pick-one choice. No projected
+ *  Active Effect. */
+PROJECTANIME.followerBondBenefits = [
+  { rank: 0, key: "welcome" },
+  { rank: 1, key: "aid", choice: true },
+  { rank: 2, key: "lesson" },
+  { rank: 3, key: "devotion" }
+];
+
+/** The three Aid (Follower rank B) options the player picks one of. */
+PROJECTANIME.bondAidChoices = {
+  livelihood: "PROJECTANIME.Bond.aid.livelihood",
+  hearth: "PROJECTANIME.Bond.aid.hearth",
+  access: "PROJECTANIME.Bond.aid.access"
+};
+
+/** Highest rank index a Bond holding `bp` Bond Points is ELIGIBLE for (ignores the scene gate). */
+export function bondEligibleRank(bp) {
+  const n = Number(bp) || 0;
+  let r = 0;
+  for (let i = 0; i < PROJECTANIME.bondThresholds.length; i++) if (n >= PROJECTANIME.bondThresholds[i]) r = i;
+  return r;
+}
+
+/** BP total needed for the NEXT rank above index `rank`, or null when already at S (max). */
+export function bondNextThreshold(rank) {
+  const r = Number(rank) || 0;
+  return r >= PROJECTANIME.bondMaxRank ? null : PROJECTANIME.bondThresholds[r + 1];
+}
+
+/* -------------------------------------------- */
+/*  Headquarters (v0.03)                        */
+/* -------------------------------------------- */
+
+/**
+ * A Headquarters (rules doc "Variant Rules: Headquarters") is the home the party owns. It grows on
+ * two things: Gold builds the rooms (Facilities), People bring them to life (resident Followers who
+ * STEWARD a facility). Its state is a single world object (the `covenantHQ` setting; helpers/hq.mjs).
+ *   • RENOWN = facilities built + resident Followers (derived, never stored).
+ *   • RANK C/B/A/S rises at a rest here once Renown meets the threshold; each rank raises the Facility
+ *     Cap and grants a cumulative benefit.
+ *   • Residents are the party's Follower Bonds flagged "resides" (data/actor-models.mjs `bonds[].resides`);
+ *     a resident STEWARDS one facility, and while stewarding their Favored Facility its Favor line applies.
+ */
+
+/** HQ ranks low→high. `renown` = the Renown needed to reach this rank; `cap` = its Facility Cap. Rank
+ *  benefits are cumulative and wired where their mechanics live (rest.mjs, shop.mjs, helpers/bonds.mjs). */
+PROJECTANIME.hqRanks = [
+  { key: "C", name: "Hideout",   renown: 0,  cap: 3  },
+  { key: "B", name: "Stronghold", renown: 6,  cap: 6  },
+  { key: "A", name: "Haven",     renown: 12, cap: 10 },
+  { key: "S", name: "Legend",    renown: 20, cap: 15 }
+];
+PROJECTANIME.hqRankKeys = ["C", "B", "A", "S"];
+
+/** The Mission Board opens at rank B. Active-mission cap by rank: Stronghold 1, Haven 2, Legend 3. */
+PROJECTANIME.hqMissionCap = { C: 0, B: 1, A: 2, S: 3 };
+
+/** The six Ask shapes a recruit candidate can carry (recruitment is never a roll — meet the Ask or don't). */
+PROJECTANIME.hqAsks = {
+  bond:      { label: "Bond",      hint: "Reach a Bond rank with them or with someone they trust." },
+  debt:      { label: "Debt",      hint: "Settle what weighs on them: a rival paid off, a name cleared, a promise kept." },
+  deed:      { label: "Deed",      hint: "Do something that matters to them: clear the bandits, save the shop, win the tournament." },
+  delivery:  { label: "Delivery",  hint: "Bring them something: a rare item, a lost heirloom, word from someone far away." },
+  duel:      { label: "Duel",      hint: "Beat them, or impress them, in a contest of their choosing." },
+  threshold: { label: "Threshold", hint: "Wait until the base is worthy: a facility build, a rank reached." }
+};
+
+/** Mission Board types (flavour + which facilities tend to be Suited). */
+PROJECTANIME.missionTypes = {
+  scout:  { label: "Scout" },
+  trade:  { label: "Trade" },
+  search: { label: "Search" },
+  escort: { label: "Escort" },
+  aid:    { label: "Aid" }
+};
+
+/** Mission reward-by-duration (Gold auto-scales by party Tier; the alternatives are GM-narrated). */
+PROJECTANIME.missionRewards = {
+  1: { goldPerTier: 100, note: "100G × Tier, a lead, or a minor item" },
+  2: { goldPerTier: 200, note: "200G × Tier, an uncommon item, or a follower candidate" },
+  3: { goldPerTier: 0,   note: "A rare item, a major lead, or a named recruit (Storyteller's discretion)" }
+};
+
+/**
+ * The 14 printed Facilities. Each is built once with Gold at a minimum HQ rank, and does one thing
+ * unstaffed, more when Staffed by a steward, more still on its Favor line (steward's Favored Facility),
+ * and carries one Gold Upgrade (needs the steward's Follower Bond at rank B+). The four lines are printed
+ * reference; `auto` flags the benefits the SYSTEM wires:
+ *   vendor:      opens the HQ Shop ("consumable" | "gear"); `accessoriesOnUpgrade` stocks accessories.
+ *   restGrant:   a once-per-rest staffed benefit resolved in rest.mjs
+ *                ("freeConsumable" | "freeBondScene" | "freeCraft" | "materials" | "workGold" | "luckExtra").
+ *   luckStep:    Steps Up the Charm die for Luck Dice rolled here (Shrine).
+ */
+PROJECTANIME.hqFacilities = {
+  apothecary: {
+    name: "Apothecary", icon: "fa-solid fa-mortar-pestle", rank: "C", cost: 750, upgradeCost: 1500,
+    vendor: "consumable",
+    restGrant: "freeConsumable",
+    unstaffed: "Buy consumables at the Headquarters at list price.",
+    staffed:   "Consumables cost 10% less. Once per rest, each character receives one free HP Potion or Energy Drink.",
+    favor:     "The free consumable may be a Strong HP Potion or Strong Energy Drink.",
+    upgrade:   "Potions bought here restore +2."
+  },
+  archive: {
+    name: "Archive", icon: "fa-solid fa-book-bookmark", rank: "B", cost: 1500, upgradeCost: 3000,
+    unstaffed: "Pursuit Checks to research gain +1.",
+    staffed:   "Once per rest, one research Pursuit succeeds without a Check, within reason.",
+    favor:     "The Archive keeps a record of every foe the party has fought, with one Analyze category noted for each.",
+    upgrade:   "When the party faces a foe they researched here, learn one Analyze category at the start of the Conflict."
+  },
+  bathhouse: {
+    name: "Bathhouse", icon: "fa-solid fa-hot-tub-person", rank: "C", cost: 500, upgradeCost: 1000,
+    restGrant: "freeBondScene",
+    unstaffed: "Bond Scenes held here cost a slot from only one partner.",
+    staffed:   "Once per rest, one character may share a Bond Scene with a resident without spending a slot.",
+    favor:     "The free Bond Scene may include a third participant; each pair present gains 1 BP.",
+    upgrade:   "Visiting NPCs may be hosted. Follower Bond Scenes with visitors count as held at the Headquarters."
+  },
+  forge: {
+    name: "Forge", icon: "fa-solid fa-hammer", rank: "C", cost: 1000, upgradeCost: 2000,
+    vendor: "gear", accessoriesOnUpgrade: true,
+    unstaffed: "Buy and sell weapons, armor, and shields at the Headquarters at standard rates.",
+    staffed:   "Those goods cost 10% less, and you may adjust your armor's Protection split any time you rest here.",
+    favor:     "The Forge buys weapons, armor, and shields at 60%, and once per rest one character may re-split their Protection mid-stay.",
+    upgrade:   "The Forge stocks Accessories."
+  },
+  garden: {
+    name: "Garden", icon: "fa-solid fa-seedling", rank: "C", cost: 500, upgradeCost: 1000,
+    restGrant: "workGold",
+    unstaffed: "The Work activity is always available at the Headquarters.",
+    staffed:   "Work at the Headquarters yields +50G.",
+    favor:     "Once per rest, one Work yields double.",
+    upgrade:   "The staffed bonus becomes +100G."
+  },
+  gatheringGrounds: {
+    name: "Gathering Grounds", icon: "fa-solid fa-wheat-awn", rank: "C", cost: 750, upgradeCost: 1500,
+    restGrant: "materials", gather: true,
+    unstaffed: "Once per rest, the party gains 1 Common of a type fitting the grounds, at party Tier.",
+    staffed:   "Each rest, the grounds yield 3 Commons of one type, chosen when built, at party Tier.",
+    favor:     "Choose the yield's type freely each rest.",
+    upgrade:   "The grounds yield a second type, chosen when upgraded, at the same rate."
+  },
+  infirmary: {
+    name: "Infirmary", icon: "fa-solid fa-kit-medical", rank: "C", cost: 750, upgradeCost: 1500,
+    restGrant: "luckExtra",
+    unstaffed: "Recover here may remove complications that normally require a specialist.",
+    staffed:   "One Recover here removes up to two complications.",
+    favor:     "At the end of a rest here, every character may roll to restore one additional spent Luck Die.",
+    upgrade:   "Once per Season, the healer travels: the party may use the Infirmary's benefits at a Camp."
+  },
+  shrine: {
+    name: "Shrine", icon: "fa-solid fa-torii-gate", rank: "B", cost: 1500, upgradeCost: 3000,
+    luckStep: true,
+    unstaffed: "When replacing Luck Dice at a rest here, roll one extra time and drop the lowest.",
+    staffed:   "Step Up your Charm die for Luck Dice rolled here.",
+    favor:     "The Step Up applies to every character resting here.",
+    upgrade:   "Once per Season, one character may set one Luck Die to its maximum value instead of rolling."
+  },
+  stables: {
+    name: "Stables", icon: "fa-solid fa-horse", rank: "B", cost: 1500, upgradeCost: 3000,
+    unstaffed: "Travel from the Headquarters takes half the time.",
+    staffed:   "Once per trip, one Camp on the road counts as a Town for recovery only. It grants no slots.",
+    favor:     "Missions of the Scout and Escort types resolve one rest sooner, minimum 1.",
+    upgrade:   "The wagon carries a shared stash: +10 CAP split among the party while traveling."
+  },
+  tavern: {
+    name: "Tavern", icon: "fa-solid fa-beer-mug-empty", rank: "C", cost: 750, upgradeCost: 1500,
+    unstaffed: "At each rest, the Storyteller offers one rumor or lead.",
+    staffed:   "Once per rest, the party meets one potential Follower candidate.",
+    favor:     "The candidate is someone connected to a lead the party is already chasing.",
+    upgrade:   "Once per Season, host a festival: every pair attending gains 1 BP, and rank-up Scenes may be played here."
+  },
+  trainingGrounds: {
+    name: "Training Grounds", icon: "fa-solid fa-dumbbell", rank: "C", cost: 1000, upgradeCost: 2000,
+    unstaffed: "You may test a Skill build in a practice bout before spending SP on it.",
+    staffed:   "When you Train here, you may immediately spend the SP gained on Refine without taking the Refine activity.",
+    favor:     "Practice bouts may include the steward as a sparring partner; once per rest, one character gains 1 BP with the steward.",
+    upgrade:   "Practice bouts can simulate any Twist or Boss mechanic the party has faced."
+  },
+  warRoom: {
+    name: "War Room", icon: "fa-solid fa-chess-rook", rank: "A", cost: 2500, upgradeCost: 5000,
+    unstaffed: "For planned battles, the players choose their own starting positions.",
+    staffed:   "Before a planned Conflict, learn the enemy count and roles.",
+    favor:     "Also learn the enemy's Tier.",
+    upgrade:   "When a Conflict begins at the Headquarters, the Storyteller grants prepared ground: cover, fortifications, and chosen terrain."
+  },
+  watchtower: {
+    name: "Watchtower", icon: "fa-solid fa-binoculars", rank: "B", cost: 1500, upgradeCost: 3000,
+    unstaffed: "The Headquarters cannot be taken by surprise. The Storyteller gives warning of approaching threats.",
+    staffed:   "Before traveling, learn one true fact about the destination.",
+    favor:     "Once per rest, the Storyteller reveals whether a chosen mission on the Board is riskier than it appears.",
+    upgrade:   "Warnings extend across the region. Allies and Followers elsewhere can send word within a day."
+  },
+  workshop: {
+    name: "Workshop", icon: "fa-solid fa-screwdriver-wrench", rank: "C", cost: 1000, upgradeCost: 2000,
+    restGrant: "freeCraft",
+    unstaffed: "Materials stored here have no Bulk and cannot be stolen.",
+    staffed:   "Once per rest, one character may take one Craft Activity without spending a slot.",
+    favor:     "While the party is away, the steward may advance one Project Stage per rest, paying its bill from stored materials.",
+    upgrade:   "Once per Season, remove one Flaw here without a bill. Flaws that refuse the forge still refuse."
+  }
+};
+
+/** Custom Facilities (up to 3 slots) — GM-built, must stay inside the Four Rails. Reference limits. */
+PROJECTANIME.hqCustomRails = {
+  maxSlots: 3,
+  costByRank: { C: "500–1000G", B: "1500G", A: "2500G" },
+  function: "Touches downtime, information, economy, or story. Never combat stats, never the action economy, never SP beyond Train.",
+  shape:    "One unstaffed line, one staffed line, one Favor line, one upgrade.",
+  relief:   "If it lets an activity skip a slot: once per rest, and only if no printed facility already relieves that activity."
+};
+
+/** The rank a Headquarters with `renown` Renown qualifies for (index into hqRanks). Rank only actually
+ *  rises at a rest there — this is the ELIGIBLE rank the rest checks against the stored rank. */
+export function hqRankForRenown(renown) {
+  const n = Number(renown) || 0;
+  const ranks = PROJECTANIME.hqRanks;
+  let r = 0;
+  for (let i = 0; i < ranks.length; i++) if (n >= ranks[i].renown) r = i;
+  return r;
+}
+
+/** The Facility Cap for a rank index (0–3). */
+export function hqCapForRank(rankIndex) {
+  const ranks = PROJECTANIME.hqRanks;
+  const i = Math.max(0, Math.min(ranks.length - 1, Number(rankIndex) || 0));
+  return ranks[i].cap;
+}
+
+/** The Renown needed for the NEXT rank above index `rank`, or null when already at S (max). */
+export function hqNextRenown(rankIndex) {
+  const ranks = PROJECTANIME.hqRanks;
+  const r = Number(rankIndex) || 0;
+  return r >= ranks.length - 1 ? null : ranks[r + 1].renown;
+}
 
 /* -------------------------------------------- */
 /*  Monster Tiers (anime ranking)               */
@@ -977,6 +1393,135 @@ PROJECTANIME.monsterTiers = {
 
 /** Iteration order for monster Tiers (weakest → strongest). */
 PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
+
+/* -------------------------------------------- */
+/*  Enemies v0.03 — Role × Tier, Strong/Weak    */
+/* -------------------------------------------- */
+
+/**
+ * The v0.03 Enemy model. An enemy is a **Role** (what it does) at a **Tier** I–IV (the party's power
+ * band). It does not track five Attributes — it has a **Strong die** (the tier's die) and a **Weak die**
+ * (two steps down, min d4). The Role picks WHICH Attributes are Strong; every other Attribute is Weak.
+ * HP / EP / the combat stats fall out of those dice the same way a PC's do, plus the Role's flat deltas.
+ * This retires the ★-power × shape (minion/standard/elite/solo) model — those symbols above are kept
+ * only for legacy validation + the Animate servant tax; nothing new keys off them.
+ */
+
+/** Tier → its Strong and Weak die SIZE (the attribute value 4–12). Strong = the tier die; Weak = two
+ *  rungs down the d4/d6/d8/d10/d12 ladder, floored at d4. (I d6/d4 · II d8/d4 · III d10/d6 · IV d12/d8.) */
+PROJECTANIME.enemyTierDice = {
+  1: { strong: 6,  weak: 4 },
+  2: { strong: 8,  weak: 4 },
+  3: { strong: 10, weak: 6 },
+  4: { strong: 12, weak: 8 }
+};
+
+/** Iteration order for enemy Tiers (1–4). */
+PROJECTANIME.enemyTierKeys = [1, 2, 3, 4];
+
+/** The Strong or Weak die value for a Tier (clamped to a real tier; defaults to Tier I). */
+export function enemyTierDie(tier, strong = true) {
+  const row = PROJECTANIME.enemyTierDice[Math.clamp(Math.round(Number(tier) || 1), 1, 4)] ?? PROJECTANIME.enemyTierDice[1];
+  return strong ? row.strong : row.weak;
+}
+
+/**
+ * The 7 Roles as data (rules doc "Enemies" table). Each Role sets:
+ *   • `strong` — the Attributes that use the Strong die (the rest use the Weak die). `null` = Elite,
+ *                which picks ANY three (stored per-NPC in `system.strongAttrs`).
+ *   • `hpMult` — HP multiplier on the 6 + ⟪Might⟫×2 base (Brute ×1.5, Elite ×1.25, the squishy Roles
+ *                ×0.75). Swarm ignores this and uses `hpFlat` (a flat HP by tier).
+ *   • `hpFlat` — Swarm only: HP is a flat 5 / 8 / 10 / 12 by Tier (index = tier−1), not a formula.
+ *   • `deltas` — flat bonuses written to the stat's `.bonus` at build time (atk / defense / res /
+ *                evasion / as / movement).
+ *   • `magic`  — the Role's Basic Attack targets RES (a magical strike) instead of DEF (Caster).
+ *   • `twists` — how many Twists the Role brings "for free" (Caster 1, Support 2); the soft cap on
+ *                total Twists before an enemy should become an Elite is 2 (see enemyTwistCap).
+ *   • `threat` — its cost in the Threat encounter budget (Grunt 1 · Brute 1.5 · Skirmisher 1 · Caster 1
+ *                · Support 1 · Swarm ½ · Elite 2). Rival = Elite + 1 (3); Boss is computed live.
+ *   • `skirmisher` — exempt from the Speed rail (a Skirmisher is allowed to cross the Follow-Up line).
+ */
+PROJECTANIME.enemyRoles = {
+  grunt:      { label: "PROJECTANIME.EnemyRole.grunt",      icon: "fa-solid fa-helmet-battle",  color: "#7a8a8f", strong: ["might", "agility"], hpMult: 1,    threat: 1,   twists: 0, deltas: {} },
+  brute:      { label: "PROJECTANIME.EnemyRole.brute",      icon: "fa-solid fa-hand-fist",      color: "#9c6b4f", strong: ["might", "spirit"],  hpMult: 1.5,  threat: 1.5, twists: 0, deltas: { atk: 2, evasion: -2, as: -2 } },
+  skirmisher: { label: "PROJECTANIME.EnemyRole.skirmisher", icon: "fa-solid fa-wind",           color: "#4f9c8f", strong: ["agility", "mind"],  hpMult: 0.75, threat: 1,   twists: 0, deltas: { evasion: 2, as: 2, movement: 1 }, skirmisher: true },
+  caster:     { label: "PROJECTANIME.EnemyRole.caster",     icon: "fa-solid fa-wand-sparkles",  color: "#7a5fa8", strong: ["mind", "spirit"],   hpMult: 0.75, threat: 1,   twists: 1, deltas: {}, magic: true },
+  support:    { label: "PROJECTANIME.EnemyRole.support",    icon: "fa-solid fa-staff-snake",    color: "#4f7c9c", strong: ["spirit", "charm"],  hpMult: 0.75, threat: 1,   twists: 2, deltas: { atk: -2 } },
+  swarm:      { label: "PROJECTANIME.EnemyRole.swarm",      icon: "fa-solid fa-bugs",           color: "#8a8f4f", strong: ["agility"],          hpFlat: [5, 8, 10, 12], threat: 0.5, twists: 0, deltas: { atk: -2 } },
+  elite:      { label: "PROJECTANIME.EnemyRole.elite",      icon: "fa-solid fa-shield-halved",  color: "#4f9c6c", strong: null, strongCount: 3, hpMult: 1.25, threat: 2,   twists: 1, deltas: { atk: 1, defense: 1, res: 1, evasion: 1 } }
+};
+
+/** Iteration order for enemy Roles (weakest → strongest / chaff → elite). */
+PROJECTANIME.enemyRoleKeys = ["grunt", "brute", "skirmisher", "caster", "support", "swarm", "elite"];
+
+/** Soft cap on Twists (pre-built Skills) an enemy carries before it should be an Elite. A 3rd makes
+ *  it an Elite (the creator warns). */
+PROJECTANIME.enemyTwistCap = 2;
+
+/** The Roman numeral for an enemy Tier (I–IV; 0/blank → ""). */
+PROJECTANIME.enemyTierNumerals = { 0: "", 1: "I", 2: "II", 3: "III", 4: "IV" };
+
+/** Which Attributes are Strong for an enemy: the Role's fixed pair, or (Elite) the per-NPC stored
+ *  choice of three — falling back to a sensible default when unset/malformed. Returns a lowercase
+ *  Attribute-key array; every other Attribute is Weak. */
+export function enemyStrongAttrs(roleKey, stored = []) {
+  const role = PROJECTANIME.enemyRoles[roleKey];
+  if (!role) return [];
+  if (Array.isArray(role.strong)) return role.strong;
+  // Elite (or a custom Role) picks its own set. Keep only valid, de-duplicated Attribute keys.
+  const want = role.strongCount ?? 3;
+  const picks = [...new Set((Array.isArray(stored) ? stored : []).filter((k) => PROJECTANIME.attributeKeys.includes(k)))];
+  if (picks.length === want) return picks;
+  // Default three for an Elite that hasn't chosen: a balanced bruiser.
+  return picks.length ? picks.slice(0, want) : ["might", "agility", "spirit"].slice(0, want);
+}
+
+/** An enemy's Threat — its cost in the encounter budget. A Rival counts as Elite + 1 (= 3). A Boss is
+ *  computed from party size + extra Bars (bossThreat); here a plain Boss with no extra Bars reads its
+ *  Role threat, and callers with a party size use bossThreat. Unknown Role → 1. */
+export function enemyRoleThreat(roleKey) {
+  return PROJECTANIME.enemyRoles[roleKey]?.threat ?? 1;
+}
+
+/** An enemy's HP and EP under the v0.03 Role × Tier model:
+ *    HP = round( (6 + ⟪Might⟫×2) × Role HP multiplier ), or a Swarm's flat 5/8/10/12 by tier.
+ *    EP = ⟪Spirit⟫ × 2.
+ *  ⟪Might⟫ / ⟪Spirit⟫ are each the Strong die when that Attribute is in the Strong set, else the Weak
+ *  die. `tier` is 1–4; `strong` is the resolved Strong-Attribute array (enemyStrongAttrs). Floored at 1. */
+export function enemyVitals(roleKey, tier, strong) {
+  const role = PROJECTANIME.enemyRoles[roleKey] ?? PROJECTANIME.enemyRoles.grunt;
+  const t = Math.clamp(Math.round(Number(tier) || 1), 1, 4);
+  const dieOf = (attr) => enemyTierDie(t, (strong ?? []).includes(attr));
+  const might = dieOf("might");
+  const spirit = dieOf("spirit");
+  const hp = Array.isArray(role.hpFlat)
+    ? (role.hpFlat[t - 1] ?? role.hpFlat[0])
+    : Math.round((6 + might * 2) * (role.hpMult ?? 1));
+  return { hp: Math.max(1, hp), energy: Math.max(1, spirit * 2) };
+}
+
+/* -------------------------------------------- */
+/*  Boss Bars (v0.03)                           */
+/* -------------------------------------------- */
+
+/** A Boss's Bar count = half the party size, rounded up (min 1). */
+export function bossBarCount(partySize) {
+  return Math.max(1, Math.ceil((Number(partySize) || 1) / 2));
+}
+
+/** Per-Bar HP by Tier: 8 / 10 / 12 / 14 × party size (Tier I–IV). */
+export function bossBarHp(tier, partySize) {
+  const perTier = { 1: 8, 2: 10, 3: 12, 4: 14 };
+  const mult = perTier[Math.clamp(Math.round(Number(tier) || 1), 1, 4)] ?? 8;
+  return Math.max(1, mult * Math.max(1, Number(partySize) || 1));
+}
+
+/** A Boss's Threat: party size, +2 for each Bar beyond the standard formula (bossBarCount). */
+export function bossThreat(partySize, bars) {
+  const size = Math.max(1, Number(partySize) || 1);
+  const extra = Math.max(0, (Number(bars) || 0) - bossBarCount(size));
+  return size + 2 * extra;
+}
 
 /* -------------------------------------------- */
 /*  Minion Squads (pooled-unit hordes)          */
@@ -1121,20 +1666,48 @@ export function tierScaling(tierKey, power = getEncounterPower()) {
 /* -------------------------------------------- */
 
 /**
- * Encounter difficulty → a flat OFFSET on the party's player count that yields the encounter budget
- * in PARTY-EQUIVALENTS (Budget = player count + offset). Medium is "on level" — a fair fight fields
- * as many PC-equivalents of threat as there are players; each step is ±2 PCs. So a party of 4 faces
- * 2 / 4 / 6 / 8 equivalents across Easy / Medium / Hard / Extreme. Plain, tunable numbers.
+ * Encounter difficulty → the THREAT budget (v0.03). Budget = number of PCs, shifted by difficulty:
+ * Easy = party − 1, Standard = party, Hard = party + 1.5, Climax = party × 2 (usually a Boss + escorts).
+ * `offset` adds to the party size; `mult` multiplies it (Climax). Threat is spent by Role: Grunt 1 ·
+ * Brute 1.5 · Skirmisher 1 · Caster 1 · Support 1 · Swarm ½ · Elite 2 · Rival 3 · Boss = party size.
  */
 PROJECTANIME.encounterDifficulty = {
-  easy:    { label: "PROJECTANIME.Encounter.difficulty.easy",    offset: -2 },
-  medium:  { label: "PROJECTANIME.Encounter.difficulty.medium",  offset: 0 },
-  hard:    { label: "PROJECTANIME.Encounter.difficulty.hard",    offset: 2 },
-  extreme: { label: "PROJECTANIME.Encounter.difficulty.extreme", offset: 4 }
+  easy:     { label: "PROJECTANIME.Encounter.difficulty.easy",     offset: -1 },
+  standard: { label: "PROJECTANIME.Encounter.difficulty.standard", offset: 0 },
+  hard:     { label: "PROJECTANIME.Encounter.difficulty.hard",     offset: 1.5 },
+  climax:   { label: "PROJECTANIME.Encounter.difficulty.climax",   mult: 2 }
 };
 
 /** Iteration order for encounter difficulties (easiest → hardest). */
-PROJECTANIME.encounterDifficultyKeys = ["easy", "medium", "hard", "extreme"];
+PROJECTANIME.encounterDifficultyKeys = ["easy", "standard", "hard", "climax"];
+
+/* -------------------------------------------- */
+/*  Health status ladder (hidden-HP descriptor) */
+/* -------------------------------------------- */
+
+/** Qualitative wound descriptor shown IN PLACE of an exact HP number when a viewer isn't allowed to
+ *  see a creature's vitals (pf2e-hud style — you learn "Badly Hurt", not "7/22"). Steps match
+ *  high→low by remaining-HP fraction; `tint` reuses the HP-gradient palette. */
+PROJECTANIME.healthLadder = [
+  { min: 1,    key: "PROJECTANIME.Health.fine",    tint: "#8ad35f" },
+  { min: 0.75, key: "PROJECTANIME.Health.barely",  tint: "#c3d35f" },
+  { min: 0.5,  key: "PROJECTANIME.Health.wounded", tint: "#f4b15e" },
+  { min: 0.25, key: "PROJECTANIME.Health.hurt",    tint: "#ef8a6e" },
+  { min: 0,    key: "PROJECTANIME.Health.dying",   tint: "#c34155" }
+];
+
+/** Resolve an actor's HP to a {key, tint, pct} health descriptor, or null when it has no HP track.
+ *  0 HP → "Down". Callers localize `key`. */
+export function healthStatus(actor) {
+  const hp = actor?.system?.hp;
+  const max = Number(hp?.max) || 0;
+  if (!max) return null;
+  const val = Number(hp?.value) || 0;
+  if (val <= 0) return { key: "PROJECTANIME.Health.down", tint: "#a39db8", pct: 0 };
+  const frac = val / max;
+  const step = PROJECTANIME.healthLadder.find((s) => frac >= s.min) ?? PROJECTANIME.healthLadder.at(-1);
+  return { key: step.key, tint: step.tint, pct: Math.round(frac * 100) };
+}
 
 /* -------------------------------------------- */
 /*  Biography dossier                           */

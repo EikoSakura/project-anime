@@ -18,8 +18,9 @@
  * class (plus `monster-creator` for the Tier-specific bits).
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
-import { tierScaling, starOrDialPower, npcVitals } from "../helpers/config.mjs";
-import { setSquadSize } from "../helpers/squad.mjs";
+import { SkillBrowserApp } from "./skill-browser.mjs";
+import { PROJECTANIME, enemyStrongAttrs, enemyVitals, enemyTierDie, bossBarCount, bossBarHp } from "../helpers/config.mjs";
+import { partyRailStats } from "../helpers/encounter.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
 import {
   GEAR_GROUPS, SLOT_ACCEPTS,
@@ -28,10 +29,15 @@ import {
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Creation steps, in order. The FRAME step merges the old Tier + Combat-Stats steps: you pick
- *  ★ / Tier / Role and read the finished statblock off a live card (no multiplication). TUNE is the
- *  old Attributes step — now optional, since Role pre-fills the dice. */
+/** Creation steps, in order (v0.03). FRAME picks the build path + Role + Tier (I–IV) and reads the
+ *  finished statblock off a live card. TUNE is Build-Your-Own: trade stats inside the Four Rails.
+ *  ABILITIES adds Skills — from the Skill Browser (incl. the preset Twists) or the Skill Builder. */
 const STEPS = ["concept", "frame", "tune", "abilities", "gear", "finish"];
+
+/** The three build paths (rules "Enemies"): copy a tier row, reshape it with a Role + a Twist, or
+ *  trade stats yourself. Guidance only — all three write the same Role × Tier statblock; the path just
+ *  decides whether the Tune step exposes the trade controls. */
+const BUILD_PATHS = ["row", "reshape", "custom"];
 
 /** Default icon for a freshly-created Basic Attack (natural weapon). */
 const NATURAL_WEAPON_IMG = "icons/svg/sword.svg";
@@ -58,13 +64,14 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       stepBack: MonsterCreatorApp.#onStepBack,
       gotoStep: MonsterCreatorApp.#onGotoStep,
       pickImage: MonsterCreatorApp.#onPickImage,
+      pickPath: MonsterCreatorApp.#onPickPath,
+      pickRole: MonsterCreatorApp.#onPickRole,
       pickTier: MonsterCreatorApp.#onPickTier,
-      pickStars: MonsterCreatorApp.#onPickStars,
-      raiseAttr: MonsterCreatorApp.#onRaiseAttr,
-      lowerAttr: MonsterCreatorApp.#onLowerAttr,
+      toggleRival: MonsterCreatorApp.#onToggleRival,
+      toggleBoss: MonsterCreatorApp.#onToggleBoss,
+      pickStrong: MonsterCreatorApp.#onPickStrong,
       recalcVitals: MonsterCreatorApp.#onRecalcVitals,
-      incSquad: MonsterCreatorApp.#onIncSquad,
-      decSquad: MonsterCreatorApp.#onDecSquad,
+      browseSkills: MonsterCreatorApp.#onBrowseSkills,
       addAttack: MonsterCreatorApp.#onAddAttack,
       editAttack: MonsterCreatorApp.#onEditAttack,
       removeAttack: MonsterCreatorApp.#onRemoveAttack,
@@ -95,45 +102,46 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /** Selected inventory bag (container id, "" = backpack) on the Gear step. */
   #selectedBag = "";
 
+  /** Chosen build path (row / reshape / custom) — guidance + gates the Tune trade controls. */
+  #path = "row";
+
   get title() {
     return `${game.i18n.localize("PROJECTANIME.MonsterCreator.title")} — ${this.actor.name}`;
   }
 
   /* -------------------------------------------- */
-  /*  Tier helpers                                */
+  /*  Role / Tier helpers                         */
   /* -------------------------------------------- */
 
-  /** The local power this monster builds against: its ★ rating's power, else the global dial. The
-   *  whole build pipeline (SP grant, HP/EN multiplier) keys off this one number. */
-  #power() {
-    return starOrDialPower(this.actor);
+  /** The selected Role's config entry, or null while unset. */
+  #role() {
+    const key = this.actor.system.enemyRole;
+    return key ? PROJECTANIME.enemyRoles[key] : null;
   }
 
-  /** The selected Tier's EFFECTIVE entry at this monster's local power (scaled Skill Points + HP
-   *  multiplier, fixed knobs spread through), or null while untiered. */
-  #tier() {
-    return this.actor.system.tier ? tierScaling(this.actor.system.tier, this.#power()) : null;
+  /** The selected Tier (1–4; 0 = unpicked). */
+  #tierNum() {
+    return Number(this.actor.system.enemyTier) || 0;
   }
 
-  /** Attribute Step-Up budget = the selected Tier's allotment (0 until one is picked). */
-  #budget() {
-    return this.#tier()?.stepUps ?? 0;
+  /** The resolved Strong-Attribute set (Role's fixed pair, or the Elite's stored three). */
+  #strong() {
+    return enemyStrongAttrs(this.actor.system.enemyRole, this.actor.system.strongAttrs);
   }
 
-  /** This monster's derived HP / Energy under the Fabula-Ultima additive model (config npcVitals):
-   *  round5(Level + 2.5·attr) × the Tier rank. For a Minion `hp` is the PER-MEMBER pool. */
+  /** This monster's derived HP / EP under the v0.03 Role × Tier model. */
   #vitals() {
-    const a = this.actor.system.attributes;
-    return npcVitals(this.actor.system.tier, this.actor.system.stars, a.might.base, a.spirit.base);
+    return enemyVitals(this.actor.system.enemyRole, this.#tierNum(), this.#strong());
   }
 
-  /** Step-Ups already spent = sum over attributes of (steps above d4). */
-  #stepsUsed() {
-    const attrs = this.actor.system.attributes;
-    return CONFIG.PROJECTANIME.attributeKeys.reduce(
-      (n, k) => n + Math.max(0, ((attrs[k].base ?? 4) - 4) / 2),
-      0
-    );
+  /** The party size for Boss Bars + the Four Rails (live roster, else an assumed 4). */
+  #partySize() {
+    return partyRailStats()?.size ?? 4;
+  }
+
+  /** Both Role AND Tier chosen — the minimum for a real statblock. */
+  #framed() {
+    return !!this.#role() && this.#tierNum() >= 1;
   }
 
   /* -------------------------------------------- */
@@ -172,88 +180,70 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.biography = sys.biography ?? "";
     ctx.disposition = sys.disposition ?? "hostile";
 
-    // Star rating — the per-NPC power LEVEL (1..maxStars). It drives the local power that scales the
-    // Tier cards below; 0 = unrated, in which case the build falls back to the global dial.
-    const stars = Number(sys.stars) || 0;
-    ctx.stars = stars;
-    ctx.starButtons = Array.from({ length: cfg.maxStars }, (_, i) => ({ n: i + 1, filled: i < stars }));
+    const L = (k) => game.i18n.localize(k);
 
-    // Tier — the cards (Skill Points + HP multiplier scaled to THIS monster's local power: its ★
-    // rating's power, else the global dial) + the selected key. The readout shows the basis.
-    const power = this.#power();
-    ctx.encounterPower = power;
-    ctx.starRated = stars >= 1;
-    ctx.tierKey = sys.tier ?? "";
-    // Tier cards show FINISHED HP / EN at the current attributes (read a chart, never multiply): each
-    // tier's Fabula-Ultima vitals (config npcVitals) resolved at this monster's ★ Level and attributes,
-    // same formula as #applyVitals — so the headline numbers on the card are exactly what gets stored.
-    const cardMight = sys.attributes.might.base;
-    const cardSpirit = sys.attributes.spirit.base;
-    ctx.tiers = cfg.monsterTierKeys.map((k) => {
-      const t = cfg.monsterTiers[k];
-      const s = tierScaling(k, power);
-      const v = npcVitals(k, stars, cardMight, cardSpirit);
+    // Build path — guidance + gates the Tune trade controls (Build Your Own).
+    ctx.path = this.#path;
+    ctx.pathCustom = this.#path === "custom";
+    ctx.paths = BUILD_PATHS.map((k) => ({ key: k, label: L(`PROJECTANIME.MonsterCreator.path.${k}`), selected: this.#path === k }));
+
+    // Role cards — the 7 Roles, each with its Threat and Strong Attributes.
+    ctx.enemyRole = sys.enemyRole ?? "";
+    ctx.roles = cfg.enemyRoleKeys.map((k) => {
+      const r = cfg.enemyRoles[k];
+      const strong = Array.isArray(r.strong) ? r.strong : null;
       return {
-        key: k,
-        label: game.i18n.localize(t.label),
-        icon: t.icon,
-        color: t.color,
-        stepUps: t.stepUps,
-        hp: v.hp,
-        energy: v.energy,
-        evasion: t.evasion,
-        defense: t.defense,
-        skillPoints: s.skillPoints,
-        worth: game.i18n.localize(`PROJECTANIME.Worth.${k}`),   // encounter-budget worth (Party-Equivalents)
-        selected: sys.tier === k
+        key: k, label: L(r.label), icon: r.icon, color: r.color,
+        threat: r.threat,
+        strong: (strong ?? []).map((a) => L(cfg.attributes[a])),
+        anyThree: !strong,
+        selected: sys.enemyRole === k
       };
     });
 
-    // Attributes — Step-Ups against the Tier budget.
-    const used = this.#stepsUsed();
-    const budget = this.#budget();
-    ctx.hasTier = !!this.#tier();
-    ctx.stepsUsed = used;
-    ctx.stepsTotal = budget;
-    ctx.stepsLeft = Math.max(0, budget - used);
-    ctx.overSpent = used > budget;
-    ctx.attributes = cfg.attributeKeys.map((k) => {
-      const a = sys.attributes[k];
-      return {
-        key: k,
-        label: game.i18n.localize(cfg.attributes[k]),
-        icon: cfg.attributeIcons?.[k] ?? "",
-        base: a.base,
-        die: `d${a.base}`,
-        canRaise: a.base < 12 && used < budget,
-        canLower: a.base > 4
-      };
-    });
+    // Tier buttons I–IV — the Strong / Weak dice each grants.
+    ctx.enemyTier = this.#tierNum();
+    ctx.tiers = cfg.enemyTierKeys.map((t) => ({
+      key: t, numeral: cfg.enemyTierNumerals[t],
+      strong: `d${enemyTierDie(t, true)}`, weak: `d${enemyTierDie(t, false)}`,
+      selected: this.#tierNum() === t
+    }));
 
-    // Combat Stats — the FINISHED statblock read off the Frame card (no multiplier shown). Derived
-    // from the ★ Level + attributes + Tier rank (config npcVitals) and surfaced as final numbers.
-    const fresh = this.#vitals();          // the HP/Energy this build would store right now
-    ctx.tierName = this.#tier() ? game.i18n.localize(this.#tier().label) : game.i18n.localize("PROJECTANIME.MonsterCreator.noTier");
-    ctx.vitals = {
+    // Rival / Boss flags + whether the frame is complete.
+    ctx.rival = !!sys.rival;
+    ctx.boss = !!sys.boss?.enabled;
+    ctx.framed = this.#framed();
+
+    // Elite (or Boss) picks three Strong Attributes.
+    const strongSet = this.#strong();
+    ctx.picksStrong = (sys.enemyRole === "elite") || ctx.boss;
+    ctx.strongPicks = cfg.attributeKeys.map((k) => ({
+      key: k, label: L(cfg.attributes[k]), icon: cfg.attributeIcons?.[k] ?? "", on: strongSet.includes(k)
+    }));
+
+    // Derived statblock — the finished numbers this build stores (read the chart).
+    ctx.stat = {
       hp: sys.hp.max,
       energy: sys.energy.base ?? sys.energy.max,
-      evasion: sys.evasion.value,
-      defense: sys.defense.value,
-      movement: sys.movement.value,
-      carry: sys.carryingCapacity.max,
-      sp: sys.skillPoints?.value ?? 0
+      atk: sys.atk.value, matk: sys.matk.value,
+      defense: sys.defense.value, res: sys.res.value,
+      evasion: sys.evasion.value, as: sys.as.value, movement: sys.movement.value
     };
-    // A Minion is a SQUAD member: its derived HP is the PER-MEMBER pool, so "stale" compares the
-    // per-member value (memberHp) rather than the pooled max; everyone else compares hp.max directly.
-    const isMinion = sys.tier === "minion";
-    const perMemberHP = fresh.hp;
-    const storedPer = isMinion ? (Number(sys.squad?.memberHp) || sys.hp.max) : sys.hp.max;
-    ctx.vitalsStale = storedPer !== perMemberHP || (sys.energy.base ?? sys.energy.max) !== fresh.energy;
-    // Squad controls (Minion Tier only): size stepper + the pooled-HP breakdown (per-member × size).
-    ctx.isMinion = isMinion;
-    ctx.squadSize = Math.max(1, Number(sys.squad?.size) || 1);
-    ctx.squadMemberHp = Number(sys.squad?.memberHp) || perMemberHP;
-    ctx.squadTotalHp = ctx.squadMemberHp * ctx.squadSize;
+    ctx.magic = !!this.#role()?.magic;   // Caster attacks target RES
+    // A stored statblock drifts from the Role × Tier chart only if a stat was hand-edited then the Role
+    // changed; the Recalc button re-seeds HP/EP + role deltas.
+    const fresh = this.#framed() ? this.#vitals() : null;
+    ctx.vitalsStale = !!fresh && ((sys.energy.base ?? sys.energy.max) !== fresh.energy);
+
+    // Four Rails audit vs the party (or a Tempered tier row when there are no sheets).
+    ctx.rails = this.#framed() ? this.#railsAudit() : null;
+
+    // Boss Bars readout.
+    ctx.bossBars = ctx.boss ? {
+      count: Number(sys.boss.bars) || 0,
+      barHp: Number(sys.boss.barHp) || 0,
+      total: (Number(sys.boss.bars) || 0) * (Number(sys.boss.barHp) || 0)
+    } : null;
 
     // Basic Attacks — natural weapons. The rules' "Basic Attack" strikes with an equipped
     // weapon and costs NO Energy (and no Skill Points); these roll through rollAttack from
@@ -264,8 +254,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       .map((i) => ({ id: i.id, name: i.name, img: i.img, summary: this.#attackSummary(i) }));
     ctx.attackCount = ctx.attacks.length;
 
-    // Abilities — the Tier's Skill Points and what's been built.
-    ctx.sp = sys.skillPoints?.value ?? 0;
+    // Abilities — the Skills on this monster (built, browsed, or the preset Twists). Enemies have no
+    // Skill Points; EP fuels active Skills. Twist-flagged Skills wear a small marker in the list.
     ctx.skills = this.actor.items
       .filter((i) => i.type === "skill")
       .sort(bySort)
@@ -273,21 +263,21 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         id: i.id,
         name: i.name,
         img: i.img,
-        stars: `${i.system.spCost ?? 0} SP`,
-        actionLabel: game.i18n.localize(cfg.actionTypes[i.system.actionType] ?? ""),
-        energyCost: i.system.energyCost ?? 0,
+        cost: i.system.actionType === "passive" ? L("PROJECTANIME.Skill.passive")
+          : (i.system.perConflict ? L("PROJECTANIME.Skill.perConflict") : `${i.system.energyCost ?? 0} EP`),
+        actionLabel: L(cfg.actionTypes[i.system.actionType] ?? ""),
         passive: i.system.actionType === "passive",
-        // A granted Role move is package-managed (free, removed/rebuilt by the Role picker), so it
-        // hides its trash button — it isn't a hand-built skill the GM deletes for a refund.
-        granted: !!i.getFlag("project-anime", "granted")
+        twist: !!i.getFlag("project-anime", "twist")
       }));
-
-    // Review (last step) — a compact summary card.
-    ctx.tierBadge = this.#tier()
-      ? { label: ctx.tierName, icon: this.#tier().icon, color: this.#tier().color, stars: stars >= 1 ? Array.from({ length: stars }, (_, i) => i) : null,
-          worth: game.i18n.localize(`PROJECTANIME.Worth.${this.actor.system.tier}`) }
-      : null;
     ctx.skillCount = ctx.skills.length;
+
+    // Review (last step) — a compact summary badge (Role · Tier + Rival/Boss + Threat).
+    ctx.reviewBadge = this.#role()
+      ? { label: L(this.#role().label), icon: this.#role().icon, color: this.#role().color,
+          tierNumeral: cfg.enemyTierNumerals[this.#tierNum()],
+          rival: ctx.rival, boss: ctx.boss,
+          threat: ctx.rival ? 3 : (ctx.boss ? this.#partySize() : this.#role().threat) }
+      : null;
 
     // Gear step — the same carried-gear UI players get on the actor sheet (paperdoll + bags + grid,
     // via helpers/gear.mjs → gear-body.hbs), plus a live Defense/Evasion readout so the GM sees armor
@@ -391,58 +381,18 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Block leaving a step that isn't legal yet: a Tier must be chosen, then all of its
-   *  Step-Ups distributed (exactly — no under- or over-spend). */
+  /** Block leaving the Frame step until both a Role AND a Tier are chosen (the minimum statblock). */
   #validateStep() {
     const key = STEPS[this.#step];
-    // A Tier gates the Step-Up budget — require one before leaving either step (the step dots allow
-    // free jumping, so guard Tune too, not just the Frame step where the Tier is picked).
-    if ((key === "frame" || key === "tune") && !this.#tier()) {
-      ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.pickTierFirst"));
+    if ((key === "frame" || key === "tune") && !this.#framed()) {
+      ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.pickRoleTierFirst"));
       return false;
-    }
-    if (key === "tune") {
-      const left = this.#budget() - this.#stepsUsed();
-      if (left !== 0) {
-        ui.notifications.warn(game.i18n.format("PROJECTANIME.MonsterCreator.stepsRemaining", { n: Math.abs(left) }));
-        return false;
-      }
     }
     return true;
   }
 
-  /** Side effect on entering the Abilities step: re-sync HP/Energy to the (possibly hand-tuned)
-   *  attributes × the Tier multiplier, so the finished statblock is current before Review (creation
-   *  only — don't clobber later hand-tuning). Tier/★/Role picks already derive vitals on the Frame
-   *  step; this catches dice nudged on the Tune step in between. */
-  async #onEnterStep() {
-    const key = STEPS[this.#step];
-    if ((key === "abilities" || key === "finish") && !this.actor.getFlag("project-anime", "creationComplete")) {
-      await this.#applyVitals();
-    }
-  }
-
-  /** Set HP and Energy to full from the Fabula-Ultima vitals (config npcVitals): round5(★ Level +
-   *  2.5·attr) × the Tier rank. For a Minion the value is the PER-MEMBER pool (the squad pools it). */
-  async #applyVitals() {
-    const { hp, energy } = this.#vitals();
-    const update = {
-      "system.hp.max": hp,
-      "system.energy.max": energy,
-      "system.energy.value": energy
-    };
-    // A Minion fields as a SQUAD: the derived HP is its PER-MEMBER pool. Record it (the data model
-    // derives the EFFECTIVE max = memberHp × size at size ≥ 2) and fill the pooled bar; non-minions
-    // store HP straight. So re-deriving vitals rescales the whole squad without losing its size.
-    if (this.actor.system.tier === "minion") {
-      const size = Math.max(1, Number(this.actor.system.squad?.size) || 1);
-      update["system.squad.memberHp"] = hp;
-      update["system.hp.value"] = hp * size;
-    } else {
-      update["system.hp.value"] = hp;
-    }
-    await this.actor.update(update);
-  }
+  /** No per-step side effects — the Role/Tier picks already write the statblock live. */
+  async #onEnterStep() {}
 
   /* -------------------------------------------- */
   /*  Concept                                     */
@@ -461,116 +411,181 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /* -------------------------------------------- */
-  /*  Tier                                        */
+  /*  Frame — build path, Role, Tier              */
   /* -------------------------------------------- */
 
-  /** Pick a Tier: stamp it, apply its flat Evasion/Defense, grant its Skill Points,
-   *  re-fit the Step-Up budget, and re-derive HP/Energy (all while still creating). */
+  /** Pick a build path (guidance only; gates the Tune trade controls). */
+  static #onPickPath(event, target) {
+    const key = target.closest("[data-path]")?.dataset.path;
+    if (BUILD_PATHS.includes(key)) { this.#path = key; this.render(); }
+  }
+
+  /** Pick a Role: stamp it (reset the Elite strong-pick when leaving Elite) and re-derive the block. */
+  static async #onPickRole(event, target) {
+    const key = target.closest("[data-role]")?.dataset.role;
+    if (!PROJECTANIME.enemyRoles[key]) return;
+    const update = { "system.enemyRole": key };
+    // A fixed Role owns its Strong set; clear a stale Elite pick so the derived dice don't linger.
+    if (key !== "elite") update["system.strongAttrs"] = [];
+    await this.actor.update(update);
+    await this.#applyRoleTier();
+    this.render();
+  }
+
+  /** Pick a Tier I–IV (toggle off by clicking the current one) and re-derive the block. */
   static async #onPickTier(event, target) {
-    const key = target.closest("[data-tier]")?.dataset.tier;
-    if (!CONFIG.PROJECTANIME.monsterTiers[key]) return;
-    const creating = !this.actor.getFlag("project-anime", "creationComplete");
-    const update = { "system.tier": key };
-    // An unrated monster gets its Tier's "on-level" star by default the first time a Tier is picked
-    // (minion ★1 … solo ★4), so the rating reads sensibly out of the box; the picker overrides it.
-    if (!(Number(this.actor.system.stars) >= 1)) update["system.stars"] = CONFIG.PROJECTANIME.tierOnLevelStar[key] ?? 2;
-    await this.actor.update(update);
-    // A new Tier has a new Step-Up budget — #applyTierBuild trims any over-spent dice to fit it and
-    // re-derives vitals. The GM spends the budget by hand (raise/lower on the Tune step).
-    await this.#applyTierBuild(creating);
+    const t = Number(target.closest("[data-tier]")?.dataset.tier) || 0;
+    if (!(t >= 1 && t <= 4)) return;
+    const next = (t === this.#tierNum()) ? 0 : t;
+    await this.actor.update({ "system.enemyTier": next });
+    await this.#applyRoleTier();
     this.render();
   }
 
-  /** Pick a Star rating (the per-NPC power level): stamp it, then re-grant SP / re-derive vitals
-   *  against the new local power (only while creating, so a finished monster keeps its spent SP). */
-  static async #onPickStars(event, target) {
-    const n = Number(target.closest("[data-stars]")?.dataset.stars);
-    if (!(n >= 1 && n <= CONFIG.PROJECTANIME.maxStars)) return;
-    // Click the current top star again to clear the rating back to unrated (fall to the global dial).
-    const next = (n === Number(this.actor.system.stars)) ? 0 : n;
-    await this.actor.update({ "system.stars": next });
-    await this.#applyTierBuild(!this.actor.getFlag("project-anime", "creationComplete"));
+  /** Toggle the Rival flag (a full-PC-rules villain; Elite + 1 Threat). */
+  static async #onToggleRival() {
+    await this.actor.update({ "system.rival": !this.actor.system.rival });
     this.render();
   }
 
-  /** Re-apply the Tier build at this monster's current local power: flat Eva/Def, the (re-)granted
-   *  Skill-Point pool while creating, the re-fit Step-Up budget, and the re-derived HP/Energy. Shared
-   *  by Tier and Star picks so the two axes always recompute together. No-op without a Tier. */
-  async #applyTierBuild(creating) {
-    const tier = this.#tier();   // scaled to the current local power (star or dial)
-    if (!tier) return;
-    // Flat Evasion / Defense = the Tier's grant.
-    const update = {
-      "system.evasion.bonus": Math.max(0, tier.evasion),
-      "system.defense.bonus": Math.max(0, tier.defense)
-    };
-    // Re-seed the unspent Skill-Point pool to the (scaled) grant MINUS what's already on the ledger —
-    // only while creating, so changing Tier/★ rescales the budget without refunding skills already
-    // built this session (and re-opening a finished monster never wipes its spent points at all).
-    if (creating) {
-      const sp = this.actor.system.skillPoints ?? {};
-      const spent = Array.isArray(sp.log) ? sp.log.reduce((s, e) => s + (Number(e.amount) || 0), 0) : (sp.spent ?? 0);
-      update["system.skillPoints.value"] = Math.max(0, tier.skillPoints - spent);
-    }
+  /** Toggle the Boss flag — a Boss is an Elite whose HP becomes Bars. Enabling it sets the Role to
+   *  Elite and computes Bars (⌈party ÷ 2⌉) + Bar HP (8/10/12/14 × party by Tier); disabling restores
+   *  normal HP from the Role × Tier chart. */
+  static async #onToggleBoss() {
+    const on = !this.actor.system.boss?.enabled;
+    const update = { "system.boss.enabled": on };
+    if (on && this.actor.system.enemyRole !== "elite") update["system.enemyRole"] = "elite";
     await this.actor.update(update);
-    // If the Tier's budget is smaller than what's already spent on dice, trim the excess.
-    await this.#fitStepUps(tier.stepUps);
-    if (creating) await this.#applyVitals();
+    await this.#applyRoleTier();
+    this.render();
   }
 
-  /** Lower the largest dice (one step at a time) until spent Step-Ups fit `budget`. */
-  async #fitStepUps(budget) {
-    const keys = CONFIG.PROJECTANIME.attributeKeys;
-    const update = {};
-    const baseOf = (key) => update[`system.attributes.${key}.base`] ?? this.actor.system.attributes[key].base;
-    const usedNow = () => keys.reduce((n, key) => n + Math.max(0, (baseOf(key) - 4) / 2), 0);
-    while (usedNow() > budget) {
-      const highest = keys.filter((key) => baseOf(key) > 4).sort((a, b) => baseOf(b) - baseOf(a))[0];
-      if (!highest) break;
-      update[`system.attributes.${highest}.base`] = baseOf(highest) - 2;
-    }
-    if (Object.keys(update).length) await this.actor.update(update);
+  /** Toggle one of an Elite's three Strong Attributes (exactly three; ignore a 4th pick). */
+  static async #onPickStrong(event, target) {
+    const key = target.closest("[data-attr]")?.dataset.attr;
+    if (!PROJECTANIME.attributeKeys.includes(key)) return;
+    const cur = new Set(this.#strong());
+    if (cur.has(key)) cur.delete(key);
+    else { if (cur.size >= 3) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.EnemyRole.strongPickHint")); cur.add(key); }
+    await this.actor.update({ "system.strongAttrs": [...cur] });
+    await this.#applyRoleTier();
+    this.render();
   }
-
-  /* -------------------------------------------- */
-  /*  Attributes (Step-Ups)                       */
-  /* -------------------------------------------- */
-
-  static async #onRaiseAttr(event, target) {
-    const key = target.closest("[data-attribute]")?.dataset.attribute;
-    const attr = this.actor.system.attributes[key];
-    if (!attr || attr.base >= 12) return;
-    if (this.#stepsUsed() >= this.#budget()) {
-      return ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.noStepsLeft"));
-    }
-    await this.actor.update({ [`system.attributes.${key}.base`]: attr.base + 2 });
-  }
-
-  static async #onLowerAttr(event, target) {
-    const key = target.closest("[data-attribute]")?.dataset.attribute;
-    const attr = this.actor.system.attributes[key];
-    if (!attr || attr.base <= 4) return;
-    await this.actor.update({ [`system.attributes.${key}.base`]: attr.base - 2 });
-  }
-
-  /* -------------------------------------------- */
-  /*  Combat Stats                                */
-  /* -------------------------------------------- */
 
   static async #onRecalcVitals() {
-    await this.#applyVitals();
+    await this.#applyRoleTier();
+    this.render();
   }
 
-  static async #onIncSquad() { await this.#resizeSquad(+1); }
-  static async #onDecSquad() { await this.#resizeSquad(-1); }
+  /**
+   * Write the finished statblock from the Role × Tier: the attribute dice derive live (data model), so
+   * here we only stamp the Role's flat stat DELTAS onto the `.bonus` fields, store HP / EP, flip a
+   * Caster's Basic Attacks to a magical (Mind) accuracy so they target RES, and (for a Boss) compute
+   * the Bars. No-op until both Role and Tier are chosen.
+   */
+  async #applyRoleTier() {
+    if (!this.#framed()) return;
+    const role = this.#role();
+    const d = role.deltas ?? {};
+    const { hp, energy } = this.#vitals();
+    const boss = !!this.actor.system.boss?.enabled;
+    const update = {
+      // Role deltas → the derived-stat bonuses (overwrite, so re-picking a Role never stacks).
+      "system.atk.bonus": Number(d.atk) || 0,
+      "system.matk.bonus": Number(d.atk) || 0,
+      "system.defense.bonus": Number(d.defense) || 0,
+      "system.res.bonus": Number(d.res) || 0,
+      "system.evasion.bonus": Number(d.evasion) || 0,
+      "system.as.bonus": Number(d.as) || 0,
+      "system.movement.bonus": Number(d.movement) || 0,
+      "system.energy.max": energy,
+      "system.energy.value": energy
+    };
+    if (boss) {
+      // Boss: HP becomes Bars. hp.max shows ONE Bar; the Bar count + per-Bar HP drive the rest.
+      const size = this.#partySize();
+      const bars = bossBarCount(size);
+      const barHp = bossBarHp(this.#tierNum(), size);
+      update["system.boss.bars"] = bars;
+      update["system.boss.barHp"] = barHp;
+      update["system.boss.remaining"] = bars;
+      update["system.boss.broken"] = 0;
+      update["system.boss.resolveUsed"] = false;
+      update["system.hp.max"] = barHp;
+      update["system.hp.value"] = barHp;
+    } else {
+      update["system.hp.max"] = hp;
+      update["system.hp.value"] = hp;
+    }
+    await this.actor.update(update);
+    // Caster: its Basic Attacks target RES — a magical strike rolls off Mind (dice.mjs keys defenseKey
+    // to the accuracy Attributes). Flip any natural/equipped weapon's accuracy to Mind + Spirit.
+    if (role.magic) await this.#retuneAttacksMagical(true);
+    else await this.#retuneAttacksMagical(false);
+  }
 
-  /** Grow/shrink the Minion's squad: ensure the per-member pool is recorded first (so the very first
-   *  resize on a fresh minion derives from its current HP), then setSquadSize refills the pooled bar. */
-  async #resizeSquad(delta) {
-    if (this.actor.system.tier !== "minion") return;
-    if (!(Number(this.actor.system.squad?.memberHp) > 0)) await this.#applyVitals();
-    await setSquadSize(this.actor, (Number(this.actor.system.squad?.size) || 1) + delta);
-    this.render();
+  /** Point every Basic Attack's accuracy at Mind+Spirit (magical → targets RES) or Might+Agility
+   *  (physical → targets DEF), matching the Role. Only touches weapons on this monster. */
+  async #retuneAttacksMagical(magical) {
+    const updates = [];
+    for (const it of this.actor.items) {
+      if (it.type !== "weapon") continue;
+      const acc = it.system?.accuracy ?? {};
+      const want = magical ? { attrA: "mind", attrB: "spirit" } : { attrA: "might", attrB: "agility" };
+      if (acc.attrA !== want.attrA || acc.attrB !== want.attrB) {
+        updates.push({ _id: it.id, "system.accuracy.attrA": want.attrA, "system.accuracy.attrB": want.attrB });
+      }
+    }
+    if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
+  }
+
+  /**
+   * The Four Rails audit vs the party (rules "Build Your Own"): ATK ≤ lowest party DEF + 6 · DEF ≤
+   * lowest party ATK − 2 · AS ≤ slowest party AS + 4 (a deliberate Skirmisher is exempt) · EVA ≤ 12.
+   * With no party sheets, run against a Tempered tier row (a same-Tier Grunt + 1 ATK/DEF at Tier III,
+   * +2 at IV). Returns one row per rail {key, ok, actual, limit, exempt}. This IS the Forecast for now.
+   */
+  #railsAudit() {
+    const sys = this.actor.system;
+    const tier = this.#tierNum();
+    const skirmisher = this.actor.system.enemyRole === "skirmisher";
+    const enemyAtk = this.#role()?.magic ? sys.matk.value : sys.atk.value;
+    let ref = partyRailStats();
+    if (!ref) {
+      // Tempered tier row = a same-Tier Grunt (Might/Agility strong), + temper at Tier III/IV.
+      const strong = enemyTierDie(tier, true);
+      const temper = tier >= 4 ? 2 : (tier >= 3 ? 1 : 0);
+      ref = {
+        lowestDef: Math.floor(strong / 2) + temper,   // Grunt DEF = floor(Might/2)
+        lowestAtk: strong + 3 + temper,               // Might + a basic weapon
+        slowestAs: strong                             // Agility, no bulk
+      };
+    }
+    const rails = [
+      { key: "damageIn",  actual: enemyAtk,        limit: ref.lowestDef + 6 },
+      { key: "damageOut", actual: sys.defense.value, limit: ref.lowestAtk - 2 },
+      { key: "speed",     actual: sys.as.value,    limit: ref.slowestAs + 4, exempt: skirmisher },
+      { key: "evasion",   actual: sys.evasion.value, limit: 12 }
+    ];
+    return rails.map((r) => ({
+      key: r.key,
+      label: game.i18n.localize(`PROJECTANIME.MonsterCreator.rail.${r.key}`),
+      actual: r.actual,
+      limit: r.limit,
+      exempt: !!r.exempt,
+      ok: r.exempt || r.actual <= r.limit
+    }));
+  }
+
+  /* -------------------------------------------- */
+  /*  Abilities (Browser + Skill Builder)         */
+  /* -------------------------------------------- */
+
+  /** Open the Skill Browser — an MMO-inventory-bag picker of every world/compendium Skill (including
+   *  the preset Twists) to hand to this monster. It writes straight to the actor, so this creator (in
+   *  actor.apps) refreshes live. */
+  static #onBrowseSkills() {
+    SkillBrowserApp.open(this.actor);
   }
 
   /* -------------------------------------------- */
@@ -604,13 +619,18 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
    *  costs no Energy"). Weighs nothing (size 0) and costs no Skill Points. A sensible Might +
    *  Agility melee strike by default; rename it inline and fine-tune it on its item sheet. */
   static async #onAddAttack() {
+    // A Caster's Basic Attack is magical (Mind + Spirit → targets RES); everyone else is a Might strike.
+    const magic = !!this.#role()?.magic;
+    const acc = magic ? { attrA: "mind", attrB: "spirit", mod: 0 } : { attrA: "might", attrB: "agility", mod: 0 };
     await this.actor.createEmbeddedDocuments("Item", [{
       name: game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName"),
       type: "weapon",
       img: NATURAL_WEAPON_IMG,
       system: {
-        accuracy: { attrA: "might", attrB: "agility", mod: 0 },
-        damage: { mod: 0, type: "physical" },
+        accuracy: acc,
+        // Blade-tier on the v0.03 absolute DMG scale, so a fresh Basic Attack keeps pace with rebased
+        // party gear; tune the exact DMG on the item sheet.
+        damage: { mod: 3, type: "physical" },
         range: { type: "melee", tiles: 1 },
         size: 0,
         equipped: true,

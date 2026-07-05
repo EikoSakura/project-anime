@@ -4,6 +4,7 @@
 
   <div class="cw-toolbar">
     <div class="cw-search"><input type="text" placeholder="{{localize 'PROJECTANIME.Chronicle.search'}}"></div>
+    {{#if isGM}}<button type="button" class="cw-new cw-milestone" data-action="milestone">◆ {{localize "PROJECTANIME.Chronicle.milestone"}}</button>{{/if}}
     {{#if isGM}}<button type="button" class="cw-new" data-action="newQuest">＋ {{localize "PROJECTANIME.Chronicle.newQuest"}}</button>{{/if}}
   </div>
 
@@ -30,6 +31,7 @@
           <div class="qg"><span class="dot"></span>{{#if giverName}}{{giverName}}{{else}}{{localize 'PROJECTANIME.Chronicle.noGiver'}}{{/if}}{{#if levelNum}}<span class="q-cstars" title="{{localize 'PROJECTANIME.Chronicle.level'}} {{levelNum}}/5">{{#each levelStars}}<i class="qs {{#if on}}on{{/if}}">✦</i>{{/each}}</span>{{/if}}</div>
         </div>
         <div class="q-cright">
+          {{#if deadline}}<span class="q-dl-chip" title="{{localize 'PROJECTANIME.Chronicle.deadline'}}"><i class="fa-solid fa-hourglass-half"></i>{{deadline}}</span>{{/if}}
           <div class="ring" style="--p:{{pct}}"><span>{{progLabel}}</span></div>
         </div>
       </div>
@@ -47,7 +49,7 @@
         {{#if icon}}<div class="glyph"><img src="{{icon}}" alt=""></div>{{/if}}
         <div class="scrim"></div><div class="shimmer"></div><div class="speed"></div>
         <div class="q-stamp {{#if isDone}}done{{else}}active{{/if}}">{{statusLabel}}</div>
-        <div class="q-ribbon"><span>{{catLabel}}</span></div>
+        <div class="q-ribbon"><span>{{catLabel}}</span>{{#if sizeLabel}}<span class="q-size">{{sizeLabel}}</span>{{/if}}</div>
         {{#if @root.editMode}}
         <input class="hero-title-edit" data-field="title" value="{{title}}" placeholder="{{localize 'PROJECTANIME.Chronicle.titlePlaceholder'}}">
         {{else}}
@@ -69,6 +71,9 @@
         <label>{{localize 'PROJECTANIME.Chronicle.category'}}
           <select data-field="category">{{#each catOptions}}<option value="{{k}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
         </label>
+        <label>{{localize 'PROJECTANIME.Chronicle.sizeLabel'}}
+          <select data-field="size">{{#each sizeOptions}}<option value="{{k}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+        </label>
         <label>{{localize 'PROJECTANIME.Chronicle.status'}}
           <select data-field="status">{{#each statusOptions}}<option value="{{k}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
         </label>
@@ -77,6 +82,14 @@
           <button type="button" class="gbtn" data-action="pickIcon">🖼 {{localize 'PROJECTANIME.Chronicle.icon'}}</button>
         </div>
         <button type="button" class="gbtn danger" data-action="deleteQuest">🗑 {{localize 'PROJECTANIME.Chronicle.delete'}}</button>
+      </div>
+      <div class="gm-bar gm-bar-deadline">
+        <label>{{localize 'PROJECTANIME.Chronicle.deadline'}}
+          <input class="dl-edit" data-field="deadline" inputmode="numeric" value="{{deadlineNum}}" placeholder="—">
+        </label>
+        <label class="grow">{{localize 'PROJECTANIME.Chronicle.consequence'}}
+          <input data-field="consequence" value="{{consequence}}" placeholder="{{localize 'PROJECTANIME.Chronicle.consequencePlaceholder'}}">
+        </label>
       </div>
       {{/if}}
 
@@ -110,6 +123,13 @@
 
       <div class="q-body">
 
+        {{#if deadlineLabel}}
+        <div class="q-deadline-strip{{#if deadlineUrgent}} urgent{{/if}}">
+          <i class="fa-solid fa-hourglass-half"></i><b>{{deadlineLabel}}</b>
+          {{#if consequence}}<span>{{consequence}}</span>{{/if}}
+        </div>
+        {{/if}}
+
         <div class="q-sec">
           <h3>{{localize 'PROJECTANIME.Chronicle.briefing'}}</h3>
           {{#if @root.editMode}}
@@ -131,12 +151,13 @@
               <span class="box"></span>
               {{/if}}
               {{#if @root.editMode}}
+              <select class="obj-type" data-obj="{{id}}" data-obj-field="type">{{#each typeOptions}}<option value="{{k}}" {{#if sel}}selected{{/if}}>{{label}}</option>{{/each}}</select>
               <input class="obj-edit" data-obj="{{id}}" data-obj-field="text" value="{{text}}" placeholder="{{localize 'PROJECTANIME.Chronicle.objectivePlaceholder'}}">
               <label class="obj-tog" title="{{localize 'PROJECTANIME.Chronicle.hiddenObj'}}"><input type="checkbox" data-obj="{{id}}" data-obj-field="hidden" {{#if hidden}}checked{{/if}}><i class="fa-solid fa-eye-slash"></i></label>
               <label class="obj-tog" title="{{localize 'PROJECTANIME.Chronicle.optionalObj'}}"><input type="checkbox" data-obj="{{id}}" data-obj-field="optional" {{#if optional}}checked{{/if}}><i class="fa-regular fa-circle"></i></label>
               <span class="obj-x" data-action="removeObjective" data-obj="{{id}}" title="{{localize 'PROJECTANIME.Chronicle.removeObj'}}">✕</span>
               {{else}}
-              <div class="otext">{{text}}</div>
+              <div class="otext">{{#if typeLabel}}<span class="obj-type-tag">{{typeLabel}}</span>{{/if}}{{text}}</div>
               {{/if}}
             </div>
             {{else}}
@@ -147,7 +168,7 @@
         </div>
 
         <div class="q-sec">
-          <h3>{{localize 'PROJECTANIME.Chronicle.rewards'}}</h3>
+          <h3>{{localize 'PROJECTANIME.Chronicle.rewards'}}{{#if @root.editMode}}{{#if budgetLabel}}<span class="q-budget">{{budgetLabel}}</span>{{/if}}{{/if}}</h3>
           <div class="rewards">
             {{#each rewards}}
             <div class="reward {{type}}{{#if hidden}} is-hidden{{/if}}" style="--rg:{{rg}}">
@@ -165,10 +186,8 @@
           </div>
           {{#if @root.editMode}}
           <div class="add-reward cols3">
-            <div class="ar-col">
-              <span class="ar-label"><span class="ar-glyph sp">◆</span>{{localize 'PROJECTANIME.Chronicle.reward.sp'}}</span>
-              <input data-ar="sp" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
-            </div>
+            {{!-- SP rewards retired (v0.03): quests never pay SP — the Milestone button pays
+                  Episode / Arc / Season SP instead. --}}
             <div class="ar-col">
               <span class="ar-label"><span class="ar-glyph gold">G</span>{{localize 'PROJECTANIME.Chronicle.reward.gold'}}</span>
               <input data-ar="gold" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
@@ -189,6 +208,22 @@
           </div>
           {{/if}}
         </div>
+
+        {{#if @root.isGM}}
+        {{#if @root.editMode}}
+        <div class="q-sec q-complication">
+          <h3><i class="fa-solid fa-eye-slash"></i> {{localize 'PROJECTANIME.Chronicle.complication'}}</h3>
+          <textarea class="compl-edit" data-field="complication" rows="2" placeholder="{{localize 'PROJECTANIME.Chronicle.complicationPlaceholder'}}">{{complication}}</textarea>
+        </div>
+        {{else}}
+        {{#if complication}}
+        <div class="q-sec q-complication">
+          <h3><i class="fa-solid fa-eye-slash"></i> {{localize 'PROJECTANIME.Chronicle.complication'}}</h3>
+          <p class="compl-text">{{complication}}</p>
+        </div>
+        {{/if}}
+        {{/if}}
+        {{/if}}
 
         <div class="q-actions">
           {{#if @root.isGM}}

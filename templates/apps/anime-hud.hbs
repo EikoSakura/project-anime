@@ -1,7 +1,8 @@
-{{!-- Project: Anime — Cinematic HUD console (frameless ApplicationV2 part).
-      Always renders while enabled: full console when an actor is active, else a discoverable
-      placeholder (generic portrait + prompt) so a GM with no character/selection can still open
-      the picker and settings. Popovers live at .hud-wrap level so they work in both states. --}}
+{{!-- Project: Anime — Persistent HUD.
+      A 1:1 clone of reonZ/pf2e-hud's persistent HUD grid (region-for-region, geometry verbatim),
+      re-contented with the system's own stats and re-skinned with the --pa-* status-glass tokens.
+      .hud-wrap scales with --ui-scale and hosts the floating popovers/sidebar; .hud-bar is the grid.
+      The native #hotbar is re-parented into .hud-bar (bottom row) at render — see anime-hud.mjs. --}}
 <div class="hud-wrap">
 
   {{#if popoverPicker}}
@@ -25,14 +26,11 @@
   <div class="hud-popover settings">
     <div class="pop-arrow"></div>
     <h4>{{localize "PROJECTANIME.Hud.settings"}}</h4>
+    <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.selectMode.name"}}</label>
+      <div class="seg">{{#each segSelect}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
+    </div>
     <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.intensity.name"}}</label>
       <div class="seg">{{#each segIntensity}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
-    </div>
-    <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.shape.name"}}</label>
-      <div class="seg">{{#each segShape}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
-    </div>
-    <div class="set-grp"><label>{{localize "PROJECTANIME.Settings.hud.size.name"}}</label>
-      <div class="seg">{{#each segSize}}<button type="button" class="{{#if active}}on{{/if}}" data-action="hudSet" data-key="{{key}}" data-value="{{value}}">{{label}}</button>{{/each}}</div>
     </div>
     <div class="set-row">
       <button type="button" class="set-toggle{{#if showParty}} on{{/if}}" data-action="hudSet" data-key="hudShowParty" data-value="{{#if showParty}}false{{else}}true{{/if}}">
@@ -52,77 +50,176 @@
   </div>
   {{/if}}
 
-  <div class="hud-bar">
-    {{#if hasActor}}
-    {{!-- Character anchor --}}
-    <div class="anchor">
-      <div class="portrait" data-action="hudPicker" data-tooltip="{{name}}">
-        <div class="frame"></div>
-        <div class="pimg" style="background-image:url('{{img}}')"></div>
-        <div class="gloss"></div>
-        <span class="stud n"></span><span class="stud s"></span><span class="stud e"></span><span class="stud w"></span>
-        <span class="cog"><i class="fas fa-user-pen"></i></span>
-      </div>
-      <div class="who">
-        <div class="cname">{{name}}</div>
-        <div class="barrow"><span class="lab">{{localize "PROJECTANIME.Stat.hpShort"}}</span>
-          <div class="bar"><div class="fill hp-fill" style="width:{{vitals.hp.pct}}%"></div></div>
-          <span class="val">{{vitals.hp.value}}/{{vitals.hp.max}}</span></div>
-        <div class="barrow"><span class="lab">{{localize "PROJECTANIME.Stat.energyShort"}}</span>
-          <div class="bar"><div class="fill energy-fill" style="width:{{vitals.en.pct}}%"></div></div>
-          <span class="val">{{vitals.en.value}}/{{vitals.en.max}}</span></div>
-      </div>
+  {{#if sbPanel}}
+  {{!-- Floating sidebar panel (browse & arm without the sheet); the toggle tabs live in the bar grid. --}}
+  <div class="hud-sidebar">
+    <div class="sb-top">
+      <h4>{{sbPanel.title}}</h4>
+      <label class="sb-filter"><i class="fas fa-magnifying-glass"></i><input type="text" placeholder="{{localize 'PROJECTANIME.Hud.sidebar.filter'}}" autocomplete="off"></label>
     </div>
+    <div class="sb-list">
+      {{#each sbPanel.items}}
+      <div class="sb-row{{#if dim}} dim{{/if}}{{#if on}} equipped{{/if}}" draggable="true" data-action="hudUse" data-uuid="{{uuid}}" data-name="{{name}}" data-tooltip="{{name}}">
+        <div class="sb-ic" style="background-image:url('{{img}}')"></div>
+        <div class="sb-meta"><span class="sb-name">{{name}}</span>{{#if sub}}<span class="sb-sub">{{sub}}</span>{{/if}}</div>
+        {{#if cost}}<span class="sb-cost">{{cost}}</span>{{/if}}
+        {{#if badge}}<span class="sb-badge">{{badge}}</span>{{/if}}
+      </div>
+      {{else}}
+      <div class="sb-empty">{{localize 'PROJECTANIME.Hud.sidebar.empty'}}</div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
 
-    {{!-- Action deck --}}
-    <div class="deck">
-      <div class="anime-slots">
-        {{#each slots}}
-        <div class="slot{{#unless filled}} is-empty{{/unless}}" data-i="{{i}}"{{#if filled}} data-tooltip="{{name}}" style="--accent:{{accent}}"{{/if}}>
-          <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
-          <div class="face"></div>
-          <span class="key">{{key}}</span>
-          {{#if filled}}
-            <div class="icon" style="background-image:url('{{img}}')"></div>
-            {{#if cost}}<span class="cost">{{cost}}</span>{{/if}}
-          {{else}}
-            <div class="empty">+</div>
-          {{/if}}
+  {{#if hasActor}}
+  {{!-- ============ pf2e persistent grid — EVERY region, at its exact grid position ============ --}}
+  <div class="hud-bar has-actor intensity-{{intensity}}">
+
+    {{!-- effects (full · effects row) — 36×36 live-effect icon strip --}}
+    <div data-panel="effects"{{#if noEffects}} class="empty"{{/if}}>
+      <article>
+        {{#each effects}}
+        <div class="effect-item" data-action="hudEffect" data-uuid="{{uuid}}" data-tooltip="{{tooltip}}">
+          <div class="icon" style="background-image:url('{{img}}')">
+            {{#if dur}}<span class="value-wrapper"><span class="value">{{dur}}</span></span>{{/if}}
+          </div>
         </div>
         {{/each}}
+      </article>
+    </div>
+
+    {{!-- menu (menu col · top→bottom) — grouped icon rail --}}
+    <div data-panel="menu">
+      <div class="group single">
+        <a data-action="hudPicker" data-tooltip="{{name}}"><i class="fas fa-user-pen"></i></a>
       </div>
-      <div class="deck-foot">
-        <div class="pages">
-          {{#each pages}}<div class="pip{{#if active}} active{{/if}}" data-action="hudPage" data-page="{{p}}" data-tooltip="{{p}}"></div>{{/each}}
+      <div class="group bottom">
+        <a data-action="hudSheet" data-tooltip="{{localize 'PROJECTANIME.Hud.openSheet'}}"><i class="fas fa-id-badge"></i></a>
+        <a data-action="hudSettings" data-tooltip="{{localize 'PROJECTANIME.Hud.settings'}}"><i class="fas fa-sliders"></i></a>
+      </div>
+    </div>
+
+    {{!-- portrait (portrait col · top→bottom) — character art, z-index:-1 --}}
+    <div data-panel="portrait" data-action="hudPicker" data-tooltip="{{name}}">
+      <div class="avatar" style="background-image:url('{{img}}')"></div>
+      <div class="flash"></div>
+    </div>
+
+    {{!-- name (portrait col · top) — over the dark gradient strip --}}
+    <div data-panel="name">
+      <div class="full" data-section="name">
+        <span>{{name}}</span>{{#if selection}}<i class="sel-tag fas fa-crosshairs" data-tooltip="{{localize 'PROJECTANIME.Hud.selectMode.selection'}}"></i>{{/if}}
+      </div>
+    </div>
+
+    {{!-- stats (portrait col · middle→bottom) — HP + EP overlay on #0000007d strip.
+          No data-section here: the pf2e density rule ([data-section] > i + span → span pinned to 1.8em)
+          would clip the "value/max" text; pf2e's own HP cell dodges it via a .numbers grid, not i+span. --}}
+    <div data-panel="stats">
+      <div class="pv hp"><i class="fas fa-heart"></i><span>{{vitals.hp.value}}<b>/{{vitals.hp.max}}</b></span></div>
+      <div class="pv en"><i class="fas fa-bolt"></i><span>{{vitals.en.value}}<b>/{{vitals.en.max}}</b></span></div>
+    </div>
+
+    {{!-- info (info col · top→middle) — 5 ATTRIBUTES, click → rollCheck.
+          No data-section here: the pf2e density rule ([data-section] > i + span → 1.8em) would pin
+          the value span and break the vertical icon+value stack in the 2.2em column. --}}
+    <div data-panel="info">
+      {{#each attrs}}
+      <a class="info-cell" data-action="hudStat" data-kind="attr" data-stat="{{key}}" data-tooltip="{{label}}">
+        <i class="{{icon}}"></i><span>{{value}}</span>
+      </a>
+      {{/each}}
+    </div>
+
+    {{!-- details (statistics col · top) — 2 identity stats (Carry · Movement) --}}
+    <div data-panel="details">
+      {{#each details}}
+      <div data-section="{{key}}" class="{{#if danger}}danger{{/if}}" data-tooltip="{{label}}">
+        <i class="{{icon}}"></i><span>{{value}}</span>
+      </div>
+      {{/each}}
+    </div>
+
+    {{!-- statistics (statistics col · middle) — 6 DERIVED, 3 rows auto-flow column --}}
+    <div data-panel="statistics">
+      {{#each derived}}
+      <a data-section="statistics" class="stat-{{key}}" data-action="hudStat" data-kind="derived" data-stat="{{key}}" data-label="{{label}}" data-value="{{value}}" data-tooltip="{{label}}">
+        <i class="{{icon}}"></i><span>{{value}}</span>
+      </a>
+      {{/each}}
+    </div>
+
+    {{!-- alliance (resources col · top) — token disposition / side --}}
+    <div data-panel="alliance">
+      <a data-section="alliance" class="disp-{{alliance.key}}{{#unless alliance.canCycle}} disabled{{/unless}}"{{#if alliance.canCycle}} data-action="hudAlliance"{{/if}} data-tooltip="{{alliance.label}}">
+        <i class="{{alliance.icon}}"></i>
+        <span>{{#if alliance.canCycle}}<i class="fa-solid fa-arrow-rotate-right"></i>{{/if}}</span>
+      </a>
+    </div>
+
+    {{!-- resources (resources col · middle) — Luck dice, drawn as the character sheet's dice cubes --}}
+    <div data-panel="resources">
+      <div class="hud-luck" data-tooltip="{{luck.tooltip}}">
+        <div class="luck-dice">
+          {{#each luck.dice}}<span class="luck-die">{{this}}</span>{{else}}<span class="luck-none">—</span>{{/each}}
         </div>
-        <span class="hint">{{dragHint}}</span>
       </div>
     </div>
 
-    {{!-- Util --}}
-    <div class="util">
-      <div class="ubtn" data-action="hudSheet" data-tooltip="{{localize 'PROJECTANIME.Hud.openSheet'}}"><i class="fas fa-id-badge"></i></div>
-      <div class="ubtn" data-action="hudSettings" data-tooltip="{{localize 'PROJECTANIME.Hud.settings'}}"><i class="fas fa-sliders"></i></div>
+    {{!-- sidebars (sidebars col · top) — 3 icon-only tabs; active draws the ::before up-arrow --}}
+    <div data-panel="sidebars">
+      {{#each sbTabs}}
+      <a data-sidebar="{{key}}" class="{{#if active}}active{{/if}}" data-action="hudSidebar" data-sb="{{key}}" data-tooltip="{{label}}">
+        <i class="fas {{icon}}"></i>
+      </a>
+      {{/each}}
     </div>
 
-    {{else}}
-    {{!-- No active actor: discoverable placeholder. --}}
-    <div class="anchor noactor">
-      <div class="portrait" data-action="hudPicker" data-tooltip="{{localize 'PROJECTANIME.Hud.assignTip'}}">
-        <div class="frame"></div>
-        <div class="pimg" style="background-image:url('{{img}}')"></div>
-        <div class="gloss"></div>
-        <span class="stud n"></span><span class="stud s"></span><span class="stud e"></span><span class="stud w"></span>
-        <span class="cog"><i class="fas fa-user-pen"></i></span>
+    {{!-- shortcuts-menu (stretch col · top) — page slider + clear --}}
+    <div data-panel="shortcuts-menu">
+      <div class="tabs" data-tooltip="{{localize 'PROJECTANIME.Hud.page'}}">
+        <i class="fa-solid fa-grid-2"></i>
+        <a class="slider">
+          <i class="carret previous fa-solid fa-angle-left{{#unless pageSlider.canBack}} disabled{{/unless}}"{{#if pageSlider.canBack}} data-action="hudPage" data-page="{{pageSlider.prev}}"{{/if}}></i>
+          <span class="value">{{pageSlider.value}}</span>
+          <i class="carret next fa-solid fa-angle-right{{#unless pageSlider.canForward}} disabled{{/unless}}"{{#if pageSlider.canForward}} data-action="hudPage" data-page="{{pageSlider.next}}"{{/if}}></i>
+        </a>
       </div>
-      <div class="who">
-        <div class="cname">{{noActorName}}</div>
-        <div class="prompt">{{prompt}}</div>
+      <a data-action="hudClearPage" data-tooltip="{{localize 'PROJECTANIME.Hud.clearPage'}}"><i class="fa-solid fa-circle-xmark"></i></a>
+    </div>
+
+    {{!-- shortcuts (sidebars→full · middle) — 10 quick slots, 2 rows auto-flow column --}}
+    <div data-panel="shortcuts">
+      {{#each slots}}
+      {{#if filled}}
+      <div class="shortcut" data-i="{{i}}" data-type="{{type}}" data-tooltip="{{name}}" style="--accent:{{accent}}" draggable="true">
+        <div class="image" style="background-image:url('{{img}}')"></div>
+        {{#if cost}}<div class="cost boxed"><span>{{cost}}</span></div>{{/if}}
+        <div class="label"><span>{{key}}</span></div>
       </div>
+      {{else}}
+      <div class="shortcut empty" data-i="{{i}}">
+        <div class="label"><span>{{key}}</span></div>
+      </div>
+      {{/if}}
+      {{/each}}
     </div>
-    <div class="util">
-      <div class="ubtn" data-action="hudSettings" data-tooltip="{{localize 'PROJECTANIME.Hud.settings'}}"><i class="fas fa-sliders"></i></div>
-    </div>
-    {{/if}}
+
   </div>
+  {{else}}
+  {{!-- No active actor: discoverable placeholder (picker + settings still reachable). --}}
+  <div class="hud-bar no-actor">
+    <div data-panel="portrait" class="noactor" data-action="hudPicker" data-tooltip="{{localize 'PROJECTANIME.Hud.assignTip'}}">
+      <div class="avatar" style="background-image:url('{{img}}')"></div>
+    </div>
+    <div data-panel="name"><div class="full" data-section="name"><span>{{noActorName}}</span></div></div>
+    <div data-panel="menu">
+      <div class="group bottom">
+        <a data-action="hudPicker" data-tooltip="{{localize 'PROJECTANIME.Hud.assignTip'}}"><i class="fas fa-user-pen"></i></a>
+        <a data-action="hudSettings" data-tooltip="{{localize 'PROJECTANIME.Hud.settings'}}"><i class="fas fa-sliders"></i></a>
+      </div>
+    </div>
+  </div>
+  {{/if}}
 </div>

@@ -31,6 +31,14 @@ export class ProjectAnimeItem extends Item {
     return this.#postDescriptionCard();
   }
 
+  /** Post this item's identity + description card to chat — the read-only "show it" action, never
+   *  an attack/skill roll (rolling stays on the main-screen quick panel). Consumables keep their
+   *  ▶ Use card so it can still be consumed from the post. */
+  async toChat() {
+    if (this.actor && this.type === "consumable") return postConsumableCard(this.actor, this);
+    return this.#postDescriptionCard();
+  }
+
   /** Post a simple identity + description card to chat. */
   async #postDescriptionCard() {
     const speaker = ChatMessage.getSpeaker({ actor: this.actor });

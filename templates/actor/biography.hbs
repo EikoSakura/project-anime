@@ -12,7 +12,7 @@
         {{#if @root.editable}}
         <div class="form-group">
           <label>{{localize "PROJECTANIME.Covenant.faction"}}</label>
-          <select name="system.bond.faction">
+          <select name="system.faction">
             <option value="">{{localize "PROJECTANIME.Covenant.unaffiliated"}}</option>
             {{#each @root.npcFaction.options}}<option value="{{id}}" {{#if sel}}selected{{/if}}>{{name}}</option>{{/each}}
           </select>

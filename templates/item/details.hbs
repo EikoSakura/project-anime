@@ -1,5 +1,6 @@
-{{!-- View tab: read-only display. Skills show the auto-written (or overridden) rules summary;
-      every other item type shows its stat-row table. The typed description is FLAVOR shown below. --}}
+{{!-- View tab: read-only display. Skills show their auto-written (or overridden) rules summary;
+      every other item type shows the JRPG status card — icon stat tiles, meta chips, a description
+      card, and crafted-mod badges. --}}
 <section class="item-details tab-pane{{#if tabView}} active{{/if}}" data-tab-pane="view">
   {{#if skillRules}}
   <div class="skill-rules-view">{{{skillRules}}}</div>
@@ -10,19 +11,41 @@
   </div>
   {{/if}}
   {{else}}
-  <dl class="detail-list">
-    {{#each displayStats as |row|}}
-    <div class="detail-row">
-      <dt>{{localize row.label}}</dt>
-      <dd>{{row.value}}</dd>
+  {{#if statTiles.length}}
+  <div class="stat-grid">
+    {{#each statTiles as |t|}}
+    <div class="stat-tile{{#if t.kind}} {{t.kind}}{{/if}}">
+      <div class="st-ic"><i class="{{t.icon}}"></i></div>
+      <div class="st-txt">
+        <span class="st-lab">{{t.label}}</span>
+        <span class="st-val">{{t.value}}{{#if t.small}} <small>{{t.small}}</small>{{/if}}{{#if t.em}} <em>{{t.em}}</em>{{/if}}</span>
+      </div>
     </div>
     {{/each}}
-    {{#if enrichedDescription}}
-    <div class="detail-row detail-desc-row">
-      <dt>{{localize "PROJECTANIME.Field.description"}}</dt>
-      <div class="detail-desc">{{{enrichedDescription}}}</div>
-    </div>
-    {{/if}}
-  </dl>
+  </div>
+  {{/if}}
+
+  {{#if metaChips.length}}
+  <div class="meta-chips">
+    {{#each metaChips as |c|}}
+    <span class="meta-chip{{#if c.on}} on{{/if}}"><i>{{c.label}}</i><b>{{c.value}}</b></span>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if enrichedDescription}}
+  <div class="desc-card">
+    <div class="desc-card-h"><span class="chev"></span>{{localize "PROJECTANIME.Field.description"}}</div>
+    <div class="desc-card-b">{{{enrichedDescription}}}</div>
+  </div>
+  {{/if}}
+
+  {{#if craftBadges.length}}
+  <div class="craft-badges">
+    {{#each craftBadges as |b|}}
+    <span class="craft-badge {{b.kind}}">{{#if b.icon}}<i class="{{b.icon}}"></i> {{/if}}{{b.text}}</span>
+    {{/each}}
+  </div>
+  {{/if}}
   {{/if}}
 </section>

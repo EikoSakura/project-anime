@@ -23,7 +23,12 @@ import {
   blankQuest,
   questProgress,
   QUEST_CATEGORIES,
+  QUEST_SIZES,
+  OBJECTIVE_TYPES,
+  postingBudget,
+  partyTier,
   grantRewards,
+  promptMilestoneAward,
   TRACKED_SETTING,
   TRACKER_VISIBLE_SETTING
 } from "../helpers/chronicle.mjs";
@@ -32,13 +37,22 @@ import {
   setFactionStanding, setFactionRelation, factionById, recruitAvailable, recruitMember, getHQ, saveHQ, normalizeHQ, advanceHQTurn, blankMission,
   statDieFor, statBonusFor, statLabelFor, hqLevel, hqHasteBonus, effectiveMissionDuration
 } from "../helpers/factions.mjs";
+import {
+  hqResidents, hqCandidates, hqStatus, hqRenown, facilityView, facilityCatalog, facilityDef,
+  buildableCatalog, facilityCap, rankData, rankIndex, stewardBondRank, partyGold,
+  buildFacility as hqBuildFacility, buildCustomFacility, demolishFacility, setFacilitySteward,
+  upgradeFacility, setFacilityGather, establishHQ, setResidency, setFavoredFacility,
+  blankBoardMission, saveMission, deleteMission as hqDeleteMission, assignMission, recallMission,
+  hqRestContext, adjustTreasury
+} from "../helpers/hq.mjs";
 import { getBonds, BOND_MAX_RANK } from "../helpers/bonds.mjs";
 import { stampCompendiumSource } from "../helpers/gear.mjs";
-import { partyMembers, resolveParty } from "../helpers/party-folder.mjs";
+import { partyMembers, partyActors, resolveParty } from "../helpers/party-folder.mjs";
 import { PARTY_FACTIONS_SETTING } from "./party-config.mjs";
 import { ShopWindow } from "./shop.mjs";
 import { WorkshopWindow } from "./workshop.mjs";
 import { StructuresWindow } from "./structures.mjs";
+import { CraftApp } from "./craft.mjs";
 import { exportFacility, importFacility } from "../helpers/hq-share.mjs";
 import { EffectBuilder } from "./effect-builder.mjs";
 import { summarizeRule, normalizeRule, scaleRuleByTier, collectGather, collectReveals } from "../helpers/effects.mjs";
@@ -260,6 +274,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       selectQuest: Codex.#onSelectQuest,
       setTab: Codex.#onSetTab,
       newQuest: Codex.#onNewQuest,
+      milestone: Codex.#onMilestone,
       deleteQuest: Codex.#onDeleteQuest,
       exitEdit: Codex.#onExitEdit,
       toggleObjective: Codex.#onToggleObjective,
@@ -293,31 +308,25 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       selectHqTab: Codex.#onSelectHqTab,
       openHqDrawer: Codex.#onOpenHqDrawer,
       closeHqDrawer: Codex.#onCloseHqDrawer,
-      removeRecruit: Codex.#onRemoveRecruitAction,
-      openRecruitActor: Codex.#onOpenRecruitActorAction,
-      recruitMember: Codex.#onRecruitMember,
-      unlockRecruit: Codex.#onUnlockRecruit,
-      toggleRecruitLock: Codex.#onToggleRecruitLock,
-      toggleRecruitHidden: Codex.#onToggleRecruitHidden,
-      advanceHQTurn: Codex.#onAdvanceHQTurn,
       exportHQ: Codex.#onExportHQ,
       importHQ: Codex.#onImportHQ,
-      hqLevelUp: Codex.#onHqLevelUp,
-      hqLevelDown: Codex.#onHqLevelDown,
-      visitShop: Codex.#onVisitShop,
-      visitWorkshop: Codex.#onVisitWorkshop,
-      openStructures: Codex.#onOpenStructures,
-      openFacility: Codex.#onOpenFacility,
-      newMission: Codex.#onNewMission,
-      pickMissionImage: Codex.#onPickMissionImage,
-      deleteMission: Codex.#onDeleteMission,
-      setMissionTier: Codex.#onSetMissionTier,
-      bumpMissionDuration: Codex.#onBumpMissionDuration,
-      dispatchAgent: Codex.#onDispatchAgent,
-      dispatchFromRoster: Codex.#onDispatchFromRoster,
-      recallAgent: Codex.#onRecallAgent,
-      removeMissionItem: Codex.#onRemoveMissionItem,
-      editBoon: Codex.#onEditBoon,
+      // Headquarters v0.03 (helpers/hq.mjs) — click actions; selects/inputs are change-bound in #bindHqEdits
+      establishHQ: Codex.#onEstablishHQ,
+      hqEditTreasury: Codex.#onHqEditTreasury,
+      hqBuild: Codex.#onHqBuild,
+      hqCustom: Codex.#onHqCustom,
+      hqDemolish: Codex.#onHqDemolish,
+      hqUpgrade: Codex.#onHqUpgrade,
+      hqVisitShop: Codex.#onHqVisitShop,
+      hqMoveIn: Codex.#onHqMoveIn,
+      hqMoveOut: Codex.#onHqMoveOut,
+      hqNewMission: Codex.#onHqNewMission,
+      hqToggleSuited: Codex.#onHqToggleSuited,
+      hqPickMissionImage: Codex.#onHqPickMissionImage,
+      hqDeleteMission: Codex.#onHqDeleteMission,
+      hqToggleTeam: Codex.#onHqToggleTeam,
+      hqDispatch: Codex.#onHqDispatch,
+      hqRecall: Codex.#onHqRecall,
       // Codex / Archive (the in-world encyclopedia tab)
       selectArchiveTab: Codex.#onSelectArchiveTab,
       openArchiveEntry: Codex.#onOpenArchiveEntry,
@@ -377,7 +386,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Which Home sub-tab is showing (roster | recruitment | facilities | missions). The four HQ lists are
    *  inline tab panes now (not slide-in drawers); DOM-toggled with no re-render, and templated via
    *  `hqTabIs` so a scoped re-render is born on the right tab (mirrors the openIs/#applyHqDrawers rule). */
-  #hqTab = "roster";
+  #hqTab = "facilities";
 
   /** Which Codex/Archive category sub-tab is showing (a category id). Reconciled to an existing
    *  category in #archiveContext; DOM-toggled with no re-render (mirrors #hqTab). */
@@ -509,6 +518,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       const prog = questProgress(q);
       const levelNum = Math.max(0, Math.min(5, Math.round(Number(q.level) || 0)));
       const bz = bannerZoomOf(q);
+      const deadline = Number(q.deadline);
       return {
         id: q.id,
         title: q.title,
@@ -516,6 +526,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         status: q.status,
         isDone: q.status === "done",
         isNew: q.status === "active" && prog.done === 0, // auto: new until progress/closed
+        deadline: q.status === "active" && Number.isFinite(deadline) && deadline > 0 ? deadline : null,
         giverName: q.giver?.name ?? "",
         icon: q.icon || "",
         color: cat.color,
@@ -566,7 +577,15 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const objectives = (q.objectives ?? [])
       .filter((o) => this.isGM || !o.hidden)
-      .map((o) => ({ ...o }));
+      .map((o) => ({
+        ...o,
+        typeLabel: o.type ? game.i18n.localize(`PROJECTANIME.Chronicle.objType.${o.type}`) : "",
+        typeOptions: ["", ...OBJECTIVE_TYPES].map((k) => ({
+          k,
+          label: k ? game.i18n.localize(`PROJECTANIME.Chronicle.objType.${k}`) : "—",
+          sel: k === (o.type ?? "")
+        }))
+      }));
 
     const opt = (arr, cur) =>
       arr.map((k) => ({ k, label: game.i18n.localize(`PROJECTANIME.Chronicle.cat.${k}`) || k, sel: k === cur }));
@@ -575,6 +594,24 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       label: game.i18n.localize(`PROJECTANIME.Chronicle.state.${k}`),
       sel: k === q.status
     }));
+
+    // Posting economy (v0.03): Size + its Reward Budget (posting Tier = the star rank clamped to
+    // I–IV, else the party's Tier; per-character sizes read the first party's roster count).
+    const size = QUEST_SIZES.includes(q.size) ? q.size : "";
+    // Legacy quests predate the Size axis — an unset one shows "—" until the GM picks a Size.
+    const sizeOptions = [
+      ...(size ? [] : [{ k: "", label: "—", sel: true }]),
+      ...QUEST_SIZES.map((k) => ({
+        k, label: game.i18n.localize(`PROJECTANIME.Chronicle.size.${k}`), sel: k === size
+      }))
+    ];
+    const starTier = Math.round(Number(q.level) || 0);
+    const postingTier = starTier >= 1 ? Math.min(4, starTier) : partyTier();
+    const roster = partyActors()[0];
+    const budget = size ? postingBudget(size, postingTier, roster ? partyMembers(roster).length : 1) : 0;
+
+    const deadline = Number(q.deadline);
+    const hasDeadline = q.status === "active" && Number.isFinite(deadline) && deadline > 0;
 
     const giver = q.giver
       ? { ...q.giver, initial: String(q.giver.name || "?").trim().charAt(0).toUpperCase() }
@@ -594,6 +631,17 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       levelStars,
       catLabel: game.i18n.localize(`PROJECTANIME.Chronicle.cat.${q.category}`),
       statusLabel: game.i18n.localize(`PROJECTANIME.Chronicle.state.${q.status}`),
+      size,
+      sizeLabel: size ? game.i18n.localize(`PROJECTANIME.Chronicle.size.${size}`) : "",
+      sizeOptions,
+      budgetLabel: budget ? game.i18n.format("PROJECTANIME.Chronicle.budget", { g: budget }) : "",
+      deadlineNum: Number.isFinite(deadline) && deadline > 0 ? deadline : "",
+      deadlineLabel: hasDeadline
+        ? game.i18n.format(deadline === 1 ? "PROJECTANIME.Chronicle.deadlineOne" : "PROJECTANIME.Chronicle.deadlineMany", { n: deadline })
+        : "",
+      deadlineUrgent: hasDeadline && deadline === 1,
+      consequence: q.consequence ?? "",
+      complication: q.complication ?? "",
       brief,
       objectives,
       // Map with the real array index first (so the remove/hide controls target the right reward),
@@ -928,6 +976,12 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
     await this._mutateSelected((q) => {
+      // Deadline is a rest COUNTER ("" = none) — keep it a clean non-negative integer.
+      if (field === "deadline") {
+        const n = Math.max(0, Math.round(Number(val)));
+        q.deadline = Number.isFinite(n) && n > 0 ? n : "";
+        return;
+      }
       q[field] = val;
     });
   }
@@ -955,6 +1009,12 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     this._selId = q.id;
     this.#editMode = true; // a fresh quest opens ready to author
     this.render(false);
+  }
+
+  /** Milestone SP (v0.03): Episode 2 / Arc 3 / Season 5, stacking — the campaign's SP faucet. */
+  static async #onMilestone() {
+    if (!this.isGM) return;
+    await promptMilestoneAward();
   }
 
   static async #onDeleteQuest() {
@@ -1067,7 +1127,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static async #onAddObjective() {
     await this._mutateSelected((q) => {
-      q.objectives.push({ id: foundry.utils.randomID(), text: "", done: false, hidden: false, optional: false });
+      q.objectives.push({ id: foundry.utils.randomID(), type: "", text: "", done: false, hidden: false, optional: false });
     });
   }
 
@@ -1078,18 +1138,17 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  /** Add rewards from the three-column form: each filled box (Skill Points, Gold, and a Faction +
-   *  its amount) becomes its own reward chip in one click. */
+  /** Add rewards from the form: each filled box (Gold, and a Faction + its amount) becomes its
+   *  own reward chip in one click. (SP retired v0.03 — the Milestone tool pays Episode/Arc/Season
+   *  SP; quests never pay SP directly.) */
   static async #onAddReward(event, target) {
     const box = target.closest(".add-reward");
     if (!box) return;
-    const sp = Math.max(0, Number(box.querySelector('[data-ar="sp"]')?.value) || 0);
     const gold = Math.max(0, Number(box.querySelector('[data-ar="gold"]')?.value) || 0);
     const factionId = box.querySelector('[data-ar="faction"]')?.value ?? "";
     const rep = Number(box.querySelector('[data-ar="rep"]')?.value) || 0;
-    if (!sp && !gold && !(factionId && rep)) return; // nothing entered
+    if (!gold && !(factionId && rep)) return; // nothing entered
     await this._mutateSelected((q) => {
-      if (sp) q.rewards.push({ type: "sp", value: sp });
       if (gold) q.rewards.push({ type: "gold", value: gold });
       if (factionId && rep) {
         const f = factionById(factionId);
@@ -1417,263 +1476,225 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Build the Home view-model: the party's built-faction identity, the recruitment POOL (flip-cards
    *  of not-yet-recruited NPCs), and the FACILITIES (recruited non-`party` members) that staff it.
    *  The HQ "level" is the sum of facility tiers. A `repTier` recruit references a world faction. */
+  /**
+   * Build the Home (Headquarters v0.03) view-model. The base grows on Gold (Facilities) and People
+   * (resident Followers who steward facilities). Renown = facilities + residents; Rank C→S rises at a
+   * rest here. Three sub-tabs: Facilities (build / steward / upgrade), Residents (move in / favored /
+   * steward), Missions (the Mission Board, open at rank B). Engine: helpers/hq.mjs.
+   */
   #hqContext() {
     const hq = getHQ();
-    const resTypes = getMaterialCategories(); // the GM-configured Resource Types (resource bar + facility build costs)
     const isGM = game.user.isGM;
-    const factionOpts = getFactions().map((f) => ({ id: f.id, name: f.name }));
+    const C = CONFIG.PROJECTANIME;
+    const residents = hqResidents(hq);
+    const status = hqStatus(hq, residents);
+    const gold = partyGold();
 
-    // Recruitment pool — only the not-yet-recruited candidate people; recruiting moves a person into
-    // the Roster (and raises a facility, for a facility-vocation recruit), so it leaves the pool.
-    // Players never see recruits the GM has hidden; the GM sees them (dimmed, with a hidden marker) so
-    // they can tell the gating is working.
-    const questOpts = getQuests().map((q) => ({ id: q.id, title: q.title || game.i18n.localize("PROJECTANIME.HQ.missionUntitled") }));
-    const recruits = hq.people.filter((e) => !e.recruited && (isGM || !e.hidden)).map((e) => {
-      const available = recruitAvailable(e);
-      const condType = e.condition?.type ?? "auto";
-      const condFactionId = e.condition?.factionId ?? "";
-      const condTier = e.condition?.tier ?? "";
-      const condLevel = e.condition?.level ?? 0;
-      const condQuestId = e.condition?.questId ?? "";
-      const condLabel = this.#recruitCondLabel(e);
+    // ---- Facilities: built (with steward / favor / upgrade) + the buildable catalog ----------------
+    const builtViews = (hq.built ?? []).map((f) => facilityView(f, residents));
+    const facilities = builtViews.map((v) => {
+      // Residents who could steward this facility: not stewarding another (or already this one).
+      const stewardOpts = residents
+        .filter((r) => !r.stewarding || r.stewarding === v.id)
+        .map((r) => ({ uuid: r.uuid, name: r.name, sel: r.uuid === v.stewardUuid }));
       return {
-        id: e.id,
-        npcUuid: e.npcUuid,
-        name: e.name,
-        img: e.img || "icons/svg/mystery-man.svg",
-        initial: initialOf(e.name),
-        role: e.role,
-        roleLabel: game.i18n.localize(`PROJECTANIME.Covenant.role.${e.role}`),
-        roleIcon: ROLE_ICONS[e.role] || "fa-user",
-        condType,
-        condTypeOptions: RECRUIT_COND_TYPES
-          .map((k) => ({ key: k, label: game.i18n.localize(`PROJECTANIME.Covenant.cond.${k}`), sel: k === condType }))
-          .sort((a, b) => a.label.localeCompare(b.label)),
-        condFactionId,
-        factionOptions: factionOpts.map((o) => ({ id: o.id, name: o.name, sel: o.id === condFactionId })),
-        condTier,
-        tierOptions: STANDING_TIERS.map((t) => ({ key: t.key, label: game.i18n.localize(`PROJECTANIME.Covenant.tier.${t.key}`), sel: t.key === condTier })),
-        condQuestId,
-        questOptions: questOpts.map((o) => ({ id: o.id, title: o.title, sel: o.id === condQuestId })),
-        condLabelRaw: e.condition?.label ?? "",
-        condLabel,
-        condLevel,
-        isRepTier: condType === "repTier",
-        isHqLevel: condType === "hqLevel",
-        isManual: condType === "manual",
-        available,
-        locked: !available,
-        hidden: !!e.hidden,
-        isOpen: this.#openHqDrawer === e.id
+        ...v,
+        isOpen: this.#openHqDrawer === v.id,
+        rankReqMet: true,
+        stewardOpts,
+        gathers: v.key === "gatheringGrounds",
+        upgradeReason: !v.stewarded
+          ? game.i18n.localize("PROJECTANIME.HQ.needSteward")
+          : (stewardBondRank({ stewardUuid: v.stewardUuid }, residents) < 1 ? game.i18n.localize("PROJECTANIME.HQ.needBondB") : "")
       };
     });
+    const buildable = buildableCatalog(hq).map((b) => ({
+      ...b,
+      affordable: gold >= (Number(b.cost) || 0),
+      locked: !b.canBuild
+    }));
+    const customCount = (hq.built ?? []).filter((f) => f.custom).length;
+    const customMax = C.hqCustomRails?.maxSlots ?? 3;
 
-    // Roster — EVERYONE recruited (fighters, facility staff, anyone out on a mission). The Roster is the
-    // single place every recruit surfaces; an away/wounded member shows that status + a GM Recall here.
-    const TAL = CONFIG.PROJECTANIME;
-    // Mission picks for the Roster-card "Send on mission" shortcut — id + title only (the live odds
-    // preview stays on the Missions tab; from the Roster you just drop one idle agent onto a job).
-    const rosterMissionOpts = (hq.missions ?? []).map((m) => ({ id: m.id, title: m.title || game.i18n.localize("PROJECTANIME.HQ.missionUntitled") }));
-    const roster = hq.people.filter((e) => e.recruited).map((e) => {
-      // Pull the member's Talents + Unique Trait off their backing NPC actor for the book detail.
-      const npc = e.npcUuid ? fromUuidSync(e.npcUuid) : null;
-      const tals = npc?.system?.talents ?? null;
-      const talents = tals ? TAL.talentKeys.map((k) => ({ key: k, label: game.i18n.localize(TAL.talents[k]), icon: TAL.talentIcons[k], die: `d${tals[k]?.base ?? 4}` })) : [];
-      const trait = npc?.system?.trait ?? null;
-      // The facility this person is posted to (Phase-2 staffing), if any — surfaced on the roster book.
-      const postedFac = e.facilityId ? hq.facilities.find((f) => f.id === e.facilityId) : null;
-      // An idle dispatch agent (recruited already filtered) can be sent on a mission from their card —
-      // same gate as the Missions-tab squad picker: a dispatch vocation, not away/wounded, not posted.
-      const idleDispatch = !e.status && !e.facilityId; // anyone recruited can be dispatched when idle (not posted / away / wounded)
+    // ---- Residents + candidates -------------------------------------------------------------------
+    // A resident's Favored Facility is chosen from the printed catalog (+ any built custom names).
+    const favoredOptions = [
+      ...Object.entries(C.hqFacilities).map(([key, def]) => ({ name: def.name, icon: def.icon })),
+      ...builtViews.filter((v) => v.custom).map((v) => ({ name: v.name, icon: "fa-solid fa-star" }))
+    ];
+    const residentRows = residents.map((r) => {
+      const stewardOf = r.stewarding ? builtViews.find((v) => v.id === r.stewarding) : null;
       return {
-        id: e.id,
-        npcUuid: e.npcUuid,
-        name: e.name,
-        img: e.img || "icons/svg/mystery-man.svg",
-        initial: initialOf(e.name),
-        roleLabel: game.i18n.localize(`PROJECTANIME.Covenant.role.${e.role}`),
-        roleIcon: ROLE_ICONS[e.role] || "fa-user",
-        posted: !!postedFac,
-        postedTo: postedFac?.name || game.i18n.localize("PROJECTANIME.HQ.facility"),
-        effect: e.effect || "",
-        talents,
-        hasTalents: talents.length > 0,
-        traitName: trait?.name || "",
-        traitDesc: trait?.desc || "",
-        away: e.status === "away",
-        wounded: e.status === "wounded",
-        statusLabel: e.status === "away"
-          ? game.i18n.format("PROJECTANIME.HQ.awayUntil", { turn: e.returnsTurn || 0 })
-          : e.status === "wounded"
-            ? game.i18n.format("PROJECTANIME.HQ.woundedUntil", { turn: e.woundedUntil || 0 })
-            : "",
-        strikes: e.deathStrikes || 0,
-        strikePips: [1, 2, 3].map((n) => ({ on: n <= (e.deathStrikes || 0) })),
-        atRisk: (e.deathStrikes || 0) >= 2,
-        canDispatch: idleDispatch && rosterMissionOpts.length > 0,
-        missionOptions: idleDispatch ? rosterMissionOpts : [],
-        isOpen: this.#openHqDrawer === e.id
-      };
-    }).sort((a, b) => a.name.localeCompare(b.name));
-
-    // Facilities — each standing building, mapped to a READ-ONLY card view-model. All facility authoring,
-    // building, staffing, and per-turn yield/cost config live in the standalone Structures window
-    // (apps/structures.mjs); a Codex card just shows the built result and opens Structures on click.
-    const allFacilities = hq.facilities.map((e) => {
-      const tier = Math.min(3, Math.max(0, Number(e.facilityTier) || 0));
-      // Residents staffing this building (Phase-2 multi-staff) — portrait dots on the card. Capacity = tier.
-      const staffCap = Math.min(3, tier);
-      const staff = (e.staffIds ?? [])
-        .map((pid) => hq.people.find((p) => p.id === pid && p.recruited))
-        .filter(Boolean)
-        .map((p) => ({ npcUuid: p.npcUuid, img: p.img || "icons/svg/mystery-man.svg", initial: initialOf(p.name), away: p.status === "away" }));
-      const staffEmpty = Array.from({ length: Math.max(0, staffCap - staff.length) }, () => ({}));
-      // Phase-3 gather preview for the card: present residents' `gather` trait-output ∩ this facility's accepts.
-      const acceptsSet = new Set(Array.isArray(e.accepts) ? e.accepts : []);
-      const gatherTotals = {};
-      if (acceptsSet.size) {
-        for (const s of staff) {
-          if (s.away || !s.npcUuid) continue;
-          const npc = fromUuidSync(s.npcUuid);
-          if (npc) for (const [k, v] of Object.entries(collectGather(npc))) if (acceptsSet.has(k) && v > 0) gatherTotals[k] = (gatherTotals[k] || 0) + v;
-        }
-      }
-      const yieldGold = Math.max(0, Math.round(Number(e.yieldGold) || 0));
-      const yieldSP = Math.max(0, Math.round(Number(e.yieldSP) || 0));
-      const yieldItemNames = (e.yieldItems ?? []).map((o) => o?.name ?? "—");
-      const serviceKind = e.serviceKind || "";
-      // Any facility may carry a projected effect = the full Effect-Builder rule list (tier-scaled
-      // summary), plus any legacy attribute-only boonChanges. Authored via the Effect Builder (editBoon).
-      const boonParts = [
-        ...(e.boonRules ?? []).map((r) => normalizeRule(r)).filter(Boolean).map((r) => summarizeRule(scaleRuleByTier(r, tier))).filter(Boolean),
-        ...(e.boonChanges ?? []).filter((c) => BOON_ATTRS.includes(c.attr) && Number(c.value))
-          .map((c) => { const v = Math.round(Number(c.value)) * tier; return `${v > 0 ? "+" : ""}${v} ${game.i18n.localize(`PROJECTANIME.Attribute.${c.attr}.long`)}`; })
-      ];
-      // Read-only "produces each turn" summary (tier-scaled, mirrors advanceHQTurn).
-      // An unbuilt (tier-0) facility produces nothing yet — leave its "produces each turn" line empty.
-      const pp = [];
-      if (tier > 0) {
-        if (yieldGold) pp.push(`${yieldGold * tier} ${game.i18n.localize("PROJECTANIME.Bond.gold")}`);
-        if (yieldSP) pp.push(`${yieldSP * tier} ${game.i18n.localize("PROJECTANIME.Bond.sp")}`);
-        if (yieldItemNames.length) pp.push(yieldItemNames.join(", "));
-        for (const [k, v] of Object.entries(gatherTotals)) pp.push(`${v} ${materialCategoryLabel(k)}`);
-        if (e.role === "service" && serviceKind) pp.push(game.i18n.localize(`PROJECTANIME.HQ.serviceKind.${serviceKind}`));
-      }
-      return {
-        id: e.id,
-        name: e.name,
-        roleLabel: game.i18n.localize(`PROJECTANIME.Covenant.role.${e.role}`),
-        facilityIcon: e.role === "service" ? "fa-heart-pulse" : e.role === "vendor" ? "fa-store" : e.role === "passive" ? "fa-hand-sparkles" : e.role === "upgrade" ? "fa-arrow-up-right-dots" : e.role === "workshop" ? "fa-screwdriver-wrench" : "fa-chess-rook",
-        isVendor: e.role === "vendor",
-        isWorkshop: e.role === "workshop",
-        tier,
-        tierPips: [1, 2, 3].map((n) => ({ n, on: n <= tier })),
-        staff,
-        staffEmpty,
-        staffCount: staff.length,
-        staffCap,
-        hasBoon: boonParts.length > 0,
-        boonSummary: boonParts.join(", "),
-        produces: pp.length > 0,
-        producesSummary: pp.join(" · ")
+        uuid: r.uuid,
+        name: r.name,
+        img: r.img || "icons/svg/mystery-man.svg",
+        initial: initialOf(r.name),
+        bondRank: C.bondRanks?.[r.bondRank] ?? "C",
+        favoredFacility: r.favoredFacility || "",
+        favoredIcon: r.favoredFacilityIcon || "",
+        favoredOptions: favoredOptions.map((o) => ({ name: o.name, icon: o.icon, sel: o.name === r.favoredFacility })),
+        stewarding: stewardOf?.name ?? "",
+        facilityOpts: builtViews
+          .filter((v) => !v.stewardUuid || v.stewardUuid === r.uuid)
+          .map((v) => ({ id: v.id, name: v.name, sel: v.id === r.stewarding })),
+        isOpen: this.#openHqDrawer === r.uuid
       };
     });
-    // The Facilities tab shows only ACTIVE buildings (tier ≥ 1). Unbuilt Structures (tier 0) and all
-    // facility authoring/building live in the standalone Structures window (apps/structures.mjs).
-    const facilities = allFacilities.filter((f) => f.tier >= 1);
+    const candidates = hqCandidates(hq).map((c) => ({
+      uuid: c.uuid,
+      name: c.name,
+      img: c.img || "icons/svg/mystery-man.svg",
+      initial: initialOf(c.name),
+      bondRank: C.bondRanks?.[c.bondRank] ?? "C"
+    }));
+    const askShapes = Object.entries(C.hqAsks ?? {}).map(([k, a]) => ({ key: k, label: a.label, hint: a.hint }));
 
-    // Dispatch missions — the job board. Idle dispatch agents become the squad-picker CARDS (portrait +
-    // their die for the mission's stat); the GM taps cards to assemble a squad whose combined odds (the
-    // Sum rule) preview live above. Agents already out show as "away" chips. Tier = clickable pips.
-    // A person posted to a facility (Phase-2 staffing) is on duty there, so they're not also dispatchable.
-    const idle = hq.people.filter((e) => e.recruited && !e.status && !e.facilityId);
-    const missions = (hq.missions ?? []).map((m) => {
-      const tier = Math.min(5, Math.max(1, Number(m.tier) || 1));
-      const dc = Math.max(1, Math.round(Number(m.difficulty) || 1));
-      const picking = this.#squadPickMission === m.id;
-      const candidates = idle.map((e) => {
-        const npc = e.npcUuid ? fromUuidSync(e.npcUuid) : null;
-        const d = statDieFor(npc, m.stat);
-        const bonus = statBonusFor(npc, m.stat);
-        const haste = hqHasteBonus(npc); // HQ turns this agent would shave off the run (hq.haste Trait/effect)
-        return {
-          id: e.id,
-          name: e.name,
-          img: e.img || npc?.img || "",
-          initial: initialOf(e.name),
-          faces: d.faces,
-          die: `d${d.faces}`,
-          bonus,
-          bonusStr: bonus ? (bonus > 0 ? `+${bonus}` : `${bonus}`) : "",
-          haste,
-          selected: picking && this.#squadPick.has(e.id)
-        };
+    // ---- Mission Board ----------------------------------------------------------------------------
+    const typeOpts = Object.entries(C.missionTypes ?? {}).map(([k, t]) => ({ key: k, label: t.label }));
+    const suitedOpts = Object.entries(C.hqFacilities).map(([key, def]) => ({ key: def.name, label: def.name }));
+    const activeCount = (hq.board ?? []).filter((m) => m.status === "active").length;
+    const missionCap = (C.hqMissionCap ?? {})[hq.rank] ?? 0;
+    const missions = (hq.board ?? []).map((m) => {
+      const typeLabel = C.missionTypes?.[m.type]?.label ?? m.type;
+      const teamRows = (m.team ?? []).map((uuid) => {
+        const r = residents.find((x) => x.uuid === uuid);
+        return { uuid, name: r?.name ?? "—", img: r?.img || "icons/svg/mystery-man.svg", initial: initialOf(r?.name ?? "?") };
       });
-      const chosen = candidates.filter((c) => c.selected);
-      const picked = chosen.map((c) => ({ faces: c.faces, bonus: c.bonus }));
-      // Effective return time for the currently-assembled squad — base duration minus the squad's
-      // combined Mission-haste (floored at 1). Drives the "Returns in N turns" readout in the picker.
-      const pickedHaste = chosen.reduce((s, c) => s + Math.max(0, c.haste || 0), 0);
-      const squadReadyTurns = Math.max(1, (Math.max(1, Number(m.durationTurns) || 1)) - pickedHaste);
-      const away = hq.people.filter((e) => e.status === "away" && e.assignedMissionId === m.id);
-      const agentsOut = away.map((e) => ({ name: e.name, initial: initialOf(e.name), img: e.img || "", returnsTurn: e.returnsTurn || 0 }));
-      const rewardItems = (m.rewardItems ?? []).map((o, idx) => ({ idx, name: o?.name ?? "—", img: o?.img ?? "icons/svg/item-bag.svg" }));
-      const rp = [];
-      if (m.rewardGold) rp.push(`${m.rewardGold} ${game.i18n.localize("PROJECTANIME.Bond.gold")}`);
-      if (m.rewardSP) rp.push(`${m.rewardSP} ${game.i18n.localize("PROJECTANIME.Bond.sp")}`);
-      if (rewardItems.length) rp.push(rewardItems.map((i) => i.name).join(", "));
+      // Residents free to be assigned (not on another active mission): checkbox rows in the drawer.
+      const onOtherMission = new Set((hq.board ?? []).filter((x) => x.status === "active" && x.id !== m.id).flatMap((x) => x.team ?? []));
+      const pickable = residents.filter((r) => !onOtherMission.has(r.uuid)).map((r) => ({
+        uuid: r.uuid, name: r.name, img: r.img || "icons/svg/mystery-man.svg", initial: initialOf(r.name),
+        chosen: (m.team ?? []).includes(r.uuid),
+        suited: !!r.favoredFacility && (m.suited ?? []).some((s) => String(s).toLowerCase() === r.favoredFacility.toLowerCase())
+      }));
+      const rewardNote = C.missionRewards?.[m.duration]?.note ?? "";
       return {
         id: m.id,
-        title: m.title,
+        title: m.title || game.i18n.localize("PROJECTANIME.HQ.missionUntitled"),
         img: m.img || "",
-        isOpen: this.#openHqDrawer === m.id,
-        tier,
-        tierStars: [1, 2, 3, 4, 5].map((n) => ({ on: n <= tier })),
-        tierPips: [1, 2, 3, 4, 5].map((n) => ({ n, on: n <= tier })),
-        durationTurns: m.durationTurns,
-        squadReadyTurns,
-        difficulty: dc,
-        statLabel: statLabelFor(m.stat),
-        statEmblem: missionStatIcon(m.stat),
-        statTalentOpts: missionStatOptions(m.stat),
-        candidates,
-        hasCandidates: candidates.length > 0,
-        squadN: picked.length,
-        squadPct: picked.length ? teamSuccessPct(picked, dc) : 0,
-        hasPick: picked.length > 0,
-        rewardGold: m.rewardGold,
-        rewardSP: m.rewardSP,
-        rewardItems,
-        rewardSummary: rp.join(" · "),
-        hasReward: rp.length > 0,
-        agentsOut,
-        hasAgentsOut: agentsOut.length > 0
+        type: m.type,
+        typeLabel,
+        duration: m.duration,
+        durationOptions: [1, 2, 3].map((n) => ({ n, sel: n === m.duration })),
+        hard: !!m.hard,
+        risk: m.risk || "",
+        reward: m.reward || "",
+        rewardGold: m.rewardGold || 0,
+        rewardNote,
+        suited: (m.suited ?? []),
+        suitedOptions: suitedOpts.map((o) => ({ key: o.key, label: o.label, sel: (m.suited ?? []).includes(o.key) })),
+        typeOptions: typeOpts.map((o) => ({ key: o.key, label: o.label, sel: o.key === m.type })),
+        status: m.status,
+        isActive: m.status === "active",
+        isDone: m.status === "done",
+        result: m.result || "",
+        restsLeft: m.restsLeft || 0,
+        team: teamRows,
+        pickable,
+        canDispatch: pickable.length >= 2,
+        isOpen: this.#openHqDrawer === m.id
       };
     });
 
-    // Civ-style resource stockpile — one chip per GM-configured Resource Type (helpers/materials.mjs),
-    // shown even at 0 so the full set is always visible. The GM edits amounts inline; players read-only.
-    const resources = resTypes.map((c) => ({
-      key: c.key,
-      label: c.label,
-      icon: c.icon,
-      iconImg: isImageIcon(c.icon),
-      amount: Math.max(0, Math.round(Number(hq.resources?.[c.key]) || 0))
-    }));
+    // ---- Home summary: treasury flow, Renown meter, attention, next-rest yields, badges -----------
+    const bondLetters = C.bondRanks ?? {};
+    const rc = hqRestContext(hq);                         // authoritative grants + work gold (matches rest.mjs)
+    const ranks = C.hqRanks ?? [];
+    const ri = status.rankIndex;
+    const curRank = ranks[ri] ?? { renown: 0, cap: status.cap };
+    const nextRank = ranks[ri + 1] ?? null;
+    const span = nextRank ? Math.max(1, nextRank.renown - curRank.renown) : 1;
+    // Seal + Segment meter: one gold cell per point of Renown earned toward the next rank.
+    const segFilled = nextRank ? Math.max(0, Math.min(span, status.renown - curRank.renown)) : span;
+    const segments = nextRank
+      ? Array.from({ length: span }, (_, i) => ({ on: i < segFilled }))
+      : Array.from({ length: 6 }, () => ({ on: true }));
+    const renownMeter = {
+      renown: status.renown,
+      nextRenown: nextRank ? nextRank.renown : null,
+      toGo: nextRank ? Math.max(0, nextRank.renown - status.renown) : 0,
+      pct: nextRank ? Math.max(0, Math.min(100, Math.round(((status.renown - curRank.renown) / span) * 100))) : 100,
+      isMax: !nextRank,
+      ready: status.canRankUp,
+      curKey: status.rank.key,
+      curName: status.rank.name,
+      nextKey: nextRank?.key ?? "",
+      nextName: nextRank?.name ?? "",
+      segments,
+      slotsGain: nextRank ? Math.max(0, nextRank.cap - (curRank.cap ?? status.cap)) : 0,
+      boardUnlock: nextRank?.key === "B",
+      unlocks: nextRank ? Object.values(C.hqFacilities).filter((d) => d.rank === nextRank.key).map((d) => d.name) : [],
+      pips: ranks.map((r, i) => ({ key: r.key, on: i <= ri, cur: i === ri, eligible: i <= status.eligibleRankIndex }))
+    };
+    const treasury = { gold, workGold: rc.workGoldBonus || 0, hasFlow: (rc.workGoldBonus || 0) > 0 };
+
+    // Enhance each built-facility card: steward portrait / bond rank / upgrade affordability / active line.
+    for (const v of facilities) {
+      v.stewardInitial = v.stewardName ? initialOf(v.stewardName) : "";
+      const br = stewardBondRank({ stewardUuid: v.stewardUuid }, residents);
+      v.stewardRankLetter = v.stewarded ? (bondLetters[br] ?? "C") : "";
+      v.upgradeAffordable = v.canUpgrade && gold >= (v.upgradeCost || 0);
+      v.upgradePreview = v.lines?.upgrade ?? "";
+      v.activeLine = v.favorActive ? (v.lines?.favor || v.lines?.staffed) : (v.stewarded ? v.lines?.staffed : v.lines?.unstaffed);
+    }
+
+    // Next-rest yield chips — mirror rest.mjs grants (only staffed facilities fire).
+    const YKIND = {
+      freeConsumable: { cls: "heal", label: "Free HP Potion / Energy Drink", sub: "Party" },
+      freeBondScene:  { cls: "heal", label: "One Free Bond Scene", sub: "" },
+      freeCraft:      { cls: "craft", label: "One Free Craft", sub: "" },
+      luckExtra:      { cls: "heal", label: "Restore +1 Luck Die", sub: "" },
+      materials:      { cls: "mat", label: "Gathered Materials", sub: "Party Tier" }
+    };
+    const yields = [];
+    if ((rc.workGoldBonus || 0) > 0) yields.push({ cls: "gold", label: `+${rc.workGoldBonus} G on Work`, sub: "" });
+    for (const g of rc.grants) {
+      if (g.kind === "workGold") continue;               // surfaced as the gold chip above
+      const y = YKIND[g.kind];
+      if (!y) continue;
+      let label = y.label;
+      if (g.kind === "freeConsumable" && g.favor) label = "Free Strong Potion / Drink";
+      if (g.kind === "materials") {
+        const t = [g.gatherType, g.upgraded ? g.gatherType2 : ""].filter(Boolean).join(" / ") || "Materials";
+        label = `3× ${t}`;
+      }
+      yields.push({ cls: y.cls, label, sub: y.sub });
+    }
+
+    // Attention callouts — real signals only, most-actionable first, capped at three.
+    const doneMissions = missions.filter((m) => m.isDone);
+    const upg = facilities.filter((v) => v.upgradeAffordable);
+    const empties = facilities.filter((v) => !v.stewarded);
+    const attention = [];
+    if (doneMissions.length) attention.push({
+      tone: "good", icon: "fa-solid fa-flag-checkered", tab: "missions",
+      title: `${doneMissions.length} Mission ${doneMissions.length === 1 ? "Report" : "Reports"}`,
+      sub: doneMissions.map((m) => m.title).slice(0, 3).join(" · ")
+    });
+    if (status.canRankUp) attention.push({
+      tone: "gold", icon: "fa-solid fa-arrow-up-right-dots", tab: "facilities",
+      title: "Ready to Rank Up", sub: `Reach ${rankData(status.eligibleRankIndex).key} at your next rest here`
+    });
+    if (upg.length) attention.push({
+      tone: "gold", icon: "fa-solid fa-star", tab: "facilities",
+      title: `${upg.length} Upgrade Ready`, sub: upg.map((v) => v.name).slice(0, 3).join(" · ")
+    });
+    if (empties.length) attention.push({
+      tone: "note", icon: "fa-solid fa-user-plus", tab: "residents",
+      title: `${empties.length} Empty Steward ${empties.length === 1 ? "Seat" : "Seats"}`,
+      sub: empties.map((v) => v.name).slice(0, 3).join(" · ")
+    });
+    const attentionTop = attention.slice(0, 3);
 
     return {
       isGM,
-      // Which sub-tab is showing, rendered straight into the template (`.active`) so a scoped re-render
-      // is born on the right tab; #applyHqTabs handles the instant, no-re-render switch on click. The
-      // per-entity DETAIL books still carry their own `isOpen` (added to each item above) +
-      // #applyHqDrawers for the overlay open/close.
+      established: !!hq.established,
+      partyGold: gold,
       hqTabIs: {
-        roster: this.#hqTab === "roster",
-        recruitment: this.#hqTab === "recruitment",
-        facilities: this.#hqTab === "facilities",
+        facilities: this.#hqTab === "facilities" || !["facilities", "residents", "missions"].includes(this.#hqTab),
+        residents: this.#hqTab === "residents",
         missions: this.#hqTab === "missions"
       },
-      turn: hq.turn,
       identity: {
         name: hq.name,
         crest: hq.crest,
@@ -1685,40 +1706,67 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
           ? `background-image:url('${hq.banner}'); background-position:${hq.bannerPos.x}% ${hq.bannerPos.y}%`
           : `background:${factionHeroGrad(hq.accent)}`
       },
-      recruits,
-      hasRecruits: recruits.length > 0,
-      roster,
-      hasRoster: roster.length > 0,
+      status: {
+        rankKey: status.rank.key,
+        rankName: status.rank.name,
+        renown: status.renown,
+        cap: status.cap,
+        facilities: status.facilities,
+        residents: status.residents,
+        nextRenown: status.nextRenown,
+        canRankUp: status.canRankUp,
+        rankUpTo: status.canRankUp ? rankData(status.eligibleRankIndex).key : "",
+        missionBoardOpen: status.missionBoardOpen,
+        rankName: status.rank.name,
+        pips: (C.hqRanks ?? []).map((r, i) => ({ key: r.key, on: i <= status.rankIndex, eligible: i <= status.eligibleRankIndex }))
+      },
+      treasury,
+      renownMeter,
+      attention: attentionTop,
+      hasAttention: attentionTop.length > 0,
+      yields,
+      hasYields: yields.length > 0,
+      badges: { facilities: status.facilities, residents: residentRows.length, missions: doneMissions.length },
+      structuresDrawerOpen: this.#openHqDrawer === "structures",
       facilities,
-      facilityCount: facilities.length,
-      level: hqLevel(hq),
       hasFacilities: facilities.length > 0,
+      buildable,
+      hasBuildable: buildable.length > 0,
+      canCustom: isGM && customCount < customMax && status.facilities < status.cap,
+      customCount,
+      customMax,
+      residents: residentRows,
+      hasResidents: residentRows.length > 0,
+      candidates,
+      hasCandidates: candidates.length > 0,
+      askShapes,
       missions,
       hasMissions: missions.length > 0,
-      resources,
-      hasResources: resources.length > 0
+      missionBoardOpen: status.missionBoardOpen,
+      missionCap,
+      activeCount,
+      missionCapFull: activeCount >= missionCap
     };
   }
-
   /** Skip exactly one render — see #skipRenderOnce — so a quiet HQ save doesn't flicker the open drawer. */
   render(...args) {
     if (this.#skipRenderOnce) { this.#skipRenderOnce = false; return this; }
     return super.render(...args);
   }
 
-  /** A signature of exactly what the Home pane draws from the HQ object: every field EXCEPT the per-
-   *  facility Workshop `recipes` / Shop `stock` collections and the craft queue (those surface only in
-   *  the satellite windows, never the Home tab). So authoring a recipe or restocking a vendor — which
-   *  changes the HQ object — leaves this digest untouched and the tab doesn't flash. */
+  /** A signature of exactly what the v0.03 Home pane draws: the base identity + the built facilities +
+   *  Mission Board, PLUS the residents/candidates (which live on the party's Follower Bonds, not the HQ
+   *  object, so an actor-side residency change moves the digest too — the actor hook re-notifies). Legacy
+   *  pool/dispatch fields are excluded (retired). */
   #hqViewDigest() {
     const hq = getHQ();
-    const facilities = (hq.facilities ?? []).map((f) => { const { recipes, stock, ...rest } = f; return rest; });
-    // Fold in the resolved availability of any quest-gated recruit so completing the gating quest (a change
-    // OUTSIDE the HQ object) moves the digest and the Home pane refreshes (see the quests-setting onChange).
-    const questGates = (hq.people ?? [])
-      .filter((p) => p.condition?.type === "quest")
-      .map((p) => `${p.id}:${recruitAvailable(p)}`);
-    return JSON.stringify({ ...hq, facilities, crafting: undefined, questGates });
+    const residents = hqResidents(hq).map((r) => ({ u: r.uuid, n: r.name, f: r.favoredFacility, r: r.bondRank, s: r.stewarding }));
+    const candidates = hqCandidates(hq).map((c) => `${c.uuid}:${c.bondRank}`);
+    return JSON.stringify({
+      established: hq.established, rank: hq.rank, built: hq.built, board: hq.board,
+      name: hq.name, crest: hq.crest, accent: hq.accent, motto: hq.motto, banner: hq.banner, bannerPos: hq.bannerPos,
+      residents, candidates
+    });
   }
 
   /** The HQ world object changed — refresh the Home pane, but only if what it shows actually changed.
@@ -2182,57 +2230,262 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /* =============================== HOME / HQ =============================== */
 
-  /** Bind the Home pane (GM only): HQ identity fields, recruit-card config inputs, and the recruit
-   *  drop zone. data-* only → never collected by a form. */
+  /** Bind the Home pane (GM only): HQ identity fields + the v0.03 change-driven selects/inputs (facility
+   *  steward / gather, resident favored / steward, Mission Board fields). data-* only → never form-collected. */
   #bindHqEdits() {
     const pane = this.element?.querySelector?.('.codex-pane[data-pane="hq"]');
     if (!pane) return;
-    // The hero banner is interactive: a plain click opens the image FilePicker; a drag repositions
-    // its focal point (only when a banner image exists — gated by the `.repos` class in the handler).
+    // The hero banner is interactive: a plain click opens the image FilePicker; a drag repositions its
+    // focal point (only when a banner image exists — gated by the `.repos` class in the handler).
     const hero = pane.querySelector(".hq-hero");
     if (hero) hero.addEventListener("pointerdown", (ev) => this.#startHqBannerDrag(ev, hero));
-    for (const el of pane.querySelectorAll("[data-hq-field]")) {
-      el.addEventListener("change", this.#onHqFieldChange.bind(this));
-    }
-    for (const el of pane.querySelectorAll("[data-resource-field]")) {
-      el.addEventListener("change", this.#onResourceField.bind(this));
-    }
-    for (const el of pane.querySelectorAll("[data-recruit-field]")) {
-      el.addEventListener("change", this.#onRecruitFieldChange.bind(this));
-    }
-    for (const zone of pane.querySelectorAll("[data-recruit-drop]")) {
-      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
-      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        zone.classList.remove("drag-over");
-        this.#onRecruitDrop(ev);
-      });
-    }
-    // Mission authoring: field edits + per-mission reward-item drop zones.
-    for (const el of pane.querySelectorAll("[data-mission-field]")) {
-      el.addEventListener("change", this.#onMissionField.bind(this));
-    }
-    // Dispatch squad picker: tapping a candidate card toggles it into the squad (DOM-only — no persist;
-    // the squad odds meter recomputes live). The "Send squad" button commits the selection.
-    for (const card of pane.querySelectorAll(".m-cand[data-agent-id]")) {
-      card.addEventListener("click", (ev) => { ev.preventDefault(); this.#onToggleCandidate(card); });
-    }
-    for (const zone of pane.querySelectorAll("[data-mission-reward-drop]")) {
-      zone.addEventListener("dragover", (ev) => { ev.preventDefault(); zone.classList.add("drag-over"); });
-      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (ev) => { ev.preventDefault(); ev.stopPropagation(); zone.classList.remove("drag-over"); this.#onMissionRewardDrop(ev, zone.dataset.missionRewardDrop); });
-    }
-    // GM right-click a recruit POOL card → context menu (recruit / unlock / open sheet / delete). The
-    // recruited member cards (roster + facilities) are bound separately for EVERYONE (#bindHqMemberMenus).
-    for (const card of pane.querySelectorAll(".rcard[data-recruit-id]")) {
-      card.addEventListener("contextmenu", (ev) => {
-        if (ev.target.closest("input, textarea, select")) return;
-        ev.preventDefault();
-        this.#openRecruitContext(card.dataset.recruitId, ev, "pool");
-      });
-    }
+    for (const el of pane.querySelectorAll("[data-hq-field]")) el.addEventListener("change", this.#onHqFieldChange.bind(this));
+    for (const el of pane.querySelectorAll("[data-hq-steward]")) el.addEventListener("change", this.#onHqSetSteward.bind(this));
+    for (const el of pane.querySelectorAll("[data-hq-gather]")) el.addEventListener("change", this.#onHqSetGather.bind(this));
+    for (const el of pane.querySelectorAll("[data-hq-favored]")) el.addEventListener("change", this.#onHqSetFavored.bind(this));
+    for (const el of pane.querySelectorAll("[data-hq-res-steward]")) el.addEventListener("change", this.#onHqResidentSteward.bind(this));
+    for (const el of pane.querySelectorAll("[data-hq-msn]")) el.addEventListener("change", this.#onHqMissionField.bind(this));
+  }
+
+  /* -------------------------- Headquarters v0.03 actions -------------------------- */
+
+  /** GM: acquire the base (a fresh Hideout at rank C). */
+  static async #onEstablishHQ() {
+    if (!game.user.isGM) return;
+    await establishHQ();
+  }
+
+  /** GM: add (or remove) Gold from the party treasury via a small dialog. Party-gold isn't in the HQ
+   *  digest, so re-render this instance directly once the balance changes. */
+  static async #onHqEditTreasury() {
+    if (!game.user.isGM) return;
+    const L = (k) => game.i18n.localize(`PROJECTANIME.HQ.${k}`);
+    const cur = partyGold();
+    const quick = [100, 500, 1000, 5000].map((n) => `<button type="button" class="tz-quick" data-n="${n}">+${n}</button>`).join("");
+    const content = `<div class="pa-form tz-form" style="display:grid; gap:8px">
+      <p style="margin:0">${L("treasury")}: <b class="tz-cur">${cur}</b> ${L("gold")}</p>
+      <div class="tz-quicks" style="display:flex; gap:6px; flex-wrap:wrap">${quick}</div>
+      <label>${L("amount")}<input type="number" name="amount" value="100" step="10" autofocus></label>
+    </div>`;
+    const delta = await foundry.applications.api.DialogV2.wait({
+      window: { title: L("treasuryTitle"), icon: "fa-solid fa-coins" },
+      classes: ["project-anime", "theme-dark"],
+      content,
+      render: (ev, dialog) => {
+        const root = dialog?.element;
+        const amt = root?.querySelector('input[name="amount"]');
+        if (!amt) return;
+        // Quick chips add to the amount field so the GM can stack them, then hit Add.
+        root.querySelectorAll(".tz-quick").forEach((b) => b.addEventListener("click", () => {
+          amt.value = String((Number(amt.value) || 0) + Number(b.dataset.n));
+          amt.focus();
+        }));
+      },
+      buttons: [
+        { action: "add", label: L("addGold"), icon: "fa-solid fa-plus", default: true,
+          callback: (ev, btn, dialog) => Math.abs(Number((dialog?.element ?? btn?.form)?.querySelector('input[name="amount"]')?.value) || 0) },
+        { action: "remove", label: L("removeGold"), icon: "fa-solid fa-minus",
+          callback: (ev, btn, dialog) => -Math.abs(Number((dialog?.element ?? btn?.form)?.querySelector('input[name="amount"]')?.value) || 0) },
+        { action: "cancel", label: game.i18n.localize("Cancel"), icon: "fa-solid fa-xmark" }
+      ],
+      rejectClose: false
+    });
+    if (typeof delta !== "number" || delta === 0) return;
+    const total = await adjustTreasury(delta);
+    if (total !== null) this.render();
+  }
+
+  /** GM: build a catalog facility (data-key on the button). */
+  static async #onHqBuild(event, target) {
+    if (!game.user.isGM) return;
+    const key = target.dataset.key;
+    if (key) await hqBuildFacility(key);
+  }
+
+  /** GM: build a custom facility (Four Rails) via a small authoring dialog. */
+  static async #onHqCustom() {
+    if (!game.user.isGM) return;
+    const rankOpts = (CONFIG.PROJECTANIME.hqRanks ?? []).map((r) => `<option value="${r.key}">${r.key} — ${r.name}</option>`).join("");
+    const content = `<div class="pa-form" style="display:grid; gap:6px">
+      <label>${game.i18n.localize("PROJECTANIME.HQ.customName")}<input type="text" name="name" /></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.customRank")}<select name="rank">${rankOpts}</select></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.customCost")}<input type="number" name="cost" value="500" min="0" /></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.customUpCost")}<input type="number" name="upgradeCost" value="1000" min="0" /></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.lineUnstaffed")}<input type="text" name="unstaffed" /></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.lineStaffed")}<input type="text" name="staffed" /></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.lineFavor")}<input type="text" name="favor" /></label>
+      <label>${game.i18n.localize("PROJECTANIME.HQ.lineUpgrade")}<input type="text" name="upgrade" /></label>
+      <p class="hint">${CONFIG.PROJECTANIME.hqCustomRails?.function ?? ""}</p>
+    </div>`;
+    const data = await foundry.applications.api.DialogV2.prompt({
+      window: { title: game.i18n.localize("PROJECTANIME.HQ.customTitle"), icon: "fa-solid fa-star" },
+      content,
+      ok: { label: game.i18n.localize("PROJECTANIME.HQ.build"), callback: (ev, btn) => {
+        const f = btn.form.elements;
+        return { name: f.name.value, rank: f.rank.value, cost: f.cost.value, upgradeCost: f.upgradeCost.value,
+          unstaffed: f.unstaffed.value, staffed: f.staffed.value, favor: f.favor.value, upgrade: f.upgrade.value };
+      } }
+    }).catch(() => null);
+    if (data?.name) await buildCustomFacility(data);
+  }
+
+  /** GM: demolish a built facility (confirms). */
+  static async #onHqDemolish(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-fac-id]")?.dataset.facId;
+    if (!id) return;
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("PROJECTANIME.HQ.demolish") },
+      content: `<p>${game.i18n.localize("PROJECTANIME.HQ.demolishConfirm")}</p>`, rejectClose: false
+    }).catch(() => false);
+    if (ok) await demolishFacility(id);
+  }
+
+  /** GM: assign / clear a facility's steward (select change; data-hq-steward = facilityId). */
+  async #onHqSetSteward(event) {
+    if (!game.user.isGM) return;
+    const el = event.currentTarget;
+    await setFacilitySteward(el.dataset.hqSteward, el.value || "");
+  }
+
+  /** GM: buy a facility's upgrade. */
+  static async #onHqUpgrade(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-fac-id]")?.dataset.facId;
+    if (id) await upgradeFacility(id);
+  }
+
+  /** GM: set a Gathering Grounds Common type (select change; data-hq-gather = facilityId, data-slot). */
+  async #onHqSetGather(event) {
+    if (!game.user.isGM) return;
+    const el = event.currentTarget;
+    await setFacilityGather(el.dataset.hqGather, Number(el.dataset.slot) || 1, el.value || "");
+  }
+
+  /** Open the HQ Shop at a vendor facility (Apothecary = consumables, Forge = gear). */
+  static #onHqVisitShop(event, target) {
+    ShopWindow.openVendor(target.dataset.vendor || "gear");
+  }
+
+  /** GM: move a candidate Follower in as a resident (+1 Renown). */
+  static async #onHqMoveIn(event, target) {
+    if (!game.user.isGM) return;
+    const uuid = target.dataset.uuid;
+    if (uuid) await setResidency(uuid, true);
+  }
+
+  /** GM: move a resident out (clears any post they stewarded). */
+  static async #onHqMoveOut(event, target) {
+    if (!game.user.isGM) return;
+    const uuid = target.closest("[data-res-uuid]")?.dataset.resUuid;
+    if (uuid) await setResidency(uuid, false);
+  }
+
+  /** GM: set a resident's Favored Facility (select change; data-hq-favored = uuid). */
+  async #onHqSetFavored(event) {
+    if (!game.user.isGM) return;
+    const el = event.currentTarget;
+    const icon = el.selectedOptions?.[0]?.dataset?.icon || "";
+    await setFavoredFacility(el.dataset.hqFavored, el.value || "", icon);
+  }
+
+  /** GM: (re)assign a resident's steward post (select change; data-hq-res-steward = uuid). "" = leave post. */
+  async #onHqResidentSteward(event) {
+    if (!game.user.isGM) return;
+    const el = event.currentTarget;
+    const uuid = el.dataset.hqResSteward;
+    if (el.value) return setFacilitySteward(el.value, uuid);
+    // Empty → vacate whichever facility this resident stewards.
+    const hq = getHQ();
+    const cur = (hq.built ?? []).find((f) => f.stewardUuid === uuid);
+    if (cur) await setFacilitySteward(cur.id, "");
+  }
+
+  /** GM: post a fresh Mission Board job. */
+  static async #onHqNewMission() {
+    if (!game.user.isGM) return;
+    await saveMission(blankBoardMission());
+  }
+
+  /** GM: edit a Mission field (change; data-hq-msn = missionId, data-field). */
+  async #onHqMissionField(event) {
+    if (!game.user.isGM) return;
+    const el = event.currentTarget;
+    const id = el.dataset.hqMsn;
+    const field = el.dataset.field;
+    const hq = getHQ();
+    const m = (hq.board ?? []).find((x) => x.id === id);
+    if (!m) return;
+    if (field === "duration") m.duration = Math.min(3, Math.max(1, Number(el.value) || 1));
+    else if (field === "hard") m.hard = el.checked;
+    else if (field === "rewardGold") m.rewardGold = Math.max(0, Math.round(Number(el.value) || 0));
+    else m[field] = el.value;
+    await saveMission(m);
+  }
+
+  /** GM: toggle a Suited facility on a mission (max 2). */
+  static async #onHqToggleSuited(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-msn-id]")?.dataset.msnId;
+    const key = target.dataset.key;
+    const hq = getHQ();
+    const m = (hq.board ?? []).find((x) => x.id === id);
+    if (!m || !key) return;
+    const set = new Set(m.suited ?? []);
+    if (set.has(key)) set.delete(key); else if (set.size < 2) set.add(key);
+    m.suited = [...set];
+    await saveMission(m);
+  }
+
+  /** GM: pick a mission banner image. */
+  static async #onHqPickMissionImage(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-msn-id]")?.dataset.msnId;
+    if (!id) return;
+    const FP = foundry.applications.apps.FilePicker?.implementation ?? foundry.applications.apps.FilePicker ?? globalThis.FilePicker;
+    const hq = getHQ();
+    const m = (hq.board ?? []).find((x) => x.id === id);
+    if (!m) return;
+    new FP({ type: "image", current: m.img || "", callback: async (path) => { m.img = path; await saveMission(m); } }).browse();
+  }
+
+  /** GM: delete a mission. */
+  static async #onHqDeleteMission(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-msn-id]")?.dataset.msnId;
+    if (id) await hqDeleteMission(id);
+  }
+
+  /** GM: toggle a resident into/out of a mission team (max 3; open missions only). */
+  static async #onHqToggleTeam(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-msn-id]")?.dataset.msnId;
+    const uuid = target.dataset.uuid;
+    const hq = getHQ();
+    const m = (hq.board ?? []).find((x) => x.id === id);
+    if (!m || m.status === "active" || !uuid) return;
+    const set = new Set(m.team ?? []);
+    if (set.has(uuid)) set.delete(uuid); else if (set.size < 3) set.add(uuid);
+    m.team = [...set];
+    await saveMission(m);
+  }
+
+  /** GM: dispatch a mission's assembled team. */
+  static async #onHqDispatch(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-msn-id]")?.dataset.msnId;
+    const hq = getHQ();
+    const m = (hq.board ?? []).find((x) => x.id === id);
+    if (!m) return;
+    if ((m.team ?? []).length < 2) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.HQ.teamTooSmall"));
+    await assignMission(id, m.team);
+  }
+
+  /** GM: recall an active mission before it resolves. */
+  static async #onHqRecall(event, target) {
+    if (!game.user.isGM) return;
+    const id = target.closest("[data-msn-id]")?.dataset.msnId;
+    if (id) await recallMission(id);
   }
 
   /** Right-click a recruited member card (roster or facility) → context menu, bound for EVERYONE so a
@@ -2240,6 +2493,25 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   #bindHqMemberMenus() {
     const pane = this.element?.querySelector?.('.codex-pane[data-pane="hq"]');
     if (!pane) return;
+    // v0.03: a built-facility card is draggable onto a Follower Bond's "Favored Facility" slot (actor sheet).
+    for (const card of pane.querySelectorAll(".hq-fac[data-fac-id]")) {
+      card.setAttribute("draggable", "true");
+      card.addEventListener("dragstart", (ev) => {
+        const name = card.dataset.facName || card.querySelector(".hq-fac-name")?.textContent?.trim() || "";
+        const icon = card.dataset.facIcon || "fa-solid fa-building";
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ paFacility: { name, icon } }));
+        ev.dataTransfer.effectAllowed = "copy";
+      });
+    }
+    // v0.03: right-click a resident card → open the backing NPC sheet (everyone).
+    for (const card of pane.querySelectorAll(".hq-resident[data-res-uuid]")) {
+      card.addEventListener("contextmenu", async (ev) => {
+        if (ev.target.closest("input, textarea, select")) return;
+        ev.preventDefault();
+        const doc = await fromUuid(card.dataset.resUuid).catch(() => null);
+        doc?.sheet?.render(true);
+      });
+    }
     for (const card of pane.querySelectorAll(".hq-card[data-recruit-id], .hq-tcard[data-recruit-id]")) {
       const kind = card.classList.contains("hq-card") ? "facility" : "member"; // facility (building) vs roster (NPC)
       card.addEventListener("contextmenu", (ev) => {
@@ -2247,6 +2519,16 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         ev.preventDefault();
         this.#openRecruitContext(card.dataset.recruitId, ev, kind);
       });
+      // A facility card can be dragged onto a Follower Bond's "Favored Facility" slot (actor sheet).
+      if (kind === "facility") {
+        card.setAttribute("draggable", "true");
+        card.addEventListener("dragstart", (ev) => {
+          const name = card.querySelector(".hq-fnm")?.textContent?.trim() || "";
+          const icon = (card.querySelector(".hq-ric i")?.className || "").match(/fa-[\w-]+/)?.[0] || "fa-chess-rook";
+          ev.dataTransfer.setData("text/plain", JSON.stringify({ paFacility: { id: card.dataset.recruitId, name, icon } }));
+          ev.dataTransfer.effectAllowed = "copy";
+        });
+      }
     }
   }
 
@@ -2698,6 +2980,12 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
   static #onOpenStructures(event, target) {
     const id = target.closest("[data-recruit-id]")?.dataset.recruitId ?? null;
     StructuresWindow.open(id);
+  }
+
+  /** Open the character Craft Workbench from the HQ (a party downtime bench, not a facility). Picks a
+   *  default crafter; the crafter can be switched inside the window. */
+  static #onOpenCraft() {
+    CraftApp.openForParty();
   }
 
   /** Click a building card → open its most useful window: a workshop's crafting window, a vendor's Shop,

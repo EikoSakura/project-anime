@@ -7,6 +7,22 @@
   </div>
   <p class="ec-hint">{{localize "PROJECTANIME.Settings.partySettings.factionsTabHint"}}</p>
 
+  <div class="ts-field ts-check">
+    <label class="ts-label">
+      <input type="checkbox" name="deathStrikes" {{checked deathStrikes}} />
+      {{localize "PROJECTANIME.Settings.hqDeathStrikes.name"}}
+    </label>
+  </div>
+  <p class="ec-hint">{{localize "PROJECTANIME.Settings.hqDeathStrikes.hint"}}</p>
+
+  <div class="ts-field ts-check">
+    <label class="ts-label">
+      <input type="checkbox" name="craftRequire" {{checked craftRequire}} />
+      {{localize "PROJECTANIME.Settings.craftRequireFacilities.name"}}
+    </label>
+  </div>
+  <p class="ec-hint">{{localize "PROJECTANIME.Settings.craftRequireFacilities.hint"}}</p>
+
   <footer class="ec-footer">
     <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.partySettings.save"}}</button>
   </footer>

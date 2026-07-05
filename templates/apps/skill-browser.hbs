@@ -1,0 +1,48 @@
+{{!-- Skill Browser — an MMO-style skill bag. Left: folders (bags). Right: a grid of skill slots.
+      Click a slot to give / take back a Skill; already-owned slots show a check. --}}
+<div class="sb-body">
+
+  <div class="sb-top">
+    <div class="sb-search-wrap">
+      <i class="fas fa-magnifying-glass"></i>
+      <input type="text" class="sb-search" value="{{query}}" placeholder="{{localize 'PROJECTANIME.SkillBrowser.search'}}" autocomplete="off" />
+    </div>
+    <button type="button" class="sb-icon-btn" data-action="refresh" title="{{localize 'PROJECTANIME.SkillBrowser.refresh'}}">
+      <i class="fas fa-rotate"></i>
+    </button>
+  </div>
+
+  <div class="sb-main">
+    <nav class="sb-bags">
+      {{#each bags as |b|}}
+      <button type="button" class="sb-bag{{#if b.active}} active{{/if}}" data-action="pickBag" data-bag="{{b.key}}">
+        <i class="fas fa-folder"></i>
+        <span class="sb-bag-text">
+          <span class="sb-bag-label">{{b.label}}</span>
+          {{#if b.source}}<span class="sb-bag-src">{{b.source}}</span>{{/if}}
+        </span>
+        <span class="sb-bag-count">{{b.count}}</span>
+      </button>
+      {{/each}}
+    </nav>
+
+    <div class="sb-grid-wrap">
+      <div class="sb-grid">
+        {{#each tiles as |t|}}
+        <button type="button" class="sb-slot{{#if t.added}} added{{/if}}" data-action="toggleSkill"
+                data-uuid="{{t.uuid}}" data-group="{{t.group}}" data-name="{{t.nameLc}}" data-tooltip="{{t.name}}">
+          <img src="{{t.img}}" alt="" draggable="false" />
+          <i class="sb-check fas fa-circle-check"></i>
+        </button>
+        {{/each}}
+      </div>
+      <p class="sb-empty" {{#unless empty}}hidden{{/unless}}>{{localize "PROJECTANIME.SkillBrowser.empty"}}</p>
+    </div>
+  </div>
+
+  <div class="sb-foot">
+    <span class="sb-foot-count"><i class="fas fa-bolt"></i> {{localize "PROJECTANIME.SkillBrowser.onMonster"}}: {{skillCount}}</span>
+    <button type="button" class="sb-done" data-action="done">{{localize "PROJECTANIME.SkillBrowser.done"}}</button>
+  </div>
+
+</div>

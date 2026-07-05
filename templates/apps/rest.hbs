@@ -8,16 +8,52 @@
     </button>
   </div>
 
+  {{#if canHQ}}
+  <button type="button" class="rest-hq{{#if atHQ}} active{{/if}}" data-action="toggleHQ">
+    <i class="fas fa-fort-awesome"></i>
+    <span>{{localize "PROJECTANIME.HQ.restHere"}}{{#if atHQ}} — <b>{{hqRankName}}</b>{{#if hqRankUp}} <span class="rest-hq-up">→ {{hqRankUp}}</span>{{/if}}{{/if}}</span>
+  </button>
+  {{/if}}
+
   <section class="rest-downtime">
-    <h3>{{localize "PROJECTANIME.Rest.downtime"}}<span class="rest-tier">{{tierLabel}}</span></h3>
-    <div class="dt-list">
-      {{#each activities as |a|}}
-      <button type="button" class="dt-item{{#if a.selected}} active{{/if}}" data-action="pickActivity" data-activity="{{a.key}}">
-        <span class="dt-name">{{a.label}}</span>
-        {{#if a.spLabel}}<span class="dt-sp">{{a.spLabel}}</span>{{/if}}
-      </button>
+    <h3>
+      {{localize "PROJECTANIME.Rest.downtime"}}<span class="rest-tier">{{tierLabel}}</span>
+      {{#if isTown}}
+      <span class="rest-days">
+        {{localize "PROJECTANIME.Rest.days"}}
+        <button type="button" class="rd-step" data-action="stepDays" data-delta="-1">−</button><b>{{days}}</b><button type="button" class="rd-step" data-action="stepDays" data-delta="1">＋</button>
+        <span class="rd-slots">{{#if single}}{{spent}}/{{/if}}{{slots}} {{localize "PROJECTANIME.Rest.slots"}}</span>
+      </span>
+      {{/if}}
+    </h3>
+    {{#if isTown}}
+    <div class="rest-actors">
+      {{#each actors as |a|}}
+      <div class="rest-actor">
+        {{#unless @root.single}}
+        <div class="ra-head">
+          <img src="{{a.img}}" alt="">
+          <span class="ra-name">{{a.name}}</span>
+          <span class="ra-slots">{{a.spent}}/{{a.slots}}</span>
+        </div>
+        {{/unless}}
+        <div class="dt-list">
+          {{#each a.activities as |act|}}
+          <div class="dt-item{{#if act.picked}} active{{/if}}">
+            <span class="dt-name">{{act.label}}</span>
+            {{#if act.note}}<span class="dt-sp">{{act.note}}</span>{{/if}}
+            <span class="dt-count">
+              <button type="button" data-action="decActivity" data-actor="{{a.id}}" data-key="{{act.key}}" {{#unless act.canSub}}disabled{{/unless}}>−</button>
+              <b>{{act.count}}</b>
+              <button type="button" data-action="incActivity" data-actor="{{a.id}}" data-key="{{act.key}}" {{#unless act.canAdd}}disabled{{/unless}}>＋</button>
+            </span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
       {{/each}}
     </div>
+    {{/if}}
   </section>
 
   <button type="button" class="rest-complete" data-action="completeRest">

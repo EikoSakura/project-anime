@@ -38,6 +38,24 @@
   </div>
   {{/each}}
 
+  {{#if specialty}}
+  <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Specialty.label"}}</span><span class="lv-ln"></span></div>
+  {{#if specialty.learned}}
+  <div class="lv-row lv-spec-learned">
+    <span class="lv-nm"><i class="fa-solid fa-medal"></i><span>{{specialty.currentLabel}}</span></span>
+    <span class="lv-hint lv-fill">{{specialty.currentBenefit}}</span>
+  </div>
+  {{else}}
+  {{#each specialty.options as |o|}}
+  <div class="lv-row lv-spec{{#if o.staged}} sel{{/if}}" {{#if o.canPick}}data-action="stageSpecialty" data-key="{{o.key}}"{{/if}}>
+    <span class="lv-nm"><i class="fa-solid {{#if o.staged}}fa-check{{else}}fa-medal{{/if}}"></i><span>{{o.label}}</span></span>
+    <span class="lv-hint lv-fill">{{o.benefit}}</span>
+    <span class="lv-cost">{{@root.specialty.cost}}</span>
+  </div>
+  {{/each}}
+  {{/if}}
+  {{/if}}
+
   {{#if hasSkills}}
   <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.skillEnhancement"}}</span><span class="lv-ln"></span></div>
   <div class="lv-gwrap">

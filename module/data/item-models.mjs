@@ -43,6 +43,75 @@ const physicalRangeField = (type = "melee", tiles = 1) =>
   });
 
 /* -------------------------------------------- */
+/*  Crafting fields (v0.03) — Traits/Temper/…    */
+/* -------------------------------------------- */
+
+/** Gear TRAITS crafted onto a weapon/shield/armor (rules doc "Traits"). Each entry is a Trait key
+ *  plus its crafted parameter: Attuned's `element`, Concealed's `disguise`, Warded's `status`. */
+const gearTraitsField = () => new fields.ArrayField(new fields.SchemaField({
+  key: new fields.StringField({ required: true, blank: false }),
+  element: new fields.StringField({ required: false, blank: true, initial: "" }),
+  disguise: new fields.StringField({ required: false, blank: true, initial: "" }),
+  status: new fields.StringField({ required: false, blank: true, initial: "" })
+}), { initial: [] });
+
+/** Temper level (rules doc "Temper") — each level is +1 DMG (weapon/shield) or +1 Protection
+ *  (armor). The cap (party Tier − 1) is enforced when crafting, not stored here. */
+const temperField = () => new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+
+/** Sockets crafted into the item (via the Socket Trait). Each holds one Module-defined content — a
+ *  stored Item snapshot — or is empty (`content: null`). Core defines only the fitting. */
+const socketsField = () => new fields.ArrayField(new fields.SchemaField({
+  content: new fields.ObjectField({ required: false, nullable: true, initial: null })
+}), { initial: [] });
+
+/** A Flaw the Storyteller wrote onto a found/story item (rules doc "Flaws") — always shown to the
+ *  holder. Free text; removed by a Craft Activity + the ST's bill, or a Project Stage. */
+const flawField = () => new fields.StringField({ required: false, blank: true, initial: "" });
+
+/** Apply crafted Traits + Temper to an item's DERIVED stats (rules doc "Traits"/"Temper"). Base
+ *  stored values are never mutated — this re-derives every prepare, so removing a Trait or lowering
+ *  Temper restores the printed stats. `kind` is "weapon" | "shield" | "armor". Traded stats floor at
+ *  printed minimums: DMG (`damage.mod`) and Bulk (`size`) stop at 0. Traits never spend DMG. */
+function applyCraftMods(model, kind) {
+  const traits = Array.isArray(model.gearTraits) ? model.gearTraits : [];
+  const has = (k) => traits.some((t) => t?.key === k);
+  const temper = Math.max(0, Number(model.temper) || 0);
+
+  // Collapsible (any) — while stowed (unequipped), Bulk is 1 lower (min 0).
+  if (has("collapsible") && !model.equipped && "size" in model) {
+    model.size = Math.max(0, (Number(model.size) || 0) - 1);
+  }
+
+  if (kind === "weapon") {
+    if (temper > 0 && model.damage) model.damage.mod = (Number(model.damage.mod) || 0) + temper;
+    // Attuned — the weapon deals a chosen Damage Type.
+    const attuned = traits.find((t) => t?.key === "attuned" && t.element);
+    if (attuned && model.damage) model.damage.type = attuned.element;
+    // Extended — trade 1 Hit for +1 maximum Range.
+    if (has("extended")) {
+      if (model.range) model.range.tiles = (Number(model.range.tiles) || 0) + 1;
+      if (model.accuracy) model.accuracy.mod = (Number(model.accuracy.mod) || 0) - 1;
+    }
+    // Honed — trade +1 Hit for +1 DMG.
+    if (has("honed") && model.damage) {
+      model.damage.mod = Math.max(0, (Number(model.damage.mod) || 0) + 1);
+      if (model.accuracy) model.accuracy.mod = (Number(model.accuracy.mod) || 0) - 1;
+    }
+    // Lightened — trade 1 Hit for 1 less Bulk.
+    if (has("lightened")) {
+      model.size = Math.max(0, (Number(model.size) || 0) - 1);
+      if (model.accuracy) model.accuracy.mod = (Number(model.accuracy.mod) || 0) - 1;
+    }
+  } else if (kind === "shield") {
+    // Shield Temper raises the bash DMG (a shield is "weapon or shield: +1 DMG").
+    if (temper > 0 && model.damage) model.damage.mod = (Number(model.damage.mod) || 0) + temper;
+  }
+  // Armor Temper + Protection-trading Traits are folded into the DEF split inside the Armor model
+  // (which owns the defSplit/resSplit clamp); see ProjectAnimeArmor.prepareDerivedData.
+}
+
+/* -------------------------------------------- */
 /*  Shared Item base                            */
 /* -------------------------------------------- */
 
@@ -215,6 +284,14 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // Lower Energy Cost reduces the Energy spent (floored at half the base cost).
     schema.energyReduction = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
+    // 1/Conflict limiter (v0.03 Enemies): explicit uses per encounter. 0 = unlimited (a normal Skill).
+    // A Skill that inflicts Stunned / Sealed (Exhausted) / Bound is 1/Conflict regardless of this
+    // (derived `perConflict` below). Tracked per-combat on the actor's flags; reset at combat start/end.
+    schema.usesPerConflict = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+    // Opt-out: never limit this Skill to once per encounter, even if it inflicts a heavy status or set a
+    // usesPerConflict. The preset Twists set this so they can be spammed freely.
+    schema.noConflictLimit = new fields.BooleanField({ initial: false });
+
     // Optional player-authored rules text that REPLACES the auto-generated rules write-up
     // (helpers/skill-description.mjs `skillRulesHTML`). Blank = show the live auto rules. The typed
     // `description` (base model) stays separate FLAVOR text shown alongside the rules.
@@ -360,6 +437,15 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // The Modifier weight shown on sheets (Heavy = 2, Range overrides count 1). v0.03 has no
     // Modifier cap — weight only drives the SP cost.
     this.modifiersUsed = modifiersBudget(this.modifiers, this) + rangeModifierCost(this);
+
+    // 1/Conflict (v0.03 Enemies): a Skill inflicting Stunned / Sealed (Exhausted) / Bound is limited to
+    // once per encounter regardless of EP cost; an explicit usesPerConflict also limits it. `usesLimit`
+    // is the per-encounter cap (0 = unlimited). The spend gate + reset live in dice.mjs / project-anime.mjs.
+    const inflictsHeavy = (this.modifiers ?? []).includes("inflict")
+      && PROJECTANIME.heavyInflictStatuses.includes(this.inflictStatus);
+    const limited = !this.noConflictLimit && ((this.usesPerConflict > 0) || inflictsHeavy);
+    this.perConflict = limited;
+    this.usesLimit = limited ? (this.usesPerConflict > 0 ? this.usesPerConflict : 1) : 0;
   }
 }
 
@@ -387,12 +473,19 @@ export class ProjectAnimeWeapon extends ProjectAnimeItemBase {
     // both hands (grip is coerced below, which the equip-exclusivity and dual-wield checks read).
     schema.twoHandedOnly = new fields.BooleanField({ initial: false });
     schema.container = containerField();
+    // Crafting (v0.03): Traits, Temper level, Sockets, and an ST-authored Flaw.
+    schema.gearTraits = gearTraitsField();
+    schema.temper = temperField();
+    schema.sockets = socketsField();
+    schema.flaw = flawField();
     return schema;
   }
 
-  /** A Two-Handed-Only weapon is always gripped in both hands, whatever was stored. */
+  /** A Two-Handed-Only weapon is always gripped in both hands, whatever was stored. Crafted Traits +
+   *  Temper then adjust the printed stats (non-destructively). */
   prepareDerivedData() {
     if (this.twoHandedOnly) this.grip = "two";
+    applyCraftMods(this, "weapon");
   }
 
   /** Legacy `hand:"two"` cached two-handedness; `grip` is now the single source. */
@@ -420,16 +513,35 @@ export class ProjectAnimeArmor extends ProjectAnimeItemBase {
     schema.cost = costField();
     schema.equipped = equippedField();
     schema.container = containerField();
+    // Crafting (v0.03): Traits, Temper level, Sockets, and an ST-authored Flaw.
+    schema.gearTraits = gearTraitsField();
+    schema.temper = temperField();
+    schema.sockets = socketsField();
+    schema.flaw = flawField();
     return schema;
   }
 
   prepareDerivedData() {
+    // Clamp the stored DEF/RES split to the printed Protection first.
     const total = this.defSplit + this.resSplit;
     if (total > this.protection) {
       const scale = this.protection / (total || 1);
       this.defSplit = Math.floor(this.defSplit * scale);
       this.resSplit = this.protection - this.defSplit;
     }
+    // Temper (+1 Protection each) and the Protection-trading Traits (Reinforced +1 / Fitted −1)
+    // adjust the PHYSICAL split so DEF/RES actually change; the actor reads defSplit/resSplit, not
+    // Protection. Fitted/Reinforced also move Evasion; Fitted only regains up to the printed penalty
+    // (evasionMod → max 0). Protection floors at 0.
+    const traits = Array.isArray(this.gearTraits) ? this.gearTraits : [];
+    const has = (k) => traits.some((t) => t?.key === k);
+    let dDef = Math.max(0, Number(this.temper) || 0);
+    if (has("reinforced")) { dDef += 1; this.evasionMod = (Number(this.evasionMod) || 0) - 1; }
+    if (has("fitted")) { dDef -= 1; this.evasionMod = Math.min(0, (Number(this.evasionMod) || 0) + 1); }
+    this.defSplit = Math.max(0, this.defSplit + dDef);
+    this.protection = this.defSplit + this.resSplit;
+    // Collapsible's stowed-Bulk break (shared with weapons/shields).
+    applyCraftMods(this, "armor");
   }
 
   static migrateData(source) {
@@ -473,7 +585,17 @@ export class ProjectAnimeShield extends ProjectAnimeItemBase {
     // PROJECTANIME.shieldUses. Drives Dual Wielding detection + the bash Damage die (dice.mjs).
     schema.use = new fields.StringField({ required: true, blank: false, initial: "dual", choices: PROJECTANIME.shieldUses });
     schema.container = containerField();
+    // Crafting (v0.03): Traits, Temper level, Sockets, and an ST-authored Flaw.
+    schema.gearTraits = gearTraitsField();
+    schema.temper = temperField();
+    schema.sockets = socketsField();
+    schema.flaw = flawField();
     return schema;
+  }
+
+  /** Crafted Traits + Temper adjust the printed stats (Temper raises the bash DMG). */
+  prepareDerivedData() {
+    applyCraftMods(this, "shield");
   }
 
   /** Shields are never two-handed; coerce any legacy `hand:"two"` to the off-hand. */
@@ -562,5 +684,41 @@ export class ProjectAnimeGear extends ProjectAnimeItemBase {
     schema.quantity = new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 });
     schema.container = containerField();
     return schema;
+  }
+}
+
+/* -------------------------------------------- */
+/*  Material (v0.03 — graded crafting material) */
+/* -------------------------------------------- */
+
+/**
+ * A carried crafting Material (rules doc "Crafting"). Every material has a grade (Common/Prime), a
+ * Tier (I–IV), and a type (Essence/Hide/Ore/Reagent); its Item name is the free flavor name,
+ * renamed like gear. Materials are carried by characters and the party stash, gathered from defeated
+ * foes, bought from shops (Common only), and spent by the Craft Activity. They bundle at 3 units per
+ * 1 Bulk (a Prime is 2 units), computed here as a derived `bulk` the actor's carry loop reads.
+ */
+export class ProjectAnimeMaterial extends ProjectAnimeItemBase {
+  static defineSchema() {
+    const schema = super.defineSchema();
+    schema.grade = new fields.StringField({ required: true, blank: false, initial: "common", choices: PROJECTANIME.materialGrades });
+    schema.tier = new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 4 });
+    schema.category = new fields.StringField({ required: true, blank: false, initial: "ore", choices: PROJECTANIME.materialTypes });
+    schema.quantity = new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 });
+    schema.container = containerField();
+    // A nominal list price so economy/sell code that reads system.cost doesn't choke (the real price
+    // is the shop's 50G × Tier; Prime is never shop-priced).
+    schema.cost = costField();
+    return schema;
+  }
+
+  prepareDerivedData() {
+    const weight = this.grade === "prime" ? 2 : 1;
+    const units = (Number(this.quantity) || 0) * weight;
+    const bundle = PROJECTANIME.materialBundleSize || 3;
+    // Bulk: units bundled at `bundle` per 1 (Prime counts as 2 units toward its bundle).
+    this.bulk = Math.ceil(units / bundle);
+    // Commons-equivalent value for paying Commons costs (a Prime = 2 Commons).
+    this.commonsValue = units;
   }
 }

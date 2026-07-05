@@ -1,12 +1,12 @@
 /**
- * Project: Anime — Party Sheet Settings.
+ * Project: Anime — Headquarters Settings.
  *
- * One grouped Settings menu for campaign-display options. Currently a single toggle: whether the
- * Factions + Home panes appear in the CODEX — the world's factions + standing meters (fed by
- * CHRONICLE reputation rewards) and the HQ built from recruited members.
- * World setting, config:false, edited through this dialog. Mirrors apps/token-config.mjs and reuses
- * the shared .ec-* config chrome.
+ * One grouped Settings menu for the HQ / campaign rules: the Codex Factions + Home panes toggle,
+ * the Lethal Dispatch variant, and the Workshop facility-requirements knob — three world rules in
+ * one GM dialog instead of loose checkboxes. All config:false, edited through this dialog.
+ * Mirrors apps/token-config.mjs and reuses the shared .ec-* config chrome.
  */
+import { DEATH_STRIKES_SETTING, CRAFT_REQUIRE_SETTING } from "../helpers/factions.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -31,12 +31,16 @@ export class PartySettingsConfig extends HandlebarsApplicationMixin(ApplicationV
   /** @override */
   async _prepareContext() {
     return {
-      factionsTab: game.settings.get("project-anime", PARTY_FACTIONS_SETTING)
+      factionsTab: game.settings.get("project-anime", PARTY_FACTIONS_SETTING),
+      deathStrikes: game.settings.get("project-anime", DEATH_STRIKES_SETTING),
+      craftRequire: game.settings.get("project-anime", CRAFT_REQUIRE_SETTING)
     };
   }
 
   static async #onSubmit(event, form, formData) {
     await game.settings.set("project-anime", PARTY_FACTIONS_SETTING, !!formData.object.factionsTab);
+    await game.settings.set("project-anime", DEATH_STRIKES_SETTING, !!formData.object.deathStrikes);
+    await game.settings.set("project-anime", CRAFT_REQUIRE_SETTING, !!formData.object.craftRequire);
     ui.notifications.info(game.i18n.localize("PROJECTANIME.Settings.partySettings.saved"));
   }
 }
