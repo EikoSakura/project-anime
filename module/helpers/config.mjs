@@ -283,8 +283,10 @@ PROJECTANIME.standardDurationTurns = 2;
 
 /** Effects whose printed text carries a Duration — v0.03: "An Effect with a Duration cannot be
  *  Passive." Choosing one bounces the Passive Action Type in the Builder (stored Passives are
- *  grandfathered until re-edited). Empower = bolster, Weaken = hinder. */
-PROJECTANIME.durationEffects = ["bolster", "disguise", "gate", "hinder", "illusion", "sense", "telepathy", "transform", "vanish"];
+ *  grandfathered until re-edited). Empower = bolster, Weaken = hinder. Sense is deliberately
+ *  EXEMPT (homebrew): a sense reads as an always-on passive, so it MAY be Passive — an active
+ *  Sense still carries its normal Duration; only the passive-bar is lifted. */
+PROJECTANIME.durationEffects = ["bolster", "disguise", "gate", "hinder", "illusion", "telepathy", "transform", "vanish"];
 
 /** True when this Skill's Effect (or its Secondary Effect) is a printed-Duration Effect and so
  *  may not be Passive (v0.03). Pass the Skill data or the Builder draft. */
@@ -368,6 +370,7 @@ PROJECTANIME.poolEffects = ["strike", "mend"];
  *  alphabetized list — Targeting lives on the Skill's Target field (free) and Range overrides on
  *  its Range field (rangeModifierCost). "burst" is a system-side area shape kept from v0.02. */
 PROJECTANIME.skillModifiers = {
+  none: "PROJECTANIME.Skill.modifier.none",
   absorb: "PROJECTANIME.Skill.modifier.absorb",
   affinityDamage: "PROJECTANIME.Skill.modifier.affinityDamage",
   affinityStatus: "PROJECTANIME.Skill.modifier.affinityStatus",
@@ -456,11 +459,18 @@ export function modifierTakes(key, sys) {
   return 1;
 }
 
+/** Modifiers that carry NO SP/EP weight — the "None" marker (an explicit "this Skill relies on its
+ *  Effect, no Modifier"). Kept out of the SP budget and off the buy/target menus that price or scope
+ *  real Modifiers. (Targeting / React / Passive are free too, but live on other Skill fields.) */
+PROJECTANIME.freeModifiers = ["none"];
+
 /** The Modifier budget a set of Modifiers consumes (Heavy = 2, a multi-take Modifier once per
- *  take), honoring the Custom Heavy flag. `sys` is the Skill data / draft the modifiers belong
- *  to (for the per-skill Custom weight and the Affinity take counts). */
+ *  take), honoring the Custom Heavy flag; free Modifiers (the "None" marker) weigh nothing. `sys`
+ *  is the Skill data / draft the modifiers belong to (for the per-skill Custom weight and the
+ *  Affinity take counts). */
 export function modifiersBudget(mods, sys) {
-  return (mods ?? []).reduce((n, m) => n + (isHeavyModifier(m, sys) ? 2 : 1) * modifierTakes(m, sys), 0);
+  const free = PROJECTANIME.freeModifiers ?? [];
+  return (mods ?? []).reduce((n, m) => free.includes(m) ? n : n + (isHeavyModifier(m, sys) ? 2 : 1) * modifierTakes(m, sys), 0);
 }
 
 /** Area-of-effect modifiers and how each shapes targeting (see helpers/templates.mjs). These shape an

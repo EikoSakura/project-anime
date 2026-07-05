@@ -363,6 +363,8 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const mods = [...(sys.modifiers ?? []), ...stagedKeys];
     const noMods = (cfg.noModifierEffects ?? []).includes(sys.effect);
     return Object.entries(cfg.skillModifiers)
+      // The free "None" marker is never a buyable advancement Modifier.
+      .filter(([key]) => !(cfg.freeModifiers ?? []).includes(key))
       .filter(([key]) => !mods.includes(key) || (cfg.multiTakeModifiers ?? []).includes(key))
       .map(([key, label]) => {
         const heavy = isHeavyModifier(key, sys);

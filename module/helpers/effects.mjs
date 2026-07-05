@@ -1460,8 +1460,11 @@ export function ruleChoices() {
     levels: sortChoices(map(PROJECTANIME.affinityLevels), ["none"]),
     rollSelectors: sortChoices(map(ROLL_SELECTORS)),
     ncCheckModes: map(NCCHECK_MODES),         // Die Steps / Flat Bonus — NOT alphabetized (Steps first)
-    // Skill-adjustment scopes: "Any Skill" pinned first, then every Skill Modifier (sorted).
-    modScopes: { ...map(SKILLMOD_SCOPES), ...sortChoices(map(PROJECTANIME.skillModifiers)) },
+    // Skill-adjustment scopes: "Any Skill" pinned first, then every real Skill Modifier (sorted);
+    // the free "None" marker isn't a targetable scope.
+    modScopes: { ...map(SKILLMOD_SCOPES), ...sortChoices(map(Object.fromEntries(
+      Object.entries(PROJECTANIME.skillModifiers).filter(([k]) => !(PROJECTANIME.freeModifiers ?? []).includes(k))
+    ))) },
     // Weapon-adjustment scopes: Any weapon / Unarmed / By type (canonical order, not alphabetized).
     weaponModScopes: map(WEAPONMOD_SCOPES),
     conditionScopes: sortChoices(map(CONDITION_SCOPES)),

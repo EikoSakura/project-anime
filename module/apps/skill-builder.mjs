@@ -799,6 +799,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // compatibility rules block. Animate / Companion still take none.
     const noMods = (cfg.noModifierEffects ?? []).includes(sys.effect);
     ctx.addableModifiers = Object.entries(cfg.skillModifiers)
+      // The free "None" marker is never a buyable Expansion Modifier.
+      .filter(([key]) => !(cfg.freeModifiers ?? []).includes(key))
       // A multi-take Modifier (Affinity Damage/Status) stays listed even when taken — Expansion
       // can buy another take (the Element/Status is picked on the next wizard rebuild).
       .filter(([key]) => !(sys.modifiers ?? []).includes(key) || (cfg.multiTakeModifiers ?? []).includes(key))
@@ -986,6 +988,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (d.effect === "passive") d.modifiers = (d.modifiers ?? []).filter((m) => m !== "secondaryEffect");
     // Animate / Companion allow NO Modifiers (rules v0.01) — switching to one sheds them all.
     if ((CONFIG.PROJECTANIME.noModifierEffects ?? []).includes(d.effect)) d.modifiers = [];
+    // "None" stands alone — if a real Modifier is also present (edited/stored data), the real pick
+    // wins and the "None" marker drops (it only ever means "no Modifier").
+    if ((d.modifiers ?? []).includes("none") && d.modifiers.length > 1) d.modifiers = d.modifiers.filter((m) => m !== "none");
   }
 
   /* -------------------------------------------- */
@@ -1101,6 +1106,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (key === "affinityDamage") d.affinityDamages = [];
       if (key === "affinityStatus") d.affinityStatusIds = [];
     } else {
+      // "None" is the explicit no-Modifier choice: picking it clears every real Modifier (and its
+      // per-Modifier state) and rides alone — it never adds SP/EP. It's barred by nothing.
+      if (key === "none") {
+        mods.length = 0;
+        d.customModifierHeavy = false;
+        d.reequipHeavy = false;
+        d.affinityDamages = [];
+        d.affinityStatusIds = [];
+        mods.push("none");
+        this.render();
+        return;
+      }
       // An always-on Skill can't take Secondary Effect (rules v0.01) or a Duration Modifier, and a
       // "None" Effect can't take Secondary Effect on any Action Type; an Aura field can't be
       // Channeled (its lifetime is its marker's, not an EP-fed channel).
@@ -1120,6 +1137,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         const oi = mods.indexOf(key === "channeled" ? "scene" : "channeled");
         if (oi >= 0) mods.splice(oi, 1);
       }
+      // A successful real pick releases a standing "None" marker (they're mutually exclusive).
+      const noneAt = mods.indexOf("none");
+      if (noneAt >= 0) mods.splice(noneAt, 1);
       // v0.03: no Modifier cap — each pick just raises the SP cost (shown live).
       mods.push(key);
       // Ticking a multi-take Modifier opens with one (blank) take row.
@@ -1215,6 +1235,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (d.actionType === "passive") d.modifiers = d.modifiers.filter((m) => !["secondaryEffect", "channeled", "scene"].includes(m));
     if (d.effect === "passive") d.modifiers = d.modifiers.filter((m) => m !== "secondaryEffect");
     if ((cfg.noModifierEffects ?? []).includes(d.effect)) d.modifiers = [];
+    // "None" stands alone — a real Modifier alongside it wins (mirrors #sync).
+    if (d.modifiers.includes("none") && d.modifiers.length > 1) d.modifiers = d.modifiers.filter((m) => m !== "none");
     // A React Skill must carry a Trigger (re-check in case steps were jumped).
     if (d.actionType === "react" && !d.trigger) {
       this.#step = STEPS.indexOf("concept");

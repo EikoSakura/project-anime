@@ -1524,6 +1524,7 @@
         "scene": "Scene"
       },
       "modifier": {
+        "none": "None",
         "absorb": "Absorb",
         "affinityDamage": "Affinity (Damage)",
         "affinityStatus": "Affinity (Status)",
@@ -1606,6 +1607,7 @@
         "custom": "Custom effects are created between Player and Storyteller. They can have anything that is not listed here."
       },
       "modifierDesc": {
+        "none": "This Skill doesn't have a Modifier and its abilities rely on the Effect. Adds no SP or EP cost.",
         "absorb": "Heavy. Choose a Damage Type. Target takes no damage from that type and regains HP equal to the damage instead.",
         "affinityDamage": "Choose a Damage Type. Target gains Resist to it, taking 2 less damage from that type. Can be taken more than once.",
         "affinityStatus": "Choose a Status Effect. Target gains Resist to it, halving the duration. Can be taken more than once.",
