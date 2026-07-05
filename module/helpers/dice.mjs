@@ -1426,7 +1426,7 @@ export async function rollSkill(actor, item) {
       ? resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge })
       : resolveAreaEffect(actor, item, areaTokens, { charged: releasingCharge });
   }
-  return resolveSingleSkill(actor, item, { charged: releasingCharge });
+  return resolveSingleSkill(actor, item, { charged: releasingCharge, chargeLockedHit });
 }
 
 /**
@@ -1566,7 +1566,7 @@ async function acquireAreaTargets(actor, item, kind) {
 }
 
 /** Single-target Skill resolution (the original behavior; Energy is already spent). */
-async function resolveSingleSkill(actor, item, { charged = false } = {}) {
+async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHit = false } = {}) {
   const sys = item.system;
   const effects = skillEffectKeys(sys);
   const hasStrike = effects.includes("strike");

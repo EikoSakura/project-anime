@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10 - 2026-07-05
+
+- Fixed a regression (since 0.3.2) where single-target attack Skills aimed at a foe spent Energy but never rolled the attack - they roll correctly again.
+
 ## 0.3.9 - 2026-07-05
 
 - Sense Skills no longer pay extra SP for range - a Sense's tile reach is now inherent to the Effect (ranged senses drop 1 SP).
