@@ -13,6 +13,7 @@
  * A party-wide rest also ticks every active quest Posting's Deadline down one rest.
  */
 import { collectLuckSteps, stepUpDie } from "../helpers/effects.mjs";
+import { rankFromEarned, rankLetter } from "../helpers/config.mjs";
 import { partyTier, tickQuestDeadlines } from "../helpers/chronicle.mjs";
 import { hasArtisansKit, depositMaterial } from "../helpers/crafting.mjs";
 import { hqRestContext, hqRankUpAtRest, tickMissionBoard } from "../helpers/hq.mjs";
@@ -229,6 +230,17 @@ export class RestApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const lines = [];
     let hpGain, enGain;
 
+    // Rank (v0.03 "Rank and Tier"): lifetime SP earned crossing a threshold raises the Rank at the
+    // character's next rest — which is this one. Checked BEFORE this rest's Train grant lands, so
+    // SP earned during the rest waits for the following rest, as printed.
+    if (actor.type === "character") {
+      const rankDue = rankFromEarned(sys.skillPoints?.earned ?? 0);
+      if (rankDue > (Number(sys.rank) || 0)) {
+        update["system.rank"] = rankDue;
+        lines.push(`<i class="fas fa-ranking-star"></i> ${game.i18n.format("PROJECTANIME.Rank.rose", { rank: rankLetter(rankDue) })}`);
+      }
+    }
+
     // A Lucky Pendant (or any "luck" effect) Steps Up the Charm die for Luck Dice rolls. Resting at a
     // staffed Shrine steps it up once more (rank C HQ = Town, so all three dice are rerolled here).
     const luckSteps = collectLuckSteps(actor) + (hq?.luckStep ?? 0);
@@ -270,6 +282,9 @@ export class RestApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const mult = n > 1 ? ` ×${n}` : "";
       if (act.key === "train") {
         update["system.skillPoints.value"] = (sys.skillPoints?.value ?? 0) + TRAIN_SP;
+        // Train SP is EARNED SP — it feeds the lifetime total behind Rank. It lands AFTER this
+        // rest's rank check, so a threshold it crosses raises the Rank at the NEXT rest (doc).
+        update["system.skillPoints.earned"] = (sys.skillPoints?.earned ?? 0) + TRAIN_SP;
         lines.push(`${label} (${game.i18n.format("PROJECTANIME.Rest.activitySp", { sp: TRAIN_SP })})`);
       } else if (act.key === "work") {
         // Rank B Open Doors (+50) and a staffed Garden (+50 / +100 upgraded) add to each Work at the base.

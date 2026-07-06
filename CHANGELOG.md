@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.3.13 - 2026-07-05
+
+- Rank & Tier: characters earn Rank F-S from lifetime SP (rises at a rest), own-Tier ceilings cap DEF/RES/EVA, Party Tier is the majority member Tier, and Temper caps by the owner's Tier,Revised-doc rules pass: Bow/Firearm are dual-type with a per-shot Physical/Magical choice, Skills type by their Power Attribute (Charm picks at creation), the 1/Conflict auto-limit is retired, a Go-Again Combo tunes a Luck Die +/-1, the Combo Modifier is renamed Link, and Conjure/Gate/Vanish/Weaken are Scene-length,Duration engine rebuilt: timed effects count down when their creator's side phase begins, Scene is a Heavy Modifier (2 SP), Raise Duration caps at +3, and durations display in rounds,Energy pools raised to 6 + Spirit x2 (existing actors gain +6 EP automatically); no Attribute above d10 at creation,Monster Creator: the Four Rails Evasion rail now reads EVA <= 7 + party Tier
+
+## 0.3.13 - 2026-07-05
+
+Rules pass for the **revised v0.03 playtest doc** — Rank & Tier arrive, and eight smaller rules move to the new printing.
+
+### Rank & Tier (headline)
+- Every Character now has a **Rank, F through S**, earned by **lifetime SP** gained in play (thresholds 0/15/30/45/60/75/90; creation SP never counts, spending never lowers it). The Rank rises **at your next rest** — the rest card announces it.
+- Your Rank sets your own **Tier** (F/E → I · D/C → II · B/A → III · S → IV), shown beside the SP readouts on the Skills drawer and in the Advancement window. Lifetime SP is editable on the Skills drawer if the migration's estimate needs a nudge.
+- **Party Tier** is now the Tier shared by most of the party's characters (ties read the higher) instead of the Seasons count; the GM pin on the party sheet still wins.
+- **Tier Ceilings**: a Character's DEF and RES now cap at **9 / 11 / 13 / 15** by their own Tier, and EVA caps at **12** — counting everything (armor, shields, Skills, Bonds, Statuses, Temper, Traits). ATK has no ceiling.
+- **Temper** now caps at the **owner's** Tier − 1 (was the party's).
+- Migration `rankV003` seeds every Character's lifetime SP (unspent + ledger spends − creation budget) and grants the matching Rank immediately.
+
+### Combat & Skills
+- **Weapon typing widened**: a weapon is physical if its Accuracy uses Might **or Agility**, magical if it uses Mind **or Spirit** — so the **Bow and Firearm are now both**, prompting Physical/Magical on each shot like a Might+Mind weapon.
+- **Skill Type**: a damaging Skill is now typed by its **Power Attribute** — Might/Agility hit DEF, Mind/Spirit hit RES, and a **Charm-powered** Skill picks its type in the Builder.
+- **1/Conflict is retired**: Skills inflicting Stunned/Sealed/Bound are no longer auto-limited to once per Conflict (they still pay the Heavy Inflict weight). An explicit per-Conflict uses value on a Skill still works as a GM knob.
+- **Go Again Combo reward**: a Combo rolled during a Go-Again turn now lets you **nudge one held Luck Die ±1** (never past the Charm die's maximum, never below 1); with no held dice it restores a spent one, as before.
+- The **Combo Modifier is renamed "Link"** (same rule — activate another Skill alongside this one).
+- **Conjure, Gate, Vanish, and Weaken** no longer carry a 2-round Duration: Conjure's creation lasts until the **end of the Scene**, Gates persist until dismissed or the Scene ends, Vanish holds until you attack, and Weaken's Step Down runs for the Scene. All four can now also be built as Passives.
+- The Monster Creator's Four Rails **Evasion rail** now reads **EVA ≤ 7 + party Tier** (was a flat 12).
+
+## 0.3.12 - 2026-07-05
+
+Overhaul v0.03 rules pass — the **Duration engine** rebuilt to the ratified caster-keyed model, plus Skill-cost, character-creation, and display fixes.
+
+### Duration engine (headline)
+- Every timed effect — Status conditions **and** the buffs/debuffs a Skill applies — now counts down **when its creator's side phase begins** (Player / Enemy / Neutral), on any target, rather than at the affected creature's own turn. A **Duration of N lasts N full rounds** regardless of whose side the target is on. One engine runs both; the separate status clock is retired.
+- **Fire timing is unchanged** — only the countdown moved: **Regen** still heals at the **start** of the affected creature's turn, **Lingering** still deals its 1 damage at the **end** of theirs.
+- **Stunned** (lose your next turn) and **Prone** (until an Action is spent to stand) are event-based — they carry no counter.
+- **Channeled** explicitly replaces a Skill's Duration: it lasts while you pay 1 EP at the start of your turn, and never enters the countdown.
+- A successful **Overcome** wards against that Skill for **2 rounds**, counted on the overcoming creature's phase.
+- Outside a Conflict Scene, effects with a Duration don't tick — they last the Scene.
+
+### Skill building
+- **Scene** is now a **Heavy** Modifier — **2 SP** instead of 1 (its Energy cost follows at ×2).
+- The **Raise Duration** enhancement is capped at **+3 rounds** per Skill.
+
+### Character creation
+- No Attribute may start above **d10** at creation (the flat five Step-Up model is otherwise unchanged).
+
+### Display
+- Skill and effect Durations now read in **rounds** everywhere they're shown (the field label, the rules summary, the enhancement row), not "turns".
+
+## 0.3.11 - 2026-07-05
+
+- Energy pools raised: every Character and monster now has **6 + Spirit×2** EP (was Spirit×2), mirroring the HP baseline so low-Spirit builds can afford their own Skills. Existing actors gain +6 EP (max and current) automatically.
+
 ## 0.3.10 - 2026-07-05
 
 - Fixed a regression (since 0.3.2) where single-target attack Skills aimed at a foe spent Energy but never rolled the attack - they roll correctly again.

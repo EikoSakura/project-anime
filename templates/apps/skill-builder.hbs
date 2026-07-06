@@ -119,6 +119,13 @@
           <select name="damageAttr">{{selectOptions damageDieChoices selected=draft.damageAttr}}</select>
         </label>
         {{/if}}
+        {{#if showCharmType}}
+        {{!-- A ⟪Charm⟫ Power types neither way on its own — the creator picks (v0.03 Skill Type). --}}
+        <label class="sb-field">
+          <span class="sb-label">{{localize "PROJECTANIME.Skill.field.skillType"}}</span>
+          <select name="charmType">{{selectOptions charmTypeChoices selected=draft.charmType}}</select>
+        </label>
+        {{/if}}
         {{#if showDamageType}}
         <label class="sb-field">
           <span class="sb-label">{{localize "PROJECTANIME.Skill.field.damageType"}}</span>

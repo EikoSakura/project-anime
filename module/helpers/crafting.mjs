@@ -17,7 +17,7 @@
  * or move them to whoever does the work. NOTE: gear Traits here are UNRELATED to NPC Signature
  * Traits (helpers/trait-effect.mjs, system.traits, PROJECTANIME.Talent.*).
  */
-import { PROJECTANIME } from "./config.mjs";
+import { PROJECTANIME, tierFromRank } from "./config.mjs";
 import { partyTier } from "./chronicle.mjs";
 
 /* -------------------------------------------------------------------------- */
@@ -304,20 +304,23 @@ export async function removeTrait(actor, item, traitKey) {
 /*  Temper                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** The Temper cap: party Tier − 1 (0 at Tier I). */
-export function temperCap() {
-  return Math.max(0, partyTier() - 1);
+/** The Temper cap: the OWNER's Tier − 1 (doc v0.03 revised — "its owner's Tier minus 1"; 0 at
+ *  Tier I). A character owner reads their own Rank's Tier; anything else (the party stash, a
+ *  world item) falls back to the party Tier. */
+export function temperCap(owner = null) {
+  const tier = owner?.type === "character" ? tierFromRank(owner.system?.rank) : partyTier();
+  return Math.max(0, tier - 1);
 }
 /** The Temper bill for one level: 2 Primes of the matching type at ≥ party Tier. */
 export function temperCost(item) {
   return [{ type: matchingType(item.type), qty: 2, grade: "prime" }];
 }
 
-/** Temper an item one level (never past the cap). Returns { ok, level } or { error }. */
+/** Temper an item one level (never past the owner's cap). Returns { ok, level } or { error }. */
 export async function temperItem(actor, item) {
   if (!actor || !["weapon", "shield", "armor"].includes(item?.type)) return { error: "invalid" };
   const cur = Number(item.system.temper) || 0;
-  if (cur >= temperCap()) return { error: "cap" };
+  if (cur >= temperCap(item.actor ?? actor)) return { error: "cap" };
   const tier = partyTier();
   const cost = temperCost(item);
   if (!canAfford(actor, cost, tier)) return { error: "material" };

@@ -3,7 +3,7 @@
  *
  * A guided ApplicationV2 that builds a combat NPC ("monster") on the SAME rules as a
  * Player Character — the five Attributes start at d4 and you spend Step-Ups; HP =
- * ⟪Might⟫×2, Energy = ⟪Spirit⟫×2 — then scales it by an anime power **Tier** (Minion /
+ * 6 + ⟪Might⟫×2, Energy = 6 + ⟪Spirit⟫×2 — then scales it by an anime power **Tier** (Minion /
  * Standard / Elite / Solo; see PROJECTANIME.monsterTiers). The Tier sets the Step-Up
  * budget, multiplies HP / Energy, grants flat Evasion / Defense, and hands out Skill
  * Points to build the monster's powers with the in-game Skill Builder.
@@ -21,6 +21,7 @@ import { SkillBuilderApp } from "./skill-builder.mjs";
 import { SkillBrowserApp } from "./skill-browser.mjs";
 import { PROJECTANIME, enemyStrongAttrs, enemyVitals, enemyTierDie, bossBarCount, bossBarHp } from "../helpers/config.mjs";
 import { partyRailStats } from "../helpers/encounter.mjs";
+import { partyTier } from "../helpers/chronicle.mjs";
 import { elementLabel } from "../helpers/elements.mjs";
 import {
   GEAR_GROUPS, SLOT_ACCEPTS,
@@ -541,9 +542,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
 
   /**
    * The Four Rails audit vs the party (rules "Build Your Own"): ATK ≤ lowest party DEF + 6 · DEF ≤
-   * lowest party ATK − 2 · AS ≤ slowest party AS + 4 (a deliberate Skirmisher is exempt) · EVA ≤ 12.
-   * With no party sheets, run against a Tempered tier row (a same-Tier Grunt + 1 ATK/DEF at Tier III,
-   * +2 at IV). Returns one row per rail {key, ok, actual, limit, exempt}. This IS the Forecast for now.
+   * lowest party ATK − 2 · AS ≤ slowest party AS + 4 (a deliberate Skirmisher is exempt) · EVA ≤
+   * 7 + party Tier (doc v0.03 revised). With no party sheets, run against a Tempered tier row (a
+   * same-Tier Grunt + 1 ATK/DEF at Tier III, +2 at IV; the EVA rail reads the monster's own Tier).
+   * Returns one row per rail {key, ok, actual, limit, exempt}. This IS the Forecast for now.
    */
   #railsAudit() {
     const sys = this.actor.system;
@@ -551,6 +553,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     const skirmisher = this.actor.system.enemyRole === "skirmisher";
     const enemyAtk = this.#role()?.magic ? sys.matk.value : sys.atk.value;
     let ref = partyRailStats();
+    let evaTier = partyTier();
     if (!ref) {
       // Tempered tier row = a same-Tier Grunt (Might/Agility strong), + temper at Tier III/IV.
       const strong = enemyTierDie(tier, true);
@@ -560,12 +563,13 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         lowestAtk: strong + 3 + temper,               // Might + a basic weapon
         slowestAs: strong                             // Agility, no bulk
       };
+      evaTier = tier;
     }
     const rails = [
       { key: "damageIn",  actual: enemyAtk,        limit: ref.lowestDef + 6 },
       { key: "damageOut", actual: sys.defense.value, limit: ref.lowestAtk - 2 },
       { key: "speed",     actual: sys.as.value,    limit: ref.slowestAs + 4, exempt: skirmisher },
-      { key: "evasion",   actual: sys.evasion.value, limit: 12 }
+      { key: "evasion",   actual: sys.evasion.value, limit: 7 + evaTier }
     ];
     return rails.map((r) => ({
       key: r.key,

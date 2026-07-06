@@ -83,7 +83,11 @@ export class EffectsPanel extends HandlebarsApplicationMixin(ApplicationV2) {
    *  Skill-applied effects use Foundry's native round duration. */
   static #remaining(effect, actor) {
     const timers = actor.getFlag("project-anime", "statusTimers") ?? {};
-    for (const id of effect.statuses ?? []) if (id in timers) return Number(timers[id]) || 0;
+    for (const id of effect.statuses ?? []) {
+      if (!(id in timers)) continue;
+      const t = timers[id];                                  // v0.03 {n,side} or a legacy bare number
+      return (t && typeof t === "object" ? Number(t.n) : Number(t)) || 0;
+    }
     const rem = effect.duration?.remaining;
     return Number.isFinite(rem) && rem > 0 ? Math.ceil(rem) : null;
   }

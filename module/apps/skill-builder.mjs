@@ -147,6 +147,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       attrB: "spirit",
       attrC: "",
       damageAttr: "attrA",
+      // Skill Type when the Power Attribute is ⟪Charm⟫ (doc v0.03 revised): physical or magical.
+      charmType: "physical",
       // v0.03: Skills default to WEAPON range (tiles/scene are +1 SP overrides).
       range: { scope: "weapon", tiles: 1 },
       effect: "strike",
@@ -242,6 +244,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       attrB: s.attributes?.attrB ?? "spirit",
       attrC: s.attributes?.attrC ?? "",
       damageAttr: s.damageAttr ?? "attrA",
+      charmType: s.charmType ?? "physical",
       range: { scope: s.range?.scope ?? "weapon", tiles: s.range?.tiles ?? 0 },
       effect: s.effect ?? "strike",
       target: s.target ?? "any",
@@ -408,6 +411,13 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showControlElement = d.effect === "elementalControl";
     // The damage/heal die choice shows for Strike / Mend.
     ctx.showDamageDie = cfg.dieEffects.includes(d.effect);
+    // Skill Type (doc v0.03 revised): a damaging Skill types by its Power Attribute — only a
+    // ⟪Charm⟫ Power needs a creator's pick (physical vs DEF / magical vs RES).
+    ctx.showCharmType = ctx.isStrike && d[d.damageAttr] === "charm";
+    ctx.charmTypeChoices = {
+      physical: game.i18n.localize("PROJECTANIME.Roll.atkModePhysical"),
+      magical: game.i18n.localize("PROJECTANIME.Roll.atkModeMagical")
+    };
     // The HP/Energy pool field shows for Strike (which pool its damage hits).
     ctx.showDamagePool = cfg.poolEffects.includes(d.effect);
     ctx.poolLabel = d.effect === "mend" ? "PROJECTANIME.Skill.field.healPool" : "PROJECTANIME.Skill.field.damagePool";
@@ -444,8 +454,11 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.showDurationField = d.actionType !== "passive" && !ctx.isPassiveCarrier;
     ctx.showTargetDuration = ctx.showDurationField || auraOn;
     ctx.durationChoices = { instant: cfg.skillDurations.instant, standard: cfg.skillDurations.standard };
+    // Locked Duration displays: a Duration Modifier (Channeled/Scene) wins; a Scene-by-rule
+    // Effect (Conjure/Gate/Vanish/Weaken — doc v0.03 revised, no Modifier cost) locks to Scene too.
     ctx.durationLocked = d.modifiers.includes("channeled") ? game.i18n.localize(cfg.skillDurations.channeled)
-      : d.modifiers.includes("scene") ? game.i18n.localize(cfg.skillDurations.scene) : "";
+      : d.modifiers.includes("scene") ? game.i18n.localize(cfg.skillDurations.scene)
+      : (cfg.sceneEffects ?? []).includes(d.effect) ? game.i18n.localize(cfg.skillDurations.scene) : "";
     ctx.showDurationTurns = ctx.showDurationField && !ctx.durationLocked && d.duration !== "instant";
     // "Targets ⟪X⟫ or ⟪Y⟫ (chosen at creation)" (v0.03) — when the Effect defines an evasion
     // swap (Disguise/Illusion → Mind or Charm, Telepathy/Vanish → Mind or Spirit) the player
@@ -608,7 +621,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       : (ctx.targetLocked || d.actionType === "passive") ? "self"
         : (d.target in cfg.skillTargets ? d.target : "any");
     const effDuration = d.modifiers.includes("channeled") ? "channeled"
-      : d.modifiers.includes("scene") ? "scene"
+      : d.modifiers.includes("scene") || (cfg.sceneEffects ?? []).includes(d.effect) ? "scene"
       : d.duration === "instant" ? "instant" : "standard";
     const durationText = effDuration === "standard"
       ? `${game.i18n.localize(cfg.skillDurations.standard)} · ${d.effectDuration ?? cfg.standardDurationTurns} ${game.i18n.localize("PROJECTANIME.Skill.turns")}`
@@ -701,8 +714,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const minEnergy = sys.minEnergy ?? Math.ceil((sys.baseEnergy ?? 2) / 2);
     const rangeTiles = sys.range?.tiles ?? 0;
     const rangeTileScope = rangeHasTiles(sys.range?.scope ?? "weapon");
-    // Duration (+1 turn) only applies to a Skill with a turn-counted (Standard) Duration.
+    // Duration (+1 round) only applies to a Skill with a round-counted (Standard) Duration; the
+    // enhancement is capped at +3 per Skill (durationMod counts the buys).
     const durTurns = sys.effectDuration ?? cfg.standardDurationTurns;
+    const durBought = sys.durationMod ?? 0;
     const durApplies = sys.actionType !== "passive" && skillDuration(sys) === "standard";
     const canAfford = sp >= 1;
 
@@ -750,13 +765,14 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         isHeal: sys.effect === "mend",
         disabled: damage >= 3 || !canAfford
       },
-      // "Duration" (+1 turn) — v0.03's new enhancement.
+      // "Duration" (+1 round, cap +3 per Skill) — v0.03's enhancement.
       raiseDuration: {
         cost: 1,
         applies: durApplies,
         cur: durTurns,
         next: durTurns + 1,
-        disabled: !durApplies || !canAfford
+        atMax: durBought >= 3,
+        disabled: !durApplies || !canAfford || durBought >= 3
       },
       // "Efficiency" (−1 EP, min half base).
       lowerEnergy: {
@@ -909,6 +925,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
     if (data.damageAttr) d.damageAttr = data.damageAttr;
+    if (data.charmType) d.charmType = data.charmType === "magical" ? "magical" : "physical";
     if (data.damagePool) d.damagePool = data.damagePool;
     if ("damageType" in data) d.damageType = data.damageType ?? "";
     if ("controlElement" in data) d.controlElement = data.controlElement ?? "";
@@ -1269,6 +1286,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       effectAttrs,
       hinderStatuses,
       damageAttr: d.damageAttr,
+      charmType: d.charmType === "magical" ? "magical" : "physical",
       range: d.range,
       effect: d.effect,
       // Target (rules v0.01): an Aura — or a self-centered Burst (Self Range + Burst) — keeps a real
@@ -1517,12 +1535,18 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  /** "Duration" (v0.03 Enhancement): +1 turn on a Standard-duration Skill (1 SP). */
+  /** "Duration" (v0.03 Enhancement): +1 round on a Standard-duration Skill (1 SP), hard cap +3 per
+   *  Skill (durationMod counts the buys). */
   static async #onRaiseDuration() {
     const item = this.#advanceSkill();
     if (!item || item.system.actionType === "passive" || skillDuration(item.system) !== "standard") return;
+    const bought = item.system.durationMod ?? 0;
+    if (bought >= 3) return;   // +3 per-Skill ceiling
     const cur = item.system.effectDuration ?? CONFIG.PROJECTANIME.standardDurationTurns;
-    await this.#spend(1, () => item.update({ "system.effectDuration": cur + 1 }), this.#improveMeta(item, "duration"));
+    await this.#spend(1, () => item.update({
+      "system.effectDuration": cur + 1,
+      "system.durationMod": bought + 1
+    }), this.#improveMeta(item, "duration"));
   }
 
   static async #onLowerEnergy() {

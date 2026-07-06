@@ -1,6 +1,6 @@
 import { rollCheck, useConsumable, contextRemoveEffect } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, enemyStrongAttrs } from "../helpers/config.mjs";
+import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, enemyStrongAttrs, rankRow, tierFromRank } from "../helpers/config.mjs";
 import { getElements, isImageIcon } from "../helpers/elements.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, narrateRule, normalizeRule, applyEffectCopy } from "../helpers/effects.mjs";
@@ -651,6 +651,19 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const { spInfo, spLog } = skillPointLedger(this.actor);
     context.spInfo = spInfo;
     context.spLogCount = spLog?.length ?? 0;
+    // Rank F–S (Characters, v0.03 "Rank and Tier") for the SP strip: the letter + the character's
+    // own Tier, with lifetime-earned SP (editable — the migration only estimates it) and the next
+    // threshold. The stored rank itself rises at a rest.
+    if (this.actor.type === "character") {
+      const rank = Number(this.actor.system.rank) || 0;
+      const next = PROJECTANIME.ranks[rank + 1];
+      context.rankInfo = {
+        letter: rankRow(rank).key,
+        tier: tierNumeral(tierFromRank(rank)),
+        earned: this.actor.system.skillPoints?.earned ?? 0,
+        next: next ? next.sp : null
+      };
+    }
     // The refundable Skill Point Log dialog opens for Characters and Monster-role NPCs (which now
     // carry the same ledger); social NPCs stay excluded — they don't build a statblock.
     context.showSpLog = context.isCharacter || context.isMonster;

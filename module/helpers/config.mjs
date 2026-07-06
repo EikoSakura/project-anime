@@ -45,18 +45,33 @@ export function halfScore(dieValue) {
   return Math.floor((dieValue ?? 4) / 2);
 }
 
-/** True if a weapon's accuracy attributes include Might (physical weapon → ATK vs DEF). */
+/** Weapon typing by ACC Attributes (doc v0.03 revised): physical if the pair includes Might or
+ *  Agility, magical if it includes Mind or Spirit. A weapon that is BOTH (a Bow's Agility + Mind)
+ *  lets the attacker choose per strike — Physical ATK vs DEF, or Magical ATK vs RES. */
+PROJECTANIME.physicalAccAttrs = ["might", "agility"];
+PROJECTANIME.magicalAccAttrs = ["mind", "spirit"];
+
+/** True if a weapon's accuracy attributes include Might or Agility (physical → ATK vs DEF). */
 export function isPhysicalWeapon(weapon) {
   const a = weapon?.system?.accuracy?.attrA;
   const b = weapon?.system?.accuracy?.attrB;
-  return a === "might" || b === "might";
+  return PROJECTANIME.physicalAccAttrs.includes(a) || PROJECTANIME.physicalAccAttrs.includes(b);
 }
 
-/** True if a weapon's accuracy attributes include Mind (magical weapon → MATK vs RES). */
+/** True if a weapon's accuracy attributes include Mind or Spirit (magical → MATK vs RES). */
 export function isMagicalWeapon(weapon) {
   const a = weapon?.system?.accuracy?.attrA;
   const b = weapon?.system?.accuracy?.attrB;
-  return a === "mind" || b === "mind";
+  return PROJECTANIME.magicalAccAttrs.includes(a) || PROJECTANIME.magicalAccAttrs.includes(b);
+}
+
+/** A damaging Skill's type, set by its POWER Attribute (doc v0.03 revised "Skill Type"):
+ *  Might/Agility → physical (damage vs DEF), Mind/Spirit → magical (vs RES), Charm → the choice
+ *  stored on the Skill (`system.charmType`, picked at creation; defaults physical). */
+export function skillPowerTyping(powerAttr, charmChoice = "physical") {
+  if (powerAttr === "mind" || powerAttr === "spirit") return "magical";
+  if (powerAttr === "charm") return charmChoice === "magical" ? "magical" : "physical";
+  return "physical";
 }
 
 /* -------------------------------------------- */
@@ -274,13 +289,20 @@ PROJECTANIME.skillDurations = {
  *  effective Duration; the intrinsic Builder choices are only Instant / Standard. */
 PROJECTANIME.durationModifiers = ["channeled", "scene"];
 
+/** Effects that are Scene-length BY RULE (doc v0.03 revised): Conjure "vanishes at the end of
+ *  the Scene"; Gate, Vanish, and Weaken lost their printed Duration lines — they persist until
+ *  ended (dismissal, attack-reveal, the Scene closing), at no Modifier cost. */
+PROJECTANIME.sceneEffects = ["conjure", "gate", "vanish", "hinder"];
+
 /** A Skill's effective Duration, validated. A Duration Modifier wins over the stored field
- *  (defensive — the Builder keeps them in sync); legacy / blank → "scene" (the pre-v0.01
- *  behavior for a blank turn count) when the Skill has no turn count, else "standard". */
+ *  (defensive — the Builder keeps them in sync); a Scene-by-rule Effect (above) reads Scene
+ *  regardless of the stored field; legacy / blank → "scene" (the pre-v0.01 behavior for a blank
+ *  turn count) when the Skill has no turn count, else "standard". */
 export function skillDuration(sys) {
   const mods = sys?.modifiers ?? [];
   if (mods.includes("channeled")) return "channeled";
   if (mods.includes("scene")) return "scene";
+  if (PROJECTANIME.sceneEffects.includes(sys?.effect)) return "scene";
   const d = sys?.duration;
   if (d in PROJECTANIME.skillDurations) return d;
   return sys?.effectDuration != null ? "standard" : "scene";
@@ -291,10 +313,12 @@ PROJECTANIME.standardDurationTurns = 2;
 
 /** Effects whose printed text carries a Duration — v0.03: "An Effect with a Duration cannot be
  *  Passive." Choosing one bounces the Passive Action Type in the Builder (stored Passives are
- *  grandfathered until re-edited). Empower = bolster, Weaken = hinder. Sense is deliberately
- *  EXEMPT (homebrew): a sense reads as an always-on passive, so it MAY be Passive — an active
- *  Sense still carries its normal Duration; only the passive-bar is lifted. */
-PROJECTANIME.durationEffects = ["bolster", "disguise", "gate", "hinder", "illusion", "telepathy", "transform", "vanish"];
+ *  grandfathered until re-edited). Empower = bolster. Doc v0.03 revised dropped the Duration
+ *  lines from Gate / Vanish / Weaken (hinder) — they left this list (Passive allowed) and are
+ *  Scene-length by rule instead (sceneEffects). Sense is deliberately EXEMPT (homebrew): a sense
+ *  reads as an always-on passive, so it MAY be Passive — an active Sense still carries its
+ *  normal Duration; only the passive-bar is lifted. */
+PROJECTANIME.durationEffects = ["bolster", "disguise", "illusion", "telepathy", "transform"];
 
 /** True when this Skill's Effect (or its Secondary Effect) is a printed-Duration Effect and so
  *  may not be Passive (v0.03). Pass the Skill data or the Builder draft. */
@@ -419,11 +443,11 @@ PROJECTANIME.skillModifiers = {
 // NOTE: "reflect" is no longer a Modifier — rules v0.01 moved Reflect to the beneficial Status
 // list (applied via Inflict, like Barrier/Regen). Stored skills migrate in item-models.mjs.
 
-/** Modifiers flagged "Heavy" count as two (v0.03 🔶: Absorb, Devour, Immunity, Mass, Secondary
- *  Effect). "Custom" and "Re-equip" are Heavy per-skill instead (their own flag, toggled by a
- *  Builder checkbox) — see isHeavyModifier below, the single place that resolves a Modifier's
+/** Modifiers flagged "Heavy" count as two (v0.03 🔶: Absorb, Devour, Immunity, Mass, Scene,
+ *  Secondary Effect). "Custom" and "Re-equip" are Heavy per-skill instead (their own flag, toggled
+ *  by a Builder checkbox) — see isHeavyModifier below, the single place that resolves a Modifier's
  *  effective weight. */
-PROJECTANIME.heavyModifiers = ["absorb", "devour", "immunity", "mass", "secondaryEffect"];
+PROJECTANIME.heavyModifiers = ["absorb", "devour", "immunity", "mass", "scene", "secondaryEffect"];
 
 /** Detrimental statuses that make Inflict a HEAVY Modifier (v0.03: "If the chosen effect is
  *  Stunned, Sealed, or Bound, Inflict is instead a Heavy Modifier"). Sealed's stored id is
@@ -1033,6 +1057,24 @@ export function combatantSide(combatant) {
   return "hostile";   // HOSTILE and SECRET both fight on the enemy side
 }
 
+/** The SIDE that CREATED an effect — the phase whose start counts its Duration down (v0.03 duration
+ *  engine). An effect's creator is the acting creature that applied it; its side is its live
+ *  combatant's side if it's in this combat, else its token disposition (same friendly/hostile/neutral
+ *  mapping as combatantSide). Used when a Skill/weapon inflicts a status or applies a timed Active
+ *  Effect, so the phase-start tick (project-anime.mjs) knows which phase owns the countdown. */
+export function actorSide(actor) {
+  if (!actor) return "hostile";
+  const c = game.combat?.combatants?.find((cb) => cb.actorId === actor.id);
+  if (c) return combatantSide(c);
+  const D = CONST.TOKEN_DISPOSITIONS;
+  const disp = actor.getActiveTokens?.()?.[0]?.document?.disposition
+    ?? actor.prototypeToken?.disposition
+    ?? D.HOSTILE;
+  if (disp === D.FRIENDLY) return "friendly";
+  if (disp === D.NEUTRAL) return "neutral";
+  return "hostile";
+}
+
 /** A combatant's deterministic initiative = its side band + a within-side tiebreak (Agility + Mind,
  *  so faster units sit higher in the fallback order) + a tiny per-id epsilon (keeps entries distinct
  *  and stably ordered). No dice: side membership, not a roll, decides turn order. The within-side
@@ -1413,6 +1455,53 @@ PROJECTANIME.monsterTiers = {
 PROJECTANIME.monsterTierKeys = ["minion", "standard", "elite", "solo"];
 
 /* -------------------------------------------- */
+/*  Character Rank & Tier (v0.03 revised)       */
+/* -------------------------------------------- */
+
+/** The Rank ladder F→S (rules doc "Rank and Tier"): the lifetime-SP threshold that earns each
+ *  Rank and the Tier it grants. Rank reads SP EARNED in play (`skillPoints.earned` — Milestones +
+ *  Train; creation SP never counts), never decreases, and the STORED `system.rank` rises only at
+ *  a rest (apps/rest.mjs). Index 0–6 = F–S. */
+PROJECTANIME.ranks = [
+  { key: "F", sp: 0,  tier: 1 },
+  { key: "E", sp: 15, tier: 1 },
+  { key: "D", sp: 30, tier: 2 },
+  { key: "C", sp: 45, tier: 2 },
+  { key: "B", sp: 60, tier: 3 },
+  { key: "A", sp: 75, tier: 3 },
+  { key: "S", sp: 90, tier: 4 }
+];
+
+/** The Rank index (0–6 = F–S) a lifetime-earned SP total qualifies for. */
+export function rankFromEarned(sp) {
+  const n = Math.max(0, Number(sp) || 0);
+  let idx = 0;
+  for (let i = 0; i < PROJECTANIME.ranks.length; i++) if (n >= PROJECTANIME.ranks[i].sp) idx = i;
+  return idx;
+}
+
+/** The row of the Rank ladder for a stored rank index (clamped). */
+export function rankRow(rank) {
+  const i = Math.clamp(Math.round(Number(rank) || 0), 0, PROJECTANIME.ranks.length - 1);
+  return PROJECTANIME.ranks[i];
+}
+
+/** The Rank letter (F–S) for a stored rank index. */
+export function rankLetter(rank) {
+  return rankRow(rank).key;
+}
+
+/** A character's OWN Tier (1–4), from their stored Rank. Gates their Temper and Tier Ceilings. */
+export function tierFromRank(rank) {
+  return rankRow(rank).tier;
+}
+
+/** Tier Ceilings (rules doc "Rank and Tier"): hard caps on a character's DEF / RES / EVA by their
+ *  own Tier, counting EVERYTHING (armor, Attributes, Bonds, shields, Skills, Statuses, Temper,
+ *  Traits). ATK has no ceiling. Index = tier − 1; EVA is a flat 12 at every Tier. */
+PROJECTANIME.tierCeilings = { def: [9, 11, 13, 15], res: [9, 11, 13, 15], eva: 12 };
+
+/* -------------------------------------------- */
 /*  Enemies v0.03 — Role × Tier, Strong/Weak    */
 /* -------------------------------------------- */
 
@@ -1503,7 +1592,7 @@ export function enemyRoleThreat(roleKey) {
 
 /** An enemy's HP and EP under the v0.03 Role × Tier model:
  *    HP = round( (6 + ⟪Might⟫×2) × Role HP multiplier ), or a Swarm's flat 5/8/10/12 by tier.
- *    EP = ⟪Spirit⟫ × 2.
+ *    EP = 6 + ⟪Spirit⟫ × 2.
  *  ⟪Might⟫ / ⟪Spirit⟫ are each the Strong die when that Attribute is in the Strong set, else the Weak
  *  die. `tier` is 1–4; `strong` is the resolved Strong-Attribute array (enemyStrongAttrs). Floored at 1. */
 export function enemyVitals(roleKey, tier, strong) {
@@ -1515,7 +1604,7 @@ export function enemyVitals(roleKey, tier, strong) {
   const hp = Array.isArray(role.hpFlat)
     ? (role.hpFlat[t - 1] ?? role.hpFlat[0])
     : Math.round((6 + might * 2) * (role.hpMult ?? 1));
-  return { hp: Math.max(1, hp), energy: Math.max(1, spirit * 2) };
+  return { hp: Math.max(1, hp), energy: Math.max(1, 6 + spirit * 2) };
 }
 
 /* -------------------------------------------- */

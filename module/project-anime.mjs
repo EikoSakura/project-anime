@@ -7,7 +7,7 @@ import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
 import { ProjectAnimeItemSheet } from "./sheets/item-sheet.mjs";
-import { PROJECTANIME, ENCOUNTER_POWER_SETTING, cursedPools, combatantSide, sideInitiative, hasActed, isSkippable, pendingOnSide, activeSide, enemyVitals, enemyStrongAttrs } from "./helpers/config.mjs";
+import { PROJECTANIME, ENCOUNTER_POWER_SETTING, cursedPools, combatantSide, sideInitiative, hasActed, isSkippable, pendingOnSide, activeSide, enemyVitals, enemyStrongAttrs, rankFromEarned } from "./helpers/config.mjs";
 import * as dice from "./helpers/dice.mjs";
 import { elementLabel } from "./helpers/elements.mjs";
 import { registerElementSettings } from "./apps/element-config.mjs";
@@ -16,6 +16,7 @@ import { registerBioFieldSettings } from "./apps/bio-field-config.mjs";
 import { registerTokenFieldSettings } from "./apps/token-field-config.mjs";
 import { registerTokenSettings } from "./apps/token-config.mjs";
 import { registerCreationSettings } from "./apps/creation-config.mjs";
+import { creationStartingSkillPoints } from "./helpers/creation.mjs";
 import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain } from "./helpers/effects.mjs";
 import { raiseServant, createCompanion, removeServantActor, pruneServantLedger, confirmAndDismiss } from "./helpers/servants.mjs";
 import { auditGearPacks, PACK_AUDIT_SETTING, PACK_TARGETS } from "./helpers/pack-audit.mjs";
@@ -75,6 +76,12 @@ const ENCOUNTER_SQUAD_MIGRATION_SETTING = "encounterSquadsMigrated";
 // (HP = 6 + ⟪Might⟫×2, was ⟪Might⟫×2): +6 max AND current HP. See migrateHpBaseV003.
 const HP_BASE_V003_SETTING = "hpBaseV003";
 
+// Hidden world flag — set once after every existing Character AND monster NPC gets the v0.03 EP
+// baseline (EP = 6 + ⟪Spirit⟫×2, was ⟪Spirit⟫×2): +6 max AND current EP, so low-Spirit builds can
+// afford their own Skills. Unlike HP, EP uses one uniform formula for PCs and NPCs, so both migrate.
+// See migrateEpBaseV003.
+const EP_BASE_V003_SETTING = "epBaseV003";
+
 // Hidden world flag — set once after every existing world/actor-owned weapon, armor, and shield
 // is re-based to the v0.03 gear tables (absolute DMG column, Hit/Bulk corrections, armor
 // Protection 3/4). The compendiums themselves are handled by the packAuditV003 pass; this one
@@ -106,6 +113,11 @@ const HQ_V003_SETTING = "hqV003";
 // bag GMs pick from in the Skill Browser) and lift the 1/Conflict limit off them. Bump the version
 // suffix to re-run the reconcile after changing the seeded Twist data. See seedTwistSkills.
 const TWIST_SEED_SETTING = "twistSkillsSeededV004";
+
+// One-time (v0.3.13): seed every Character's lifetime-earned SP + Rank F–S (doc v0.03 revised
+// "Rank and Tier"). Earned is estimated as unspent + ledger spends − creation SP; the Rank is set
+// immediately (no waiting for a rest — grandfathering). See migrateRankV003.
+const RANK_V003_SETTING = "rankV003";
 
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
@@ -178,9 +190,9 @@ Hooks.once("init", function () {
       ChronicleTracker.refresh();
     }
   });
-  // Seasons concluded (v0.03 campaign spine): the Milestone tool advances it; party Tier and
-  // once-per-Season recharges read it. Hidden. A concluded Season can raise the auto Tier, so
-  // any open party sheet refreshes its Tier badge.
+  // Seasons concluded (v0.03 campaign spine): the Milestone tool advances it; once-per-Season
+  // recharges read it, and it backstops the auto party Tier when a world has no roster (the
+  // majority-of-member-Tiers rule needs members). Hidden. Any open party sheet refreshes its badge.
   game.settings.register("project-anime", SEASON_COUNT_SETTING, {
     scope: "world",
     config: false,
@@ -191,8 +203,8 @@ Hooks.once("init", function () {
         if (app.options?.classes?.includes("party-sheet")) app.render();
     }
   });
-  // Party Tier override (v0.03): 0 = auto (1 + Seasons, max IV); 1–4 pins it. Set from the party
-  // sheet's Tier select (GM). Hidden from the settings tab.
+  // Party Tier override (v0.03 revised): 0 = auto (the Tier shared by most member characters,
+  // ties read the higher); 1–4 pins it. Set from the party sheet's Tier select (GM). Hidden.
   game.settings.register("project-anime", PARTY_TIER_SETTING, {
     scope: "world",
     config: false,
@@ -395,7 +407,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ENCOUNTER_SQUAD_MIGRATION_SETTING, HP_BASE_V003_SETTING, GEAR_REBASE_V003_SETTING, NPC_ROLE_V003_SETTING, MATERIALS_V003_SETTING, BONDS_V003_SETTING, HQ_V003_SETTING, TWIST_SEED_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ENCOUNTER_SQUAD_MIGRATION_SETTING, HP_BASE_V003_SETTING, EP_BASE_V003_SETTING, GEAR_REBASE_V003_SETTING, NPC_ROLE_V003_SETTING, MATERIALS_V003_SETTING, BONDS_V003_SETTING, HQ_V003_SETTING, TWIST_SEED_SETTING, RANK_V003_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -694,30 +706,18 @@ Hooks.on("preCreateChatMessage", (message) => {
 /*  Active Effect expiry                        */
 /* -------------------------------------------- */
 
-// Delete actor-owned temporary effects whose duration has run out, and announce each.
-// GM-side only (a single client performs the deletes). Runs on combat turn/round changes
-// and on world-time advances, so both round/turn and minute durations expire.
-function expireEffects() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  const actors = new Set(game.actors);
-  for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);
-  for (const actor of actors) {
-    const expired = actor.effects.filter(
-      (e) => e.isTemporary && Number.isFinite(e.duration?.remaining) && e.duration.remaining <= 0
-    );
-    if (!expired.length) continue;
-    actor.deleteEmbeddedDocuments("ActiveEffect", expired.map((e) => e.id));
-    for (const e of expired) {
-      ChatMessage.create({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.expired", { name: e.name, actor: actor.name })}</em></div></div>`
-      });
-    }
-  }
+// v0.03 duration engine: a timed Active Effect (a Skill's Bolster/Hinder copy, a Conjure/Gate
+// marker, an Overcome-immunity ward) counts down when its CREATOR'S side phase begins — decremented
+// and deleted by runPhaseDurationTick (below), the same engine that runs Status conditions. There is
+// no round-based / world-time expiry sweep any more: outside a Conflict Scene, durations don't tick
+// (they last the Scene, then the combat-end scene sweep clears them). announceEffectExpired posts the
+// themed line when the phase engine removes one.
+function announceEffectExpired(actor, effect) {
+  return ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.expired", { name: effect.name, actor: actor.name })}</em></div></div>`
+  });
 }
-
-Hooks.on("updateCombat", expireEffects);
-Hooks.on("updateWorldTime", expireEffects);
 
 /* -------------------------------------------- */
 /*  Combat turn-tick (Sustain / Channeled / Decay / Stunned) */
@@ -732,9 +732,9 @@ function tickCard(actor, text) {
 }
 
 /** Lingering (stored id `decay`): 1 HP damage at the END of each of the bearer's turns while the
- *  status lasts. Its lifetime is the STANDARD condition timer (default 2 of the bearer's turns, a
- *  Skill's Duration overrides — counted down by tickStatusDurations after this damage lands), so
- *  Lingering expires like every other condition. */
+ *  status lasts. This is the FIRE only — its lifetime is the standard condition Duration (default 2
+ *  rounds, a Skill's Duration overrides), counted down on the INFLICTER'S phase by the duration engine
+ *  (runPhaseDurationTick), so Lingering expires like every other condition. */
 async function tickDecay(actor) {
   if (!actor?.statuses?.has?.("decay")) return;
   const hp = actor.system.hp ?? { value: 0, max: 0 };
@@ -758,7 +758,7 @@ async function tickDecay(actor) {
   // counter flag): retire any legacy counter and stamp the standard default so it still expires.
   if (actor.getFlag("project-anime", "decay") !== undefined) updates["flags.project-anime.-=decay"] = null;
   const timers = actor.getFlag("project-anime", "statusTimers") ?? {};
-  if (!("decay" in timers)) updates["flags.project-anime.statusTimers.decay"] = 2;
+  if (!("decay" in timers)) updates["flags.project-anime.statusTimers.decay"] = { n: 2, side: null };
   await actor.update(updates);
 
   // Tick card: untyped keeps the original line; a typed tick names the element + result
@@ -885,44 +885,83 @@ Hooks.on("deleteActor", (actor) => {
   pruneServantLedger(actor);
 });
 
-/** Status durations (rules p.13): a status condition lasts a number of the affected creature's own
- *  turns — a default of 2, or whatever the Skill that applied it set — and counts down at the END of
- *  that creature's turn, ending when it reaches 0. The per-target counters live under
- *  flags.project-anime.statusTimers (stamped by applyStatusTo on application, max-merged so re-applying
- *  refreshes to the longer duration). Decay (its own damage counter) and Stunned (skip-based) run
- *  separately and never appear here. A status cleared by other means (Cleanse, the token HUD) leaves a
- *  stale timer, pruned here. */
-async function tickStatusDurations(actor) {
-  if (!actor) return;
-  const timers = actor.getFlag("project-anime", "statusTimers");
-  if (!timers || !Object.keys(timers).length) return;
-  const updates = {};
-  const expired = [];
-  for (const [id, n] of Object.entries(timers)) {
-    if (!actor.statuses?.has?.(id)) { updates[`flags.project-anime.statusTimers.-=${id}`] = null; continue; }
-    const remaining = Number(n) - 1;
-    if (remaining <= 0) { updates[`flags.project-anime.statusTimers.-=${id}`] = null; expired.push(id); }
-    else updates[`flags.project-anime.statusTimers.${id}`] = remaining;
+/** Remove a timed Status when its Duration hits 0 (v0.03 duration engine): drop the condition and
+ *  retire whatever it stashed — Lingering's Element (applyStatusTo isn't on this path), a pool-choice
+ *  status's pools (a valued Barrier / Regen or a Curse), a stamped Overcome CT — then post the themed
+ *  "wore off" line. Shared by the phase-start engine. */
+async function expireStatusOnActor(actor, id) {
+  await actor.toggleStatusEffect?.(id, { active: false });
+  if (id === "decay" && actor.getFlag("project-anime", "decayType")) {
+    await actor.update({ "flags.project-anime.-=decayType": null });
   }
-  if (Object.keys(updates).length) await actor.update(updates);
-  for (const id of expired) {
-    await actor.toggleStatusEffect?.(id, { active: false });
-    // Lingering's stashed Element retires with the status (applyStatusTo isn't on this path), as do
-    // a pool-choice status's flags — a valued status's pools (Barrier / Regen) or a Curse's pool —
-    // and any stamped Overcome CT.
-    if (id === "decay" && actor.getFlag("project-anime", "decayType")) {
-      await actor.update({ "flags.project-anime.-=decayType": null });
-    }
-    if ((PROJECTANIME.poolChoiceStatuses ?? []).includes(id) && actor.getFlag("project-anime", id)) {
-      await actor.update({ [`flags.project-anime.-=${id}`]: null });
-    }
-    if (id in (actor.getFlag("project-anime", "overcomeCT") ?? {})) {
-      await actor.update({ [`flags.project-anime.overcomeCT.-=${id}`]: null });
-    }
-    tickCard(actor, game.i18n.format("PROJECTANIME.Effect.statusExpired", {
-      status: game.i18n.localize(`PROJECTANIME.Status.${id}`), name: actor.name
-    }));
+  if ((PROJECTANIME.poolChoiceStatuses ?? []).includes(id) && actor.getFlag("project-anime", id)) {
+    await actor.update({ [`flags.project-anime.-=${id}`]: null });
   }
+  if (id in (actor.getFlag("project-anime", "overcomeCT") ?? {})) {
+    await actor.update({ [`flags.project-anime.overcomeCT.-=${id}`]: null });
+  }
+  tickCard(actor, game.i18n.format("PROJECTANIME.Effect.statusExpired", {
+    status: game.i18n.localize(`PROJECTANIME.Status.${id}`), name: actor.name
+  }));
+}
+
+/** DURATION ENGINE (v0.03 headline) — count down every timed effect a side created when THAT side's
+ *  phase begins, on any target, and remove it at 0. ONE engine for both Status conditions (the
+ *  per-target `statusTimers` flag, each stamped `{ n, side }` by dice.applyStatusTo) and timed Active
+ *  Effects (Skill Bolster/Hinder copies, Conjure/Gate/Overcome markers, each stamped `creatorSide`).
+ *  Duration N = N full rounds regardless of the target's side, because a side's effects only ever tick
+ *  on that side's own phase. Fire timings (Regen at start-of-turn, Lingering at end-of-turn) are a
+ *  SEPARATE concern and stay per-creature (runStartOfTurnTicks / runEndOfTurnTicks). Effects whose
+ *  creator side is unknown — a legacy save, a hand-dragged Active Effect — fall back to the Player
+ *  Phase so they still expire once per round. Channeled / Scene effects carry no round timer and never
+ *  enter here. GM-side. */
+async function runPhaseDurationTick(combat, side) {
+  if (!combat || !side || game.users.activeGM?.id !== game.user.id) return;
+  const isPlayerPhase = side === "friendly";
+  const mine = (owner) => owner === side || ((owner ?? null) === null && isPlayerPhase);
+  const actors = new Set();
+  for (const c of combat.combatants) if (c.actor) actors.add(c.actor);
+  for (const actor of actors) {
+    // 1) Status conditions — decrement the ones this phase's side created; prune any gone stale.
+    const timers = actor.getFlag("project-anime", "statusTimers");
+    if (timers && Object.keys(timers).length) {
+      const updates = {};
+      const expired = [];
+      for (const [id, raw] of Object.entries(timers)) {
+        if (!actor.statuses?.has?.(id)) { updates[`flags.project-anime.statusTimers.-=${id}`] = null; continue; }
+        const t = dice.normalizeTimer(raw);
+        if (!mine(t.side)) continue;
+        const n = t.n - 1;
+        if (n <= 0) { updates[`flags.project-anime.statusTimers.-=${id}`] = null; expired.push(id); }
+        else updates[`flags.project-anime.statusTimers.${id}`] = { n, side: t.side ?? null };
+      }
+      if (Object.keys(updates).length) await actor.update(updates);
+      for (const id of expired) await expireStatusOnActor(actor, id);
+    }
+    // 2) Timed Active Effects — same rule (Scene / Channeled carry no round timer, so they're skipped).
+    const timed = actor.effects.filter((e) => {
+      const f = e.flags?.["project-anime"];
+      if (f?.scene || f?.channelKey) return false;
+      if (!Number.isFinite(e.duration?.rounds) || e.duration.rounds <= 0) return false;
+      return mine(f?.creatorSide ?? null);
+    });
+    for (const e of timed) {
+      const n = e.duration.rounds - 1;
+      if (n <= 0) { await e.delete(); await announceEffectExpired(actor, e); }
+      // Re-anchor startRound so Foundry's displayed `remaining` tracks the caster-keyed count.
+      else await e.update({ "duration.rounds": n, "duration.startRound": combat.round, "duration.startTurn": 0 });
+    }
+  }
+}
+
+/** Fire a side's phase-start countdown ONCE per (round, side): the mark is stamped on the combat so
+ *  repeated reconciles within a phase don't re-tick, while a fresh round re-opens each phase. GM-side. */
+async function maybeRunPhaseTick(combat, side) {
+  if (!combat || !side) return;
+  const mark = `${combat.round}:${side}`;
+  if (combat.getFlag("project-anime", "durTickMark") === mark) return;
+  await combat.setFlag("project-anime", "durTickMark", mark);
+  await runPhaseDurationTick(combat, side);
 }
 
 /** Fixed actions a combatant takes per round (action economy — ENEMY-DESIGN Phase 0). A Monster-role
@@ -1047,14 +1086,15 @@ async function runStartOfTurnTicks(combat, c) {
   }
 }
 
-/** End-of-activation ticks for one unit (Lingering damage + status-duration countdown), once per round
- *  per token. Called explicitly when a unit's turn ends (free-pick has no reliable `combat.previous`). */
+/** End-of-activation FIRE tick for one unit (Lingering's 1 HP), once per round per token. Called
+ *  explicitly when a unit's turn ends (free-pick has no reliable `combat.previous`). Duration COUNTDOWN
+ *  no longer lives here (v0.03): it moved to the creator-keyed phase-start engine (runPhaseDurationTick),
+ *  so a status ends by its inflicter's phase, not the bearer's own turn. Only the fire stays per-creature. */
 async function runEndOfTurnTicks(combat, c) {
   const actor = c?.actor;
   if (!actor) return;
   if (await tickOncePerRound(combat, "endTicks", c.tokenId)) {
     await tickDecay(actor);
-    await tickStatusDurations(actor);
   }
 }
 
@@ -1077,9 +1117,9 @@ async function clearActedMarkers(combat) {
   if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
 }
 
-/** Auto-pass a Stunned unit: it still Sustains and its statuses still count down (a turn passes), but it
- *  takes no action and the Stunned status clears (rules p.13 — lose your next turn, then it ends), then
- *  it's marked done for the round. */
+/** Auto-pass a Stunned unit: it still Sustains and takes its Lingering fire (a turn passes), but it takes
+ *  no action and the Stunned status clears (rules p.13 — lose your next turn, then it ends), then it's
+ *  marked done for the round. Status Durations count down on their creators' phases, not here (v0.03). */
 async function autoSkipStunned(combat, c) {
   const actor = c.actor;
   if (actor?.statuses?.has?.("stunned")) {
@@ -1173,6 +1213,8 @@ async function reconcilePhase(combat) {
       if (!cur || hasActed(cur, combat.round) || combatantSide(cur) !== side) {
         if (combat.turn !== null) await combat.update({ turn: null });   // drop the spent / off-phase current
       }
+      // The phase has OPENED — count down every Duration this side created before it acts (v0.03).
+      await maybeRunPhaseTick(combat, side);
       return;
     }
     await clearActedMarkers(combat);                     // round complete → next round, Player Phase, loop
@@ -1888,6 +1930,49 @@ async function migrateHpBaseV003() {
   await game.settings.set("project-anime", HP_BASE_V003_SETTING, true);
 }
 
+// v0.03: EP = 6 + ⟪Spirit⟫×2 (was ⟪Spirit⟫×2) — the flat +6 mirrors HP so a low-Spirit build isn't
+// priced out of its own Skills. Every existing Character AND monster NPC gets +6 on the authored max
+// AND current EP (nobody loads drained); the +6 preserves each actor's PURCHASED EP because the SP
+// accounting baseline moved up by 6 too. Reads `_source` so the derived taxes/clamp never skew the
+// arithmetic, and only touches actors that actually carry an Energy pool. GM-side, once per world.
+async function migrateEpBaseV003() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", EP_BASE_V003_SETTING)) return;
+  const updates = [];
+  for (const actor of game.actors) {
+    if (actor.type !== "character" && actor.type !== "npc") continue;
+    const energy = actor._source.system?.energy;
+    if (!energy || typeof energy.max !== "number") continue;
+    const max = (Number(energy.max) || 0) + 6;
+    updates.push({ _id: actor.id, "system.energy.max": max, "system.energy.value": Math.min((Number(energy.value) || 0) + 6, max) });
+  }
+  if (updates.length) await Actor.updateDocuments(updates);
+  await game.settings.set("project-anime", EP_BASE_V003_SETTING, true);
+}
+
+// v0.3.13 (doc v0.03 revised): seed lifetime-earned SP + Rank for existing Characters. Lifetime
+// earned can't be reconstructed exactly, so it's estimated as unspent SP + every ledger spend −
+// the creation budget (creation SP never counts toward Rank) — floored at 0, GM-adjustable on the
+// Skills drawer afterward. The Rank is granted immediately rather than at the next rest — these
+// characters already lived through those rests. Runs AFTER backfillSkillPointLog (needs the ledger).
+async function migrateRankV003() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", RANK_V003_SETTING)) return;
+  const updates = [];
+  for (const actor of game.actors) {
+    if (actor.type !== "character") continue;
+    const sp = actor._source.system?.skillPoints ?? {};
+    const logSpent = (Array.isArray(sp.log) ? sp.log : []).reduce((n, e) => n + (Number(e?.amount) || 0), 0);
+    const earned = Math.max(0, (Number(sp.value) || 0) + logSpent - creationStartingSkillPoints());
+    updates.push({ _id: actor.id, "system.skillPoints.earned": earned, "system.rank": rankFromEarned(earned) });
+  }
+  if (updates.length) {
+    await Actor.updateDocuments(updates);
+    console.log(`Project: Anime | rankV003 — seeded lifetime SP + Rank on ${updates.length} character(s).`);
+  }
+  await game.settings.set("project-anime", RANK_V003_SETTING, true);
+}
+
 // v0.3.3: retire the flat HQ resource pools in favour of carried graded materials. Best-effort:
 // convert whatever's in the legacy stockpile into Common Tier-I materials in the party stash, mapped
 // by type (manacite→Essence, cloth→Hide, stone/wood→Ore, herb→Reagent). The pools are LEFT intact so
@@ -2120,7 +2205,7 @@ async function migrateGearRebaseV003() {
 // Seed the Skill-Point ledger for characters made before it existed: one refundable "skill"
 // entry per self-built Skill (its spCost), plus a single non-refundable "Prior advancement"
 // lump estimating SP spent on attribute raises (the 5 cheapest steps are the free creation
-// step-ups) + stat buys (carry/move bonuses + HP/Energy bought over the 6+Might×2 / Spirit×2 baseline).
+// step-ups) + stat buys (carry/move bonuses + HP/Energy bought over the 6+Might×2 / 6+Spirit×2 baseline).
 // GM-side, once per actor (flagged "spLogBackfilled"); NPCs are just flagged (no SP advancement).
 async function backfillSkillPointLog() {
   if (game.users.activeGM?.id !== game.user.id) return;
@@ -2153,7 +2238,7 @@ async function backfillSkillPointLog() {
     const might = actor.system.attributes?.might?.value ?? 4;
     const spirit = actor.system.attributes?.spirit?.value ?? 4;
     spent += Math.max(0, Math.round(((src.hp?.max ?? 0) - (6 + might * 2)) / 2));
-    spent += Math.max(0, Math.round(((src.energy?.max ?? 0) - spirit * 2) / 2));
+    spent += Math.max(0, Math.round(((src.energy?.max ?? 0) - (6 + spirit * 2)) / 2));
     if (spent > 0) log.push({ id: foundry.utils.randomID(), label: game.i18n.localize("PROJECTANIME.SkillLog.legacy"), amount: spent, kind: "legacy", ref: "", data: {}, time: null });
 
     updates.push({ _id: actor.id, "system.skillPoints.log": log, "flags.project-anime.spLogBackfilled": true });
@@ -2396,9 +2481,10 @@ Hooks.once("ready", function () {
   // Restore the on-canvas quest tracker for whatever quest this client was tracking.
   ChronicleTracker.refresh();
 
-  // One-time (v0.03): raise every Character to the HP = 6 + ⟪Might⟫×2 baseline, THEN seed the
-  // Skill-Point ledger — its "HP bought over baseline" lump must read post-migration HP.
-  migrateHpBaseV003().then(() => backfillSkillPointLog());
+  // One-time (v0.03): raise every Character to the HP = 6 + ⟪Might⟫×2 baseline and every actor to the
+  // EP = 6 + ⟪Spirit⟫×2 baseline, THEN seed the Skill-Point ledger — its "HP/EP bought over baseline"
+  // lump must read post-migration vitals — THEN seed lifetime SP + Rank from that ledger (v0.3.13).
+  migrateHpBaseV003().then(() => migrateEpBaseV003()).then(() => backfillSkillPointLog()).then(() => migrateRankV003());
 
   // One-time: give pre-existing NPCs their own refundable Skill-Point ledger (left unrated by ★).
   backfillNpcSkillLog();
@@ -2479,7 +2565,7 @@ Hooks.once("ready", function () {
   game.socket.on("system.project-anime", (payload) => {
     if (game.users.activeGM?.id !== game.user.id) return;
     if (payload?.type === "applyDamage") dice.applyDamageTo(payload.targetUuid, payload.amount, payload.heal, payload.pool, { ignoreBarrier: payload.ignoreBarrier });
-    else if (payload?.type === "applyStatus") dice.applyStatusTo(payload.targetUuid, payload.statusId, payload.active, payload.duration, { decayType: payload.decayType, value: payload.value, pool: payload.pool, overcomeCT: payload.overcomeCT });
+    else if (payload?.type === "applyStatus") dice.applyStatusTo(payload.targetUuid, payload.statusId, payload.active, payload.duration, { decayType: payload.decayType, value: payload.value, pool: payload.pool, overcomeCT: payload.overcomeCT, side: payload.side });
     else if (payload?.type === "applyEffect") dice.applyEffectTo(payload.targetUuid, payload.effectData);
     else if (payload?.type === "stealItem") dice.stealItemTo(payload.stealerUuid, payload.targetUuid, payload.itemId);
     else if (payload?.type === "createItems") dice.createItemsOn(payload.targetUuid, payload.items);

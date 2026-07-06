@@ -499,8 +499,9 @@ export class AnimeHud extends HandlebarsApplicationMixin(ApplicationV2) {
    *  each an icon + optional remaining-duration badge, tooltip = name (+ duration). */
   #effectData(actor) {
     const timers = actor.getFlag(SYS, "statusTimers") ?? {};
+    const timerN = (t) => (t && typeof t === "object" ? Number(t.n) : Number(t)) || 0;   // {n,side} or legacy number
     const remaining = (e) => {
-      for (const id of e.statuses ?? []) if (id in timers) return Number(timers[id]) || 0;
+      for (const id of e.statuses ?? []) if (id in timers) return timerN(timers[id]);
       const r = e.duration?.remaining;
       return Number.isFinite(r) && r > 0 ? Math.ceil(r) : null;
     };

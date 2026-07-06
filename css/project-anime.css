@@ -2114,6 +2114,14 @@
 .project-anime .sp-stat.total .sp-val { color: var(--pa-gold); }
 .project-anime .sp-stat.granted .sp-val { color: var(--pa-accent); }
 
+/* Rank chip (letter · Tier) + the editable lifetime-earned SP that drives it. */
+.project-anime .sp-stat.rank { border-color: color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line)); }
+.project-anime .sp-stat.rank .sp-val { color: var(--pa-accent); white-space: nowrap; }
+.project-anime .sp-stat.earned input.sp-val {
+  width: 2.6rem; height: 1.1rem; padding: 0; margin: 0; text-align: center;
+  background: transparent; border: none; border-bottom: 1px dashed var(--pa-line); border-radius: 0;
+}
+
 /* Skill Point Log opener (drawer) — an <a> styled as a button; opens the SkillLogApp dialog. */
 .project-anime .sp-log-open {
   display: flex; align-items: center; justify-content: center; gap: 0.4rem;

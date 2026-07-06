@@ -1,4 +1,4 @@
-import { PROJECTANIME, enemyStrongAttrs, enemyTierDie } from "../helpers/config.mjs";
+import { PROJECTANIME, enemyStrongAttrs, enemyTierDie, tierFromRank } from "../helpers/config.mjs";
 import { collectTradeRates } from "../helpers/effects.mjs";
 import { creationStartingSkillPoints } from "../helpers/creation.mjs";
 
@@ -105,15 +105,15 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
       charm: attributeField()
     });
 
-    // HP and Energy are fixed at creation (PCs: 6 + Might×2 / Spirit×2 — the Character subclass
-    // overrides hp's initial to the d4 baseline 14; NPC vitals come from the Monster Creator).
+    // HP and Energy are fixed at creation (PCs: 6 + Might×2 / 6 + Spirit×2 — the Character subclass
+    // overrides both initials to the d4 baseline 14; NPC vitals come from the Monster Creator).
     schema.hp = new fields.SchemaField({
       value: new fields.NumberField({ ...requiredInteger, initial: 8, min: 0 }),
       max: new fields.NumberField({ ...requiredInteger, initial: 8, min: 0 })
     });
     schema.energy = new fields.SchemaField({
       value: new fields.NumberField({ ...requiredInteger, initial: 8, min: 0 }),
-      // EFFECTIVE maximum: the authored max (Spirit×2 + stat buys) minus the Passive-Skill tax
+      // EFFECTIVE maximum: the authored max (6 + Spirit×2 + stat buys) minus the Passive-Skill tax
       // and the servant tax (Animate's raised servants each lock part of it — rules v0.01).
       max: new fields.NumberField({ ...requiredInteger, initial: 8, min: 0 }),
       // Derived each prepare (never authored): `base` = the un-taxed maximum, so advancement
@@ -374,6 +374,17 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
       max: new fields.NumberField({ ...requiredInteger, initial: 14, min: 0 })
     });
 
+    // Energy = 6 + ⟪Spirit⟫×2 (v0.03) — the flat +6 mirrors HP so nobody is priced out of their own
+    // Skills; a fresh all-d4 Character starts at 14. (base/passiveTax/servantTax are derived, so the
+    // parent schema's fields carry through — only the authored max/value baseline moves.)
+    schema.energy = new fields.SchemaField({
+      value: new fields.NumberField({ ...requiredInteger, initial: 14, min: 0 }),
+      max: new fields.NumberField({ ...requiredInteger, initial: 14, min: 0 }),
+      base: new fields.NumberField({ ...requiredInteger, initial: 14, min: 0 }),
+      passiveTax: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
+      servantTax: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
+    });
+
     schema.gold = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
     schema.skillPoints = new fields.SchemaField({
@@ -384,6 +395,9 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
       // LEGACY scalar — superseded by `log` (below). Kept so old data still validates and the
       // one-time log backfill can read pre-existing advancement spend from it. No longer written.
       spent: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
+      // Lifetime SP EARNED in play (Milestones + Train) — creation SP never counts, spending never
+      // lowers it. Drives the Rank ladder (config `ranks`); seeded once by migrateRankV003.
+      earned: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
       // The Skill-Point ledger: one entry per SP spend (skill built/improved, attribute raise,
       // stat buy). It is the source of truth for "Spent" — `Spent = Σ log.amount`, and the
       // TOTAL readout = value (unspent) + Spent + free granted skills. Each entry can be
@@ -424,7 +438,26 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
     // Steward), learned at a rest for 1 SP (apps/advancement.mjs). "" = none. One per character.
     schema.specialty = new fields.StringField({ required: false, blank: true, initial: "" });
 
+    // RANK F–S (v0.03 "Rank and Tier"), stored as index 0–6. Set by lifetime SP earned
+    // (`skillPoints.earned`) but rises only at a rest (apps/rest.mjs) — so the stored rank can
+    // trail eligibility between rests. Never decreases. The character's own Tier derives from it
+    // (config tierFromRank) and gates Temper + the Tier Ceilings.
+    schema.rank = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0, max: 6 });
+
     return schema;
+  }
+
+  /** @override — Tier Ceilings (v0.03 "Rank and Tier"): after every contribution is summed,
+   *  a character's DEF/RES cap at 9/11/13/15 by their own Tier and EVA caps at 12. The caps
+   *  count everything (armor, Attributes, Bonds, shields, Skills, Statuses, Temper, Traits);
+   *  ATK is uncapped. Monsters answer to the Four Rails instead, so this lives on Characters. */
+  prepareDerivedData() {
+    super.prepareDerivedData();
+    const cap = PROJECTANIME.tierCeilings;
+    const tier = tierFromRank(this.rank);
+    this.defense.value = Math.min(this.defense.value, cap.def[tier - 1]);
+    this.res.value = Math.min(this.res.value, cap.res[tier - 1]);
+    this.evasion.value = Math.min(this.evasion.value, cap.eva);
   }
 }
 

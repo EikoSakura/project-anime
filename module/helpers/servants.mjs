@@ -11,7 +11,7 @@
  * prunes the ledger and restores the Energy (the deleteActor hook in project-anime.mjs).
  *
  * Companion bonds a loyal creature chosen when the Skill is learned: a fresh NPC with all-d6
- * Attributes and its own HP/Energy (⟪Might⟫×2 / ⟪Spirit⟫×2 = 12/12), no Energy tax (the doc
+ * Attributes and its own HP/Energy (6 + ⟪Might⟫×2 / 6 + ⟪Spirit⟫×2 = 18/18), no Energy tax (the doc
  * gives Companion none). One companion per Companion Skill — re-using the Skill reports the
  * existing bond instead of duplicating it.
  *
@@ -275,8 +275,8 @@ export async function resolveCompanion(actor, item) {
 
 /**
  * Create the bonded companion (GM-side; exported for the socket relay): a fresh NPC — all
- * Attributes d6, HP 12 / Energy 12 (⟪Might⟫×2 / ⟪Spirit⟫×2), friendly, owned by its player,
- * filed with the servants. No Energy tax (the doc gives Companion none).
+ * Attributes d6, HP 18 / Energy 18 (v0.03 baseline 6 + ⟪Might⟫×2 / 6 + ⟪Spirit⟫×2), friendly, owned by
+ * its player, filed with the servants. No Energy tax (the doc gives Companion none).
  */
 export async function createCompanion(casterUuid, itemId, name, userId) {
   const caster = await fromUuid(casterUuid);
@@ -292,8 +292,8 @@ export async function createCompanion(casterUuid, itemId, name, userId) {
     folder: folder?.id,
     system: {
       attributes: attrs,
-      hp: { value: 12, max: 12 },
-      energy: { value: 12, max: 12 },
+      hp: { value: 18, max: 18 },
+      energy: { value: 18, max: 18 },
       disposition: "friendly"
     },
     prototypeToken: { actorLink: true, disposition: CONST.TOKEN_DISPOSITIONS.FRIENDLY },

@@ -240,10 +240,10 @@ export class CraftApp extends HandlebarsApplicationMixin(ApplicationV2) {
       ctx.statuses = PROJECTANIME.statusConditions.map((s) => ({ id: s.id, label: L(s.name) }));
     }
 
-    // TEMPER
+    // TEMPER — capped by the CRAFTER's own Tier (doc v0.03 revised: the owner's Tier − 1).
     if (this.#tab === "temper") {
-      const cap = temperCap();
-      ctx.temperCapRoman = tierNumeral(tier);
+      const cap = temperCap(crafter);
+      ctx.temperCapRoman = tierNumeral(cap + 1);
       ctx.temperCap = cap;
       ctx.temperItems = crafter.items.filter((i) => GEAR_KINDS.includes(i.type) && !i.getFlag?.("project-anime", "natural")).map((i) => {
         const cur = Number(i.system.temper) || 0;

@@ -1,4 +1,4 @@
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue } from "./config.mjs";
+import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide, isPhysicalWeapon, isMagicalWeapon, skillPowerTyping } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
 import { elementLabel } from "./elements.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckSteps, stepUpDie } from "./effects.mjs";
@@ -682,12 +682,11 @@ async function maybeFollowUp(actor, target, item, { event } = {}) {
   for (const weapon of weapons) await rollAttack(actor, weapon, { event, target, isFollowUp: true });
 }
 
-/** True if this weapon/shield's Accuracy uses BOTH Might and Mind — the attacker chooses which
- *  ATK formula each strike uses (doc v0.03: "If a weapon uses both, the attacker chooses"). */
+/** True if this weapon/shield's Accuracy qualifies as BOTH physical (Might/Agility) and magical
+ *  (Mind/Spirit) — the attacker chooses each strike's ATK formula before the roll (doc v0.03
+ *  revised: a Bow's Agility + Mind is both). */
 function weaponIsDualAcc(item) {
-  const acc = item?.system?.accuracy ?? {};
-  const keys = [acc.attrA, acc.attrB];
-  return keys.includes("might") && keys.includes("mind");
+  return isPhysicalWeapon(item) && isMagicalWeapon(item);
 }
 
 /** The dual-ACC weapon's remembered ATK formula ("physical" | "magical") — rollAttack's prompt
@@ -952,24 +951,29 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
     dtype = slotType || "physical";
   }
 
-  // Determine physical vs magical from accuracy attributes.
-  const physical = attrA === "might" || attrB === "might";
-  const magical = attrA === "mind" || attrB === "mind";
+  // Weapon typing (doc v0.03 revised): physical if the ACC pair includes Might OR Agility,
+  // magical if it includes Mind OR Spirit — a weapon that is both (Bow, Firearm) uses the
+  // attacker's per-strike choice, stored on the weapon by rollAttack's prompt.
+  const physical = PROJECTANIME.physicalAccAttrs.includes(attrA) || PROJECTANIME.physicalAccAttrs.includes(attrB);
+  const magical = PROJECTANIME.magicalAccAttrs.includes(attrA) || PROJECTANIME.magicalAccAttrs.includes(attrB);
 
   let flat = 0;
   const dmgReasons = [];
   // The "Power Attribute" (v0.03): a weapon Skill picks one of the WEAPON's two ACC Attributes;
   // a non-weapon Skill one of its own two. A plain weapon strike damages with its ATK formula's
-  // Attribute — Might (physical) or Mind (magical); a dual-ACC weapon (both) uses the attacker's
+  // Attribute — Might (Physical ATK) or Mind (Magical ATK); a dual-ACC weapon uses the attacker's
   // choice, stored on the weapon by rollAttack's prompt.
   let dieAttr;
   if (!usesWeapon) dieAttr = item.system.attributes?.[slotAttr] ?? attrA;
   else if (isSkill) dieAttr = slotAttr === "attrB" ? attrB : attrA;
   else dieAttr = (magical && !physical) || (magical && physical && weaponAtkMode(src) === "magical") ? "mind" : "might";
 
-  // Which defense stat this damage checks against — a dual-ACC weapon routes by the chosen /
-  // Power Attribute (Physical → DEF, Magical → RES).
-  const defenseKey = (magical && !physical) || (magical && physical && usesWeapon && dieAttr === "mind") ? "res" : "defense";
+  // Which defense reduces this damage:
+  //  • A Skill is typed by its POWER Attribute (doc v0.03 revised "Skill Type"): Might/Agility →
+  //    physical (DEF), Mind/Spirit → magical (RES), Charm → the Skill's stored creation choice.
+  //  • A plain weapon strike routes by its resolved ATK formula (Might → DEF, Mind → RES).
+  const defenseKey = (isSkill ? skillPowerTyping(dieAttr, item.system?.charmType) === "magical" : dieAttr === "mind")
+    ? "res" : "defense";
 
   // Grip / dual-wield flat adjustments, shared by weapon attacks and weapon Skills.
   const gripAdjust = () => {
@@ -1472,7 +1476,7 @@ async function resolveAura(actor, item) {
       name: item.name,
       img: item.img,
       duration,
-      flags: { "project-anime": { auraMarker: item.id, scene } }
+      flags: { "project-anime": { auraMarker: item.id, scene, creatorSide: actorSide(actor) } }
     }]);
     lines.push(`<em class="muted">${scene ? i18n("PROJECTANIME.Roll.auraScene") : i18n("PROJECTANIME.Roll.auraDuration", { n: dur })}</em>`);
   }
@@ -2425,7 +2429,7 @@ async function resolveConjure(actor, item) {
     duration.startTime = game.time?.worldTime ?? 0;
     if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
   }
-  const markerFlags = { conjureMarker: conjureKey, scene };
+  const markerFlags = { conjureMarker: conjureKey, scene, creatorSide: actorSide(actor) };
   const channelKey = activeChannelKey(actor, item);
   if (mode === "channeled" && channelKey) markerFlags.channelKey = channelKey;
   await actor.createEmbeddedDocuments("ActiveEffect", [{
@@ -2506,7 +2510,7 @@ async function resolveGate(actor, item) {
     duration.startTime = game.time?.worldTime ?? 0;
     if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
   }
-  const markerFlags = { gateMarker: gateKey, scene };
+  const markerFlags = { gateMarker: gateKey, scene, creatorSide: actorSide(actor) };
   const channelKey = activeChannelKey(actor, item);
   if (mode === "channeled" && channelKey) markerFlags.channelKey = channelKey;
   await actor.createEmbeddedDocuments("ActiveEffect", [{
@@ -2535,7 +2539,7 @@ async function resolveGate(actor, item) {
  *  channel (its key on the status copy, swept when the channel ends). */
 async function applyVanish(actor, item, lines) {
   const mode = skillDuration(item.system);
-  await applyStatusEffect(actor, "vanished", skillStatusDuration(item));
+  await applyStatusEffect(actor, "vanished", skillStatusDuration(item), { side: actorSide(actor) });
   if (mode === "scene" || mode === "channeled") {
     // A scene/channel lifetime replaces the turn countdown: drop the timer, stamp the flags.
     if ("vanished" in (actor.getFlag("project-anime", "statusTimers") ?? {})) {
@@ -2667,7 +2671,8 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
     ensnareSource: item.uuid,
     autoKey: `${item.id}:${effectKey}:${targetActor.id}`,
     overcomeCT: overcomeCTFor(item),
-    scene
+    scene,
+    creatorSide: actorSide(actor)
   };
   const channelKey = activeChannelKey(actor, item);
   if (mode === "channeled" && channelKey) flags.channelKey = channelKey;
@@ -2697,7 +2702,7 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
  * Telepathy). The bearer describes the attempt and rolls a Check of their chosen two Attributes
  * against a Challenge Threshold — prefilled with 7 + the inflicting Skill's SP cost, max 16
  * (v0.03), when one was stamped; otherwise the table sets it. Success ends
- * the effect and grants immunity to re-application from the same source for the next 2 turns.
+ * the effect and grants immunity to re-application from the same source for the next 2 rounds.
  * Opened from the Effects Panel's right-click. Returns the roll, or null if cancelled/invalid.
  */
 export async function performOvercome(actor, effect) {
@@ -2740,17 +2745,19 @@ export async function performOvercome(actor, effect) {
 
   if (success) {
     // End the effect: a status routes through applyStatusTo so its timers and valued flags clear
-    // with it; an ensnare marker just deletes. Then ward against the same source for 2 turns.
+    // with it; an ensnare marker just deletes. Then ward against the same source for 2 rounds.
     const immunityKey = ensnare ? (flags.ensnareSource || effect.uuid) : `status:${statusId}`;
     if (statusId) await applyStatusTo(actor.uuid, statusId, false);
     else await effect.delete();
+    // Overcome success wards against re-application for 2 ROUNDS (v0.03), counted down by the
+    // OVERCOMING creature's own phase (creatorSide) on the duration engine.
     const duration = { rounds: 2, startTime: game.time?.worldTime ?? 0 };
     if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
     await actor.createEmbeddedDocuments("ActiveEffect", [{
       name: game.i18n.format("PROJECTANIME.Roll.overcomeMarker", { name: effect.name }),
       img: "icons/svg/angel.svg",
       duration,
-      flags: { "project-anime": { overcomeImmunity: immunityKey } }
+      flags: { "project-anime": { overcomeImmunity: immunityKey, creatorSide: actorSide(actor) } }
     }]);
     lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.overcomeEnds", { name: actor.name, effect: effect.name })}</em>`);
   }
@@ -2825,7 +2832,7 @@ function maybeGrantComboTurn(actor) {
   const key = `${cur.id}:${combat.round}`;   // round-stamped, so a stale grant can't resurface
   const flags = combat.flags?.["project-anime"] ?? {};
   if (flags.comboGranted === key) {          // no combo chains — instead, a Go-Again Combo
-    restoreLuckDieOnGoAgain(actor);          // restores one spent Luck Die (v0.03)
+    restoreLuckDieOnGoAgain(actor);          // tunes a held Luck Die ±1, or restores a spent one (v0.03)
     return;
   }
   if (flags.comboTurn === key) return;       // already pending
@@ -2836,21 +2843,53 @@ function maybeGrantComboTurn(actor) {
 }
 
 /**
- * A Combo rolled during a Go-Again turn can't chain another extra turn — instead it restores one
- * spent Luck Die: roll the ⟪Charm⟫ die and record the result (v0.03). Characters only (NPCs hold
- * no Luck Dice); a full pool (3) restores nothing. Honors "luck" effects' Charm Step Up, like
- * every other Luck Dice roll. Fire-and-forget from the sync combo path.
+ * A Combo rolled during a Go-Again turn can't chain another extra turn — instead (doc v0.03
+ * revised): the character may nudge ONE held Luck Die up or down by 1, capped at the die's
+ * maximum (the current ⟪Charm⟫ die size, honoring "luck" Step Ups) and floored at 1. With no
+ * held Luck Dice, the older reward applies: restore one spent Luck Die by rolling ⟪Charm⟫ and
+ * recording the result. Characters only (NPCs hold no Luck Dice). Fire-and-forget from the
+ * sync combo path.
  */
 async function restoreLuckDieOnGoAgain(actor) {
   if (actor?.type !== "character" || !actor.isOwner) return;
   const sys = actor.system;
-  if ((sys.luckDice?.length ?? 0) >= 3) return;
+  const dice = [...(sys.luckDice ?? [])];
   const die = stepUpDie(sys.attributes.charm.value, collectLuckSteps(actor));
-  const roll = await new Roll(`1d${die}`).evaluate();
-  await actor.update({ "system.luckDice": [...(sys.luckDice ?? []), roll.total] });
-  await roll.toMessage({
+
+  // No held dice → restore one spent Luck Die (roll ⟪Charm⟫, record the result).
+  if (!dice.length) {
+    const roll = await new Roll(`1d${die}`).evaluate();
+    await actor.update({ "system.luckDice": [roll.total] });
+    return roll.toMessage({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      flavor: game.i18n.format("PROJECTANIME.Roll.goAgainLuck", { name: actor.name, value: roll.total })
+    });
+  }
+
+  // Held dice → pick one and nudge it ±1 (bounds: 1 … the Charm die's maximum).
+  const options = dice.map((v, i) =>
+    `<label class="ms-row"><input type="radio" name="luckIndex" value="${i}" ${i === 0 ? "checked" : ""} /><span>${i18n("PROJECTANIME.Stat.luck")} ${i + 1}</span><b>${v}</b></label>`).join("");
+  const pick = await foundry.applications.api.DialogV2.wait({
+    window: { title: i18n("PROJECTANIME.Roll.goAgainLuckTitle"), icon: "fa-solid fa-clover" },
+    classes: ["project-anime"],
+    content: `<div class="project-anime roll-dialog pa-milestones">${options}</div>`,
+    buttons: [
+      { action: "up", label: "+1", icon: "fa-solid fa-angle-up", default: true, callback: (event, button) => ({ dir: 1, index: Number(button.form.elements.luckIndex?.value) || 0 }) },
+      { action: "down", label: "−1", icon: "fa-solid fa-angle-down", callback: (event, button) => ({ dir: -1, index: Number(button.form.elements.luckIndex?.value) || 0 }) },
+      { action: "cancel", label: i18n("Cancel"), icon: "fa-solid fa-times" }
+    ],
+    rejectClose: false
+  });
+  if (!pick || pick === "cancel") return;
+  const index = Math.clamp(pick.index, 0, dice.length - 1);
+  const from = dice[index];
+  const to = Math.clamp(from + pick.dir, 1, die);
+  if (to === from) return ui.notifications.info(i18n("PROJECTANIME.Roll.goAgainLuckBound"));
+  dice[index] = to;
+  await actor.update({ "system.luckDice": dice });
+  await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    flavor: game.i18n.format("PROJECTANIME.Roll.goAgainLuck", { name: actor.name, value: roll.total })
+    content: game.i18n.format("PROJECTANIME.Roll.goAgainLuckTuned", { name: actor.name, from, to })
   });
 }
 
@@ -3173,13 +3212,15 @@ async function breakBossBar(target) {
     { name: target.name, remaining, total: Number(boss.bars) || 0 });
 }
 
-/** A status condition that auto-expires by counting down the target's own turns (rules: default
- *  2 turns, set by its source). Excludes `stunned` (skip-based — handled by the combat turn-tick).
- *  Lingering (`decay`) runs on this standard timer like every other condition — its 1 damage
- *  ticks each of the bearer's turns while it lasts. The countdown itself lives in
- *  project-anime.mjs (tickStatusDurations). */
+/** A status condition that auto-expires by counting down rounds (v0.03: default 2 rounds, set by its
+ *  source), on the INFLICTER'S phase-start. Excludes the EVENT-based conditions `stunned` (skip) and
+ *  `prone` (stand up), which carry no counter. Lingering (`decay`) runs on this standard timer like
+ *  every other condition — its 1 damage fires each of the bearer's own turns while it lasts. The
+ *  countdown itself lives in project-anime.mjs (runPhaseDurationTick). */
 function isTimedStatus(statusId) {
-  return (PROJECTANIME.conditionKeys ?? []).includes(statusId) && statusId !== "stunned";
+  // Stunned (lose next turn) and Prone (until an Action is spent to stand) are EVENT-based — they
+  // carry no Duration counter (v0.03 duration engine). Everything else times out on the phase engine.
+  return (PROJECTANIME.conditionKeys ?? []).includes(statusId) && !["stunned", "prone"].includes(statusId);
 }
 
 /** How many of the target's own turns a status inflicted by this item lasts: the Skill's authored
@@ -3200,12 +3241,13 @@ function effectGrantsStatus(effect, status) {
 /**
  * Apply (or remove) a status condition on a target. Runs on whichever client owns the target.
  * Exported for the GM-side socket relay in project-anime.mjs. For a timed condition (see
- * isTimedStatus) a per-target turn counter is stamped under flags.project-anime.statusTimers so the
- * combat turn-tick can count it down at the end of the target's turn and remove it at 0 — re-applying
- * the same status REFRESHES it to the longer remaining duration rather than stacking (rules p.13).
- * Removing a status clears its counter. `duration` defaults to the rules' 2 turns.
+ * isTimedStatus) a per-target counter is stamped under flags.project-anime.statusTimers as
+ * `{ n: rounds, side }` — `side` is the INFLICTER'S side, so the v0.03 duration engine counts it
+ * down when that side's phase begins (project-anime.mjs runPhaseDurationTick) and removes it at 0.
+ * Re-applying the same status REFRESHES it to the longer remaining Duration rather than stacking
+ * (rules p.13). Removing a status clears its counter. `duration` defaults to the rules' 2 rounds.
  */
-export async function applyStatusTo(targetUuid, statusId, active = true, duration = 2, { decayType = "", value = 0, pool = "hp", overcomeCT = 0 } = {}) {
+export async function applyStatusTo(targetUuid, statusId, active = true, duration = 2, { decayType = "", value = 0, pool = "hp", overcomeCT = 0, side = null } = {}) {
   const target = await fromUuid(targetUuid);
   if (!target?.toggleStatusEffect) return;
   // Boss Resolve (v0.03): once per Bar, a Boss shrugs off a Detrimental Status that WOULD apply (the
@@ -3253,32 +3295,44 @@ export async function applyStatusTo(targetUuid, statusId, active = true, duratio
   }
   if (!isTimedStatus(statusId)) return;
   if (active) {
-    const turns = Number.isInteger(duration) && duration >= 1 ? duration : 2;
-    const prev = Number(target.getFlag("project-anime", "statusTimers")?.[statusId]) || 0;
-    await target.setFlag("project-anime", "statusTimers", { [statusId]: Math.max(prev, turns) });
+    // Duration engine (v0.03): the timer stores its length in ROUNDS + the CREATOR'S SIDE, and counts
+    // down when that side's phase begins (project-anime.mjs runPhaseDurationTick) — not on the bearer's
+    // own turn. Re-applying REFRESHES to the longer remaining and re-stamps the refreshing caster's side.
+    const rounds = Number.isInteger(duration) && duration >= 1 ? duration : 2;
+    const prev = normalizeTimer(target.getFlag("project-anime", "statusTimers")?.[statusId]);
+    const n = Math.max(prev.n, rounds);
+    await target.setFlag("project-anime", "statusTimers", { [statusId]: { n, side: side ?? prev.side ?? null } });
   } else if (statusId in (target.getFlag("project-anime", "statusTimers") ?? {})) {
     await target.update({ [`flags.project-anime.statusTimers.-=${statusId}`]: null });
   }
 }
 
+/** Read a stored status timer in either shape: the v0.03 `{ n, side }` object, or a legacy bare number
+ *  (pre-v0.03 saves) whose creator side is unknown → `side: null` (ticks on the Player Phase). Always
+ *  returns a well-formed `{ n, side }`. Exported so the phase engine and the HUDs share one reader. */
+export function normalizeTimer(raw) {
+  if (raw && typeof raw === "object") return { n: Number(raw.n) || 0, side: raw.side ?? null };
+  return { n: Number(raw) || 0, side: null };
+}
+
 /** Inflict a status on a target from a roll: directly if owned, else via the GM relay. The status
  *  lifetime is the Skill's Duration or the rules default of 2 (see skillStatusDuration). */
-async function applyStatusEffect(targetActor, statusId, duration = 2, { decayType = "", value = 0, pool = "hp", overcomeCT = 0 } = {}) {
+async function applyStatusEffect(targetActor, statusId, duration = 2, { decayType = "", value = 0, pool = "hp", overcomeCT = 0, side = null } = {}) {
   if (!targetActor || !statusId) return;
   // Affinity (Status) Resist (v0.03): the target halves the inflicted Status's duration
   // (round down, minimum 1). Full Immunity is checked earlier (statusImmunities).
   if (statusResists(targetActor).has(statusId)) {
     duration = Math.max(1, Math.floor((Number(duration) || 2) / 2));
   }
-  if (targetActor.isOwner) await applyStatusTo(targetActor.uuid, statusId, true, duration, { decayType, value, pool, overcomeCT });
+  if (targetActor.isOwner) await applyStatusTo(targetActor.uuid, statusId, true, duration, { decayType, value, pool, overcomeCT, side });
   else if (game.users.activeGM) {
-    game.socket.emit("system.project-anime", { type: "applyStatus", targetUuid: targetActor.uuid, statusId, active: true, duration, decayType, value, pool, overcomeCT });
+    game.socket.emit("system.project-anime", { type: "applyStatus", targetUuid: targetActor.uuid, statusId, active: true, duration, decayType, value, pool, overcomeCT, side });
   }
 }
 
-/** Overcome immunity (rules v0.01: succeeding on Overcome makes you immune to that Skill's
- *  effects for the next 2 turns): true while the target carries an immunity marker keyed to this
- *  source — the inflicting Skill's uuid, or `status:<id>` for a plain overcome status. */
+/** Overcome immunity (v0.03: succeeding on Overcome makes you immune to that Skill's effects for
+ *  the next 2 rounds): true while the target carries an immunity marker keyed to this source —
+ *  the inflicting Skill's uuid, or `status:<id>` for a plain overcome status. */
 function overcomeImmune(target, sourceKey) {
   if (!target || !sourceKey) return false;
   return (target.effects ?? []).some((e) => e.flags?.["project-anime"]?.overcomeImmunity === sourceKey);
@@ -3347,6 +3401,7 @@ async function applyConditionFromItem(actor, item, targetActor, c, lines) {
       label = `${c.label} (${i18n(`PROJECTANIME.Stat.${opts.pool}`)})`;
     }
   }
+  opts.side = actorSide(actor);   // the inflicter's phase owns this status's Duration countdown (v0.03)
   await applyStatusEffect(targetActor, c.id, skillStatusDuration(item), opts);
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition: label, name: targetActor.name })}</em>`);
 }
@@ -3374,7 +3429,7 @@ async function inflictDecay(item, targetActor, lines) {
     return;
   }
   const overcomeCT = overcomeCTFor(item);
-  await applyStatusEffect(targetActor, "decay", skillStatusDuration(item), { decayType: element, overcomeCT });
+  await applyStatusEffect(targetActor, "decay", skillStatusDuration(item), { decayType: element, overcomeCT, side: actorSide(item.parent) });
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.inflicts", { condition, name: targetActor.name })}</em>`);
 }
 
@@ -3664,6 +3719,7 @@ async function applySkillEffects(actor, item, recipients = null, { landed = true
   // Applied effects wear the icon of "what was used": the borrowed weapon for a Weapon-range Skill,
   // else the Skill itself. effectCopyData only swaps it in when the effect has no custom icon.
   const sourceImg = skillWeapon(actor, item)?.img || item.img;
+  const creator = actorSide(actor);   // the caster's phase owns the Duration countdown of every copy (v0.03)
   const targets = skillEffectTargets(actor, item, recipients);
   const seen = new Set();
   const lines = [];
@@ -3699,10 +3755,13 @@ async function applySkillEffects(actor, item, recipients = null, { landed = true
           value: valuedStatusValue(item.system?.spCost, "regen")
         });
       }
+      foundry.utils.setProperty(data, "flags.project-anime.creatorSide", creator);
       if (await routeEffectApply(ta, data)) names.push(effect.name);
     }
     for (const auto of autoEffects) {
-      if (await routeEffectApply(ta, foundry.utils.deepClone(auto))) names.push(auto.name);
+      const autoCopy = foundry.utils.deepClone(auto);
+      foundry.utils.setProperty(autoCopy, "flags.project-anime.creatorSide", creator);
+      if (await routeEffectApply(ta, autoCopy)) names.push(auto.name);
     }
     if (names.length) {
       lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.effectApplied", { effect: [...new Set(names)].join(", "), name: ta.name })}</em>`);

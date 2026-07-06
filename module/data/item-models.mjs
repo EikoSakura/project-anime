@@ -158,6 +158,10 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // For damage/heal Effects (Strike / Mend): which of the two Attributes' die to
     // roll for the amount (rules: "choose one of its two Attributes").
     schema.damageAttr = new fields.StringField({ required: true, blank: false, initial: "attrA", choices: ["attrA", "attrB"] });
+    // Skill Type when the Power Attribute is ⟪Charm⟫ (doc v0.03 revised "Skill Type"): Charm types
+    // neither way on its own, so the creator chooses — physical (vs DEF) or magical (vs RES).
+    // Ignored whenever the Power Attribute types itself (Might/Agility physical, Mind/Spirit magical).
+    schema.charmType = new fields.StringField({ required: true, blank: false, initial: "physical", choices: ["physical", "magical"] });
     // Range (v0.03) = a scope plus an editable tile count. Skills default to WEAPON range;
     // "tiles" (Range (X tiles)) and "scene" (Range (Scene)) are range overrides that each add
     // +1 SP (config.mjs rangeModifierCost). Legacy Melee/Near/Far/Very Far migrate below.
@@ -281,15 +285,19 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // Sharpen Damage / Sharpen Healing adds a flat bonus (0–3) to the Skill's rolled output —
     // damage for a Strike, healing for a Mend (one field; the Effect decides which it boosts).
     schema.damageMod = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0, max: 3 });
+    // Raise Duration adds rounds to a Standard-duration Skill — counts the ENHANCEMENT purchases so the
+    // +1-round-per-buy row is capped at +3 per Skill (v0.03). effectDuration holds the resulting value.
+    schema.durationMod = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0, max: 3 });
     // Lower Energy Cost reduces the Energy spent (floored at half the base cost).
     schema.energyReduction = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
-    // 1/Conflict limiter (v0.03 Enemies): explicit uses per encounter. 0 = unlimited (a normal Skill).
-    // A Skill that inflicts Stunned / Sealed (Exhausted) / Bound is 1/Conflict regardless of this
-    // (derived `perConflict` below). Tracked per-combat on the actor's flags; reset at combat start/end.
+    // Per-Conflict limiter: EXPLICIT uses per encounter, a GM knob for enemy design. 0 = unlimited
+    // (a normal Skill). Doc v0.03 revised RETIRED the automatic "Stunned/Sealed/Bound = 1/Conflict"
+    // rule — heavy Inflicts pay only their Heavy SP weight now. Tracked per-combat on the actor's
+    // flags; reset at combat start/end.
     schema.usesPerConflict = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
-    // Opt-out: never limit this Skill to once per encounter, even if it inflicts a heavy status or set a
-    // usesPerConflict. The preset Twists set this so they can be spammed freely.
+    // Opt-out: never limit this Skill per encounter even with a usesPerConflict set. (Legacy — the
+    // preset Twists stamped it while the automatic limiter existed; kept so stored data validates.)
     schema.noConflictLimit = new fields.BooleanField({ initial: false });
 
     // Optional player-authored rules text that REPLACES the auto-generated rules write-up
@@ -438,14 +446,13 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // Modifier cap — weight only drives the SP cost.
     this.modifiersUsed = modifiersBudget(this.modifiers, this) + rangeModifierCost(this);
 
-    // 1/Conflict (v0.03 Enemies): a Skill inflicting Stunned / Sealed (Exhausted) / Bound is limited to
-    // once per encounter regardless of EP cost; an explicit usesPerConflict also limits it. `usesLimit`
-    // is the per-encounter cap (0 = unlimited). The spend gate + reset live in dice.mjs / project-anime.mjs.
-    const inflictsHeavy = (this.modifiers ?? []).includes("inflict")
-      && PROJECTANIME.heavyInflictStatuses.includes(this.inflictStatus);
-    const limited = !this.noConflictLimit && ((this.usesPerConflict > 0) || inflictsHeavy);
+    // Per-Conflict uses (doc v0.03 revised: the automatic "Stunned/Sealed/Bound = 1/Conflict"
+    // rule is RETIRED — those Inflicts now cost only their Heavy SP weight). An EXPLICIT
+    // usesPerConflict still limits a Skill (a GM knob for enemy design); `usesLimit` is that
+    // per-encounter cap (0 = unlimited). The spend gate + reset live in dice.mjs / project-anime.mjs.
+    const limited = !this.noConflictLimit && this.usesPerConflict > 0;
     this.perConflict = limited;
-    this.usesLimit = limited ? (this.usesPerConflict > 0 ? this.usesPerConflict : 1) : 0;
+    this.usesLimit = limited ? this.usesPerConflict : 0;
   }
 }
 

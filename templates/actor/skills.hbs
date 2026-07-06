@@ -43,6 +43,17 @@
           <span class="sp-stat"><span class="sp-val">{{spInfo.spent}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.spent"}}</span></span>
           {{#if spInfo.granted}}<span class="sp-stat granted"><span class="sp-val">{{spInfo.granted}}</span><span class="sp-key">{{localize "PROJECTANIME.Skill.spGranted"}}</span></span>{{/if}}
           <span class="sp-stat total"><span class="sp-val">{{spInfo.total}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.total"}}</span></span>
+          {{#if rankInfo}}
+          {{!-- Lifetime SP earned in play (drives Rank; editable — the migration estimate may need a nudge). --}}
+          <span class="sp-stat earned" title="{{localize 'PROJECTANIME.Rank.earnedHint'}}">
+            <input class="sp-val" type="number" name="system.skillPoints.earned" value="{{rankInfo.earned}}" min="0" />
+            <span class="sp-key">{{localize "PROJECTANIME.Rank.earned"}}</span>
+          </span>
+          <span class="sp-stat rank" title="{{#if rankInfo.next}}{{localize 'PROJECTANIME.Rank.nextAt' sp=rankInfo.next}}{{else}}{{localize 'PROJECTANIME.Rank.max'}}{{/if}}">
+            <span class="sp-val">{{rankInfo.letter}} · {{rankInfo.tier}}</span>
+            <span class="sp-key">{{localize "PROJECTANIME.Rank.label"}}</span>
+          </span>
+          {{/if}}
         </div>
 
         {{#if @root.showSpLog}}

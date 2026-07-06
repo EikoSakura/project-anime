@@ -7,6 +7,12 @@
     <span class="lv-sp-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
     <span class="lv-sp-right"><i class="lv-dia"></i><span class="lv-sp-val">{{spLeft}}</span></span>
   </div>
+  {{#if rank}}
+  <div class="lv-sp lv-rank" title="{{#if rank.next}}{{localize 'PROJECTANIME.Rank.nextAt' sp=rank.next}}{{else}}{{localize 'PROJECTANIME.Rank.max'}}{{/if}}">
+    <span class="lv-sp-label">{{localize "PROJECTANIME.Rank.label"}}</span>
+    <span class="lv-sp-right"><span class="lv-sp-val">{{rank.letter}} · {{rank.tier}}</span></span>
+  </div>
+  {{/if}}
 
   <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.attributes"}}</span><span class="lv-ln"></span></div>
   {{#each attributes as |a|}}

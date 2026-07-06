@@ -22,8 +22,9 @@ import { collectLuckSteps, stepUpDie } from "../helpers/effects.mjs";
 import { postRollCard } from "../helpers/dice.mjs";
 import {
   rangeHasTiles, skillNeedsAccuracy, isHeavyModifier,
-  modifierBarredByType, skillDuration
+  modifierBarredByType, skillDuration, rankRow, tierFromRank
 } from "../helpers/config.mjs";
+import { tierNumeral } from "../helpers/chronicle.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -177,10 +178,25 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const spLeft = sp - this.#stagedCost();
     const stagedTotal = this.#stagedCost();
 
+    // Rank F–S (Characters): the header line under the SP pool — letter, own Tier, lifetime
+    // earned, and the next threshold (null at S).
+    let rank = null;
+    if (this.actor.type === "character") {
+      const idx = Number(sys.rank) || 0;
+      const next = cfg.ranks[idx + 1];
+      rank = {
+        letter: rankRow(idx).key,
+        tier: tierNumeral(tierFromRank(idx)),
+        earned: sys.skillPoints?.earned ?? 0,
+        next: next ? next.sp : null
+      };
+    }
+
     return {
       spLeft,
       stagedTotal,
       hasStaged: stagedTotal > 0,
+      rank,
       isCharacter: this.actor.type === "character",
       attributes: this.#attributeRows(cfg, sys, spLeft),
       stats: this.#statRows(sys, spLeft),
@@ -289,15 +305,17 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         canPlus: afford && lock + staged < 3, canMinus: staged > 0
       });
     }
-    // Duration (+1 turn) — only a turn-counted (Standard) Duration has turns to add.
+    // Duration (+1 round per buy, hard cap +3 per Skill) — only a round-counted (Standard) Duration
+    // has rounds to add. durationMod counts the committed raises; staged is this session's.
     if (sys.actionType !== "passive" && skillDuration(sys) === "standard") {
       const cur = sys.effectDuration ?? cfg.standardDurationTurns, staged = t("duration");
+      const bought = sys.durationMod ?? 0;
       tracks.push({
         op: "duration", icon: "fa-solid fa-clock",
         label: game.i18n.localize("PROJECTANIME.SkillBuilder.raiseDuration"),
         hint: game.i18n.localize("PROJECTANIME.Advancement.hintDuration"),
         display: `${cur + staged}`, staged: staged > 0,
-        canPlus: afford, canMinus: staged > 0
+        canPlus: afford && bought + staged < 3, canMinus: staged > 0
       });
     }
     // Efficiency (−1 EP, min half base).
@@ -609,7 +627,10 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         if (!steps) continue;
         if (op === "accuracy") itemUpdate["system.accuracyMod"] = (s.accuracyMod ?? 0) + steps;
         else if (op === "damage") itemUpdate["system.damageMod"] = (s.damageMod ?? 0) + steps;
-        else if (op === "duration") itemUpdate["system.effectDuration"] = (s.effectDuration ?? cfg.standardDurationTurns) + steps;
+        else if (op === "duration") {
+          itemUpdate["system.effectDuration"] = (s.effectDuration ?? cfg.standardDurationTurns) + steps;
+          itemUpdate["system.durationMod"] = (s.durationMod ?? 0) + steps;   // track the +3-cap enhancement count
+        }
         else if (op === "energy") itemUpdate["system.energyReduction"] = (s.energyReduction ?? 0) + steps;
         else if (op === "range") itemUpdate["system.range.tiles"] = (s.range?.tiles ?? 0) + steps;
         else if (op.startsWith("growth:")) {
@@ -676,7 +697,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static async #onCalcVitals() {
     const a = this.actor.system.attributes;
     const hp = 6 + a.might.value * 2;
-    const energy = a.spirit.value * 2;
+    const energy = 6 + a.spirit.value * 2;
     await this.actor.update({
       "system.hp.max": hp, "system.hp.value": hp,
       "system.energy.max": energy, "system.energy.value": energy

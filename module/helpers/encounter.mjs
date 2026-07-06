@@ -21,7 +21,7 @@ const VITAL_DIVISOR = 6;
 
 /**
  * Rate a Character's BUILD STRENGTH in Skill Points — attribute raises (at PC Step-Up prices) + each
- * Skill's SP cost + HP/Energy over the 6+⟪Might⟫×2 / ⟪Spirit⟫×2 baseline (lightly weighted). This is the
+ * Skill's SP cost + HP/Energy over the 6+⟪Might⟫×2 / 6+⟪Spirit⟫×2 baseline (lightly weighted). This is the
  * "Power" read on the Party roster tab so the GM can see how built-up each Character is (and match a
  * Rival's SP total to the party average — rules "Rivals"). NOT the encounter budget (that is Threat).
  */
@@ -38,7 +38,7 @@ export function monsterSPCost(actor) {
   const might = sys.attributes?.might?.base ?? 4;
   const spirit = sys.attributes?.spirit?.base ?? 4;
   cost += Math.max(0, Math.round(((sys.hp?.max ?? 0) - (6 + might * 2)) / VITAL_DIVISOR));
-  cost += Math.max(0, Math.round(((sys.energy?.max ?? 0) - spirit * 2) / VITAL_DIVISOR));
+  cost += Math.max(0, Math.round(((sys.energy?.max ?? 0) - (6 + spirit * 2)) / VITAL_DIVISOR));
   for (const item of actor.items ?? []) {
     if (item.type === "skill") cost += Number(item.system?.spCost ?? item.system?.rank ?? 0) || 0;
   }

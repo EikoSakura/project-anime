@@ -7,7 +7,7 @@ function fmtEquiv(n) {
   return parseFloat((Number(n) || 0).toFixed(2)).toString();
 }
 import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
-import { partyTier, tierNumeral, PARTY_TIER_SETTING, SEASON_COUNT_SETTING } from "../helpers/chronicle.mjs";
+import { partyTier, partyTierAuto, tierNumeral, PARTY_TIER_SETTING } from "../helpers/chronicle.mjs";
 import { getBonds, rankLetter } from "../helpers/bonds.mjs";
 import { RestApp } from "../apps/rest.mjs";
 
@@ -155,12 +155,12 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     context.memberCount = context.members.length;
     context.gold = sys.gold ?? 0; // shared treasury (Stash tab)
 
-    // Party Tier I–IV (v0.03): auto = 1 + Seasons concluded; the GM can pin it via the select.
+    // Party Tier I–IV (v0.03 revised): auto = the Tier shared by most member characters (ties read
+    // the higher — each member's Tier comes from their Rank); the GM can pin it via the select.
     const override = Number(game.settings.get("project-anime", PARTY_TIER_SETTING)) || 0;
-    const seasons = Number(game.settings.get("project-anime", SEASON_COUNT_SETTING)) || 0;
     context.tier = tierNumeral(partyTier());
     context.tierOptions = [
-      { v: 0, label: `${game.i18n.localize("PROJECTANIME.Party.tierAuto")} · ${tierNumeral(Math.min(4, 1 + seasons))}`, sel: override === 0 },
+      { v: 0, label: `${game.i18n.localize("PROJECTANIME.Party.tierAuto")} · ${tierNumeral(partyTierAuto())}`, sel: override === 0 },
       ...[1, 2, 3, 4].map((t) => ({ v: t, label: tierNumeral(t), sel: override === t }))
     ];
 

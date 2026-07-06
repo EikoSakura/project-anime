@@ -15,6 +15,7 @@
  * (kept in data, logged, never paid).
  */
 import { partyMembers, partyActors, resolveParty } from "./party-folder.mjs";
+import { tierFromRank } from "./config.mjs";
 import { applyRepToFaction, factionById, unlockRecruits } from "./factions.mjs";
 import { applyBondReward } from "./bonds.mjs";
 import { stampCompendiumSource } from "./gear.mjs";
@@ -43,11 +44,28 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 
 const TIER_NUMERALS = ["I", "I", "II", "III", "IV"];
 
-/** The party's Tier, 1–4. Auto = 1 + Seasons concluded (max IV); a GM override on the party
- *  sheet wins. Work pay, Posting budgets, material prices, and Temper caps read this. */
+/** The party's Tier, 1–4 (v0.03 revised "Rank and Tier"): the Tier shared by MOST of the party's
+ *  characters (each character's own Tier comes from their Rank); an even split reads the higher.
+ *  A GM override on the party sheet wins; with no roster at all, fall back to the old Seasons
+ *  formula (1 + Seasons concluded, max IV). Work pay, Posting budgets, and material prices read this. */
 export function partyTier() {
   const override = Number(game.settings.get("project-anime", PARTY_TIER_SETTING)) || 0;
   if (override >= 1) return Math.min(4, override);
+  return partyTierAuto();
+}
+
+/** The auto-derived party Tier (ignores the GM pin): majority member Tier, ties read the higher;
+ *  the old Seasons formula only backstops a world with no roster. */
+export function partyTierAuto() {
+  const members = partyActors().flatMap((p) => partyMembers(p));
+  if (members.length) {
+    const counts = [0, 0, 0, 0];
+    for (const m of members) counts[tierFromRank(m.system?.rank) - 1] += 1;
+    let best = 1;
+    let bestCount = 0;
+    for (let t = 1; t <= 4; t++) if (counts[t - 1] >= bestCount && counts[t - 1] > 0) { best = t; bestCount = counts[t - 1]; }
+    return best;
+  }
   const seasons = Number(game.settings.get("project-anime", SEASON_COUNT_SETTING)) || 0;
   return Math.min(4, 1 + seasons);
 }
@@ -105,8 +123,12 @@ export async function promptMilestoneAward() {
   if (season) parts.push({ key: "season", sp: 5 });
   const total = parts.reduce((n, p) => n + p.sp, 0);
 
+  // Milestone SP is EARNED SP — it feeds the lifetime total that drives Rank (v0.03 revised).
   await Promise.all(members.map((m) =>
-    m.update({ "system.skillPoints.value": (m.system.skillPoints?.value ?? 0) + total })
+    m.update({
+      "system.skillPoints.value": (m.system.skillPoints?.value ?? 0) + total,
+      "system.skillPoints.earned": (m.system.skillPoints?.earned ?? 0) + total
+    })
   ));
 
   let seasonLine = "";
