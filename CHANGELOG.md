@@ -2,10 +2,6 @@
 
 ## 0.3.13 - 2026-07-05
 
-- Rank & Tier: characters earn Rank F-S from lifetime SP (rises at a rest), own-Tier ceilings cap DEF/RES/EVA, Party Tier is the majority member Tier, and Temper caps by the owner's Tier,Revised-doc rules pass: Bow/Firearm are dual-type with a per-shot Physical/Magical choice, Skills type by their Power Attribute (Charm picks at creation), the 1/Conflict auto-limit is retired, a Go-Again Combo tunes a Luck Die +/-1, the Combo Modifier is renamed Link, and Conjure/Gate/Vanish/Weaken are Scene-length,Duration engine rebuilt: timed effects count down when their creator's side phase begins, Scene is a Heavy Modifier (2 SP), Raise Duration caps at +3, and durations display in rounds,Energy pools raised to 6 + Spirit x2 (existing actors gain +6 EP automatically); no Attribute above d10 at creation,Monster Creator: the Four Rails Evasion rail now reads EVA <= 7 + party Tier
-
-## 0.3.13 - 2026-07-05
-
 Rules pass for the **revised v0.03 playtest doc** — Rank & Tier arrive, and eight smaller rules move to the new printing.
 
 ### Rank & Tier (headline)
