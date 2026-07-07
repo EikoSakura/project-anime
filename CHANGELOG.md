@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.7 - 2026-07-07
+
+- Chain Techniques post their combined attack card again - resolveChain referenced an undefined variable at the card step, so the rolls and damage applied but the chat card never appeared,Manifest lock follows the carrier: the bound Passive's energy lock now lifts only while the carrier Technique is running and RETURNS when its duration ends (dormant bound Passives lock their boxes and read 'Locks N' again)
+
 ## 0.5.6 - 2026-07-07
 
 - Monster Creator: a Companion tile joins the six enemy Types - stamps the printed companion line (HB 3 / EB 2 / Guard 7 / Move 5, no Threat), turns the NPC friendly with a linked token, and files it with the Servants & Companions so it rides the party sheet's Companions strip,NPC sheets: Companions wear a paw Companion badge (no Threat chip); hand-typed companions count on the party strip and for Milestone awards wherever they're filed,Manifest Modifier fully wired: the Builder picks which owned Passive Technique the carrier wakes, the bound Passive's energy lock lifts (sheet row reads Manifested), and using the carrier runs the Passive's effects for the carrier's Duration on every activation path,Drain house rule: clears 1 box per creature actually damaged (chains and areas benefit); flows that require a target now warn 'Target a creature first' instead of 'total only',Install manifest fixed: stable releases/latest/download/system.json manifest URL and a version-pinned download zip stamped each release

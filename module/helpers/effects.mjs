@@ -419,8 +419,9 @@ function effectIsLive(effect) {
       if (parent.system?.actionType !== "passive") return false;
       // A Manifest-bound Passive (rules: Manifest Modifier) is dormant except while its
       // carrier runs — the carrier's use stamps a duration marker on the actor (dice.mjs
-      // ensureManifestMarker); the marker's expiry puts the Passive back to sleep.
-      if (parent.system?.manifested) {
+      // ensureManifestMarker); the marker's expiry puts the Passive back to sleep (and its
+      // energy lock returns — item-models.mjs).
+      if (parent.system?.manifestedBy) {
         return (parent.actor?.effects ?? []).some((e) =>
           !e.disabled && e.flags?.[FLAG_SCOPE]?.manifestSkillId === parent.id);
       }

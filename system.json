@@ -2,7 +2,7 @@
   "id": "project-anime",
   "title": "Project: Anime",
   "description": "A setting-agnostic anime TTRPG of attribute dice, player-built Techniques, and cinematic scenes. Playtest implementation for Foundry Virtual Tabletop V13.",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "compatibility": {
     "minimum": "13",
     "verified": "13.351",
@@ -183,7 +183,7 @@
   "secondaryTokenAttribute": "energy",
   "url": "https://github.com/EikoSakura/project-anime",
   "manifest": "https://github.com/EikoSakura/project-anime/releases/latest/download/system.json",
-  "download": "https://github.com/EikoSakura/project-anime/releases/download/v0.5.6/project-anime.zip",
+  "download": "https://github.com/EikoSakura/project-anime/releases/download/v0.5.7/project-anime.zip",
   "readme": "README.md",
   "changelog": "CHANGELOG.md",
   "flags": {

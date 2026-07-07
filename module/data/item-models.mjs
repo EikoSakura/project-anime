@@ -267,15 +267,18 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     const passive = this.actionType === "passive" || this.effect === "companion";
     this.energyCost = passive ? 0 : this.totalCost;
     // Manifest (rules: Manifest Modifier): a sibling carrier Technique that binds this Passive
-    // makes it dormant-until-manifested — its lock lifts (the effects gate in helpers/effects.mjs
-    // wakes it while the carrier's marker runs). Sibling SOURCE data only: prep-order safe.
+    // makes it dormant-until-manifested. The lock lifts ONLY while the Passive is actually
+    // running — a live marker from the carrier's activation (dice.mjs ensureManifestMarker);
+    // when the carrier's duration ends the marker dies and the lock RETURNS. Sibling/effect
+    // SOURCE data only: prep-order safe.
     const item = this.parent;
     this.manifestedBy = (this.actionType === "passive" && this.effect !== "companion" && item?.actor)
       ? (item.actor.items.find((i) => i !== item && i.type === "skill"
           && (i._source?.system?.modifiers ?? []).includes("manifest")
           && i._source?.system?.manifestSkillId === item.id)?.id ?? "")
       : "";
-    this.manifested = !!this.manifestedBy;
+    this.manifested = !!this.manifestedBy && (item.actor.effects ?? []).some((e) =>
+      !e.disabled && e.flags?.["project-anime"]?.manifestSkillId === item.id);
     this.passiveEnergyTax = passive && !this.manifested && !(this.effect === "companion" && this.companionHome)
       ? this.totalCost : 0;
     // The Modifier weight shown on sheets.

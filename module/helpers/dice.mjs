@@ -1706,6 +1706,7 @@ async function resolveAreaEffect(actor, item, targetTokens, { charged = false } 
  * One combined attack+damage card.
  */
 async function resolveChain(actor, item, chainTokens, { charged = false } = {}) {
+  const sys = item.system;
   const spec = skillRollSpec(actor, item);
   const nearTiles = modifierValue(item, "chain");                       // leap distance: die/2 tiles (+1 Edge)
   const maxTargets = 1 + (PROJECTANIME.chainExtraTargets ?? 1);         // primary + 1 leap
