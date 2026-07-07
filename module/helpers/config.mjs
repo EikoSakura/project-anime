@@ -385,6 +385,9 @@ export function modifiersEnergy(mods, sys) {
 export function modifierBarredByType(key, sys) {
   if (key === "channeled") return sys?.actionType === "passive";
   if (key === "secondaryEffect") return sys?.effect === "passive";
+  // Manifest wakes a Passive while its carrier is ACTIVE — a Passive carrier is never
+  // "activated", so only Action/React Techniques may carry it.
+  if (key === "manifest") return sys?.actionType === "passive";
   return false;
 }
 
@@ -943,8 +946,14 @@ export function bossThreat(partySize) {
 /* -------------------------------------------- */
 
 /** The Companion Effect's stat line (rules: Companion Rules). One Talent at d6, one Technique,
- *  Attributes one at d6 + four at d4; on your turn you act OR the Companion acts. */
+ *  Attributes one at d6 + four at d4; on your turn you act OR the Companion acts. Carries the
+ *  same presentation fields as an enemyTypes entry (label/icon/color) so the sheet badge and
+ *  the Monster Creator's Companion tile can render it, but it is NOT an enemy Type — it has
+ *  no Threat and never enters the encounter budget. */
 PROJECTANIME.companion = {
+  label: "PROJECTANIME.EnemyType.companion",
+  icon: "fa-solid fa-paw",
+  color: "#4f7c9c",
   hb: 3,
   eb: 2,
   guard: 7,
@@ -952,7 +961,9 @@ PROJECTANIME.companion = {
   damage: 1,
   threshold: 10,
   attrs: [6, 4, 4, 4, 4],
-  energyLock: 2
+  energyLock: 2,
+  talents: [6],
+  techniques: 1
 };
 
 /** A bonded Companion actor — an NPC created by the Companion Effect (flagged `companionOf`),

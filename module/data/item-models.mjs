@@ -130,6 +130,11 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // Companion is actively adventuring. `companionHome` = left behind (no lock).
     schema.companionHome = new fields.BooleanField({ initial: false });
 
+    // Manifest (rules: Manifest Modifier) — the id of the owned PASSIVE Technique this
+    // carrier wakes: the bound Passive runs only while this Technique is active, and its
+    // locked energy is unlocked. "" = unbound (display-only until a Passive is chosen).
+    schema.manifestSkillId = new fields.StringField({ required: false, blank: true, initial: "" });
+
     // Per-Conflict limiter: EXPLICIT uses per encounter — a GM knob for enemy design. 0 =
     // unlimited. Tracked per-combat on the actor's flags; reset at combat start/end.
     schema.usesPerConflict = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
@@ -261,7 +266,17 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // total cost (rules: Passive Techniques). A Companion's lock lifts while it's left home.
     const passive = this.actionType === "passive" || this.effect === "companion";
     this.energyCost = passive ? 0 : this.totalCost;
-    this.passiveEnergyTax = passive && !(this.effect === "companion" && this.companionHome)
+    // Manifest (rules: Manifest Modifier): a sibling carrier Technique that binds this Passive
+    // makes it dormant-until-manifested — its lock lifts (the effects gate in helpers/effects.mjs
+    // wakes it while the carrier's marker runs). Sibling SOURCE data only: prep-order safe.
+    const item = this.parent;
+    this.manifestedBy = (this.actionType === "passive" && this.effect !== "companion" && item?.actor)
+      ? (item.actor.items.find((i) => i !== item && i.type === "skill"
+          && (i._source?.system?.modifiers ?? []).includes("manifest")
+          && i._source?.system?.manifestSkillId === item.id)?.id ?? "")
+      : "";
+    this.manifested = !!this.manifestedBy;
+    this.passiveEnergyTax = passive && !this.manifested && !(this.effect === "companion" && this.companionHome)
       ? this.totalCost : 0;
     // The Modifier weight shown on sheets.
     this.modifiersUsed = modifiersEnergy(this.modifiers, this);

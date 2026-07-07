@@ -415,7 +415,17 @@ function effectIsLive(effect) {
     // Action / React Skill effects stay dormant here — they're applied ON USE as a copy
     // on the recipient (see dice.mjs). That copy is parented to the actor, not this Skill,
     // so it isn't re-gated by this branch.
-    if (parent.type === "skill") return parent.system?.actionType === "passive";
+    if (parent.type === "skill") {
+      if (parent.system?.actionType !== "passive") return false;
+      // A Manifest-bound Passive (rules: Manifest Modifier) is dormant except while its
+      // carrier runs — the carrier's use stamps a duration marker on the actor (dice.mjs
+      // ensureManifestMarker); the marker's expiry puts the Passive back to sleep.
+      if (parent.system?.manifested) {
+        return (parent.actor?.effects ?? []).some((e) =>
+          !e.disabled && e.flags?.[FLAG_SCOPE]?.manifestSkillId === parent.id);
+      }
+      return true;
+    }
   }
   return true;
 }

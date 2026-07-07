@@ -1,6 +1,6 @@
 import { rollCheck, useConsumable, contextRemoveEffect, postCard, cardHTML } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent } from "../helpers/config.mjs";
+import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion } from "../helpers/config.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, applyEffectCopy } from "../helpers/effects.mjs";
@@ -143,7 +143,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.isCharacter = this.actor.type === "character";
     context.isNPC = this.actor.type === "npc";
     // Enemy Type badge (V2) — shows the Type + a Rival / Boss chip when flagged. Threat is
-    // the encounter cost.
+    // the encounter cost. A Companion (bonded, hand-typed, or folder-filed) wears its own
+    // paw chip instead — no Threat, it never enters the encounter budget.
     const eType = context.isNPC ? this.actor.system.npcType : "";
     const typeCfg = eType ? CONFIG.PROJECTANIME.enemyTypes?.[eType] : null;
     context.tierBadge = typeCfg
@@ -152,7 +153,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
           rival: !!this.actor.system.rival,
           boss: !!this.actor.system.boss?.enabled,
           threat: this.actor.system.rival ? PROJECTANIME.rivalThreat : (typeCfg.threat ?? 1) }
-      : null;
+      : (context.isNPC && isCompanion(this.actor))
+        ? { label: game.i18n.localize(PROJECTANIME.companion.label), icon: PROJECTANIME.companion.icon,
+            color: PROJECTANIME.companion.color, tierNumeral: "", rival: false, boss: false, threat: null }
+        : null;
     // Boss Bars readout: the pip strip under the header + the current-Bar note.
     context.bossBars = (context.isNPC && this.actor.system.boss?.enabled)
       ? { remaining: Number(this.actor.system.boss.remaining) || 0,
@@ -469,7 +473,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         name: i.name,
         img: i.img,
         stars: passive
-          ? game.i18n.format("PROJECTANIME.Skill.locks", { n: i.system.passiveEnergyTax ?? 0 })
+          ? (i.system.manifested
+            ? game.i18n.localize("PROJECTANIME.Skill.manifested")
+            : game.i18n.format("PROJECTANIME.Skill.locks", { n: i.system.passiveEnergyTax ?? 0 }))
           : `${cost} ${game.i18n.localize("PROJECTANIME.Stat.energyAbbr")}`,
         energyCost: cost,
         actionType,

@@ -248,7 +248,7 @@
           {{/if}}
           {{#if reviewBadge.rival}}<span class="cc-tier-badge rival"><i class="fas fa-chess-king"></i> {{localize "PROJECTANIME.Rival.badge"}}</span>{{/if}}
           {{#if reviewBadge.boss}}<span class="cc-tier-badge boss"><i class="fas fa-crown"></i> {{localize "PROJECTANIME.Boss.badge"}}</span>{{/if}}
-          <span class="cc-tier-badge threat"><i class="fas fa-skull"></i> {{reviewBadge.threat}}</span>
+          {{#if reviewBadge.threat}}<span class="cc-tier-badge threat"><i class="fas fa-skull"></i> {{reviewBadge.threat}}</span>{{/if}}
           {{/if}}
         </div>
       </div>

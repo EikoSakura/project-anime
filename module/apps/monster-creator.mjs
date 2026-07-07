@@ -5,6 +5,8 @@
  * Own): pick a TYPE (a complete stat line — Minion / Standard / Bruiser / Skirmisher / Support /
  * Elite; see PROJECTANIME.enemyTypes), assign the type's Attribute dice, choose Talents at the
  * printed die sizes, and write Techniques with the same Skill Browser / Builder players use.
+ * A seventh tile, COMPANION (PROJECTANIME.companion), hand-builds a party ally on the printed
+ * companion line: it has no Threat, goes friendly on pick, and files itself with the companions.
  *
  * Picking a type stamps the printed line onto the actor: Hit Boxes, Energy Boxes, Guard
  * (as `guard.bonus` = printed − base 6), Movement (as `movement.bonus` = printed − unarmored 6)
@@ -26,6 +28,7 @@ import { SkillBrowserApp } from "./skill-browser.mjs";
 import { PROJECTANIME, bossBarCount, bossBarHp, bossThreat, actorTalents } from "../helpers/config.mjs";
 import { formatThreat } from "../helpers/encounter.mjs";
 import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
+import { ensureServantFolder } from "../helpers/servants.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -43,14 +46,21 @@ const TALENT_OPTIONS = {
   bruiser: [[8]],
   skirmisher: [[6]],
   support: [[6]],
-  elite: [[8], [6, 6]]
+  elite: [[8], [6, 6]],
+  companion: [[6]]
 };
 
 /** A Boss's Talent loadouts: one at d10, or two at d8. */
 const BOSS_TALENT_OPTIONS = [[10], [8, 8]];
 
 /** Suggested Technique counts per type (display budget; rules: Step 4). */
-const TECHNIQUE_BUDGET = { minion: "0", standard: "1–2", bruiser: "1–2", skirmisher: "1–2", support: "2", elite: "2" };
+const TECHNIQUE_BUDGET = { minion: "0", standard: "1–2", bruiser: "1–2", skirmisher: "1–2", support: "2", elite: "2", companion: "1" };
+
+/** Resolve a tile key to its printed stat line — the six enemy Types, plus the Companion line
+ *  (which is not an enemy Type: no Threat, never in the encounter budget). */
+function typeLine(key) {
+  return key === "companion" ? PROJECTANIME.companion : PROJECTANIME.enemyTypes[key];
+}
 
 /** Stable ordering: by sort, then name. */
 const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
@@ -62,7 +72,8 @@ function typeTooltipHTML(t) {
   const row = (icon, key, value) =>
     `<div class="pa-tt-row"><span class="k"><i class="fa-solid ${icon}"></i> ${L(key)}</span><span class="v">${value}</span></div>`;
   const rows = [
-    row("fa-skull", "PROJECTANIME.Threat.label", formatThreat(t.threat)),
+    // The Companion line has no Threat — skip the row rather than print a placeholder.
+    ...(Number.isFinite(t.threat) ? [row("fa-skull", "PROJECTANIME.Threat.label", formatThreat(t.threat))] : []),
     row("fa-heart", "PROJECTANIME.Stat.hp", t.hb),
     row("fa-bolt", "PROJECTANIME.Stat.energy", t.eb),
     row("fa-shield", "PROJECTANIME.Stat.guard", t.guard),
@@ -137,10 +148,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /*  Type helpers                                */
   /* -------------------------------------------- */
 
-  /** The selected Type's config entry, or null while unset. */
+  /** The selected Type's config entry (or the Companion line), or null while unset. */
   #type() {
     const key = this.actor.system.npcType;
-    return key ? PROJECTANIME.enemyTypes[key] : null;
+    return key ? (typeLine(key) ?? null) : null;
   }
 
   #isBoss() {
@@ -212,10 +223,11 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.disposition = sys.disposition ?? "hostile";
 
     // Type tiles — glyph + name on the face; the printed stat line lives in the hover tooltip
-    // (matches the Character Creator's Weapon/Armor Style cards).
+    // (matches the Character Creator's Weapon/Armor Style cards). Companion rides along as a
+    // seventh tile: the party-ally stat line, not an enemy Type.
     ctx.npcType = sys.npcType ?? "";
-    ctx.types = cfg.enemyTypeKeys.map((k) => {
-      const t = cfg.enemyTypes[k];
+    ctx.types = [...cfg.enemyTypeKeys, "companion"].map((k) => {
+      const t = typeLine(k);
       return {
         key: k, label: L(t.label), icon: t.icon, color: t.color,
         tooltip: typeTooltipHTML(t),
@@ -349,7 +361,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       && !this.actor.items.some((i) => i.type === "skill"
         && (["mend", "bolster"].includes(i.system.effect) || ["mend", "bolster"].includes(i.system.secondaryEffect)));
 
-    // Review (last step) — a compact summary badge (Type + Rival/Boss + Threat).
+    // Review (last step) — a compact summary badge (Type + Rival/Boss + Threat; a Companion
+    // has no Threat, so its chip is skipped).
     const typeCfg = this.#type();
     ctx.reviewBadge = ctx.framed ? {
       label: typeCfg ? L(typeCfg.label) : "",
@@ -357,7 +370,9 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       color: ctx.boss ? "#9c4f6c" : ctx.rival ? "#c08a3e" : (typeCfg?.color ?? "var(--pa-line)"),
       rival: ctx.rival,
       boss: ctx.boss,
-      threat: formatThreat(ctx.boss ? bossThreat(this.#partySize()) : ctx.rival ? cfg.rivalThreat : (typeCfg?.threat ?? 1))
+      threat: ctx.boss ? formatThreat(bossThreat(this.#partySize()))
+        : ctx.rival ? formatThreat(cfg.rivalThreat)
+        : Number.isFinite(typeCfg?.threat) ? formatThreat(typeCfg.threat) : ""
     } : null;
 
     return ctx;
@@ -472,11 +487,24 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /*  Type (stat line · Rival · Boss)             */
   /* -------------------------------------------- */
 
-  /** Pick a Type: stamp its key, then write the printed line + seed the Attribute dice. */
+  /** Pick a Type: stamp its key, then write the printed line + seed the Attribute dice.
+   *  Companion also wires the ally side of it: friendly disposition, linked token, and — when
+   *  the actor isn't filed anywhere yet — a home in the Servants & Companions folder (that
+   *  filing is what puts a hand-built companion on the party sheet's Companions strip). */
   static async #onPickType(event, target) {
     const key = target.closest("[data-type]")?.dataset.type;
-    if (!PROJECTANIME.enemyTypes[key]) return;
-    await this.actor.update({ "system.npcType": key });
+    if (!typeLine(key)) return;
+    const update = { "system.npcType": key };
+    if (key === "companion") {
+      update["system.disposition"] = "friendly";
+      update["prototypeToken.disposition"] = CONST.TOKEN_DISPOSITIONS.FRIENDLY;
+      update["prototypeToken.actorLink"] = true;
+      if (!this.actor.folder) {
+        const folder = await ensureServantFolder();
+        if (folder) update.folder = folder.id;
+      }
+    }
+    await this.actor.update(update);
     await this.#applyLine({ seedAttrs: true });
     this.render();
   }

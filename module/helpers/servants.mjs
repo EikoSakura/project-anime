@@ -13,8 +13,9 @@ import { postCard, cardHTML, enrichDescription, skillMeta } from "./dice.mjs";
 const FLAG = "project-anime";
 const i18n = (k, data) => (data ? game.i18n.format(k, data) : game.i18n.localize(k));
 
-/** The world folder companions are filed under (created on demand, GM-side). */
-async function ensureServantFolder() {
+/** The world folder companions are filed under (created on demand, GM-side). Also used by the
+ *  Monster Creator's Companion tile to file hand-built companions. */
+export async function ensureServantFolder() {
   const name = i18n("PROJECTANIME.Servant.folder");
   let folder = game.folders.find((f) => f.type === "Actor" && f.name === name);
   if (!folder && game.user.isGM) {

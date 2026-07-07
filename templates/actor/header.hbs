@@ -48,7 +48,7 @@
     </span>
     {{#if tierBadge.rival}}<span class="enemy-chip rival" title="{{localize 'PROJECTANIME.Rival.badgeHint'}}"><i class="fas fa-chess-king"></i>{{localize "PROJECTANIME.Rival.badge"}}</span>{{/if}}
     {{#if tierBadge.boss}}<span class="enemy-chip boss" title="{{localize 'PROJECTANIME.Boss.badgeHint'}}"><i class="fas fa-crown"></i>{{localize "PROJECTANIME.Boss.badge"}}</span>{{/if}}
-    <span class="enemy-threat" title="{{localize 'PROJECTANIME.Threat.hint'}}"><i class="fas fa-skull"></i>{{tierBadge.threat}}</span>
+    {{#if tierBadge.threat}}<span class="enemy-threat" title="{{localize 'PROJECTANIME.Threat.hint'}}"><i class="fas fa-skull"></i>{{tierBadge.threat}}</span>{{/if}}
     {{/if}}
     {{/if}}
   </div>

@@ -225,7 +225,9 @@
       "foeOnly": "This Skill targets a foe — that creature isn't an enemy.",
       "noneAffectable": "No one the Skill can affect was caught in the area.",
       "channelingName": "Channeling: {name}",
+      "manifestName": "{name} (Manifested)",
       "noTarget": "No target selected — total only.",
+      "needTarget": "Target a creature first — hover a token and press T.",
       "hit": "Hit",
       "miss": "Miss",
       "fumble": "Fumble!",
@@ -254,7 +256,9 @@
       "coverSame": "Target a different creature to cover this hit.",
       "healsFor": "Heals {n} HP",
       "drainsHP": "Drain: Clears {n} Hit Box",
+      "drainsHPPlural": "Drain: Clears {n} Hit Boxes",
       "drainsEnergy": "Drain: Clears {n} Energy Box",
+      "drainsEnergyPlural": "Drain: Clears {n} Energy Boxes",
       "retaliation": "Retaliation ({name})",
       "charge": "Charge",
       "chargeReleases": "Releases at double power on your next turn.",
@@ -652,6 +656,7 @@
         "companionHome": "Left at Home",
         "inflictSevereStatus": "Severe Status",
         "drainPool": "Drain Clears",
+        "manifestSkill": "Manifested Passive",
         "energyLock": "Energy Lock",
         "usesPerConflict": "Uses Per Conflict"
       },
@@ -831,7 +836,7 @@
         "waypoint": "Gate only. Place a permanent portal at a named location you visit. You and designated creatures can travel between your Waypoints.",
         "custom": "A custom Modifier agreed between Player and Storyteller. May carry the Heavy tier.",
         "barrier": "The target gains temporary hit boxes equal to the Technique's total energy cost, up to their maximum hit boxes. When the Technique ends, unmarked temporary boxes vanish.",
-        "drain": "When you deal damage with this Technique, clear 1 hit box or 1 energy box (chosen at creation).",
+        "drain": "When you deal damage with this Technique, clear 1 hit box or 1 energy box (chosen at creation) for each creature damaged.",
         "inflictSevere": "On hit, apply one: Bound, Cursed (choose hit or energy boxes), Exposed, or Sealed. Duration: 2.",
         "link": "When you use this Technique, also activate another Technique you know. Pay its energy cost separately.",
         "potent": "+1 hit box marked or cleared. Can be taken twice.",
@@ -882,6 +887,7 @@
         "banish": "On a hit, the target is sent to its native plane of existence (it may use Spirit to evade).",
         "infuse": "It imbues the target's weapons with {thing}.",
         "manifest": "One of your Passive Techniques runs as active while this lasts — its locked energy unlocks.",
+        "manifestNamed": "Your Passive Technique {name} runs as active while this lasts — its energy lock is lifted.",
         "combo": "When you use it, you may also activate another Skill alongside it.",
         "disarm": "It removes one equipped item from the target; the target contests this Technique.",
         "waypoint": "You may place a permanent portal at a named location you visit; you and designated creatures can travel between your Waypoints.",
@@ -933,7 +939,7 @@
         "barrier": "The target gains {n} temporary hit boxes (up to their maximum); unmarked ones vanish when it ends.",
         "customMod": "It carries a custom Modifier agreed with the Storyteller (see its description).",
         "devour": "If the target has every hit box marked, you learn one Technique it knows.",
-        "drain": "When it deals damage, you clear {n} {pool} box.",
+        "drain": "When it deals damage, you clear {n} {pool} box for each creature damaged.",
         "link": "When you use it, you may also activate another Technique you know, paying its energy cost separately.",
         "potent": "It marks or clears {n} additional box(es).",
         "reflect": "The next Technique that targets the bearer redirects to its user; consumed on use.",
@@ -947,7 +953,8 @@
         "sustained": "Sustained",
         "standing": "Standing"
       },
-      "locks": "Locks {n}"
+      "locks": "Locks {n}",
+      "manifested": "Manifested"
     },
     "Range": {
       "self": "Self",
@@ -1336,6 +1343,7 @@
       "passiveNoMod": "This Technique can't take that Modifier.",
       "modIncompatible": "Those Modifiers can't be combined.",
       "servantNoEffect": "A Servant or Companion can't take the Companion Effect.",
+      "needManifest": "Choose the Passive Technique Manifest wakes.",
       "atMax": "Max",
       "atMin": "Min",
       "sharpen": "Accuracy",
@@ -1795,7 +1803,8 @@
       "bruiser": "Bruiser",
       "skirmisher": "Skirmisher",
       "support": "Support",
-      "elite": "Elite"
+      "elite": "Elite",
+      "companion": "Companion"
     }
   },
   "TYPES.Item.talent": "Talent"

@@ -1013,10 +1013,10 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
     notes.push(...(await applySkillOnHit(actor, item, targetActor)));
     await markRidersDone(sourceMessageId);
   }
-  // Drain HP/Energy: the caster recovers half the damage actually dealt to the target —
-  // what a Barrier absorbed never touched the creature, so it feeds no drain. A basic
-  // attack (weapon/shield) additionally feeds any PASSIVE drain Skill the attacker carries.
-  await applyDrain(actor, item, dealt, notes);
+  // Drain: a hit that dealt >0 damage clears 1 box on the caster (per creature damaged — a
+  // single target is 1; what a Barrier absorbed never touched the creature, so it feeds no
+  // drain). A basic attack (weapon/shield) additionally feeds any PASSIVE drain Skill.
+  await applyDrain(actor, item, dealt > 0 ? 1 : 0, notes);
   await applyPassiveDrains(actor, item, dealt, notes);
   // Retaliation: a warded target punishes the attacker for the damage it just took.
   if (targetActor && dealt > 0) await applyRetaliation(actor, [{ actor: targetActor, amount: dealt }], notes);
@@ -1054,7 +1054,6 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
   const rows = [];
   const killed = [];
   const hits = [];
-  let drainTotal = 0;
   // Riders apply once per originating card (first Roll Damage click), per target that took >0 damage.
   const doRiders = !dmg.heal && !spec && isDamagingStrike(item) && !ridersAlreadyDone(sourceMessageId);
   let ridersApplied = false;
@@ -1084,14 +1083,13 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
       lines.push(...(await applySkillOnHit(actor, item, ta)));
       ridersApplied = true;
     }
-    // Barrier-absorbed damage never touched the creature, so it feeds no drain.
-    if (!adj.heal) drainTotal += through;
     if (!adj.heal && through > 0) hits.push({ actor: ta, amount: through });
   }
   if (ridersApplied) await markRidersDone(sourceMessageId);
   lines.push(...damageNotes(dmg));
-  // Drain HP/Energy: the caster recovers half the total damage the area Skill dealt.
-  await applyDrain(actor, item, drainTotal, lines);
+  // Drain: 1 box per creature the area actually damaged (Barrier-absorbed hits never
+  // touched the creature, so they feed no drain).
+  await applyDrain(actor, item, hits.length, lines);
   // Retaliation: each warded target in the area punishes the attacker for its own hit.
   await applyRetaliation(actor, hits, lines);
 
@@ -1190,7 +1188,8 @@ export async function rollSkill(actor, item) {
     // can't bounce back onto the user or an unintended bystander. The Skill's explicit Target
     // prunes the path further (a Foe chain only leaps between enemies).
     chainTokens = [...(game.user?.targets ?? [])].filter((t) => t?.actor && t !== ctoken && targetAllows(actor, item, t));
-    if (!chainTokens.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
+    // Abort, don't roll total-only: a chain has no path without targeted creatures.
+    if (!chainTokens.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needTarget"));
   } else if (kind) {
     areaTokens = await acquireAreaTargets(actor, item, kind);
     if (areaTokens === null) return null;   // cancelled — no Energy spent / charge kept
@@ -1301,6 +1300,13 @@ export async function spendSkillEnergy(actor, sys, item = null) {
     const current = actor.system.energy?.value ?? 0;
     if (current < energyCost) { ui.notifications.warn(i18n("PROJECTANIME.Roll.noEnergy", { n: energyCost })); return false; }
     await actor.update({ "system.energy.value": current - energyCost });
+  }
+  // Manifest (a Modifier): EVERY activation path pays through here (single/area/aura/conjure/
+  // gate/charge), so a successful activation WAKES the bound Passive — stamp (refresh) its
+  // duration marker on the caster. The Passive's effects run while the marker lives (effects.mjs
+  // gates on it); its energy lock stays lifted either way (the bond itself unlocks it).
+  if (item?.type === "skill" && sys.actionType !== "passive" && (sys.modifiers ?? []).includes("manifest")) {
+    await ensureManifestMarker(actor, item);
   }
   return true;
 }
@@ -1716,7 +1722,6 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   const hitSet = new Set();
   let current = primaryToken;
   let stoppedName = null;
-  let drainTotal = 0;
   const killed = [];
   const hits = [];
 
@@ -1770,8 +1775,6 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
       }
       await inflictDecay(item, ta, lines);
     }
-    // Barrier-absorbed damage never touched the creature, so it feeds no drain.
-    if (!adj.heal) drainTotal += through;
     if (!adj.heal && through > 0) hits.push({ actor: ta, amount: through });
     current = tokensInRange(current, nearTiles).find((t) => chosen.has(t) && !hitSet.has(t)) ?? null;
   }
@@ -1780,8 +1783,9 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   // Attacking reveals a Vanished attacker (rules v0.01) — the chain's first roll already did.
   await revealVanished(actor, lines);
   lines.push(...damageNotes(dmg));
-  // Drain HP/Energy: the caster recovers half the total damage dealt across the chain.
-  await applyDrain(actor, item, drainTotal, lines);
+  // Drain: 1 box per creature the chain actually damaged (Barrier-absorbed hits never
+  // touched the creature, so they feed no drain).
+  await applyDrain(actor, item, hits.length, lines);
   // Retaliation: each warded creature the chain hit punishes the attacker for its own hit.
   await applyRetaliation(actor, hits, lines);
 
@@ -1811,7 +1815,7 @@ async function startCharge(actor, item) {
   const targetActor = targetToken?.actor ?? null;
   const needsAccuracy = !aoeKind(item)
     && skillNeedsAccuracy(sys, { enemyTarget: tokensAreEnemies(casterToken(actor), targetToken) });
-  if (needsAccuracy && !targetActor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
+  if (needsAccuracy && !targetActor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needTarget"));
   if (!(await spendSkillEnergy(actor, sys, item))) return null;
 
   if (needsAccuracy) {
@@ -1887,7 +1891,7 @@ async function resolveDevour(actor, item) {
     }));
   }
   const target = firstTargetActor();
-  if (!target) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
+  if (!target) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needTarget"));
   if ((target.system?.hp?.value ?? 0) > 0) return ui.notifications.warn(i18n("PROJECTANIME.Roll.devourNotDefeated"));
   return devourFromTarget(actor, item, target, { spendEnergy: true });
 }
@@ -2405,7 +2409,7 @@ async function onStayHiddenButton(event) {
   const item = actor?.items.get(el.dataset.itemId);
   if (!item) return ui.notifications.warn(i18n("PROJECTANIME.Roll.itemGone"));
   const seeker = firstTargetActor();
-  if (!seeker) return ui.notifications.warn(i18n("PROJECTANIME.Roll.noTarget"));
+  if (!seeker) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needTarget"));
 
   // The seeker's Contest Target — built on its Sense Technique when it has one.
   const senseSkill = (seeker.items ?? []).find((i) => i.type === "skill" && skillEffectKeys(i.system).includes("sense"));
@@ -3402,25 +3406,31 @@ function autoBolsterHinderEffects(item, { channelKey = null } = {}) {
  *  own applyDrain; this covers the basic-attack special only. */
 async function applyPassiveDrains(actor, item, total, lines) {
   if (item?.type !== "weapon" && item?.type !== "shield") return;
+  if (!(total > 0)) return;
   for (const skill of actor?.items ?? []) {
     if (skill.type !== "skill" || skill.system?.actionType !== "passive") continue;
     if (!(skill.system?.modifiers ?? []).includes("drain")) continue;
-    await applyDrain(actor, skill, total, lines);
+    await applyDrain(actor, skill, 1, lines);
   }
 }
 
 /** Drain (rules: Modifiers — "When you deal damage with this technique, clear 1 hit box or 1
- *  energy box (chosen at creation)"). `total` is the damage actually dealt across every target
- *  (Barrier-absorbed hits contribute 0). Clears a flat 1 box of the chosen pool on the caster,
- *  clamped to max by applyDamageTo and routed through the owner/GM relay. Mutates `lines`. */
-async function applyDrain(actor, item, total, lines) {
-  if (item?.type !== "skill" || !(total > 0)) return;
+ *  energy box (chosen at creation)"), house-ruled PER CREATURE: `count` is how many creatures
+ *  this use actually damaged (a fully Barrier-absorbed hit counts for nothing), and the caster
+ *  clears that many boxes of the chosen pool — a chain that damages 2 foes clears 2. Clamped to
+ *  max by applyDamageTo and routed through the owner/GM relay. Mutates `lines`. */
+async function applyDrain(actor, item, count, lines) {
+  const n = Math.max(0, Math.round(Number(count) || 0));
+  if (item?.type !== "skill" || n <= 0) return;
   if (!(item.system.modifiers ?? []).includes("drain")) return;
   const pool = item.system.drainPool === "energy" ? "energy" : "hp";
   // A Cursed caster clears nothing on a cursed pool — the drain is voided (the damage landed).
   if (curseBlocks(actor, pool)) { lines.push(curseNote(actor.name, pool)); return; }
-  await routeApply(actor, actor.uuid, 1, true, pool);
-  lines.push(`<em class="muted">${i18n(pool === "energy" ? "PROJECTANIME.Roll.drainsEnergy" : "PROJECTANIME.Roll.drainsHP", { n: 1 })}</em>`);
+  await routeApply(actor, actor.uuid, n, true, pool);
+  const key = pool === "energy"
+    ? (n > 1 ? "PROJECTANIME.Roll.drainsEnergyPlural" : "PROJECTANIME.Roll.drainsEnergy")
+    : (n > 1 ? "PROJECTANIME.Roll.drainsHPPlural" : "PROJECTANIME.Roll.drainsHP");
+  lines.push(`<em class="muted">${i18n(key, { n })}</em>`);
 }
 
 /** Retaliation (Skill modifier): a creature warded by a live Retaliation effect punishes a FOE
@@ -3482,6 +3492,35 @@ async function ensureChannelMarker(actor, item) {
     flags: { "project-anime": { channelSource: item.id, channelKey: key, scene: true } }
   }]);
   return key;
+}
+
+/**
+ * Manifest (rules: Manifest Modifier): stamp (refresh) the "bound Passive is running" marker on
+ * the caster. While a live marker points at the Passive, its effects apply (effects.mjs gates on
+ * it). Lifetime = the carrier's Duration: Standard/Instant → its turn count (default 2 rounds);
+ * Scene/Channeled → until removed (the end-of-combat sweep clears `scene` markers). Refreshing
+ * replaces any prior marker for the same Passive, so re-casting never stacks.
+ */
+async function ensureManifestMarker(actor, item) {
+  const passive = actor.items.get(item.system.manifestSkillId);
+  if (!passive) return;
+  const durKey = skillDuration(item.system);
+  const scene = durKey === "scene" || durKey === "channeled";
+  const duration = {};
+  if (!scene) {
+    duration.rounds = item.system.effectDuration ?? PROJECTANIME.standardDurationTurns;
+    duration.startTime = game.time?.worldTime ?? 0;
+    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
+  }
+  const old = (actor.effects ?? []).filter((e) => e.flags?.["project-anime"]?.manifestSkillId === passive.id).map((e) => e.id);
+  if (old.length) await actor.deleteEmbeddedDocuments("ActiveEffect", old);
+  await actor.createEmbeddedDocuments("ActiveEffect", [{
+    name: game.i18n.format("PROJECTANIME.Roll.manifestName", { name: passive.name }),
+    img: passive.img,
+    duration,
+    origin: item.uuid,
+    flags: { "project-anime": { manifestSkillId: passive.id, scene, creatorSide: actorSide(actor) } }
+  }]);
 }
 
 /** Create an effect copy on a target actor. Exported for the GM-side socket relay. */

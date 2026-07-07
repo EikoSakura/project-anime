@@ -43,10 +43,12 @@ export function partyActors() {
 
 /**
  * The party's bonded Companions (rules: Companion Rules). Counts:
- *  • every actor flagged `companionOf` → a roster member (the Companion Effect's bond), and
- *  • every hand-made companion, found by WHERE it's filed: any Actor folder whose name (or an
- *    ancestor's) says "companion" — the system's "Servants & Companions" folder, a GM's own
- *    "Companions" folder — plus, for NPCs, the party's folder itself or any subfolder of it.
+ *  • every actor flagged `companionOf` → a roster member (the Companion Effect's bond),
+ *  • every NPC hand-typed `npcType: "companion"` (the Monster Creator's Companion tile),
+ *    wherever it's filed, and
+ *  • every other hand-made companion, found by WHERE it's filed: any Actor folder whose name
+ *    (or an ancestor's) says "companion" — the system's "Servants & Companions" folder, a GM's
+ *    own "Companions" folder — plus, for NPCs, the party's folder itself or any subfolder of it.
  * A raised servant (`servantOf` without a bond) and roster members never count. Read by the
  * party sheet's Companions strip and the Milestone tool (Companions advance with the party).
  */
@@ -63,6 +65,7 @@ export function partyCompanions(party) {
     const flags = a.flags?.["project-anime"] ?? {};
     if (flags.companionOf) return memberUuids.has(flags.companionOf);
     if (flags.servantOf) return false;
+    if (a.type === "npc" && a.system?.npcType === "companion") return true;
     if (!a.folder) return false;
     // An NPC dropped into the party's own folder (or under it) reads as the party's companion;
     // a Character only counts from an explicit companions folder (party-folder Characters are members).

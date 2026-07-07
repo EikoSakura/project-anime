@@ -156,6 +156,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictPool: "hp",
       drainPool: "hp",
       analyzeCategory: "vitals",
+      // Manifest: the owned Passive Technique this carrier wakes.
+      manifestSkillId: "",
       // Companion: the 2-box lock lifts while it's left home.
       companionHome: false,
       // GM knob (edited on the item sheet, carried through rebuilds).
@@ -226,6 +228,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictPool: s.inflictPool ?? "hp",
       drainPool: s.drainPool ?? "hp",
       analyzeCategory: s.analyzeCategory ?? "vitals",
+      manifestSkillId: s.manifestSkillId ?? "",
       companionHome: !!s.companionHome,
       usesPerConflict: Number(s.usesPerConflict) || 0
     };
@@ -308,6 +311,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       inflictPool: d.inflictPool === "energy" ? "energy" : "hp",
       drainPool: d.drainPool === "energy" ? "energy" : "hp",
       analyzeCategory: d.analyzeCategory in cfg.analyzeCategories ? d.analyzeCategory : "vitals",
+      manifestSkillId: mods.includes("manifest") ? (d.manifestSkillId ?? "") : "",
       companionHome: d.effect === "companion" ? !!d.companionHome : false,
       usesPerConflict: Math.max(0, Math.round(Number(d.usesPerConflict) || 0))
     };
@@ -465,6 +469,14 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ctx.inflictSevereChoices = Object.fromEntries((cfg.inflictSevereStatuses ?? []).map((id) => [id, conditionLabel(id)]));
     ctx.inflictSevereHasPool = d.modifiers.includes("inflictSevere") && (cfg.poolChoiceStatuses ?? []).includes(d.inflictSevereStatus);
     ctx.analyzeChoices = Object.fromEntries(Object.entries(cfg.analyzeCategories).map(([k, v]) => [k, game.i18n.localize(v)]));
+    // Manifest — the owned Passive Techniques this carrier could wake (never itself, never a
+    // Companion bond). Actorless standalone builds have no roster: the picker hides and the
+    // binding resolves when the Technique lands on an actor and is re-edited.
+    ctx.manifestChoices = Object.fromEntries((this.actor?.items ?? [])
+      .filter((i) => i.type === "skill" && i.id !== this.#editId
+        && i.system.actionType === "passive" && i.system.effect !== "companion")
+      .map((i) => [i.id, i.name]));
+    ctx.manifestHasChoices = Object.keys(ctx.manifestChoices).length > 0;
 
     const modRow = (key) => {
       const selected = d.modifiers.includes(key);
@@ -492,7 +504,9 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         showInflictSevere: selected && key === "inflictSevere",
         showDrain: selected && key === "drain",
         showAnalyze: selected && key === "analyze",
-        hasConfig: selected && ["inflict", "inflictSevere", "drain", "analyze"].includes(key)
+        showManifest: selected && key === "manifest" && ctx.manifestHasChoices,
+        hasConfig: selected && (["inflict", "inflictSevere", "drain", "analyze"].includes(key)
+          || (key === "manifest" && ctx.manifestHasChoices))
       };
     };
     // Grouped by cost tier (rules: Modifiers): Standard +1 · Heavy 🔶 +2 · Extreme +3.
@@ -558,6 +572,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
           ? ` · ${game.i18n.localize(cfg.damagePools[sysShape.inflictPool] ?? "")}` : ""}` : "",
       drain: sysShape.modifiers.includes("drain") ? game.i18n.localize(cfg.damagePools[sysShape.drainPool] ?? "") : "",
       analyze: sysShape.modifiers.includes("analyze") ? (ctx.analyzeChoices[sysShape.analyzeCategory] ?? "") : "",
+      manifest: sysShape.modifiers.includes("manifest") ? (ctx.manifestChoices[sysShape.manifestSkillId] ?? "") : "",
       trigger: sysShape.trigger ? game.i18n.localize(cfg.triggers[sysShape.trigger] ?? sysShape.trigger) : "",
       companionHome: isCompanion && sysShape.companionHome,
       modifiers: sysShape.modifiers.map((m) => {
@@ -674,6 +689,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (data.inflictPool) d.inflictPool = data.inflictPool;
     if (data.drainPool) d.drainPool = data.drainPool;
     if (data.analyzeCategory) d.analyzeCategory = data.analyzeCategory;
+    if ("manifestSkillId" in data) d.manifestSkillId = data.manifestSkillId ?? "";
     if ("companionHome" in data) d.companionHome = !!data.companionHome;
 
     // ---- Normalize (V2) ----
@@ -881,6 +897,14 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (SkillBuilderApp.barredEffects(this.actor).includes(d.effect)) {
       this.#step = STEPS.indexOf("roll");
       ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.servantNoEffect"));
+      return this.render();
+    }
+    // Manifest must name the Passive it wakes (actor-bound builds only — a standalone
+    // Technique binds when it lands on an actor and is re-edited).
+    if (d.modifiers.includes("manifest") && this.actor
+      && !this.actor.items.get(d.manifestSkillId)) {
+      this.#step = STEPS.indexOf("modifiers");
+      ui.notifications.warn(game.i18n.localize("PROJECTANIME.SkillBuilder.needManifest"));
       return this.render();
     }
     const name = (d.name || "").trim() || game.i18n.localize("PROJECTANIME.SkillBuilder.newSkillName");

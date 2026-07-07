@@ -205,7 +205,11 @@ export function skillRulesHTML(item) {
   if (has("disarm")) sentences.push(N("disarm"));
   if (has("drain")) sentences.push(N("drain", { n: numSpan(1), pool: poolName(sys.drainPool) }));
   if (has("link")) sentences.push(N("link"));
-  if (has("manifest")) sentences.push(N("manifest"));
+  if (has("manifest")) {
+    // Name the bound Passive when the Technique lives on an actor that still knows it.
+    const bound = item?.actor?.items?.get?.(sys.manifestSkillId);
+    sentences.push(bound ? N("manifestNamed", { name: `<strong>${bound.name}</strong>` }) : N("manifest"));
+  }
   if (has("nullify")) sentences.push(N("nullify"));
   if (has("potent")) sentences.push(N("potent", { n: numSpan(modifierTakes("potent", sys)) }));
   if (has("protection")) sentences.push(N("protection", { n: numSpan("+" + (cfg.protectionGuard ?? 1)) }));

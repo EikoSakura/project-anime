@@ -264,6 +264,12 @@
               <select name="analyzeCategory">{{selectOptions ../../analyzeChoices selected=../../draft.analyzeCategory}}</select>
             </label>
             {{/if}}
+            {{#if mod.showManifest}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.manifestSkill"}}</span>
+              <select name="manifestSkillId">{{selectOptions ../../manifestChoices selected=../../draft.manifestSkillId blank=""}}</select>
+            </label>
+            {{/if}}
           </div>
           {{/if}}
         </li>
@@ -333,6 +339,7 @@
         {{#if review.inflictSevere}}<div><dt>{{localize "PROJECTANIME.Skill.field.inflictSevereStatus"}}</dt><dd>{{review.inflictSevere}}</dd></div>{{/if}}
         {{#if review.drain}}<div><dt>{{localize "PROJECTANIME.Skill.field.drainPool"}}</dt><dd>{{review.drain}}</dd></div>{{/if}}
         {{#if review.analyze}}<div><dt>{{localize "PROJECTANIME.Skill.field.analyzeCategory"}}</dt><dd>{{review.analyze}}</dd></div>{{/if}}
+        {{#if review.manifest}}<div><dt>{{localize "PROJECTANIME.Skill.field.manifestSkill"}}</dt><dd>{{review.manifest}}</dd></div>{{/if}}
         {{#if review.trigger}}<div><dt>{{localize "PROJECTANIME.Skill.field.trigger"}}</dt><dd>{{review.trigger}}</dd></div>{{/if}}
         {{#if review.companionHome}}<div><dt>{{localize "PROJECTANIME.Skill.field.companionHome"}}</dt><dd><i class="fas fa-check"></i></dd></div>{{/if}}
         {{#if review.modifiers.length}}<div><dt>{{localize "PROJECTANIME.Skill.field.modifiers"}}</dt><dd>{{#each review.modifiers as |m|}}{{m}}{{#unless @last}}, {{/unless}}{{/each}}</dd></div>{{/if}}
