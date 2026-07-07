@@ -5443,54 +5443,75 @@ body.pa-party-on #players { display: none !important; }
 #project-anime-hud .slider i.carret:not(.disabled):hover { color: var(--pa-accent-2); }
 #project-anime-hud .slider .value { text-align: center; font-family: var(--pa-font-mono); }
 
-/* ---- shortcuts (sidebars→full · middle) — 10 quick slots, 2 rows auto-flow column ----
-   --shortcut-width = (row-3fr − gap) / 2 ≈ 44.6px. Filled slots carry the image + EP-cost badge +
-   1-0 key; empty slots are dashed. */
+/* ---- shortcuts (sidebars→full · middle) — 14 quick slots, 2 rows × 7 square keys ----
+   Slots are FIXED squares (--shortcut-width = half the middle row minus the seam) wearing the
+   native hotbar keys' exact recipe below (plate fill · seam border · same radius), so both rows
+   read as one bank of keys. The 8th column is a blank plate (::after) that carries the panel
+   skin across the leftover stretch span instead of leaving a hole. */
 #project-anime-hud [data-panel="shortcuts"] {
   --shortcut-width: calc((var(--row-3fr) - var(--panel-gap)) / 2);
   grid-column: sidebars / full;
   grid-row: middle;
   display: grid;
-  /* 7 columns fill the whole span with only the 3px seam between them — no holes. The minmax min is
-     a collapse-safe floor (the bar is width:min-content); the 1fr grows each slot to fill evenly. */
-  grid-template-columns: repeat(7, minmax(2.4em, 1fr));
+  grid-template-columns: repeat(7, var(--shortcut-width)) minmax(0, 1fr);
   grid-template-rows: repeat(2, 1fr);
   grid-auto-flow: row;   /* fill left-to-right, top-to-bottom → 1-7 on top, 8-14 below */
-  align-items: stretch;
-  justify-items: stretch;
   gap: var(--panel-gap);
   background: none;
   border: none;
   padding: 0;
 }
+/* The blank plate is placed FIRST (definite grid area: column 8, both rows); the 14 slots
+   auto-flow around it into the 7 square columns. */
+#project-anime-hud [data-panel="shortcuts"]::after {
+  content: "";
+  grid-column: 8;
+  grid-row: 1 / -1;
+  background: var(--panel-bg);
+  border: var(--outer-border);
+  border-radius: var(--outer-border-radius);
+}
 #project-anime-hud [data-panel="shortcuts"] .shortcut {
   position: relative;
   cursor: pointer;
+  background: var(--panel-bg);
   border: var(--outer-border);
   border-radius: var(--outer-border-radius);
-  background: rgb(0 0 0 / 37%);
+  overflow: hidden;   /* icon + corner chips stay inside the key */
 }
 #project-anime-hud [data-panel="shortcuts"] .shortcut > * { position: absolute; pointer-events: none; }
 #project-anime-hud [data-panel="shortcuts"] .shortcut .image {
   inset: 0;
-  border-radius: var(--inner-border-radius);
+  border-radius: calc(var(--outer-border-radius) - 1px);
   background-size: cover;
   background-position: center;
 }
-#project-anime-hud [data-panel="shortcuts"] .shortcut .boxed {
-  background: #000000a3;
-  padding: 0 0.2em;
-  border-radius: 4px;
-  display: flex;
-  line-height: 1.1;
+/* Corner chips, hotbar-style: key number top-left (like #action-bar's), EP cost bottom-right. */
+#project-anime-hud [data-panel="shortcuts"] .shortcut .label {
+  top: 0;
+  left: 0;
+  min-width: 1.3em;
+  text-align: center;
+  padding: 0 2px;
+  background: var(--panel-bg);
+  border-bottom-right-radius: var(--outer-border-radius);
+  font-size: 0.72em;
+  line-height: 1.5;
 }
-#project-anime-hud [data-panel="shortcuts"] .shortcut .cost { top: -4px; left: -2px; font-family: var(--pa-font-mono); }
-#project-anime-hud [data-panel="shortcuts"] .shortcut .cost span { color: var(--pa-energy-b); font-size: 0.85em; }
-#project-anime-hud [data-panel="shortcuts"] .shortcut .label { top: -3px; right: -2px; min-width: 2ch; text-align: center; font-size: 0.8em; }
 #project-anime-hud [data-panel="shortcuts"] .shortcut .label span { color: var(--pa-ink-soft); font-family: var(--pa-font-mono); }
+#project-anime-hud [data-panel="shortcuts"] .shortcut .cost {
+  bottom: 0;
+  right: 0;
+  padding: 0 3px;
+  background: #000000a3;
+  border-top-left-radius: var(--outer-border-radius);
+  font-family: var(--pa-font-mono);
+  line-height: 1.5;
+}
+#project-anime-hud [data-panel="shortcuts"] .shortcut .cost span { color: var(--pa-energy-b); font-size: 0.85em; }
 #project-anime-hud [data-panel="shortcuts"] .shortcut:hover .image { filter: brightness(1.5); }
 #project-anime-hud [data-panel="shortcuts"] .shortcut.drag-over { box-shadow: 0 0 0 2px var(--pa-accent), 0 0 10px color-mix(in srgb, var(--pa-accent) 70%, transparent); }
-#project-anime-hud [data-panel="shortcuts"] .shortcut.empty { border-style: dashed; cursor: default; }
+#project-anime-hud [data-panel="shortcuts"] .shortcut.empty { cursor: default; box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.45); }
 #project-anime-hud [data-panel="shortcuts"] .shortcut.empty .label span { opacity: 0.55; }
 
 /* ---- hotbar (info→full · bottom) — Foundry's native #hotbar, re-parented into the grid ---- */

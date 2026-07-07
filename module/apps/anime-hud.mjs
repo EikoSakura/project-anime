@@ -40,7 +40,7 @@ export const HUD_PARTY_POS_SETTING = "hudPartyPos";    // { left, top } viewport
 export const HUD_PARTY_SIZE_SETTING = "hudPartySize";  // "280" | "340" | "420" (--ph-w width)
 export const HUD_PARTY_COLLAPSED_SETTING = "hudPartyCollapsed";  // bool — grip double-click minimizes to the title bar
 
-const SLOTS_PER_PAGE = 14;   // 7 columns × 2 rows — packs the shortcut span with no gaps
+const SLOTS_PER_PAGE = 14;   // 7 columns × 2 rows of fixed square keys (hotbar-sized)
 const PAGES = 5;
 const KEYS = Array.from({ length: SLOTS_PER_PAGE }, (_, i) => String(i + 1));
 

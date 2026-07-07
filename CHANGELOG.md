@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.5 - 2026-07-07
+
+- HUD quick slots squared: fixed hotbar-sized keys with contained icons, corner key/cost chips, and a console plate over the leftover span,NPC attack dialogs no longer offer the Cover row (Cover stays player-side),Monster Creator: Basic Attack talent picker shows just the Talent's name - the (d6) suffix overflowed the row
+
+## 0.5.5 - 2026-07-07
+
+- HUD quick slots squared: fixed hotbar-sized keys (no more stretched rectangles with crop-zoomed icons), key number and Energy cost tucked into the corners, and a plate carrying the console skin across the leftover span
+- NPC attack dialogs no longer offer the Cover row (Cover stays player-side)
+- Monster Creator: the Basic Attack talent picker shows just the Talent's name — the "(d6)" suffix overflowed the row
+
 ## 0.5.4 - 2026-07-07
 
 - Version 2 rules adopted wholesale: Hit/Energy Boxes, single Guard stat, Talents with Trained Edge, pure-Energy Techniques, milestone Advancements, fixed Damage + Threshold, Wounds, Camp/Town rest, six enemy Types with a party-size Threat budget

@@ -173,13 +173,13 @@
       <a data-action="hudClearPage" data-tooltip="{{localize 'PROJECTANIME.Hud.clearPage'}}"><i class="fa-solid fa-circle-xmark"></i></a>
     </div>
 
-    {{!-- shortcuts (sidebars→full · middle) — 10 quick slots, 2 rows auto-flow column --}}
+    {{!-- shortcuts (sidebars→full · middle) — 14 quick slots, 2 rows × 7 square keys --}}
     <div data-panel="shortcuts">
       {{#each slots}}
       {{#if filled}}
       <div class="shortcut" data-i="{{i}}" data-type="{{type}}" data-tooltip="{{name}}" style="--accent:{{accent}}" draggable="true">
         <div class="image" style="background-image:url('{{img}}')"></div>
-        {{#if cost}}<div class="cost boxed"><span>{{cost}}</span></div>{{/if}}
+        {{#if cost}}<div class="cost"><span>{{cost}}</span></div>{{/if}}
         <div class="label"><span>{{key}}</span></div>
       </div>
       {{else}}

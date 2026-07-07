@@ -755,7 +755,8 @@ export async function rollAttack(actor, item, { event, target = null } = {}) {
     const info = guard != null
       ? `<p class="hint">${i18n("PROJECTANIME.Roll.vsGuard")} <strong>${targetActor.name}</strong>: ${guard}</p>`
       : `<p class="hint">${i18n("PROJECTANIME.Roll.noTarget")}</p>`;
-    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.attack"), actor, selector: "attack", showAttrs: false, showCT: false, showCover: guard != null, infoHTML: info });
+    // NPC attacks skip the Cover row — the GM already adjudicates their targets' cover directly.
+    const choice = await promptRoll({ title: i18n("PROJECTANIME.Roll.attack"), actor, selector: "attack", showAttrs: false, showCT: false, showCover: guard != null && actor.type !== "npc", infoHTML: info });
     if (!choice) return null;
     mod += choice.mod;
     // Cover raises the target's Guard by 1 or 2 while the obstacle holds (table adjudication).

@@ -323,7 +323,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
           threshold: Number(i.system.threshold) || 0,
           attrA: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: acc.attrA === k })),
           attrB: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: acc.attrB === k })),
-          talentOptions: talents.map((t) => ({ value: t.id, label: `${t.name} (d${t.die})`, selected: i.system.talentId === t.id }))
+          talentOptions: talents.map((t) => ({ value: t.id, label: t.name, selected: i.system.talentId === t.id }))
         };
       });
     ctx.attackCount = ctx.attacks.length;
