@@ -41,8 +41,37 @@ export function partyActors() {
   return game.actors?.filter((a) => a.type === "party") ?? [];
 }
 
-/** Resolve the party to act on (reward delivery, faction standing, …). One party → it; several →
- *  ask the GM which; none → null. Shared by CHRONICLE quest rewards and FACTION tier rewards. */
+/**
+ * The party's bonded Companions (rules: Companion Rules). Counts:
+ *  • every actor flagged `companionOf` → a roster member (the Companion Effect's bond), and
+ *  • every hand-made companion, found by WHERE it's filed: any Actor folder whose name (or an
+ *    ancestor's) says "companion" — the system's "Servants & Companions" folder, a GM's own
+ *    "Companions" folder — plus, for NPCs, the party's folder itself or any subfolder of it.
+ * A raised servant (`servantOf` without a bond) and roster members never count. Read by the
+ * party sheet's Companions strip and the Milestone tool (Companions advance with the party).
+ */
+export function partyCompanions(party) {
+  const members = partyMembers(party);
+  const memberUuids = new Set(members.map((m) => m.uuid));
+  const memberIds = new Set(members.map((m) => m.id));
+  const pFolder = partyFolder(party);
+  const inPartyTree = (f) => { for (let x = f; x; x = x.folder) if (pFolder && x.id === pFolder.id) return true; return false; };
+  const companionNamed = (f) => { for (let x = f; x; x = x.folder) if (/companion/i.test(x.name ?? "")) return true; return false; };
+  return (game.actors ?? []).filter((a) => {
+    if (a.type !== "npc" && a.type !== "character") return false;
+    if (memberIds.has(a.id)) return false;
+    const flags = a.flags?.["project-anime"] ?? {};
+    if (flags.companionOf) return memberUuids.has(flags.companionOf);
+    if (flags.servantOf) return false;
+    if (!a.folder) return false;
+    // An NPC dropped into the party's own folder (or under it) reads as the party's companion;
+    // a Character only counts from an explicit companions folder (party-folder Characters are members).
+    return companionNamed(a.folder) || (a.type === "npc" && inPartyTree(a.folder));
+  });
+}
+
+/** Resolve the party to act on (reward delivery, …). One party → it; several →
+ *  ask the GM which; none → null. Used by the CHRONICLE quest rewards. */
 export async function resolveParty() {
   const parties = partyActors();
   if (parties.length === 0) return null;

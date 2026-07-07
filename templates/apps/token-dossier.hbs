@@ -28,9 +28,6 @@
       <div class="bar"><div class="fill energy-fill" style="width: {{energy.pct}}%"></div></div>
     </div>
     {{/if}}
-    {{#if sp.show}}
-    <div class="ti-stat"><span class="k">{{localize "PROJECTANIME.Stat.skillPoints"}}</span><span class="v">{{sp.value}}</span></div>
-    {{/if}}
   </div>
 
   {{#if attributes}}
@@ -48,20 +45,10 @@
   <section class="td-section">
     <h4 class="td-title">{{localize "PROJECTANIME.Effect.reveal.combatStats"}}</h4>
     <div class="td-combat">
-      <div class="td-stat"><span class="k">{{localize "PROJECTANIME.Stat.evasion"}}</span><span class="v">{{combat.evasion}}</span></div>
-      <div class="td-stat"><span class="k">{{localize "PROJECTANIME.Stat.defense"}}</span><span class="v">{{combat.defense}}</span></div>
+      <div class="td-stat"><span class="k">{{localize "PROJECTANIME.Stat.guard"}}</span><span class="v">{{combat.guard}}</span></div>
+      {{#if combat.showMovement}}
       <div class="td-stat"><span class="k">{{localize "PROJECTANIME.Stat.movement"}}</span><span class="v">{{combat.movement}}</span></div>
-    </div>
-  </section>
-  {{/if}}
-
-  {{#if affinities.length}}
-  <section class="td-section">
-    <h4 class="td-title">{{localize "PROJECTANIME.Effect.reveal.affinities"}}</h4>
-    <div class="td-affs">
-      {{#each affinities}}
-      <span class="td-aff aff-{{this.level}}">{{this.label}} · {{this.levelLabel}}</span>
-      {{/each}}
+      {{/if}}
     </div>
   </section>
   {{/if}}

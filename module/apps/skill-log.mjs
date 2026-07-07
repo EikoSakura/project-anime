@@ -1,14 +1,14 @@
 /**
- * Project: Anime — Skill Point Log dialog.
+ * Project: Anime — Advancement Log dialog.
  *
- * A standalone ApplicationV2 opened from the Skills drawer. Shows the Skill-Point summary
- * (Available / Spent / Total) and the full, scrollable transaction ledger, each entry with a
- * "Refund" control that reverses the purchase and returns its SP. Mirrors the AdvancementApp
- * pattern — registers in `actor.apps` so it re-renders live as the actor changes (a refund here
- * updates both this dialog and the sheet's summary). Keeping the log in its own dialog keeps the
- * drawer tidy as the ledger grows over a long campaign.
+ * A standalone ApplicationV2 opened from the actor sheet. Shows the advancement summary
+ * (Available / Spent / Total) and the full, scrollable ledger, each entry with a "Refund"
+ * control that reverses the purchase and returns its advancement
+ * (actor.refundAdvancementEntry). Mirrors the AdvancementApp pattern — registers in
+ * `actor.apps` so it re-renders live as the actor changes (a refund here updates both this
+ * dialog and the sheet's summary).
  */
-import { skillPointLedger, attributePeel } from "../helpers/skill-points.mjs";
+import { advancementLedger, attributePeel } from "../helpers/skill-points.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -21,8 +21,8 @@ export class SkillLogApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     classes: ["project-anime", "skill-log-app"],
     position: { width: 480, height: "auto" },
-    window: { title: "PROJECTANIME.SkillLog.title", icon: "fa-solid fa-scroll" },
-    actions: { refundSp: SkillLogApp.#onRefundSp }
+    window: { title: "PROJECTANIME.AdvLog.title", icon: "fa-solid fa-scroll" },
+    actions: { refundEntry: SkillLogApp.#onRefundEntry }
   };
 
   static PARTS = {
@@ -30,13 +30,13 @@ export class SkillLogApp extends HandlebarsApplicationMixin(ApplicationV2) {
   };
 
   get title() {
-    return `${game.i18n.localize("PROJECTANIME.SkillLog.title")} — ${this.actor.name}`;
+    return `${game.i18n.localize("PROJECTANIME.AdvLog.title")} — ${this.actor.name}`;
   }
 
   /** @override */
   async _prepareContext() {
-    const { spInfo, spLog } = skillPointLedger(this.actor);
-    return { spInfo, spLog: spLog ?? [], editable: this.actor.isOwner };
+    const { advInfo, advLog } = advancementLedger(this.actor);
+    return { advInfo, advLog: advLog ?? [], editable: this.actor.isOwner };
   }
 
   /** Live-refresh as the actor changes by joining the document's app registry. */
@@ -50,29 +50,34 @@ export class SkillLogApp extends HandlebarsApplicationMixin(ApplicationV2) {
     super._onClose?.(options);
   }
 
-  /** Refund a ledger entry: reverse the purchase and return its SP (with confirmation). */
-  static async #onRefundSp(event, target) {
+  /** Refund a ledger entry: reverse the purchase and return its advancement (with
+   *  confirmation). Item purchases phrase it as a delete; die steps stack, so refunding
+   *  one cascades to every higher step of the same target — show the full amount coming
+   *  back and a clearer prompt when more than the clicked step is being undone. */
+  static async #onRefundEntry(event, target) {
     const id = target.closest("[data-entry-id]")?.dataset.entryId;
     if (!id) return;
-    const log = this.actor.system.skillPoints?.log ?? [];
+    const log = this.actor.system.advancement?.log ?? [];
     const entry = log.find((e) => e.id === id);
-    if (!entry || entry.kind === "legacy") return;
+    if (!entry || entry.kind === "legacy" || entry.kind === "rebuild") return;
 
-    // Default: undo this one entry for its own SP (Skills phrase it as a delete). Attribute
-    // raises stack, so refunding one cascades to its higher steps — show the full SP coming
-    // back, and a clearer prompt when more than the clicked step is being undone.
-    let promptKey = entry.kind === "skill" ? "PROJECTANIME.SkillLog.confirmSkill" : "PROJECTANIME.SkillLog.confirm";
+    let promptKey = (entry.kind === "technique" || entry.kind === "talent")
+      ? "PROJECTANIME.AdvLog.confirmDelete"
+      : "PROJECTANIME.AdvLog.confirm";
     let amount = Number(entry.amount) || 0;
-    if (entry.kind === "attribute") {
-      const peel = attributePeel(log, entry, this.actor.system.attributes?.[entry.ref]?.base);
+    if (entry.kind === "attribute" || entry.kind === "talentStep") {
+      const currentBase = entry.kind === "attribute"
+        ? this.actor.system.attributes?.[entry.ref]?.base
+        : this.actor.system.talents?.[entry.ref]?.die;
+      const peel = attributePeel(log, entry, currentBase);
       amount = peel.refund;
-      if (peel.entries.length > 1) promptKey = "PROJECTANIME.SkillLog.confirmAttribute";
+      if (peel.entries.length > 1) promptKey = "PROJECTANIME.AdvLog.confirmCascade";
     }
 
     const ok = await foundry.applications.api.DialogV2.confirm({
-      window: { title: game.i18n.localize("PROJECTANIME.SkillLog.confirmTitle") },
+      window: { title: game.i18n.localize("PROJECTANIME.AdvLog.confirmTitle") },
       content: `<p>${game.i18n.format(promptKey, { label: entry.label, amount })}</p>`
     });
-    if (ok) await this.actor.refundSkillPointEntry(id);
+    if (ok) await this.actor.refundAdvancementEntry(id);
   }
 }

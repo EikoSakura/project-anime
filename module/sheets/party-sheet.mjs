@@ -1,15 +1,9 @@
-import { encounterBudget, encounterLines, swarmSpent, effectivePlayers } from "../helpers/encounter.mjs";
+import { encounterBudget, encounterLines, minionSpent, effectivePlayers, formatThreat } from "../helpers/encounter.mjs";
 import { stampCompendiumSource } from "../helpers/gear.mjs";
-
-/** Format a Threat value for display: trim to at most 2 decimals, drop trailing zeros
- *  (0.5 → "0.5", 1 → "1", 1.5 → "1.5", 3 → "3"). */
-function fmtEquiv(n) {
-  return parseFloat((Number(n) || 0).toFixed(2)).toString();
-}
-import { partyMembers, ensurePartyFolder } from "../helpers/party-folder.mjs";
+import { partyMembers, partyCompanions, ensurePartyFolder } from "../helpers/party-folder.mjs";
 import { partyTier, partyTierAuto, tierNumeral, PARTY_TIER_SETTING } from "../helpers/chronicle.mjs";
-import { getBonds, rankLetter } from "../helpers/bonds.mjs";
 import { RestApp } from "../apps/rest.mjs";
+import { AdvancementApp } from "../apps/advancement.mjs";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
 const { ActorSheetV2 } = foundry.applications.sheets;
@@ -24,8 +18,8 @@ const STASHABLE = new Set(["weapon", "armor", "shield", "accessory", "consumable
  * The Party sheet — a three-tab planner.
  *   • Party     — the roster of Player Characters + the party's total Skill Points.
  *   • Stash     — shared storage: items the party holds together (drag items in).
- *   • Encounter — GM-ONLY budget builder: Party SP × difficulty = a monster budget, and a
- *                 drag-in tally of the fight's monsters (each priced in SP) vs that budget.
+ *   • Encounter — GM-ONLY budget builder: party size × difficulty = a Threat budget, and a
+ *                 drag-in tally of the fight's enemies (each priced by Type) vs that budget.
  * Members and encounter monsters are stored as UUIDs; the Stash uses embedded Items.
  *
  * The party reads as JUST a folder in the Actors sidebar (PF2e-style) — its own actor row is
@@ -50,6 +44,8 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       splitGold: ProjectAnimePartySheet.#onSplitGold,
       collectGold: ProjectAnimePartySheet.#onCollectGold,
       openActor: ProjectAnimePartySheet.#onOpenActor,
+      advanceCompanion: ProjectAnimePartySheet.#onAdvanceCompanion,
+      setMemberBox: ProjectAnimePartySheet.#onSetMemberBox,
       pullRoster: ProjectAnimePartySheet.#onPullRoster,
       restParty: ProjectAnimePartySheet.#onRestParty,
       deleteParty: ProjectAnimePartySheet.#onDeleteParty
@@ -100,7 +96,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     context.isGM = isGM;
 
     // Tabs — Party + Stash for everyone; Encounter is GM-only. Reconcile the active tab to an
-    // available one. (Factions + Home now live in the standalone Codex window, not here.)
+    // available one.
     const available = ["party", "stash", ...(isGM ? ["encounter"] : [])];
     if (!available.includes(this.#activeTab)) this.#activeTab = "party";
     const active = this.#activeTab;
@@ -114,45 +110,72 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     if (isGM) context.tabs.push({ key: "encounter", icon: "fa-skull", label: game.i18n.localize("PROJECTANIME.Party.tabEncounter"), active: active === "encounter" });
 
     // Party tab — the roster (the party folder's Characters) as Eiyuden-style formation cards. Each
-    // card is a scannable readout (portrait, name, Power, HP + Energy, the full derived-stat block in
-    // two columns) that opens an in-place detail drawer (attribute dice, equipped gear, bonds).
+    // card is a scannable readout (portrait, name, Hit + Energy boxes, Guard + Movement) that opens
+    // an in-place detail drawer (attribute dice, equipped gear).
     const myCharId = game.user.character?.id ?? null;
-    const pct = (r) => (r.max > 0 ? Math.clamp(Math.round((r.value / r.max) * 100), 0, 100) : 0);
     const st = (v) => Number(v) || 0;
+    // Hit/Energy MARK-BOX strips — the character sheet's convention (marks = max − value; box n
+    // marks n, the topmost marked box clears). Locked boxes (Wound-locked hit boxes, Passive- or
+    // Servant-locked energy boxes) trail the strip padlocked. Owners click; others just read.
+    const marksOf = (res) => Math.clamp((res.max ?? 0) - (res.value ?? 0), 0, Math.max(res.max ?? 0, 0));
+    const boxStrip = (a, key) => {
+      const res = a.system?.[key] ?? {};
+      let locked = 0;
+      if (key === "hp") {
+        const authored = Math.clamp(a._source.system?.hp?.max ?? (res.max ?? 0), 1, cfg.maxBoxes ?? 10);
+        locked = a.system?.boss?.enabled ? 0 : Math.max(0, authored - (res.max ?? 0));
+      } else {
+        locked = Math.max(0, (res.base ?? res.max ?? 0) - (res.max ?? 0));
+      }
+      const m = marksOf(res);
+      return [
+        ...Array.fromRange(Math.max(res.max ?? 0, 0)).map((i) => ({ n: i + 1, marked: i < m })),
+        ...Array.fromRange(Math.max(locked, 0)).map(() => ({ locked: true }))
+      ];
+    };
     context.members = partyMembers(this.actor).map((a) => {
       const ms = a.system ?? {};
-      const hp = ms.hp ?? { value: 0, max: 0 };
-      const en = ms.energy ?? { value: 0, max: 0 };
       return {
         ref: a.uuid, name: a.name, img: a.img,
         me: myCharId != null && a.id === myCharId,          // the viewer's own PC — wears their accent frame
-        crit: !!ms.critical,                                // HP ≤ 25% (derived on the actor) — danger tint + pulse
+        crit: !!ms.critical,                                // 75% of boxes marked (derived) — danger tint + pulse
         expanded: a.uuid === this.#openMember,              // drawer open? (persisted across re-render)
-        hp: hp.value, hpMax: hp.max, hpPct: pct(hp),
-        energy: en.value, energyMax: en.max, energyPct: pct(en),
-        // Derived block, paired counterparts: ATK|MATK · DEF|RES · EVA|AS · MOV|Carry.
-        atk: st(ms.atk?.value), matk: st(ms.matk?.value),
-        defense: st(ms.defense?.value), res: st(ms.res?.value),
-        evasion: st(ms.evasion?.value), as: st(ms.as?.value),
-        mov: st(ms.movement?.value), carry: st(ms.carryingCapacity?.max),
-        // Drawer depth (rendered hidden, revealed on card click) — the five Attributes as dice glyphs,
-        // the equipped paperdoll, and this member's bonds (C/B/A/S).
+        editable: a.isOwner,
+        hpBoxes: boxStrip(a, "hp"),
+        energyBoxes: boxStrip(a, "energy"),
+        // V2 derived pair: Guard (target number to hit) · Movement (tiles per turn).
+        guard: st(ms.guard?.value), mov: st(ms.movement?.value),
+        // Drawer depth (rendered hidden, revealed on card click) — the five Attributes as dice glyphs
+        // and the equipped paperdoll.
         attrs: cfg.attributeKeys.map((k) => {
           const val = ms.attributes?.[k]?.value ?? 4;
           return { icon: cfg.attributeIcons[k], label: game.i18n.localize(cfg.attributeAbbr[k]), die: `d${val}`, big: val >= 10 };
         }),
-        gear: this.#memberGear(a),
-        bonds: getBonds(a).slice(0, 6).map((b) => ({
-          name: b.name || "—",
-          img: b.img || "icons/svg/mystery-man.svg",
-          kind: game.i18n.localize(b.kind === "party" ? "PROJECTANIME.Party.bondParty" : "PROJECTANIME.Party.bondFollower"),
-          rank: rankLetter(b.rank)
-        }))
+        gear: this.#memberGear(a)
       };
     });
     // Pad the grid to six with ghost drop-slots (Eiyuden-faithful); a larger roster just grows the grid.
     context.ghosts = Array.from({ length: Math.max(0, 6 - context.members.length) }, (_, i) => i);
     context.memberCount = context.members.length;
+
+    // Companions strip — the party's bonded Companions (flagged to a member, or filed in the
+    // Servants & Companions folder). Rendered only when the party has any. The Advancement
+    // button spends the pool the Milestone tool pays them (Companion slot caps).
+    context.companions = partyCompanions(this.actor).map((c) => {
+      const cs = c.system ?? {};
+      let bonder = null;
+      const bondRef = c.getFlag("project-anime", "companionOf");
+      if (bondRef) { try { bonder = fromUuidSync(bondRef); } catch (_e) { /* bonder gone */ } }
+      return {
+        ref: c.uuid, name: c.name, img: c.img,
+        editable: c.isOwner,
+        hpBoxes: boxStrip(c, "hp"),
+        energyBoxes: boxStrip(c, "energy"),
+        master: bonder?.name ?? "",
+        adv: cs.advancement?.value ?? 0,
+        canAdvance: c.isOwner
+      };
+    });
     context.gold = sys.gold ?? 0; // shared treasury (Stash tab)
 
     // Party Tier I–IV (v0.03 revised): auto = the Tier shared by most member characters (ties read
@@ -173,10 +196,11 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
         return { id: i.id, name: i.name, img: i.img, qty: qty > 1 ? qty : null, cost: Number(i.system?.cost) || 0 };
       });
 
-    // Encounter tab (GM only) — difficulty, the Threat budget, and the planned threats on ONE gauge:
-    // Threat spent vs the budget (party size shifted by difficulty: Easy −1 · Standard · Hard +1.5 ·
-    // Climax ×2). Each enemy costs its Role's Threat (Grunt 1 · Swarm ½ · Elite 2 · Rival 3 · Boss =
-    // party). Every enemy is one line (drag again to field another); Swarms may not exceed half budget.
+    // Encounter tab (GM only) — difficulty, the Threat budget, and the planned enemies on ONE gauge:
+    // Threat spent vs the budget (party size shifted by difficulty: Easy −1 · Standard · Hard ×1.5 ·
+    // Climax ×2). Each enemy costs its Type's Threat (Minion ½ · Standard 1 · Bruiser 1½ · Elite 2 ·
+    // Rival 2 · Boss = party). Every enemy is one line (drag again to field another); Minions may not
+    // exceed half the budget.
     if (isGM) {
       const players = effectivePlayers(this.actor);
       context.encounterManual = sys.encounterManual ?? false;
@@ -187,22 +211,21 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
         cfg.encounterDifficultyKeys.map((k) => [k, game.i18n.localize(cfg.encounterDifficulty[k].label)])
       );
       const budget = encounterBudget(this.actor);
-      context.budget = fmtEquiv(budget);
+      context.budget = formatThreat(budget);
       context.thresholds = cfg.encounterDifficultyKeys.map((k) => {
         const d = cfg.encounterDifficulty[k];
         const val = (d.mult != null) ? players * d.mult : players + (d.offset ?? 0);
-        return { label: game.i18n.localize(d.label), value: fmtEquiv(Math.max(0, val)), active: context.difficulty === k };
+        return { label: game.i18n.localize(d.label), value: formatThreat(Math.max(0, val)), active: context.difficulty === k };
       });
 
       const lines = encounterLines(this.actor);
-      context.encounter = lines.map((l) => ({ ...l, threatLabel: fmtEquiv(l.threat) }));
+      context.encounter = lines.map((l) => ({ ...l, threatLabel: formatThreat(l.threat) }));
       const spent = lines.reduce((s, l) => s + (l.threat || 0), 0);
-      context.spent = fmtEquiv(spent);
+      context.spent = formatThreat(spent);
       context.over = spent > budget;
       context.usePct = budget > 0 ? Math.clamp(Math.round((spent / budget) * 100), 0, 100) : (spent > 0 ? 100 : 0);
-      // Swarms may not exceed half the budget (rules "Encounter Building").
-      const swarm = swarmSpent(this.actor);
-      context.swarmOver = budget > 0 && swarm > budget / 2;
+      // Minions may not exceed half the budget (rules "Encounter Budget").
+      context.minionOver = budget > 0 && minionSpent(this.actor) > budget / 2;
     }
 
     return context;
@@ -273,7 +296,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     } else if (slot === "encounter") {
       if (actor.type !== "npc") return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Party.encounterAreMonsters"));
       // Every enemy is its own body (its own line). Field more of the same by dropping it again — a
-      // Swarm is a single flat-HP body too (drop N Swarms for a wave), each costing ½ Threat.
+      // Minion is a single 1-hit-box body too (drop N Minions for a wave), each costing ½ Threat.
       const list = foundry.utils.deepClone(this.actor.system.encounter ?? []);
       list.push({ id: foundry.utils.randomID(), uuid: actor.uuid });
       await this.actor.update({ "system.encounter": list });
@@ -305,7 +328,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       btn.classList.toggle("active", btn.dataset.tab === tab);
   }
 
-  /** Toggle a member card's in-place detail drawer (attribute dice / equipped gear / bonds). DOM-only
+  /** Toggle a member card's in-place detail drawer (attribute dice / equipped gear). DOM-only
    *  toggle — instant, no re-render — mirroring #onSelectTab; only one opens at a time, and the open
    *  member is remembered (`#openMember`) so a later data-driven re-render restores it. */
   static #onToggleMember(event, target) {
@@ -453,6 +476,30 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     const ref = el?.dataset.ref ?? el?.dataset.uuid;
     const actor = ref ? await fromUuid(ref) : null;
     actor?.sheet?.render(true);
+  }
+
+  /** Open the Advancement dialog for a Companion (its pool is paid by the Milestone tool). */
+  static async #onAdvanceCompanion(event, target) {
+    const ref = target.closest("[data-ref]")?.dataset.ref;
+    const companion = ref ? await fromUuid(ref) : null;
+    if (!companion?.isOwner) return;
+    new AdvancementApp(companion).render(true);
+  }
+
+  /** Mark/clear a Hit or Energy box on a member/companion row — the character sheet's box
+   *  convention (click box n to mark n; click the topmost marked box to unmark it), resolved
+   *  through the row's actor. Owners only (the buttons render disabled for everyone else). */
+  static async #onSetMemberBox(event, target) {
+    const ref = target.closest("[data-ref]")?.dataset.ref;
+    const actor = ref ? await fromUuid(ref) : null;
+    if (!actor?.isOwner) return;
+    const res = target.dataset.resource;
+    if (!["hp", "energy"].includes(res)) return;
+    const { value = 0, max = 0 } = actor.system[res] ?? {};
+    const n = Number(target.dataset.n) || 0;
+    const marked = Math.clamp(max - value, 0, max);
+    const next = n === marked ? n - 1 : n;
+    await actor.update({ [`system.${res}.value`]: Math.clamp(max - next, 0, max) });
   }
 
   /** Prefill the manual-estimate player count from the live roster — its member count. Lets the GM

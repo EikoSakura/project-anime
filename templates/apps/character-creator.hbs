@@ -1,4 +1,5 @@
-{{!-- Step-by-step Character Creator: Concept → Attributes → Combat Stats → Skills → Gear → Finish. --}}
+{{!-- Step-by-step Character Creator (V2): Attributes → Talents → Weapon → Armor →
+      Techniques → Stats → Luck → Name Everything (the optional Choose step leads). --}}
 <div class="cc-body">
 
   <ol class="cc-steps">
@@ -15,26 +16,6 @@
     <span class="cc-step-counter">{{stepLabel}}</span>
     <span class="cc-step-title">{{stepTitle}}</span>
   </div>
-
-  {{!-- ===================== 1 · CONCEPT ===================== --}}
-  {{#if onConcept}}
-  <section class="cc-step-body cc-concept">
-    <div class="cc-id-row">
-      <div class="cc-img" data-action="pickImage" title="{{localize 'PROJECTANIME.Creator.pickImage'}}">
-        <img src="{{img}}" alt="" />
-        <i class="cc-img-edit fas fa-camera"></i>
-      </div>
-      <label class="cc-field">
-        <span class="cc-label">{{localize "Name"}}</span>
-        <input type="text" name="name" value="{{name}}" />
-      </label>
-    </div>
-    <label class="cc-field">
-      <span class="cc-label">{{localize "PROJECTANIME.Creator.conceptField"}}</span>
-      <textarea name="system.biography" rows="6">{{biography}}</textarea>
-    </label>
-  </section>
-  {{/if}}
 
   {{!-- ===================== CHOOSE (Race/Class) ===================== --}}
   {{#if onChoose}}
@@ -61,7 +42,7 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 2 · ATTRIBUTES ===================== --}}
+  {{!-- ===================== 1 · SET ATTRIBUTES ===================== --}}
   {{#if onAttributes}}
   <section class="cc-step-body cc-attributes">
     <div class="cc-budget-pill{{#if overSpent}} over{{/if}}">
@@ -91,39 +72,143 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 3 · COMBAT STATS ===================== --}}
+  {{!-- ===================== 2 · DEFINE TALENTS ===================== --}}
+  {{#if onTalents}}
+  <section class="cc-step-body cc-talents">
+    {{#each talentSlots as |t|}}
+    <div class="cc-id-row">
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Talent.name"}}</span>
+        <input type="text" name="talentName.{{t.index}}" value="{{t.name}}" />
+      </label>
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Talent.primaryAttribute"}}</span>
+        <select name="talentAttr.{{t.index}}">{{selectOptions @root.attrChoices selected=t.attr}}</select>
+      </label>
+    </div>
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 3 · CHOOSE WEAPON STYLE ===================== --}}
+  {{#if onWeapon}}
+  <section class="cc-step-body cc-weapon">
+    <div class="cc-choose-grid">
+      {{#each weaponStyles as |w|}}
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if w.selected}} selected{{/if}}" data-action="pickWeaponStyle" data-style="{{w.key}}" data-tooltip="{{w.tooltip}}" data-tooltip-class="pa-tooltip">
+        <img class="cc-style-icon" src="{{w.icon}}" alt="{{w.label}}" />
+        <span class="cc-choose-opt-name">{{w.label}}</span>
+        {{#if w.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+      </button>
+      {{/each}}
+    </div>
+    <div class="cc-id-row">
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Creator.weaponName"}}</span>
+        <input type="text" name="weaponName" value="{{weapon.name}}" />
+      </label>
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Creator.pairedAttribute"}}</span>
+        <select name="weaponAttrA">{{selectOptions @root.attrChoices selected=weapon.attrA}}</select>
+      </label>
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Creator.pairedWith"}}</span>
+        <select name="weaponPair">
+          <option value=""></option>
+          {{selectOptions pairChoices selected=weaponPair}}
+        </select>
+      </label>
+    </div>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 4 · CHOOSE ARMOR STYLE ===================== --}}
+  {{#if onArmor}}
+  <section class="cc-step-body cc-armor">
+    <div class="cc-choose-grid">
+      {{#each armorStyles as |a|}}
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if a.selected}} selected{{/if}}" data-action="pickArmorStyle" data-style="{{a.key}}" data-tooltip="{{a.tooltip}}" data-tooltip-class="pa-tooltip">
+        <img class="cc-style-icon" src="{{a.icon}}" alt="{{a.label}}" />
+        <span class="cc-choose-opt-name">{{a.label}}</span>
+        {{#if a.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+      </button>
+      {{/each}}
+    </div>
+    <label class="cc-field">
+      <span class="cc-label">{{localize "PROJECTANIME.Creator.armorName"}}</span>
+      <input type="text" name="armorName" value="{{armor.name}}" />
+    </label>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 5 · BUILD TECHNIQUES ===================== --}}
+  {{#if onTechniques}}
+  <section class="cc-step-body cc-skills">
+    <div class="cc-sp">
+      <i class="fas fa-wand-sparkles"></i>
+      <span class="cc-label">{{localize "PROJECTANIME.Creator.step.techniques"}}</span>
+      <strong class="cc-sp-val">{{skills.length}} / {{techniqueMax}}</strong>
+    </div>
+    {{#if canBuild}}
+    <button type="button" class="cc-primary" data-action="openSkillBuilder">
+      <i class="fas fa-wand-sparkles"></i> {{localize "PROJECTANIME.Creator.openTechniqueBuilder"}}
+    </button>
+    {{/if}}
+    {{#if skills.length}}
+    <ul class="cc-skill-list">
+      {{#each skills as |s|}}
+      <li class="cc-skill-row" data-skill-id="{{s.id}}">
+        <img src="{{s.img}}" alt="" />
+        <div class="cc-skill-info">
+          <span class="cc-skill-name">{{s.name}}</span>
+          <span class="cc-skill-sub muted">{{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}}</span>
+        </div>
+        <button type="button" class="cc-icon-btn" data-action="editSkill" title="{{localize 'PROJECTANIME.Action.edit'}}">
+          <i class="fas fa-pen-to-square"></i>
+        </button>
+        <button type="button" class="cc-icon-btn danger" data-action="removeSkill" title="{{localize 'PROJECTANIME.Action.delete'}}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="cc-empty muted">{{localize "PROJECTANIME.Empty"}}</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 6 · SET STATS ===================== --}}
   {{#if onStats}}
   <section class="cc-step-body cc-stats">
     <div class="cc-vitals-grid">
       <div class="cc-vital hp">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span>
-        <span class="cc-v-val">{{vitals.hp}}</span>
-        <span class="cc-v-sub muted">{{localize "PROJECTANIME.Attribute.might.long"}} ×2</span>
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.hitBoxes"}}</span>
+        <span class="cc-v-val">{{stats.hp}}</span>
       </div>
       <div class="cc-vital energy">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.energy"}}</span>
-        <span class="cc-v-val">{{vitals.energy}}</span>
-        <span class="cc-v-sub muted">{{localize "PROJECTANIME.Attribute.spirit.long"}} ×2</span>
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.energyBoxes"}}</span>
+        <span class="cc-v-val">{{stats.energy}}</span>
       </div>
       <div class="cc-vital">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.evasion"}}</span>
-        <span class="cc-v-val">{{vitals.evasion}}</span>
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.guard"}}</span>
+        <span class="cc-v-val">{{stats.guard}}</span>
       </div>
       <div class="cc-vital">
         <span class="cc-v-label">{{localize "PROJECTANIME.Stat.movement"}}</span>
-        <span class="cc-v-val">{{vitals.movement}}</span>
+        <span class="cc-v-val">{{stats.movement}}</span>
       </div>
       <div class="cc-vital">
-        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.carryingCapacity"}}</span>
-        <span class="cc-v-val">{{vitals.carry}}</span>
+        <span class="cc-v-label">{{localize "PROJECTANIME.Stat.energyRegen"}}</span>
+        <span class="cc-v-val">{{stats.regen}}</span>
       </div>
     </div>
-    {{#if vitalsStale}}
-    <button type="button" class="cc-mini-btn" data-action="recalcVitals">
-      <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.Creator.recalc"}}
-    </button>
-    {{/if}}
+  </section>
+  {{/if}}
 
+  {{!-- ===================== 7 · ROLL LUCK DICE ===================== --}}
+  {{#if onLuck}}
+  <section class="cc-step-body cc-luckstep">
     <div class="cc-luck">
       <div class="cc-luck-head">
         <span class="cc-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
@@ -131,7 +216,7 @@
         <span class="cc-luck-lock"><i class="fas fa-lock"></i> {{localize "PROJECTANIME.Creator.luckLocked"}}</span>
         {{else}}
         <button type="button" class="cc-mini-btn" data-action="rollLuck">
-          <i class="fas fa-dice"></i> {{localize "PROJECTANIME.Creator.rollLuck"}} (3{{charmDie}})
+          <i class="fas fa-dice"></i> {{localize "PROJECTANIME.Creator.rollLuck"}} ({{luckFormula}})
         </button>
         {{/if}}
       </div>
@@ -142,102 +227,26 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 4 · SKILLS ===================== --}}
-  {{#if onSkills}}
-  <section class="cc-step-body cc-skills">
-    <div class="cc-sp">
-      <i class="fas fa-star"></i>
-      <span class="cc-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
-      <strong class="cc-sp-val">{{sp}}</strong>
-    </div>
-    <button type="button" class="cc-primary" data-action="openSkillBuilder">
-      <i class="fas fa-wand-sparkles"></i> {{localize "PROJECTANIME.Creator.openSkillBuilder"}}
-    </button>
-    {{#if skills.length}}
-    <ul class="cc-skill-list">
-      {{#each skills as |s|}}
-      <li class="cc-skill-row" data-skill-id="{{s.id}}">
-        <img src="{{s.img}}" alt="" />
-        <div class="cc-skill-info">
-          <span class="cc-skill-name">{{s.name}}</span>
-          <span class="cc-skill-sub muted">{{s.stars}} · {{s.actionLabel}}{{#unless s.passive}} · <i class="fas fa-bolt"></i>{{s.energyCost}}{{/unless}} · <i class="fas fa-star"></i>{{s.spCost}}</span>
-        </div>
-        <button type="button" class="cc-icon-btn" data-action="editSkill" title="{{localize 'PROJECTANIME.Action.edit'}}">
-          <i class="fas fa-pen-to-square"></i>
-        </button>
-        <button type="button" class="cc-icon-btn danger" data-action="removeSkill" title="{{localize 'PROJECTANIME.Creator.removeSkill'}}">
-          <i class="fas fa-trash"></i>
-        </button>
-      </li>
-      {{/each}}
-    </ul>
-    {{else}}
-    <p class="cc-empty muted">{{localize "PROJECTANIME.Creator.noSkills"}}</p>
-    {{/if}}
-  </section>
-  {{/if}}
-
-  {{!-- ===================== 5 · GEAR ===================== --}}
-  {{#if onGear}}
-  <section class="cc-step-body cc-gear">
-    <div class="cc-budget-bar">
-      <span class="cc-label">{{localize "PROJECTANIME.Creator.budget"}}</span>
-      <span class="cc-budget-num"><i class="fas fa-coins"></i> {{gold}}</span>
-      <span class="cc-budget-sub muted">/ {{budget}}G</span>
-      <button type="button" class="cc-icon-btn cc-refresh" data-action="refreshShop" title="{{localize 'PROJECTANIME.Creator.refresh'}}">
-        <i class="fas fa-rotate"></i>
-      </button>
-    </div>
-
-    <div class="cc-chips">
-      {{#each shopFilters as |f|}}
-      <button type="button" class="cc-chip{{#if f.active}} active{{/if}}" data-action="shopFilter" data-type="{{f.key}}">{{f.label}}</button>
-      {{/each}}
-    </div>
-
-    {{#if shop.length}}
-    <div class="cc-shop-grid">
-      {{#each shop as |it|}}
-      <div class="cc-shop-item{{#unless it.affordable}} unaffordable{{/unless}}" data-uuid="{{it.uuid}}">
-        <img src="{{it.img}}" alt="" />
-        <div class="cc-shop-info">
-          <span class="cc-shop-name">{{it.name}}</span>
-          <span class="cc-shop-sub muted">{{it.typeLabel}}</span>
-        </div>
-        <button type="button" class="cc-buy" data-action="buyItem" {{#unless it.affordable}}disabled{{/unless}}>
-          <i class="fas fa-coins"></i> {{it.cost}}
-        </button>
-      </div>
-      {{/each}}
-    </div>
-    {{else}}
-    <p class="cc-empty muted">{{localize "PROJECTANIME.Creator.shopEmpty"}}</p>
-    {{/if}}
-
-    {{#if owned.length}}
-    <h3 class="cc-subhead">{{localize "PROJECTANIME.Creator.owned"}}</h3>
-    <ul class="cc-owned-list">
-      {{#each owned as |it|}}
-      <li class="cc-owned-row" data-item-id="{{it.id}}">
-        <img src="{{it.img}}" alt="" />
-        <span class="cc-owned-name">{{it.name}}</span>
-        <span class="cc-owned-cost muted"><i class="fas fa-coins"></i> {{it.cost}}</span>
-        <button type="button" class="cc-icon-btn" data-action="sellItem" title="{{localize 'PROJECTANIME.Creator.sell'}}">
-          <i class="fas fa-rotate-left"></i>
-        </button>
-      </li>
-      {{/each}}
-    </ul>
-    {{/if}}
-  </section>
-  {{/if}}
-
-  {{!-- ===================== 6 · FINISH ===================== --}}
+  {{!-- ===================== 8 · NAME EVERYTHING ===================== --}}
   {{#if onFinish}}
   <section class="cc-step-body cc-finish">
+    <div class="cc-id-row">
+      <div class="cc-img" data-action="pickImage" title="{{localize 'PROJECTANIME.Creator.pickImage'}}">
+        <img src="{{img}}" alt="" />
+        <i class="cc-img-edit fas fa-camera"></i>
+      </div>
+      <label class="cc-field">
+        <span class="cc-label">{{localize "Name"}}</span>
+        <input type="text" name="name" value="{{name}}" />
+      </label>
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Field.pronouns"}}</span>
+        <input type="text" name="system.pronouns" value="{{pronouns}}" />
+      </label>
+    </div>
     <label class="cc-field">
-      <span class="cc-label">{{localize "PROJECTANIME.Field.pronouns"}}</span>
-      <input type="text" name="system.pronouns" value="{{pronouns}}" />
+      <span class="cc-label">{{localize "PROJECTANIME.Creator.conceptField"}}</span>
+      <textarea name="system.biography" rows="4">{{biography}}</textarea>
     </label>
     <div class="cc-detail-grid">
       {{#each bioFields as |f|}}

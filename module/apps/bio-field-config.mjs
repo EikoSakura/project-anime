@@ -5,10 +5,10 @@
  * GM-only Settings menu (ApplicationV2 form) to edit it: each row is a dossier field
  * with an icon (a Font Awesome class or an image from the file browser), a display
  * name, a stable key, and a type (single-line or multi-line). Mirrors
- * apps/element-config.mjs and reuses its `.ec-*` styling.
+ * the other `.ec-*`-styled config dialogs (token fields, creation config, …).
  */
 import { defaultBioFields, getBioFields, BIO_FIELDS_SETTING } from "../helpers/bio-fields.mjs";
-import { isImageIcon } from "../helpers/elements.mjs";
+import { isImageIcon } from "../helpers/config.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -20,8 +20,8 @@ function slugify(value) {
 export class BioFieldConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "project-anime-bio-field-config",
-    // Reuse the Elements config chrome (.ec-*); `bio-field-config` adjusts the grid.
-    classes: ["project-anime", "element-config", "bio-field-config"],
+    // Reuse the shared config-menu chrome (.ec-*); `bio-field-config` adjusts the grid.
+    classes: ["project-anime", "config-menu", "bio-field-config"],
     tag: "form",
     position: { width: 600, height: "auto" },
     window: { title: "PROJECTANIME.Settings.bioFields.title", icon: "fa-solid fa-id-card" },

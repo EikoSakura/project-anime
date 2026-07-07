@@ -1,8 +1,8 @@
 import { enhanceSelects } from "../helpers/select.mjs";
-import { elementChoices, elementLabel } from "../helpers/elements.mjs";
-import { physicalRangeLabel, rangeHasTiles, skillEffectKeys, isHeavyModifier } from "../helpers/config.mjs";
+import { PROJECTANIME, physicalRangeLabel, rangeHasTiles, skillEffectKeys, isHeavyModifier, actorTalents, styleTooltipHTML } from "../helpers/config.mjs";
 import { skillRulesHTML } from "../helpers/skill-description.mjs";
 import { summarizeRules, grantRefs } from "../helpers/effects.mjs";
+import { weaponRow, shieldRow, armorRow } from "../helpers/pack-audit.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 import { SkillBuilderApp } from "../apps/skill-builder.mjs";
 
@@ -24,6 +24,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       editImage: ProjectAnimeItemSheet.#onEditImage,
       toggleModifier: ProjectAnimeItemSheet.#onToggleModifier,
       setTwoHanded: ProjectAnimeItemSheet.#onSetTwoHanded,
+      setStyle: ProjectAnimeItemSheet.#onSetStyle,
       setChoice: ProjectAnimeItemSheet.#onSetChoice,
       selectTab: ProjectAnimeItemSheet.#onSelectTab,
       addEffect: ProjectAnimeItemSheet.#onAddEffect,
@@ -47,7 +48,6 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     container: { template: "systems/project-anime/templates/item/container.hbs", scrollable: [""] },
     gear: { template: "systems/project-anime/templates/item/gear.hbs", scrollable: [""] },
     package: { template: "systems/project-anime/templates/item/package.hbs", scrollable: [""] },
-    material: { template: "systems/project-anime/templates/item/material.hbs", scrollable: [""] },
     description: { template: "systems/project-anime/templates/item/description.hbs" },
     effects: { template: "systems/project-anime/templates/item/effects.hbs", scrollable: [""] }
   };
@@ -62,8 +62,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     container: "fa-solid fa-box-open",
     gear: "fa-solid fa-box-archive",
     skill: "fa-solid fa-bolt",
-    package: "fa-solid fa-gift",
-    material: "fa-solid fa-gem"
+    package: "fa-solid fa-gift"
   };
 
   /** Active sheet tab: "view" (read display) or "edit" (input form). Survives re-render. */
@@ -102,8 +101,6 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     context.system = this.item.system;
     context.flags = this.item.flags;
     context.config = CONFIG.PROJECTANIME;
-    context.damageTypeChoices = elementChoices();
-    if (this.item.type === "material") context.materialTierChoices = { 1: "I", 2: "II", 3: "III", 4: "IV" };
     context.itemUuid = this.item.uuid;
     context.editable = this.isEditable;
     context.typeLabel = game.i18n.localize(`TYPES.Item.${this.item.type}`);
@@ -135,7 +132,6 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     const vm = this.#buildViewModel(context);
     context.statTiles = vm.tiles;
     context.metaChips = vm.chips;
-    context.craftBadges = vm.badges;
     context.headerTags = vm.tags;
     context.worth = vm.worth;
     return context;
@@ -256,22 +252,14 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     if (this.item.type === "skill") {
       context.isReact = sys.actionType === "react";
       context.isStrike = sys.effect === "strike";
-      context.showDamageType = cfg.damageEffects.includes(sys.effect);
-      // Elemental Control's free-text element (either Effect slot may hold EC).
+      // Control's free-text element (either Effect slot may hold it).
       context.showControlElement = skillEffectKeys(sys).includes("elementalControl");
-      context.showDamageDie = cfg.dieEffects.includes(sys.effect);
-      context.damageDieChoices = {
-        attrA: game.i18n.localize(cfg.attributes[sys.attributes?.attrA] ?? sys.attributes?.attrA ?? "attrA"),
-        attrB: game.i18n.localize(cfg.attributes[sys.attributes?.attrB] ?? sys.attributes?.attrB ?? "attrB")
-      };
-      context.damageDieLabel = sys.effect === "mend" ? "PROJECTANIME.Skill.field.healDie" : "PROJECTANIME.Skill.field.damageDie";
       context.rangeHasTiles = rangeHasTiles(sys.range?.scope);
       context.rangeRec = cfg.rangeTiles[sys.range?.scope] ?? 0;
       context.damagePoolChoices = cfg.damagePools;
-      // The HP/Energy pool field shows for Strike (which pool its damage hits) and Heal (v0.03:
-      // which pool it restores).
+      // The pool field shows for Heal (which pool a box clears from).
       context.showDamagePool = cfg.poolEffects.includes(sys.effect);
-      context.poolLabel = sys.effect === "mend" ? "PROJECTANIME.Skill.field.healPool" : "PROJECTANIME.Skill.field.damagePool";
+      context.poolLabel = "PROJECTANIME.Skill.field.healPool";
       context.effectDesc = game.i18n.localize(`PROJECTANIME.Skill.effectDesc.${sys.effect}`);
       context.modifierList = Object.entries(cfg.skillModifiers).map(([key, label]) => ({
         key,
@@ -280,22 +268,62 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         heavy: isHeavyModifier(key, sys),
         selected: (sys.modifiers ?? []).includes(key)
       }));
-      // Active Skills show their Energy cost; a Passive shows its max-Energy tax instead.
-      const costTag = `${sys.spCost ?? 0} SP`;
+      // Active Techniques show their Energy cost; a Passive shows the boxes it locks instead.
       context.summary = sys.energyCost > 0
-        ? `${costTag} · ${sys.energyCost} EN`
-        : (sys.actionType === "passive" && sys.passiveEnergyTax > 0 ? `${costTag} · −${sys.passiveEnergyTax} Max EN` : costTag);
+        ? `${sys.energyCost} ${game.i18n.localize("PROJECTANIME.Stat.energyAbbr")}`
+        : (sys.passiveEnergyTax > 0 ? game.i18n.format("PROJECTANIME.Skill.locks", { n: sys.passiveEnergyTax }) : "");
     } else if (this.item.type === "shield") {
       // Wield As segmented toggle: only two choices, so a single boolean drives both buttons.
       context.shieldUseDual = sys.use === "dual";
     } else if (this.item.type === "consumable") {
       context.restoreChoices = cfg.consumableRestore;
     }
+
+    // Weapons and shields may link an embedded Talent (rolled alongside the Paired Attribute).
+    if ((this.item.type === "weapon" || this.item.type === "shield") && this.item.actor) {
+      context.talentChoices = actorTalents(this.item.actor)
+        .map((t) => ({ id: t.id, name: t.name, die: t.die, selected: sys.talentId === t.id }));
+    }
+
+    // Style picker — one image tile per printed Style, alphabetized; hover shows the printed
+    // line as a rich tooltip, click stamps it onto the item (clicking the active tile just
+    // unsets the Style tag).
+    const styleTable = ProjectAnimeItemSheet.STYLE_TABLES[this.item.type];
+    if (styleTable) {
+      const { styles, keys, kind } = styleTable();
+      context.styleTiles = keys.map((key) => ({
+        key,
+        icon: styles[key].icon,
+        label: game.i18n.localize(styles[key].label),
+        selected: sys.style === key,
+        tooltip: styleTooltipHTML(styles[key], kind)
+      })).sort((a, b) => a.label.localeCompare(b.label));
+    }
+  }
+
+  /** The Style tables per item type (weapon 7 · shield 2 · armor 4). */
+  static STYLE_TABLES = {
+    weapon: () => ({ styles: PROJECTANIME.weaponStyles, keys: PROJECTANIME.weaponStyleKeys, kind: "PROJECTANIME.Style.weapon" }),
+    shield: () => ({ styles: PROJECTANIME.shieldStyles, keys: PROJECTANIME.shieldStyleKeys, kind: "PROJECTANIME.Style.shield" }),
+    armor: () => ({ styles: PROJECTANIME.armorStyles, keys: PROJECTANIME.armorStyleKeys, kind: "PROJECTANIME.Style.armor" })
+  };
+
+  /** Click a Style tile: stamp the printed line (Damage/Threshold/Range/Guard/Movement/
+   *  properties) onto the item. Clicking the active tile unsets the Style tag only — the
+   *  stamped numbers stay for homebrew tuning. */
+  static async #onSetStyle(event, target) {
+    const key = target.dataset.style;
+    if (this.item.system.style === key) return this.item.update({ "system.style": "" });
+    const row = this.item.type === "weapon" && PROJECTANIME.weaponStyles[key] ? weaponRow(key)
+      : this.item.type === "shield" && PROJECTANIME.shieldStyles[key] ? shieldRow(key)
+      : this.item.type === "armor" && PROJECTANIME.armorStyles[key] ? armorRow(key)
+      : null;
+    if (row) await this.item.update(row);
   }
 
   /** Structured read model for the View tab — the item's key info shaped into JRPG status-card
    *  pieces: big icon `tiles` (primary combat/protection stats), secondary `chips` (bulk, equipped,
-   *  quantity…), a `worth` coin (cost, only when > 0), crafted-mod `badges`, and header `tags`.
+   *  quantity…), a `worth` coin (cost, only when > 0), and header `tags`.
    *  Skills render their own colored rules summary and never reach the tiles. */
   #buildViewModel(_context) {
     const sys = this.item.system;
@@ -306,7 +334,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     // 3-letter uppercase abbreviation of an attribute's localized name (JRPG stat-block style).
     const abbr = (key) => L(cfg.attributes[key] ?? key).slice(0, 3).toUpperCase();
 
-    const tiles = [], chips = [], badges = [], tags = [];
+    const tiles = [], chips = [], tags = [];
     const tile = (icon, labelKey, value, opts = {}) => {
       if (value === undefined || value === null || value === "") return;
       tiles.push({ icon, label: L(labelKey), value: String(value), small: opts.small || "", em: opts.em || "", kind: opts.kind || "" });
@@ -317,52 +345,39 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     };
     const accuracyTile = () => tile("fa-solid fa-crosshairs", "PROJECTANIME.Stat.accShort",
       `${abbr(sys.accuracy?.attrA)}+${abbr(sys.accuracy?.attrB)}`, { small: sys.accuracy?.mod ? signed(sys.accuracy.mod) : "" });
-    const damageTile = () => tile("fa-solid fa-burst", "PROJECTANIME.Stat.dmgShort", signed(sys.damage?.mod),
-      { em: elementLabel(sys.damage?.type), kind: "dmg" });
+    const damageTile = () => tile("fa-solid fa-burst", "PROJECTANIME.Stat.dmgShort", Number(sys.damage?.value) || 0,
+      { kind: "dmg" });
+    const thresholdTile = () => tile("fa-solid fa-bullseye", "PROJECTANIME.Field.threshold", Number(sys.threshold) || 0);
     const rangeTile = () => tile("fa-solid fa-arrows-left-right-to-line", "PROJECTANIME.Field.range",
       physicalRangeLabel(sys.range), { em: L("PROJECTANIME.Skill.tiles") });
     const worthOf = () => (Number(sys.cost) > 0 ? Number(sys.cost) : null);
-    // Crafted modifications (v0.03) — Temper level, Traits, and an ST-authored Flaw, on gear.
-    const craftBadges = () => {
-      const temper = Number(sys.temper) || 0;
-      if (temper) badges.push({ kind: "tmp", icon: "fa-solid fa-gem", text: `${L("PROJECTANIME.Temper.label")} +${temper}` });
-      for (const t of (sys.gearTraits ?? [])) {
-        const name = L(`PROJECTANIME.GearTrait.name.${t.key}`);
-        if (name) badges.push({ kind: "trait", icon: "", text: name });
-      }
-      if (sys.flaw) badges.push({ kind: "flaw", icon: "fa-solid fa-triangle-exclamation", text: sys.flaw });
-    };
     let worth = null;
 
     switch (this.item.type) {
       case "weapon":
-        accuracyTile(); damageTile(); rangeTile();
+        damageTile(); thresholdTile(); rangeTile(); accuracyTile();
         tile("fa-solid fa-hand-fist", "PROJECTANIME.Field.grip", sys.grip === "two" ? "2H" : "1H", { em: L(cfg.hands[sys.hand]) });
-        chip("PROJECTANIME.Field.size", sys.size);
+        if (cfg.weaponStyles[sys.style]) chip("PROJECTANIME.Field.style", L(cfg.weaponStyles[sys.style].label));
+        if (sys.dual) chip("PROJECTANIME.Field.dualWield", "✓", { on: true });
         chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
-        tags.push({ text: elementLabel(sys.damage?.type) });
-        worth = worthOf(); craftBadges();
+        worth = worthOf();
         break;
       case "shield":
-        if (sys.evasionBonus) tile("fa-solid fa-wind", "PROJECTANIME.Stat.evaShort", signed(sys.evasionBonus), { kind: sys.evasionBonus < 0 ? "dmg" : "" });
-        if (sys.defenseBonus) tile("fa-solid fa-shield", "PROJECTANIME.Stat.defShort", signed(sys.defenseBonus));
-        accuracyTile(); damageTile(); rangeTile();
+        tile("fa-solid fa-shield", "PROJECTANIME.Stat.guardShort", signed(sys.guardBonus || 0));
+        damageTile(); thresholdTile(); rangeTile();
         tile("fa-solid fa-shield-halved", "PROJECTANIME.Field.shieldUse", L(cfg.shieldUses[sys.use]));
+        if (cfg.shieldStyles[sys.style]) chip("PROJECTANIME.Field.style", L(cfg.shieldStyles[sys.style].label));
         chip("PROJECTANIME.Field.hand", L(cfg.hands[sys.hand]));
-        chip("PROJECTANIME.Field.size", sys.size);
         chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
-        tags.push({ text: elementLabel(sys.damage?.type) });
-        worth = worthOf(); craftBadges();
+        worth = worthOf();
         break;
       case "armor":
-        // 2×2: Protection · Evasion on top, Defense · Resistance (the Protection split) below.
-        tile("fa-solid fa-shield-halved", "PROJECTANIME.Field.protection", sys.protection);
-        tile("fa-solid fa-wind", "PROJECTANIME.Stat.evaShort", signed(sys.evasionMod || 0), { kind: (sys.evasionMod || 0) < 0 ? "dmg" : "" });
-        tile("fa-solid fa-shield", "PROJECTANIME.Stat.defShort", sys.defSplit);
-        tile("fa-solid fa-hand-sparkles", "PROJECTANIME.Stat.resShort", sys.resSplit);
-        chip("PROJECTANIME.Field.size", sys.size);
+        tile("fa-solid fa-shield", "PROJECTANIME.Stat.guardShort", signed(sys.guardBonus || 0));
+        tile("fa-solid fa-shoe-prints", "PROJECTANIME.Stat.movShort", sys.movement);
+        if (sys.energyRegen > 1) tile("fa-solid fa-bolt", "PROJECTANIME.Field.energyRegen", sys.energyRegen);
+        if (cfg.armorStyles[sys.style]) chip("PROJECTANIME.Field.style", L(cfg.armorStyles[sys.style].label));
         chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
-        worth = worthOf(); craftBadges();
+        worth = worthOf();
         break;
       case "consumable":
         if (sys.restoreType && sys.restoreType !== "none")
@@ -382,12 +397,6 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         chip("PROJECTANIME.Field.equipped", onoff(sys.equipped), { on: sys.equipped });
         worth = worthOf();
         break;
-      case "material":
-        chip("PROJECTANIME.Material.gradeLabel", L(cfg.materialGrades[sys.grade]));
-        chip("PROJECTANIME.Material.typeLabel", L(cfg.materialTypes[sys.category]));
-        chip("PROJECTANIME.Material.tier", cfg.enemyTierNumerals?.[sys.tier] ?? sys.tier);
-        chip("PROJECTANIME.Field.quantity", sys.quantity);
-        break;
       case "package": {
         if (sys.category) chip("PROJECTANIME.Package.category", sys.category);
         const n = grantRefs(this.item).length;
@@ -399,7 +408,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         chip("PROJECTANIME.Field.size", sys.size);
         worth = worthOf();
     }
-    return { tiles, chips, badges, tags, worth };
+    return { tiles, chips, tags, worth };
   }
 
   /* -------------------------------------------- */

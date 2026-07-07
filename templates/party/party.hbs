@@ -1,7 +1,7 @@
 {{!-- Party tab: an Eiyuden/Suikoden status screen — a party band over a grid of six member cards.
-      Each card is a scannable readout (diamond portrait, name, Power, HP hero bar + condensed Energy
-      bar, the full derived-stat block in two columns) that opens an in-place detail drawer
-      (attribute dice, equipped gear, bonds). No formation rows — this combat has none. --}}
+      Each card is a scannable readout (diamond portrait, name, Hit + Energy box bars, Guard +
+      Movement) that opens an in-place detail drawer (attribute dice, equipped gear). No formation
+      rows — this combat has none. --}}
 <section class="party-pane{{#if onParty}} active{{/if}}" data-pane="party">
 
   {{!-- Party band — Tier crest · Members · Gold · Party Power · Rest --}}
@@ -47,31 +47,23 @@
             <button type="button" class="pcard-x" data-action="removeMember" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
             {{/if}}
           </div>
-          <div class="pres hp">
+          <div class="pres resource hp">
             <i class="fas fa-heart"></i>
-            <div class="pbar"><div class="pfill hp" style="width:{{m.hpPct}}%"></div></div>
-            <span class="pval">{{m.hp}}/{{m.hpMax}}</span>
+            <div class="boxes">{{#each m.hpBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setMemberBox" data-resource="hp" data-n="{{b.n}}" {{#unless m.editable}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Stat.hp'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
           </div>
-          <div class="pres energy">
+          <div class="pres resource energy">
             <i class="fas fa-bolt"></i>
-            <div class="pbar"><div class="pfill energy" style="width:{{m.energyPct}}%"></div></div>
-            <span class="pval">{{m.energy}}/{{m.energyMax}}</span>
+            <div class="boxes">{{#each m.energyBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setMemberBox" data-resource="energy" data-n="{{b.n}}" {{#unless m.editable}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Stat.energy'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
           </div>
         </div>
 
         <div class="pcard-stats">
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.atk'}}"><i class="fas fa-hand-fist"></i><b>{{m.atk}}</b></span>
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.matk'}}"><i class="fas fa-wand-sparkles"></i><b>{{m.matk}}</b></span>
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.defense'}}"><i class="fas fa-shield-halved"></i><b>{{m.defense}}</b></span>
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.resistance'}}"><i class="fas fa-shield-heart"></i><b>{{m.res}}</b></span>
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.evasion'}}"><i class="fas fa-wind"></i><b>{{m.evasion}}</b></span>
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.attackSpeed'}}"><i class="fas fa-gauge-high"></i><b>{{m.as}}</b></span>
+          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.guard'}}"><i class="fas fa-shield-halved"></i><b>{{m.guard}}</b></span>
           <span class="pstat" title="{{localize 'PROJECTANIME.Stat.movement'}}"><i class="fas fa-shoe-prints"></i><b>{{m.mov}}</b></span>
-          <span class="pstat" title="{{localize 'PROJECTANIME.Stat.carryingCapacity'}}"><i class="fas fa-weight-hanging"></i><b>{{m.carry}}</b></span>
         </div>
       </div>
 
-      {{!-- Detail drawer — attribute dice, equipped gear, bonds. Revealed on card click. --}}
+      {{!-- Detail drawer — attribute dice, equipped gear. Revealed on card click. --}}
       <div class="pcard-drawer">
         <div class="pdrawer-h"><i class="fas fa-dice-d20"></i> {{localize "PROJECTANIME.Party.drawerAttributes"}}<span class="rule"></span></div>
         <div class="pdrawer-attrs">
@@ -100,15 +92,6 @@
           </div>
         </div>
 
-        {{#if m.bonds.length}}
-        <div class="pdrawer-h"><i class="fas fa-hands-holding"></i> {{localize "PROJECTANIME.Party.drawerBonds"}}<span class="rule"></span></div>
-        <div class="pdrawer-bonds">
-          {{#each m.bonds}}
-          <div class="pbond"><span class="pb-dia"><img src="{{img}}" alt="" /></span><span class="pb-info"><b>{{name}}</b><small>{{kind}}</small></span><span class="pb-rank">{{rank}}</span></div>
-          {{/each}}
-        </div>
-        {{/if}}
-
         <div class="pdrawer-foot">
           <a data-action="openActor"><i class="fas fa-up-right-from-square"></i> {{localize "PROJECTANIME.Party.viewSheet"}}</a>
         </div>
@@ -123,5 +106,35 @@
     </div>
     {{/each}}
   </div>
+
+  {{!-- Companions strip — the party's bonded Companions; only rendered when there are any. --}}
+  {{#if companions.length}}
+  <div class="pcomp-head"><i class="fas fa-paw"></i> {{localize "PROJECTANIME.Party.companions"}}<span class="rule"></span></div>
+  <div class="pcomp-rows">
+    {{#each companions as |c|}}
+    <div class="pcomp" data-ref="{{c.ref}}">
+      <img class="pcomp-img" src="{{c.img}}" alt="" data-action="openActor" />
+      <div class="pcomp-mid">
+        <div class="pcomp-top">
+          <span class="pcomp-name" data-action="openActor">{{c.name}}</span>
+          {{#if c.master}}<span class="pcomp-bond" title="{{localize 'PROJECTANIME.Party.companionBond'}}"><i class="fas fa-link"></i> {{c.master}}</span>{{/if}}
+        </div>
+        <div class="pres resource hp">
+          <i class="fas fa-heart"></i>
+          <div class="boxes">{{#each c.hpBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setMemberBox" data-resource="hp" data-n="{{b.n}}" {{#unless c.editable}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Stat.hp'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
+        </div>
+        <div class="pres resource energy">
+          <i class="fas fa-bolt"></i>
+          <div class="boxes">{{#each c.energyBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setMemberBox" data-resource="energy" data-n="{{b.n}}" {{#unless c.editable}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Stat.energy'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
+        </div>
+      </div>
+      {{#if c.adv}}<span class="pcomp-adv" title="{{localize 'PROJECTANIME.Advance.advancements'}}"><i class="fas fa-arrow-up-right-dots"></i><b>{{c.adv}}</b></span>{{/if}}
+      {{#if c.canAdvance}}
+      <button type="button" class="pcomp-btn" data-action="advanceCompanion" title="{{localize 'PROJECTANIME.Advancement.title'}}"><i class="fas fa-arrow-up-right-dots"></i></button>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
 
 </section>

@@ -1,41 +1,43 @@
+import { PROJECTANIME, isCompanion } from "./config.mjs";
+
 /**
- * Skill-Point ledger view-model. Shared by the actor sheet (the drawer summary strip) and the
- * Skill Point Log dialog so both read identical numbers. Characters use the stored ledger
- * (`Spent = Σ log.amount`); NPCs (no ledger) fall back to the derived sum (advancement scalar +
- * every owned skill's spCost). See documents/actor.mjs for how entries are spent and refunded.
+ * Advancement ledger view-model (V2). Shared by the actor sheet (the drawer summary strip),
+ * the Advancement dialog (slot usage), and the Log dialog so all read identical numbers.
+ * `Spent = Σ log.amount`; slots used per option = count of entries of that kind.
+ * See documents/actor.mjs for how entries are spent and refunded.
  */
 
-/** Ledger entry kind → Font Awesome glyph. Swappable like the other icon maps. */
+/** Ledger entry kind → Font Awesome glyph. */
 const KIND_ICONS = {
-  skill: "fa-wand-sparkles",
-  improve: "fa-arrow-up-right-dots",
+  technique: "fa-wand-sparkles",
+  energy: "fa-bolt",
+  hitBox: "fa-heart-circle-plus",
+  talent: "fa-graduation-cap",
+  rebuild: "fa-rotate",
   attribute: "fa-dumbbell",
-  stat: "fa-heart-circle-plus",
+  talentStep: "fa-arrow-up-right-dots",
   legacy: "fa-clock-rotate-left"
 };
 
 /**
  * @param {Actor} actor
- * @returns {{spInfo:{available:number,spent:number,granted:number,total:number}, spLog:Array|null}}
- *   `spLog` is null for actors without a ledger (NPCs); otherwise the rows, newest first.
+ * @returns {{advInfo:{available:number,spent:number,total:number,slots:object}, advLog:Array|null}}
+ *   `advLog` is null for actors without a ledger (NPCs); otherwise the rows, newest first.
+ *   `slots` maps each advancement option key → {used, max, full}.
  */
-export function skillPointLedger(actor) {
+export function advancementLedger(actor) {
   const sys = actor.system ?? {};
-  const sp = sys.skillPoints ?? {};
-  const value = sp.value ?? 0;
+  const adv = sys.advancement ?? {};
+  const value = adv.value ?? 0;
 
-  // Granted (free) abilities don't touch the pool but still count toward the Total.
-  let grantedSP = 0;
-  for (const i of actor.items) {
-    if (i.type === "skill" && i.getFlag("project-anime", "granted")) grantedSP += Number(i.system?.spCost ?? 0) || 0;
-  }
-
-  const ledger = Array.isArray(sp.log) ? sp.log : null;
-  let spLog = null;
-  let spent;
+  const ledger = Array.isArray(adv.log) ? adv.log : null;
+  let advLog = null;
+  let spent = 0;
+  const used = {};
   if (ledger) {
     spent = ledger.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    spLog = ledger
+    for (const e of ledger) used[e.kind] = (used[e.kind] ?? 0) + 1;
+    advLog = ledger
       .map((e) => ({
         id: e.id,
         label: e.label,
@@ -43,41 +45,51 @@ export function skillPointLedger(actor) {
         kind: e.kind,
         icon: KIND_ICONS[e.kind] ?? "fa-star",
         time: e.time ?? 0,
-        // Everything is refundable except the legacy lump (it carries nothing to reverse).
-        // Attribute steps stack, so refunding one cascades to its higher steps — see attributePeel().
-        refundable: e.kind !== "legacy"
+        // Rebuild replaced a Technique that no longer exists — nothing to reverse.
+        refundable: e.kind !== "legacy" && e.kind !== "rebuild"
       }))
-      // Newest first; backfilled entries (time 0) sit at the bottom in insertion order.
       .sort((a, b) => b.time - a.time);
-  } else {
-    let selfSP = 0;
-    for (const i of actor.items) if (i.type === "skill" && !i.getFlag("project-anime", "granted")) selfSP += Number(i.system?.spCost ?? 0) || 0;
-    spent = (sp.spent ?? 0) + selfSP;
+  }
+
+  // A Companion spends against its own caps where they differ (rules: Companion Advancement).
+  const companion = isCompanion(actor);
+  const slots = {};
+  for (const key of PROJECTANIME.advancementOptionKeys) {
+    const opt = PROJECTANIME.advancementOptions[key] ?? {};
+    const max = (companion ? opt.companionSlots : null) ?? opt.slots ?? 0;
+    const u = used[key] ?? 0;
+    slots[key] = { used: u, max, full: u >= max };
   }
 
   return {
-    spInfo: { available: value, spent, granted: grantedSP, total: value + spent + grantedSP },
-    spLog
+    advInfo: { available: value, spent, total: value + spent, slots },
+    advLog
   };
 }
 
+/** Back-compat alias while call sites migrate. */
+export const skillPointLedger = (actor) => {
+  const { advInfo, advLog } = advancementLedger(actor);
+  return { spInfo: { available: advInfo.available, spent: advInfo.spent, granted: 0, total: advInfo.total }, spLog: advLog };
+};
+
 /**
- * The ledger steps a refund of one attribute entry reverses. Attribute raises stack
- * (d4→d6→d8→…), so refunding a step must also refund every HIGHER step of the same attribute —
- * otherwise the ledger would claim a die the base no longer reaches and `Spent` would drift.
- * Returns the affected entries, their combined SP, and the base the attribute steps back to (this
- * entry's `from`). Shared by the actor's refund and the Skill-Point Log's confirm prompt so both
- * agree on what a click will undo.
- * @param {Array}  log           The actor's full ledger (`system.skillPoints.log`).
- * @param {object} entry         The clicked attribute entry.
- * @param {number} [currentBase] Current base die; used only for the defensive no-`from` fallback.
+ * The ledger steps a refund of one step entry reverses. Steps stack (d4→d6→d8→…), so refunding
+ * one must also refund every HIGHER step of the same target — otherwise the ledger would claim
+ * a die the base no longer reaches. Works for both `attribute` (ref = attribute key) and
+ * `talentStep` (ref = `system.talents` key) entries, which both carry {from, to} step data.
+ * Returns the affected entries, their combined advancements, and the die the target steps back
+ * to (this entry's `from`).
+ * @param {Array}  log           The actor's full ledger (`system.advancement.log`).
+ * @param {object} entry         The clicked step entry.
+ * @param {number} [currentBase] Current die; used only for the defensive no-`from` fallback.
  * @returns {{entries:Array, refund:number, base:number}}
  */
 export function attributePeel(log, entry, currentBase) {
   const from = Number(entry?.data?.from);
   const hasFrom = Number.isFinite(from);
   const entries = (Array.isArray(log) ? log : []).filter(
-    (e) => e.kind === "attribute" && e.ref === entry.ref &&
+    (e) => e.kind === entry.kind && e.ref === entry.ref &&
       (hasFrom ? Number(e.data?.from) >= from : e.id === entry.id)
   );
   const refund = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);

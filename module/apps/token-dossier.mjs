@@ -4,12 +4,11 @@
  * A read-only, themed ApplicationV2 window opened by right-clicking a token you do NOT own
  * (owners and the GM get the core Token HUD on right-click instead — see the _canHUD /
  * _onClickRight patch in project-anime.mjs). It shows the token's portrait, HP / Energy, and
- * the deeper layers — Attributes, Combat Stats, Skills, Affinities — each gated by the
- * VIEWER's Reveal effects (a Scouter). GM and owners see every layer. Skill Points ride along
- * with the hover panel's gate (the basics row at the top).
+ * the deeper layers — Attributes, Combat Stats, Skills — each gated by the
+ * VIEWER's Reveal effects (a Scouter). GM and owners see every layer.
  */
 import { PROJECTANIME, rangeLabel } from "../helpers/config.mjs";
-import { viewerReveals, totalSkillPoints, canSeeTokenVitals, actorStatBlock } from "./token-info.mjs";
+import { viewerReveals, canSeeTokenVitals, actorStatBlock } from "./token-info.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const L = (k) => (k ? game.i18n.localize(k) : "");
@@ -90,8 +89,8 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
       ? L(PROJECTANIME.dispositions[sys.disposition] ?? "TYPES.Actor.npc")
       : L("TYPES.Actor.character");
 
-    // Attributes / Combat Stats / Affinities / custom dossier fields — the shared reveal-gated stat
-    // block (also consumed by the Codex Archive). Skills + HP/Energy stay local to this surface.
+    // Attributes / Combat Stats / custom dossier fields — the shared reveal-gated stat
+    // block. Skills + HP/Energy stay local to this surface.
     const stat = actorStatBlock(actor, { full, reveals });
 
     const TextEditor = foundry.applications.ux.TextEditor.implementation;
@@ -110,7 +109,7 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
               ].filter(Boolean);
               return {
                 name: i.name,
-                stars: s.spCost != null ? `${s.spCost} SP` : "",
+                stars: "",
                 meta,
                 description: s.description ? await TextEditor.enrichHTML(s.description, { secrets: false }) : "",
                 open: this.#openSkills.has(i.name)
@@ -118,8 +117,6 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
             })
         )
       : [];
-
-    const hasSkillPoints = sys.skillPoints !== undefined;
 
     return {
       show: true,
@@ -131,10 +128,8 @@ export class TokenDossier extends HandlebarsApplicationMixin(ApplicationV2) {
       vitals: canSeeTokenVitals(token),
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, pct: pct(hp.value, hp.max) },
       energy: { value: energy.value ?? 0, max: energy.max ?? 0, pct: pct(energy.value, energy.max) },
-      sp: { show: hasSkillPoints && can("skillPoints"), value: totalSkillPoints(actor) },
       attributes: stat.attributes,
       combat: stat.combat,
-      affinities: stat.affinities,
       skills,
       customFields: stat.customFields
     };

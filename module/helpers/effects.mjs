@@ -19,7 +19,6 @@
  *   • attribute  → system.attributes.<k>.value   (delta of ±2 per die step; clamped later)
  *   • stat       → system.<stat>.bonus            (evasion/movement/defense/carryingCapacity)
  *   • resource   → system.<hp|energy>.max
- *   • affinity   → system.affinities.<element>
  * Writing a DERIVED field (evasion.value, attribute.die, system.conditions, …) is
  * silently clobbered by prepareDerivedData and does nothing. The engine must stay a
  * PURE in-memory transform — never call update()/setFlag() from here (infinite loop).
@@ -27,8 +26,6 @@
 
 import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
 import { stampCompendiumSource } from "./gear.mjs";
-import { elementChoices, elementLabel } from "./elements.mjs";
-import { materialCategoryLabel, materialCategoryChoices } from "./materials.mjs";
 
 const FLAG_SCOPE = "project-anime";
 
@@ -47,21 +44,11 @@ export const RULE_TYPES = {
   // modifier — without forcing a stat change. See normalizeRule / the engine's type guards.
   none: "PROJECTANIME.Effect.type.none",
   attribute: "PROJECTANIME.Effect.type.attribute",
-  // Bolster/Hinder an NPC Talent work die (HQ dispatch + facility output). Like `attribute`, but
-  // targets system.talents.<k>.value; inert on actors without Talents (PCs, until they gain them).
-  talent: "PROJECTANIME.Effect.type.talent",
-  // Flat HQ bonus: +N to a dispatch mission's reward (Gold / SP) or success roll. NOT a prepare rule —
-  // read at HQ-turn time by the dispatch math (helpers/factions.mjs, via collectHQOutputs below).
-  hq: "PROJECTANIME.Effect.type.hq",
-  // Per-turn gather of an HQ resource by the bearer (Phase-3 staffing). NOT a prepare rule — read at the
-  // HQ turn (helpers/factions.mjs, via collectGather below), credited only at a facility that accepts it.
-  gather: "PROJECTANIME.Effect.type.gather",
   stat: "PROJECTANIME.Effect.type.stat",
   resource: "PROJECTANIME.Effect.type.resource",
   // Per-turn regeneration of a pool (Hit Points / Energy). The "Sustain" mechanic generalized into a
   // rule any effect can carry — applied at the combat turn-tick (project-anime.mjs), not in prepare.
   sustain: "PROJECTANIME.Effect.type.sustain",
-  affinity: "PROJECTANIME.Effect.type.affinity",
   roll: "PROJECTANIME.Effect.type.roll",
   // Improve (or worsen) ONE Attribute for NON-COMBAT Checks only — the general two-die Check/Test
   // (dice.mjs performCheck), never attacks / skills / damage. Either Steps the matching die(s) or
@@ -124,8 +111,7 @@ export const PRED_TYPES = {
   selfCondition: "PROJECTANIME.Effect.pred.selfCondition",
   hpBelow: "PROJECTANIME.Effect.pred.hpBelow",
   energyBelow: "PROJECTANIME.Effect.pred.energyBelow",
-  targetCondition: "PROJECTANIME.Effect.pred.targetCondition",
-  targetAffinity: "PROJECTANIME.Effect.pred.targetAffinity"
+  targetCondition: "PROJECTANIME.Effect.pred.targetCondition"
 };
 
 /** Effect duration units offered in the builder (mapped onto core effect.duration). */
@@ -136,8 +122,8 @@ export const DURATION_UNITS = {
   minutes: "PROJECTANIME.Effect.dur.minutes"
 };
 
-/** Step Up (step the die up) / Step Down (step it down). Shared by the no-code builder's Attribute
- *  AND Talent rules; stored values stay `bolster`/`hinder`. "Empower / Weaken" are Skill-Effect names
+/** Step Up (step the die up) / Step Down (step it down) — the no-code builder's Attribute rule;
+ *  stored values stay `bolster`/`hinder`. "Empower / Weaken" are Skill-Effect names
  *  (kept distinct on Skill.effect.*), so the no-code die-step reads neutrally. */
 export const ATTRIBUTE_MODES = {
   bolster: "PROJECTANIME.Effect.mode.bolster",
@@ -152,17 +138,17 @@ export const NCCHECK_MODES = {
   bonus: "PROJECTANIME.Effect.ncMode.bonus"
 };
 
-/** Derived stats an effect can flat-modify (all carry a `.bonus` field). */
+/** Derived stats an effect can flat-modify (all carry a `.bonus` field). V2: Guard and
+ *  Movement are the only derived stats. */
 export const STAT_TARGETS = {
-  atk: "PROJECTANIME.Stat.atk",
-  matk: "PROJECTANIME.Stat.matk",
-  defense: "PROJECTANIME.Stat.defense",
-  res: "PROJECTANIME.Stat.resistance",
-  evasion: "PROJECTANIME.Stat.evasion",
-  as: "PROJECTANIME.Stat.attackSpeed",
-  movement: "PROJECTANIME.Stat.movement",
-  carryingCapacity: "PROJECTANIME.Stat.carryingCapacity"
+  guard: "PROJECTANIME.Stat.guard",
+  movement: "PROJECTANIME.Stat.movement"
 };
+
+/** Retired pre-V2 stat keys folded to their nearest V2 stat at read (normalizeRule): the
+ *  defensive trio becomes Guard; the offense/speed/capacity stats have no V2 counterpart and
+ *  their rules go inert (kept valid so stored effects don't explode). */
+const LEGACY_STAT_MAP = { evasion: "guard", defense: "guard", res: "guard" };
 
 /** Resource maximums an effect can flat-modify. */
 export const RESOURCE_TARGETS = {
@@ -183,13 +169,13 @@ export const TRADE_TARGETS = {
 };
 
 /** What a `reveal` rule unlocks for the VIEWER who carries it (a Scouter) — surfaced in a
- *  token's hover panel / right-click dossier. Each category is gated independently. */
+ *  token's hover panel / right-click dossier. Each category is gated independently. V2: the
+ *  printed Scouter reveals Guard; the retired Skill-Points category folds to it at read. */
 export const REVEAL_CATEGORIES = {
-  skillPoints: "PROJECTANIME.Effect.reveal.skillPoints",
+  guard: "PROJECTANIME.Effect.reveal.guard",
   attributes: "PROJECTANIME.Effect.reveal.attributes",
   combatStats: "PROJECTANIME.Effect.reveal.combatStats",
-  skills: "PROJECTANIME.Effect.reveal.skills",
-  affinities: "PROJECTANIME.Effect.reveal.affinities"
+  skills: "PROJECTANIME.Effect.reveal.skills"
 };
 
 /** Default shape for a freshly added rule row. */
@@ -210,11 +196,6 @@ function normalizePred(raw) {
     case "hpBelow": return { type: "hpBelow", pct: pct(raw.pct) };
     case "energyBelow": return { type: "energyBelow", pct: pct(raw.pct) };
     case "targetCondition": return { type: "targetCondition", status: keys.includes(raw.status) ? raw.status : (keys[0] ?? "") };
-    case "targetAffinity": return {
-      type: "targetAffinity",
-      element: String(raw.element ?? "").trim(),
-      level: raw.level in PROJECTANIME.affinityLevels ? raw.level : "none"
-    };
     default: return null; // "always" / unknown → no predicate
   }
 }
@@ -233,38 +214,17 @@ export function normalizeRule(raw) {
         steps: Math.max(1, Math.min(4, Math.round(Number(raw.steps) || 1)))
       };
       break;
-    case "talent":
-      rule = {
-        type: "talent",
-        mode: raw.mode === "hinder" ? "hinder" : "bolster",
-        key: raw.key in PROJECTANIME.talents ? raw.key : (PROJECTANIME.talentKeys?.[0] ?? "exploration"),
-        steps: Math.max(1, Math.min(4, Math.round(Number(raw.steps) || 1)))
-      };
+    case "stat": {
+      const key = raw.key in STAT_TARGETS ? raw.key : (LEGACY_STAT_MAP[raw.key] ?? "guard");
+      rule = { type: "stat", key, value: Math.round(Number(raw.value) || 0) };
       break;
-    case "hq":
-      rule = {
-        type: "hq",
-        target: raw.target in PROJECTANIME.hqOutputs ? raw.target : "gold",
-        value: Math.round(Number(raw.value) || 0)
-      };
-      break;
-    case "gather":
-      // Target is an HQ resource-type key (GM-configurable, materials.mjs) — stored loose, since the set
-      // is a world setting; an unknown key simply never matches a facility's `accepts` at HQ time.
-      rule = { type: "gather", target: String(raw.target ?? "").trim(), value: Math.round(Number(raw.value) || 0) };
-      break;
-    case "stat":
-      rule = { type: "stat", key: raw.key in STAT_TARGETS ? raw.key : "evasion", value: Math.round(Number(raw.value) || 0) };
-      break;
+    }
     case "resource":
       rule = { type: "resource", target: raw.target in RESOURCE_TARGETS ? raw.target : "hp", value: Math.round(Number(raw.value) || 0) };
       break;
     case "sustain":
       // Per-turn regen of a pool. Value is the amount restored each turn (≥ 0; 0 is ignored when collected).
       rule = { type: "sustain", pool: raw.pool === "energy" ? "energy" : "hp", value: Math.max(0, Math.round(Number(raw.value) || 0)) };
-      break;
-    case "affinity":
-      rule = { type: "affinity", element: String(raw.element ?? "").trim(), level: raw.level in PROJECTANIME.affinityLevels ? raw.level : "none" };
       break;
     case "roll":
       rule = { type: "roll", selector: raw.selector in ROLL_SELECTORS ? raw.selector : "check", value: Math.round(Number(raw.value) || 0) };
@@ -313,7 +273,7 @@ export function normalizeRule(raw) {
             img: String(it?.img ?? "").trim()
           };
           // Self-contained snapshot captured at author time, so the grant still delivers after
-          // its source Item is deleted/renamed (mirrors bond rewardItems). Preserved verbatim.
+          // its source Item is deleted/renamed. Preserved verbatim.
           if (it?.data && typeof it.data === "object") out.data = it.data;
           return out;
         })
@@ -360,22 +320,6 @@ export function normalizeRule(raw) {
   const pred = normalizePred(raw.pred);
   if (pred) rule.pred = pred;
   return rule;
-}
-
-/** Scale a rule's numeric magnitude by a tier (≥1) — for tier-scaled HQ passive-facility boons. Steps
- *  (attribute / talent / luck), flat values (stat / resource / roll / hq / sustain), and trade pct all
- *  multiply; affinity / condition / reveal / grant / none are unchanged. Returns a copy. */
-export function scaleRuleByTier(rule, tier) {
-  const t = Math.max(1, Math.round(Number(tier) || 1));
-  if (t === 1 || !rule) return rule;
-  const r = { ...rule };
-  switch (r.type) {
-    case "attribute": case "talent": case "luck": r.steps = Math.max(1, Math.round((Number(r.steps) || 1) * t)); break;
-    case "stat": case "resource": case "roll": case "hq": case "sustain": case "gather": case "ncCheck": r.value = Math.round((Number(r.value) || 0) * t); break;
-    case "trade": r.pct = Math.round((Number(r.pct) || 0) * t); break;
-    // skillMod / weaponMod are NOT tier-scaled (a flat ± stays flat across facility tiers) — same as before.
-  }
-  return r;
 }
 
 /* -------------------------------------------- */
@@ -427,39 +371,20 @@ export function hasAuthoredAttributeEffect(item) {
 /** The rules a Skill's MODIFIERS contribute automatically (like bolsterHinderRules, but driven by
  *  the Modifier list instead of the Effect): Protection grants the target(s) +1 Defense (more if
  *  Tuned — config.mjs modifierValue); Retaliation wards the target so a foe that damages it takes
- *  the warded value of a chosen Element (read reactively by collectRetaliation, NOT a passive stat
- *  change — applyPassiveRule ignores it); Affinity (Damage) grants its chosen Element Affinity at
- *  the Rank-gated level. Used by all three delivery paths — the passive in-memory engine (below),
- *  the on-use copy (dice.mjs), and the aura projection (helpers/aura.mjs) — so every path grants
- *  the identical thing. [] for non-Skills or Skills carrying none of these Modifiers. */
+ *  the warded value (read reactively by collectRetaliation, NOT a passive stat
+ *  change — applyPassiveRule ignores it). Used by all three delivery paths — the passive in-memory
+ *  engine (below), the on-use copy (dice.mjs), and the aura projection (helpers/aura.mjs) — so
+ *  every path grants the identical thing. [] for non-Skills or Skills carrying none of these
+ *  Modifiers. */
 export function skillModifierRules(item) {
   if (item?.type !== "skill") return [];
   const sys = item.system ?? {};
   const mods = sys.modifiers ?? [];
   const out = [];
-  if (mods.includes("protection")) out.push({ type: "stat", key: sys.protectionTarget === "res" ? "res" : "defense", value: modifierValue(item, "protection") });
-  if (mods.includes("retaliation")) out.push({ type: "retaliation", value: modifierValue(item, "retaliation"), element: sys.retaliationType ?? "" });
-  if (mods.includes("affinityDamage")) {
-    // Multi-take: one affinity rule per take. v0.03 authors Resist only; stored immune/absorb
-    // takes from the old rank ladder are grandfathered as written.
-    for (const t of sys.affinityDamages ?? []) {
-      if (!t?.type) continue;
-      out.push({ type: "affinity", element: t.type, level: t.level in PROJECTANIME.affinityLevels ? t.level : "resist" });
-    }
-  }
-  // Affinity (Status) (v0.03): Resist — the chosen Status's duration is halved on the target.
-  if (mods.includes("affinityStatus")) {
-    for (const id of sys.affinityStatusIds ?? []) if (id) out.push({ type: "statusResist", status: id });
-  }
-  // Absorb (v0.03, Heavy): the target takes none of the chosen Damage Type and heals instead.
-  if (mods.includes("absorb") && sys.absorbElement) {
-    out.push({ type: "affinity", element: sys.absorbElement, level: "absorb" });
-  }
-  // Immunity (v0.03, Heavy): full Immunity to a Damage Type or a Status Effect.
-  if (mods.includes("immunity")) {
-    if (sys.immunityKind === "status" && sys.immunityStatus) out.push({ type: "immunity", status: sys.immunityStatus });
-    else if (sys.immunityElement) out.push({ type: "affinity", element: sys.immunityElement, level: "immune" });
-  }
+  // Protection (V2): the target gains +1 Guard; Duration follows the technique.
+  if (mods.includes("protection")) out.push({ type: "stat", key: "guard", value: PROJECTANIME.protectionGuard ?? 1 });
+  // Retaliation (V2): an enemy that marks hit boxes on the target marks 1 hit box.
+  if (mods.includes("retaliation")) out.push({ type: "retaliation", value: PROJECTANIME.retaliationDamage ?? 1 });
   return out;
 }
 
@@ -592,14 +517,6 @@ function applyPassiveRule(system, rule) {
       attr.value += dir * 2 * (Math.abs(Math.round(Number(rule.steps) || 0)));
       return;
     }
-    case "talent": {
-      // Like attribute, but the NPC work die. No-op on actors without Talents (PCs).
-      const tal = system.talents?.[rule.key];
-      if (!tal) return;
-      const dir = rule.mode === "hinder" ? -1 : 1;
-      tal.value += dir * 2 * (Math.abs(Math.round(Number(rule.steps) || 0)));
-      return;
-    }
     case "stat": {
       const stat = system[rule.key];
       if (stat && typeof stat === "object" && "bonus" in stat) stat.bonus += Math.round(Number(rule.value) || 0);
@@ -608,10 +525,6 @@ function applyPassiveRule(system, rule) {
     case "resource": {
       const res = system[rule.target];
       if (res && typeof res === "object" && "max" in res) res.max += Math.round(Number(rule.value) || 0);
-      return;
-    }
-    case "affinity": {
-      if (rule.element && system.affinities) system.affinities[rule.element] = rule.level || "none";
       return;
     }
   }
@@ -626,7 +539,6 @@ function predicatePasses(pred, actor, target = null) {
     case "hpBelow": { const hp = actor?.system?.hp; return hp?.max > 0 && (hp.value / hp.max) * 100 <= pred.pct; }
     case "energyBelow": { const en = actor?.system?.energy; return en?.max > 0 && (en.value / en.max) * 100 <= pred.pct; }
     case "targetCondition": return !!target?.statuses?.has?.(pred.status);
-    case "targetAffinity": return (target?.system?.affinities?.[pred.element] ?? "none") === pred.level;
     default: return true;
   }
 }
@@ -661,7 +573,7 @@ export function applyStructuredRules(actor) {
   // PASSIVE Bolster/Hinder Skills bake their attribute change into the owner always-on — they don't
   // go through the on-use copy path (applySkillEffects skips Passives). Applied in-memory (no AE doc),
   // like any other passive rule. Skipped if the Skill authored its own attribute effect. Passive
-  // Modifier rules (Protection / Affinity Damage — skillModifierRules) ride the same loop.
+  // Modifier rules (Protection — skillModifierRules) ride the same loop.
   for (const item of actor.items ?? []) {
     if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
     if (isEnemyAura(item)) continue;                 // an enemy aura never buffs/debuffs its bearer
@@ -876,11 +788,12 @@ export function stepUpDie(value, steps = 1) {
 }
 
 /**
- * Total Luck-die step-ups an actor's live effects grant (e.g. a Lucky Pendant). Read at
- * Luck-Dice roll time to Step Up the Charm die. Equip-gated + toggle-gated like the other
- * collectors; self-predicates apply (target predicates can't — there's no target).
+ * Total Luck-die tune steps an actor's live effects grant (e.g. a Lucky Pendant). Read AFTER
+ * Luck Dice are restored — a rest, a Go-Again's restored die — to let the bearer raise or lower
+ * one held Luck Die by this many (rules: Accessories — Lucky Pendant). 0 = no tuning. Equip-gated
+ * + toggle-gated like the other collectors; self-predicates apply (there's no target).
  */
-export function collectLuckSteps(actor) {
+export function collectLuckTunes(actor) {
   let steps = 0;
   let effects;
   try { effects = actor?.appliedEffects ?? []; } catch (_) { return 0; }
@@ -935,18 +848,18 @@ export function collectSustain(actor) {
 
 /**
  * The Retaliation wards currently live on a creature — read reactively when a foe damages it
- * (dice.mjs applyRetaliation) so the foe takes the warded value of the chosen Element. Mirrors
+ * (dice.mjs applyRetaliation) so the foe takes the warded value. Mirrors
  * collectSustain: an active/aura Retaliation rides an applied effect copy carrying its rule (the
  * `skillModifierRules` bundle), while a PASSIVE Retaliation Skill protects its bearer always-on
  * (no copy is made — the in-memory engine ignores the rule, so its ward is read straight off the
  * bearer's own passive Skill here). Equip-/toggle-/predicate-gated like the other collectors.
- * @returns {{value:number, element:string}[]} one entry per live ward (they stack).
+ * @returns {{value:number}[]} one entry per live ward (they stack).
  */
 export function collectRetaliation(actor) {
   const out = [];
   const add = (rule) => {
     const value = Math.max(0, Math.round(Number(rule.value) || 0));
-    if (value > 0) out.push({ value, element: rule.element ?? "" });
+    if (value > 0) out.push({ value });
   };
   let effects;
   try { effects = actor?.appliedEffects ?? []; } catch (_) { effects = []; }
@@ -981,56 +894,15 @@ export function collectReveals(actor) {
   for (const effect of effects) {
     if (!effectGateOpen(actor, effect)) continue;
     for (const rule of effectRules(effect)) {
-      if (rule?.type !== "reveal" || !(rule.category in REVEAL_CATEGORIES)) continue;
+      if (rule?.type !== "reveal") continue;
+      // Skill Points are gone (V2) — a stored SP reveal folds to its nearest analog, Guard.
+      const cat = rule.category === "skillPoints" ? "guard" : rule.category;
+      if (!(cat in REVEAL_CATEGORIES)) continue;
       if (!predicatePasses(rule.pred, actor, null)) continue;
-      set.add(rule.category);
+      set.add(cat);
     }
   }
   return set;
-}
-
-/**
- * The flat HQ bonuses an actor's live effects grant — summed across every live `hq` rule (e.g. on a
- * Signature Trait, a Trait, or gear). Read by the HQ dispatch math (helpers/factions.mjs) at mission
- * resolve: `gold` / `sp` boost a won mission's payout, `success` adds to the mission roll total, and
- * `haste` shaves HQ turns off the dispatch's duration (see effectiveMissionDuration in factions.mjs).
- * Equip- + toggle- + self-predicate-gated like the other collectors (no target context at HQ time).
- * @returns {{gold:number, sp:number, success:number, haste:number}}
- */
-export function collectHQOutputs(actor) {
-  const out = { gold: 0, sp: 0, success: 0, haste: 0 };
-  let effects;
-  try { effects = actor?.appliedEffects ?? []; } catch (_) { return out; }
-  for (const effect of effects) {
-    if (!effectGateOpen(actor, effect)) continue;
-    for (const rule of effectRules(effect)) {
-      if (rule?.type !== "hq" || !(rule.target in out)) continue;
-      if (!predicatePasses(rule.pred, actor, null)) continue;
-      out[rule.target] += Math.round(Number(rule.value) || 0);
-    }
-  }
-  return out;
-}
-
-/**
- * The HQ resources an actor's live effects gather each turn — summed across every live `gather` rule
- * (on a Signature Trait, a Trait, or gear), keyed by resource-type. Read by the HQ turn
- * (helpers/factions.mjs): a posted resident's gather of resource R is credited only at a facility whose
- * `accepts` includes R. Gated like the other collectors. @returns {Object<string,number>}
- */
-export function collectGather(actor) {
-  const out = {};
-  let effects;
-  try { effects = actor?.appliedEffects ?? []; } catch (_) { return out; }
-  for (const effect of effects) {
-    if (!effectGateOpen(actor, effect)) continue;
-    for (const rule of effectRules(effect)) {
-      if (rule?.type !== "gather" || !rule.target) continue;
-      if (!predicatePasses(rule.pred, actor, null)) continue;
-      out[rule.target] = (out[rule.target] || 0) + Math.round(Number(rule.value) || 0);
-    }
-  }
-  return out;
 }
 
 /** Base percents of an item's list price for trade (the rules' defaults): you recover half
@@ -1092,11 +964,18 @@ export function collectInflictedConditions(item, target = null) {
     out.push({ id, label: conditionLabelOf(id) });
   }
   // The Inflict Modifier's chosen Status (its Builder selector). Lingering is EXCLUDED here — it
-  // routes through the dedicated element-aware path (dice.mjs inflictDecay) so its damage type
-  // rides along; everything else applies like a Hinder status.
+  // routes through the dedicated path (dice.mjs inflictDecay) for its own timer/immunity handling.
   if (item?.type === "skill" && (item.system?.modifiers ?? []).includes("inflict")) {
     const id = item.system.inflictStatus;
     if (id && id !== "decay" && (PROJECTANIME.conditionKeys ?? []).includes(id) && !seen.has(id)) {
+      seen.add(id);
+      out.push({ id, label: conditionLabelOf(id) });
+    }
+  }
+  // Inflict (Severe) 🔶 — Bound / Cursed / Exposed / Sealed (its own Builder selector).
+  if (item?.type === "skill" && (item.system?.modifiers ?? []).includes("inflictSevere")) {
+    const id = item.system.inflictSevereStatus;
+    if (id && (PROJECTANIME.conditionKeys ?? []).includes(id) && !seen.has(id)) {
       out.push({ id, label: conditionLabelOf(id) });
     }
   }
@@ -1264,30 +1143,17 @@ export function summarizeRule(rule) {
       const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
       return steps > 1 ? `${verb} ${attr} (${steps})` : `${verb} ${attr}`;
     }
-    case "talent": {
-      const tal = L(PROJECTANIME.talents[rule.key]) || rule.key;
-      const verb = L(ATTRIBUTE_MODES[rule.mode === "hinder" ? "hinder" : "bolster"]);
-      const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
-      return steps > 1 ? `${verb} ${tal} (${steps})` : `${verb} ${tal}`;
-    }
     case "stat":
       return `${signed(rule.value)} ${L(STAT_TARGETS[rule.key]) || rule.key}`;
     case "retaliation": {
       const n = Math.max(0, Math.round(Number(rule.value) || 0));
-      const el = rule.element ? (elementLabel(rule.element) || rule.element) : "";
       const head = L("PROJECTANIME.Skill.modifier.retaliation");
-      return el ? `${head} ${n} ${el}` : `${head} ${n}`;
+      return `${head} ${n}`;
     }
-    case "hq":
-      return `${signed(rule.value)} ${L(PROJECTANIME.hqOutputs[rule.target]) || rule.target}`;
-    case "gather":
-      return `${signed(rule.value)} ${materialCategoryLabel(rule.target)}`;
     case "resource":
       return `${signed(rule.value)} ${L(RESOURCE_TARGETS[rule.target]) || rule.target}`;
     case "sustain":
       return `+${Math.max(0, Math.round(Number(rule.value) || 0))} ${L(SUSTAIN_POOLS[rule.pool]) || rule.pool}/${L("PROJECTANIME.Effect.turn")}`;
-    case "affinity":
-      return `${elementLabel(rule.element) || rule.element} → ${L(PROJECTANIME.affinityLevels[rule.level]) || rule.level}`;
     case "roll":
       return `${signed(rule.value)} ${L(ROLL_SELECTORS[rule.selector]) || rule.selector}`;
     case "ncCheck": {
@@ -1302,8 +1168,7 @@ export function summarizeRule(rule) {
     }
     case "luck": {
       const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
-      const base = L("PROJECTANIME.Effect.luckStepUp");
-      return steps > 1 ? `${base} (${steps})` : base;
+      return `${L("PROJECTANIME.Effect.luckTune")}${steps}`;
     }
     case "trade":
       return `${signed(rule.pct)}% ${L(TRADE_TARGETS[rule.target === "buy" ? "buy" : "sell"])}`;
@@ -1358,32 +1223,16 @@ export function narrateRule(rule) {
       const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
       return `${rule.mode === "hinder" ? "lowers" : "raises"} ${a} by ${steps} ${steps > 1 ? "steps" : "step"}`;
     }
-    case "talent": {
-      const t = L(PROJECTANIME.talents[rule.key]) || rule.key;
-      const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
-      return `${rule.mode === "hinder" ? "lowers" : "raises"} ${t} by ${steps} ${steps > 1 ? "steps" : "step"}`;
-    }
     case "stat":
       return `grants ${signed(rule.value)} ${L(STAT_TARGETS[rule.key]) || rule.key}`;
     case "retaliation": {
       const n = Math.max(0, Math.round(Number(rule.value) || 0));
-      const el = rule.element ? (elementLabel(rule.element) || rule.element) : "";
-      return el
-        ? `makes foes that damage the target take ${n} ${el} damage`
-        : `makes foes that damage the target take ${n} damage`;
+      return `makes foes that damage the target take ${n} damage`;
     }
-    case "hq":
-      return `grants ${signed(rule.value)} ${L(PROJECTANIME.hqOutputs[rule.target]) || rule.target}`;
-    case "gather":
-      return `gathers ${signed(rule.value)} ${materialCategoryLabel(rule.target)} per turn`;
     case "resource":
       return `grants ${signed(rule.value)} ${L(RESOURCE_TARGETS[rule.target]) || rule.target}`;
     case "sustain":
       return `regenerates ${Math.max(0, Math.round(Number(rule.value) || 0))} ${L(SUSTAIN_POOLS[rule.pool]) || rule.pool} at the start of each turn`;
-    case "affinity":
-      return rule.level && rule.level !== "none"
-        ? `grants ${L(PROJECTANIME.affinityLevels[rule.level]) || rule.level} to ${elementLabel(rule.element) || rule.element}`
-        : "";
     case "roll":
       return `grants ${signed(rule.value)} to ${L(ROLL_SELECTORS[rule.selector]) || rule.selector} rolls`;
     case "ncCheck": {
@@ -1397,7 +1246,7 @@ export function narrateRule(rule) {
     }
     case "luck": {
       const steps = Math.max(1, Math.round(Number(rule.steps) || 1));
-      return steps > 1 ? `steps up the Luck die by ${steps}` : "steps up the Luck die";
+      return `lets you tune a restored Luck Die by ±${steps}`;
     }
     case "trade":
       return `shifts the ${L(TRADE_TARGETS[rule.target === "buy" ? "buy" : "sell"])} rate by ${signed(rule.pct)}%`;
@@ -1449,15 +1298,10 @@ export function ruleChoices() {
     types: sortChoices(map(RULE_TYPES), ["none"]),
     modes: map(ATTRIBUTE_MODES),              // Step Up / Step Down — NOT alphabetized (Up first)
     attributes: map(PROJECTANIME.attributes), // canonical order — NOT alphabetized
-    talents: map(PROJECTANIME.talents),       // canonical order, like attributes
-    hqOutputs: map(PROJECTANIME.hqOutputs),   // Gold yield / SP yield / Mission success
-    gather: materialCategoryChoices(),        // HQ resource types a Gather rule can produce
     stats: sortChoices(map(STAT_TARGETS)),
     resources: sortChoices(map(RESOURCE_TARGETS)),
     sustainPools: sortChoices(map(SUSTAIN_POOLS), ["hp"]),
     tradeTargets: sortChoices(map(TRADE_TARGETS)),
-    elements: elementChoices(), // already sorted by label at its source
-    levels: sortChoices(map(PROJECTANIME.affinityLevels), ["none"]),
     rollSelectors: sortChoices(map(ROLL_SELECTORS)),
     ncCheckModes: map(NCCHECK_MODES),         // Die Steps / Flat Bonus — NOT alphabetized (Steps first)
     // Skill-adjustment scopes: "Any Skill" pinned first, then every real Skill Modifier (sorted);

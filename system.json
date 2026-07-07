@@ -1,8 +1,8 @@
 {
   "id": "project-anime",
   "title": "Project: Anime",
-  "description": "A setting-agnostic anime TTRPG of attribute dice, player-built Skills, and cinematic scenes. Playtest implementation for Foundry Virtual Tabletop V13.",
-  "version": "0.3.13",
+  "description": "A setting-agnostic anime TTRPG of attribute dice, player-built Techniques, and cinematic scenes. Playtest implementation for Foundry Virtual Tabletop V13.",
+  "version": "0.5.4",
   "compatibility": {
     "minimum": "13",
     "verified": "13.351",
@@ -80,7 +80,7 @@
     },
     {
       "name": "skills",
-      "label": "Skills",
+      "label": "Techniques",
       "type": "Item",
       "system": "project-anime",
       "path": "packs/skills"
@@ -166,11 +166,6 @@
         ]
       },
       "package": {
-        "htmlFields": [
-          "description"
-        ]
-      },
-      "material": {
         "htmlFields": [
           "description"
         ]

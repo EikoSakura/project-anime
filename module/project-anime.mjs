@@ -7,19 +7,15 @@ import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
 import { ProjectAnimeItemSheet } from "./sheets/item-sheet.mjs";
-import { PROJECTANIME, ENCOUNTER_POWER_SETTING, cursedPools, combatantSide, sideInitiative, hasActed, isSkippable, pendingOnSide, activeSide, enemyVitals, enemyStrongAttrs, rankFromEarned } from "./helpers/config.mjs";
+import { PROJECTANIME, cursedPools, combatantSide, sideInitiative, hasActed, isSkippable, pendingOnSide, activeSide } from "./helpers/config.mjs";
 import * as dice from "./helpers/dice.mjs";
-import { elementLabel } from "./helpers/elements.mjs";
-import { registerElementSettings } from "./apps/element-config.mjs";
-import { registerMaterialSettings } from "./apps/material-config.mjs";
 import { registerBioFieldSettings } from "./apps/bio-field-config.mjs";
 import { registerTokenFieldSettings } from "./apps/token-field-config.mjs";
 import { registerTokenSettings } from "./apps/token-config.mjs";
 import { registerCreationSettings } from "./apps/creation-config.mjs";
-import { creationStartingSkillPoints } from "./helpers/creation.mjs";
 import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain } from "./helpers/effects.mjs";
-import { raiseServant, createCompanion, removeServantActor, pruneServantLedger, confirmAndDismiss } from "./helpers/servants.mjs";
-import { auditGearPacks, PACK_AUDIT_SETTING, PACK_TARGETS } from "./helpers/pack-audit.mjs";
+import { createCompanion, removeServantActor, confirmAndDismiss } from "./helpers/servants.mjs";
+import { auditGearPacks, purgeRetiredPackItems, healBrokenItemIcons, PACK_AUDIT_SETTING, PACK_TARGETS, ACCESSORY_CANON, accessoryEffectData } from "./helpers/pack-audit.mjs";
 import { syncAuras, isAuraEffect } from "./helpers/aura.mjs";
 import { EffectsPanel } from "./apps/effects-panel.mjs";
 import { TokenInfoPanel, TOKEN_INFO_SETTING, TOKEN_INFO_CLIENT_SETTING, canSeeTokenVitals, viewerReveals } from "./apps/token-info.mjs";
@@ -28,22 +24,10 @@ import { RangeLine, RANGE_LINE_SETTING, RANGE_LINE_CLIENT_SETTING } from "./apps
 import { AuraField } from "./apps/aura-field.mjs";
 import { patchEffectsHalo } from "./apps/effects-halo.mjs";
 import { ComboSplash, COMBO_SPLASH_SETTING, COMBO_SPLASH_CLIENT_SETTING } from "./apps/combo-splash.mjs";
-import { ensurePartyFolder, ensureAllPartyFolders, syncPartyFolderName, deletePartyFolder, partyMembers, resolveParty } from "./helpers/party-folder.mjs";
-import { AnimeHud, AnimePartyRail, AnimeCombatTracker, registerHudSettings, applyHudState, HUD_ENABLED_SETTING, HUD_SHOW_PARTY_SETTING, HUD_COMBAT_SETTING } from "./apps/anime-hud.mjs";
+import { ensurePartyFolder, ensureAllPartyFolders, syncPartyFolderName, deletePartyFolder, partyMembers } from "./helpers/party-folder.mjs";
+import { AnimeHud, AnimePartyRail, AnimeCombatTracker, registerHudSettings, applyHudState, HUD_ENABLED_SETTING, HUD_SHOW_PARTY_SETTING } from "./apps/anime-hud.mjs";
 import { Codex, ChronicleTracker } from "./apps/codex.mjs";
 import { QUESTS_SETTING, TRACKED_SETTING, TRACKER_VISIBLE_SETTING, SEASON_COUNT_SETTING, PARTY_TIER_SETTING } from "./helpers/chronicle.mjs";
-import { FACTIONS_SETTING, HQ_SETTING, DEATH_STRIKES_SETTING, CRAFT_REQUIRE_SETTING, migrateRostersToHQ, migrateHQModel, getHQ, saveHQ, buildFacility, craftRecipe } from "./helpers/factions.mjs";
-import { ARCHIVE_SETTING } from "./helpers/archive.mjs";
-import { CRAFT_PROJECTS_SETTING, depositMaterial } from "./helpers/crafting.mjs";
-import { awardDefeatDrops } from "./helpers/gathering.mjs";
-import { reconcileHQBoons } from "./helpers/hq-boons.mjs";
-import { reconcileTraits } from "./helpers/trait-effect.mjs";
-import { reconcileBonds } from "./helpers/bond-effect.mjs";
-import { syncPartyBonds, blankBond } from "./helpers/bonds.mjs";
-import { registerPartySettings } from "./apps/party-config.mjs";
-import { isMinionTier, setSquadSize, isSquad, squadMembers, squadSize } from "./helpers/squad.mjs";
-import { combatPlayerCount } from "./helpers/encounter.mjs";
-import { seedTwistSkills } from "./helpers/twists.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
 const { ActorSheet, ItemSheet } = foundry.appv1.sheets;
@@ -67,57 +51,22 @@ const ROTATION_DEFAULTS_SETTING = "tokenRotationDefaultsApplied";
 // ships with one. Guarding it means a GM who later deletes the party isn't fighting a respawn.
 const DEFAULT_PARTY_SETTING = "defaultPartyProvisioned";
 
-// Hidden world flag — set once after legacy Encounter-Builder lines (the old per-entry "× qty"
-// multiplier) migrate to the squad model: a minion's qty becomes its squad SIZE, a non-minion's
-// qty becomes that many individual lines. See migrateEncounterSquads.
-const ENCOUNTER_SQUAD_MIGRATION_SETTING = "encounterSquadsMigrated";
-
-// Hidden world flag — set once after every existing Character gets the v0.03 HP baseline
-// (HP = 6 + ⟪Might⟫×2, was ⟪Might⟫×2): +6 max AND current HP. See migrateHpBaseV003.
-const HP_BASE_V003_SETTING = "hpBaseV003";
-
-// Hidden world flag — set once after every existing Character AND monster NPC gets the v0.03 EP
-// baseline (EP = 6 + ⟪Spirit⟫×2, was ⟪Spirit⟫×2): +6 max AND current EP, so low-Spirit builds can
-// afford their own Skills. Unlike HP, EP uses one uniform formula for PCs and NPCs, so both migrate.
-// See migrateEpBaseV003.
-const EP_BASE_V003_SETTING = "epBaseV003";
+// Hidden world flag — set once after every existing actor is re-baselined to the Version 2 box
+// model (Hit Boxes / Energy Boxes / Guard / Movement) and monster NPCs are remapped from the
+// retired Role × Tier model to the V2 enemy Types. See migrateActorsV2.
+const ACTORS_V2_SETTING = "actorsV2";
 
 // Hidden world flag — set once after every existing world/actor-owned weapon, armor, and shield
-// is re-based to the v0.03 gear tables (absolute DMG column, Hit/Bulk corrections, armor
-// Protection 3/4). The compendiums themselves are handled by the packAuditV003 pass; this one
-// reaches the COPIES players already own. See migrateGearRebaseV003.
-const GEAR_REBASE_V003_SETTING = "gearRebaseV003";
+// is re-based to the Version 2 Style tables (fixed Damage + Threshold, Guard bonus, Movement).
+// The compendiums themselves are handled by the pack-audit pass; this one reaches the COPIES
+// players already own. See migrateGearRebaseV2.
+const GEAR_REBASE_V2_SETTING = "gearRebaseV2";
 
-// Hidden world flag — set once after every existing monster NPC (built on the retired ★×Tier model:
-// minion/standard/elite/solo × stars 1–5) is remapped to the v0.03 Role × Tier model: shape → Role
-// (minion→Swarm, standard→Grunt, elite/solo→Elite), stars → Tier I–IV, with the finished statblock
-// recomputed (Strong/Weak dice, role deltas, HP/EP). Retires the legacy tier/stars/squad fields. See
-// migrateNpcRoleV003.
-const NPC_ROLE_V003_SETTING = "npcRoleV003";
-
-// One-time (v0.3.3): seed the party stash with carried materials mapped from the legacy HQ resource
-// pools (best-effort). See migrateMaterialsV003.
-const MATERIALS_V003_SETTING = "materialsV003";
-
-// One-time (v0.3.4): remap every legacy solo bond card (rank 0–5, per-rank abilities, NPC link) to a
-// v0.03 Follower Bond (kind/partnerUuid, rank C/B/A/S, Bond Points). See migrateBondsV003.
-const BONDS_V003_SETTING = "bondsV003";
-
-// One-time (v0.3.5): stand up the doc-v0.03 Headquarters. Mark an already-used base "established" so its
-// v0.03 fields (rank C, catalog facilities, Mission Board) come alive, and DRAIN the legacy resource
-// pools (Phase 4 already copied them to the party stash; the parallel Workshop is retired now). See
-// migrateHqV003.
-const HQ_V003_SETTING = "hqV003";
-
-// One-time: materialise the 12 Twists into the Skills compendium as real Skill items (a "Twists"
-// bag GMs pick from in the Skill Browser) and lift the 1/Conflict limit off them. Bump the version
-// suffix to re-run the reconcile after changing the seeded Twist data. See seedTwistSkills.
-const TWIST_SEED_SETTING = "twistSkillsSeededV004";
-
-// One-time (v0.3.13): seed every Character's lifetime-earned SP + Rank F–S (doc v0.03 revised
-// "Rank and Tier"). Earned is estimated as unspent + ledger spends − creation SP; the Rank is set
-// immediately (no waiting for a rest — grandfathering). See migrateRankV003.
-const RANK_V003_SETTING = "rankV003";
+// Hidden world flag — set once after every world/actor-owned copy of the five printed
+// Accessories (and the Armor Style descriptions) is re-based to the updated pack line, its
+// stale pre-V2 wired effect replaced. The packs themselves were rewritten in place (v0.5.3).
+// See migrateAccessoriesV2.
+const ACCESSORIES_V2_SETTING = "accessoriesV2";
 
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
@@ -179,13 +128,8 @@ Hooks.once("init", function () {
     type: Array,
     default: [],
     onChange: () => {
-      // A quest edit only touches the Quests pane — scope the re-render so the Factions/Home panes
-      // (and their prose enrichment) aren't rebuilt; rep/recruit side effects fire their own saves.
       for (const app of foundry.applications.instances.values()) {
-        if (app.id === "pa-codex") {
-          app.render({ parts: ["quests"] });
-          app.notifyHQChanged?.(); // a completed quest may open a quest-gated recruit on the Home pane (digest-gated, no flash otherwise)
-        }
+        if (app.id === "pa-codex") app.render(false);
       }
       ChronicleTracker.refresh();
     }
@@ -215,18 +159,6 @@ Hooks.once("init", function () {
         if (app.options?.classes?.includes("party-sheet")) app.render();
     }
   });
-  // Crafting Projects (v0.03): Stage-based works defined with the ST, world-scoped. Any open Craft
-  // Workbench refreshes when the list changes.
-  game.settings.register("project-anime", CRAFT_PROJECTS_SETTING, {
-    scope: "world",
-    config: false,
-    type: Array,
-    default: [],
-    onChange: () => {
-      for (const app of foundry.applications.instances.values())
-        if (app.options?.classes?.includes("craft-app")) app.render(false);
-    }
-  });
   // Per-user "tracked quest" id (drives the on-canvas quest tracker).
   game.settings.register("project-anime", TRACKED_SETTING, {
     scope: "client",
@@ -248,95 +180,6 @@ Hooks.once("init", function () {
     onChange: () => ChronicleTracker.refresh()
   });
 
-  // FACTIONS — the world's factions live in one world setting (GM writes, all read), like the quest
-  // log. Bonds moved onto each Character (data/actor-models.mjs); Factions + Home now surface in the
-  // standalone CODEX window, so a change re-renders any open Codex (on every client). The legacy
-  // `covenantBonds` setting is intentionally no longer registered — bonds are per-actor now.
-  game.settings.register("project-anime", FACTIONS_SETTING, {
-    scope: "world",
-    config: false,
-    type: Array,
-    default: [],
-    onChange: () => {
-      // Faction standing also gates HQ repTier recruits, so refresh both panes — but scoped, so the
-      // Quests pane and nav keep their DOM (no whole-window flash on a standing tweak).
-      for (const app of foundry.applications.instances.values()) {
-        if (app.id === "pa-codex") app.render({ parts: ["factions", "hq"] });
-      }
-    }
-  });
-
-  // THE HQ — the party's single built faction + its recruit pool (Codex Home tab). One world object
-  // (GM writes, all read), like the faction list; a change re-renders any open Codex on every client.
-  // Recruitment used to live per-faction (the `buildable` flag); it consolidated here.
-  game.settings.register("project-anime", HQ_SETTING, {
-    scope: "world",
-    config: false,
-    type: Object,
-    default: {},
-    onChange: () => {
-      // Hand every open HQ window the change and let IT decide whether to re-render. Each one compares
-      // a signature of the slice it actually shows, so an edit it doesn't surface (e.g. authoring a
-      // Workshop recipe while the Codex Home tab is open) costs no flash. The Codex scopes to its `hq`
-      // part; the satellites re-render their single body. `notifyHQChanged` is the seamless entry point.
-      for (const app of foundry.applications.instances.values()) {
-        if (app.id === "pa-codex" || app.id === "pa-structures" || app.id?.startsWith("pa-shop-") || app.id?.startsWith("pa-workshop-")) {
-          app.notifyHQChanged?.();
-        }
-      }
-      reconcileHQBoons(); // GM-gated: re-project passive-facility boons onto party members
-    }
-  });
-
-  // THE CODEX ARCHIVE — the in-world encyclopedia (the "Codex" tab of the Headquarters window). One
-  // world object (GM writes, everyone reads), like the quest log + factions; a change routes through each
-  // open Codex's seamless gate (notifyArchiveChanged), which re-renders the archive pane only when what
-  // THAT viewer sees actually moved — so inline authoring edits (saved quietly) don't flash the pane, and
-  // a reveal still refreshes a player. Mirrors the HQ pane's notifyHQChanged fan-out.
-  game.settings.register("project-anime", ARCHIVE_SETTING, {
-    scope: "world",
-    config: false,
-    type: Object,
-    default: {},
-    onChange: () => {
-      for (const app of foundry.applications.instances.values()) {
-        if (app.id === "pa-codex") app.notifyArchiveChanged?.();
-      }
-    }
-  });
-
-  // Variant rule (default on): a dispatch agent who rolls a natural 1 on three missions is lost for
-  // good. Off → agents only ever come back wounded. Grouped under the Headquarters menu
-  // (party-config.mjs) — config:false here.
-  game.settings.register("project-anime", DEATH_STRIKES_SETTING, {
-    name: "PROJECTANIME.Settings.hqDeathStrikes.name",
-    hint: "PROJECTANIME.Settings.hqDeathStrikes.hint",
-    scope: "world",
-    config: false,
-    type: Boolean,
-    default: true
-  });
-
-  // Crafting: when on (default), a Workshop recipe's `requires[]` facility prerequisites are enforced;
-  // off → recipes gate on Workshop tier + resource cost only. Grouped under the Headquarters menu.
-  game.settings.register("project-anime", CRAFT_REQUIRE_SETTING, {
-    name: "PROJECTANIME.Settings.craftRequireFacilities.name",
-    hint: "PROJECTANIME.Settings.craftRequireFacilities.hint",
-    scope: "world",
-    config: false,
-    type: Boolean,
-    default: true
-  });
-
-  // Party Sheet settings — the grouped menu that toggles the Factions / Reputation tab.
-  registerPartySettings();
-
-  // Homebrew Elements (damage types): world setting + GM-only config menu.
-  registerElementSettings();
-
-  // Homebrew Material Categories: world setting + GM-only config menu.
-  registerMaterialSettings();
-
   // GM-configurable Bio-tab dossier fields: world setting + GM-only config menu.
   registerBioFieldSettings();
 
@@ -348,25 +191,6 @@ Hooks.once("init", function () {
   // The console replaces the hotbar and the party rail replaces the names list; both are
   // reversible from the "Cinematic HUD" client setting. See module/apps/anime-hud.mjs.
   registerHudSettings();
-
-  // Monster Creator "Encounter Power" — the party-power baseline its Tiers scale from
-  // (≈ a typical current PC's total Skill Points). Raising it as the party advances makes
-  // newly-built monsters tougher: it rescales each Tier's Skill-Point grant and HP together
-  // (Step-Ups / Evasion / Defense stay fixed — attributes cap at d12). Re-renders any open
-  // Monster Creator so its Tier cards reflect the new value.
-  game.settings.register("project-anime", ENCOUNTER_POWER_SETTING, {
-    name: "PROJECTANIME.Settings.encounterPower.name",
-    hint: "PROJECTANIME.Settings.encounterPower.hint",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: PROJECTANIME.encounterPowerDefault,
-    onChange: () => {
-      for (const app of foundry.applications.instances.values()) {
-        if (app.id?.startsWith("pa-monster-creator-")) app.render(false);
-      }
-    }
-  });
 
   // Token Info panel: a GM-flipped, off-by-default hover readout of a token's HP/Energy. Now grouped
   // under the "Token Settings" menu (registered below, alongside the HP/EP bar-visibility dropdown),
@@ -407,7 +231,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ENCOUNTER_SQUAD_MIGRATION_SETTING, HP_BASE_V003_SETTING, EP_BASE_V003_SETTING, GEAR_REBASE_V003_SETTING, NPC_ROLE_V003_SETTING, MATERIALS_V003_SETTING, BONDS_V003_SETTING, HQ_V003_SETTING, TWIST_SEED_SETTING, RANK_V003_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -593,8 +417,7 @@ Hooks.once("init", function () {
     consumable: models.ProjectAnimeConsumable,
     container: models.ProjectAnimeContainer,
     gear: models.ProjectAnimeGear,
-    package: models.ProjectAnimePackage,
-    material: models.ProjectAnimeMaterial
+    package: models.ProjectAnimePackage
   };
 
   // Active Effects apply from the owning Item rather than being copied onto the Actor.
@@ -635,26 +458,7 @@ Hooks.once("init", function () {
     hint: "PROJECTANIME.Keybindings.openQuestLog.hint",
     editable: [{ key: "KeyL" }],
     restricted: false,
-    onDown: () => { Codex.open("quests"); return true; }
-  });
-
-  // Press "H" to open the Codex on the Home (HQ) tab. Falls back to Quests if the GM hasn't enabled
-  // the Factions/Home panes (Codex reconciles an unavailable tab on render).
-  game.keybindings.register("project-anime", "openHome", {
-    name: "PROJECTANIME.Keybindings.openHome.name",
-    hint: "PROJECTANIME.Keybindings.openHome.hint",
-    editable: [{ key: "KeyH" }],
-    restricted: false,
-    onDown: () => { Codex.open("hq"); return true; }
-  });
-
-  // Press "K" to open the Codex on the Archive (encyclopedia) tab.
-  game.keybindings.register("project-anime", "openCodex", {
-    name: "PROJECTANIME.Keybindings.openCodex.name",
-    hint: "PROJECTANIME.Keybindings.openCodex.hint",
-    editable: [{ key: "KeyK" }],
-    restricted: false,
-    onDown: () => { Codex.open("archive"); return true; }
+    onDown: () => { Codex.open(); return true; }
   });
 });
 
@@ -738,56 +542,33 @@ function tickCard(actor, text) {
 async function tickDecay(actor) {
   if (!actor?.statuses?.has?.("decay")) return;
   const hp = actor.system.hp ?? { value: 0, max: 0 };
-
-  // The tick is a flat 1 HP unless the inflicting Skill set a Lingering Element
-  // (flags.project-anime.decayType): a typed tick is affinity-adjusted for THIS creature
-  // (weak +2 / resist −2 / immune → 0 / absorb → heal), bypassing Defense. adjustForTarget
-  // (dice.mjs) is the shared affinity authority, so typed Lingering matches every other source.
-  const element = actor.getFlag("project-anime", "decayType") || "";
   const cur = hp.value ?? 0;
-  let next = Math.max(0, cur - 1), amount = 1, healed = false;
-  if (element) {
-    const adj = dice.adjustForTarget(1, element, actor, { ignoresDefense: true });
-    amount = adj.amount;
-    healed = !!adj.heal;
-    next = healed ? Math.min(hp.max ?? cur, cur + amount) : Math.max(0, cur - amount);
-  }
 
-  const updates = { "system.hp.value": next };
+  const updates = { "system.hp.value": Math.max(0, cur - 1) };
   // Pre-timer applications carry no countdown (the old build ran Lingering on its own 3-turn
   // counter flag): retire any legacy counter and stamp the standard default so it still expires.
   if (actor.getFlag("project-anime", "decay") !== undefined) updates["flags.project-anime.-=decay"] = null;
+  // Retire the legacy typed-Lingering element flag (damage types are gone).
+  if (actor.getFlag("project-anime", "decayType")) updates["flags.project-anime.-=decayType"] = null;
   const timers = actor.getFlag("project-anime", "statusTimers") ?? {};
   if (!("decay" in timers)) updates["flags.project-anime.statusTimers.decay"] = { n: 2, side: null };
   await actor.update(updates);
 
-  // Tick card: untyped keeps the original line; a typed tick names the element + result
-  // (absorb heals; immune lands 0; resist can floor the tick to 0 — damage minimum is 0, v0.03).
-  const fmt = (k, d) => game.i18n.format(`PROJECTANIME.Effect.${k}`, d);
-  let msg;
-  if (!element) msg = fmt("decayTick", { name: actor.name });
-  else if (healed) msg = fmt("decayTickAbsorb", { name: actor.name, n: amount, element: elementLabel(element) });
-  else msg = fmt("decayTickTyped", { name: actor.name, n: amount, element: elementLabel(element) });
-  tickCard(actor, msg);
+  tickCard(actor, game.i18n.format("PROJECTANIME.Effect.decayTick", { name: actor.name }));
 }
 
-/** Sustain: regenerate the actor's pools at the START of their turn from every live `sustain` Active
- *  Effect — authored effects, gear, drag-ons, and projected auras, plus the actor's own passive
- *  Sustain Skills (all folded together by collectSustain). Clamped to each pool's max. */
+/** Start-of-turn recovery: ENERGY REGEN (rules: "At the start of each of your turns, clear 1
+ *  energy box" — Unarmored clears 2; the data model derives `energyRegen`) plus every live
+ *  `sustain`/Regen Active Effect (collectSustain). Clamped to each pool's max. */
 async function tickSustain(actor) {
-  // Defeated creatures (0 HP) can't passively regenerate: Sustain shuts off the moment HP hits 0 and
-  // stays off until they're healed back above 0. Gating here (not just on the skip-Defeated turn
-  // order) stops a downed creature self-reviving via Sustain even if it somehow gets a turn. This
-  // suppresses BOTH HP- and Energy-pool regen — it's the creature's life that's switched off, not one pool.
+  // Defeated creatures (0 boxes) can't passively regenerate: recovery shuts off the moment HP
+  // hits 0 and stays off until they're healed back above 0.
   if ((actor?.system?.hp?.value ?? 0) <= 0) return;
-  // A Cursed creature cannot regain its cursed pool (rules: Curse) — that pool's regen is
-  // suppressed until the Curse ends. A pool-specific Curse leaves the other pool regenerating;
-  // a hand-toggled Curse blocks both (cursedPools resolves which).
+  // A Cursed creature cannot clear its cursed pool's boxes — that pool's recovery is suppressed.
   const cursed = cursedPools(actor);
-  // All Sustain now flows through the Active-Effect engine — including a Sustain+Aura projected onto
-  // this creature by a nearby ally (the projected effect carries a `sustain` rule), so the old
-  // regeneration-aura special case is gone.
   const gains = collectSustain(actor);
+  // The universal Energy Regen (1, Unarmored 2) folds in with any effect-granted regen.
+  gains.energy = (gains.energy ?? 0) + Math.max(0, Number(actor.system?.energyRegen) || PROJECTANIME.baseEnergyRegen);
   const updates = {};
   const parts = [];
   for (const pool of ["hp", "energy"]) {
@@ -878,15 +659,9 @@ Hooks.on("deleteActiveEffect", (effect) => {
   if (flags?.gateMarker) sweepGateTiles(flags.gateMarker);
 });
 
-// A raised servant's death-of-record (dismissal or a straight delete) releases its master's
-// locked Energy: prune the ledger entry. GM-side (the active GM may update any actor).
-Hooks.on("deleteActor", (actor) => {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  pruneServantLedger(actor);
-});
 
 /** Remove a timed Status when its Duration hits 0 (v0.03 duration engine): drop the condition and
- *  retire whatever it stashed — Lingering's Element (applyStatusTo isn't on this path), a pool-choice
+ *  retire whatever it stashed — Lingering's legacy Element flag, a pool-choice
  *  status's pools (a valued Barrier / Regen or a Curse), a stamped Overcome CT — then post the themed
  *  "wore off" line. Shared by the phase-start engine. */
 async function expireStatusOnActor(actor, id) {
@@ -964,88 +739,6 @@ async function maybeRunPhaseTick(combat, side) {
   await runPhaseDurationTick(combat, side);
 }
 
-/** Fixed actions a combatant takes per round (action economy — ENEMY-DESIGN Phase 0). A Monster-role
- *  NPC takes its Tier's `turns`: Minion-squad 1, Standard 1, Elite 2, and a Boss/Solo (`turns: null`)
- *  matches the LIVE player count in this combat (min 1). Everything else — PCs and social NPCs — takes 1.
- *  The old "+1 at ★4+" apex bonus is retired (Boss = player count supersedes it). Drives how many Combatant
- *  ENTRIES a Boss gets (ensureBossSlots) — tunable via PROJECTANIME.monsterTiers[…].turns. */
-function actionsPerRound(combatant, combat) {
-  const a = combatant?.actor;
-  if (a?.type !== "npc" || (a.system?.role ?? "monster") === "npc") return 1;
-  const tier = PROJECTANIME.monsterTiers?.[a.system?.tier];
-  if (!tier) return 1;
-  if (tier.turns === null) return combatPlayerCount(combat);   // Boss/Solo → live PC count
-  return Math.max(1, Number(tier.turns) || 1);                 // Elite 2, the rest 1
-}
-
-/**
- * ENEMY-DESIGN Phase 0 — BOSS ACTION ECONOMY via multiple combatant entries ("slots"). A Boss/Elite is
- * entitled to actionsPerRound() actions per round (Elite 2, Solo = player count). Instead of hacking the
- * turn loop (which can't fairly interleave one combatant's extra actions), we give its ONE token that many
- * Combatant entries at SPREAD initiative values, so Foundry's own turn order interleaves the boss's actions
- * between the players' turns — exactly N per round, never back-to-back, at any initiative. The extra entries
- * are clones flagged `bossClone:<primaryId>`; they share the token (so HP, damage, and Defeat sync for free),
- * and per-round effects de-duplicate per creature (combatTurnTick + tickOncePerRound). Idempotent; GM-side.
- * Runs at the START of round 1 — driven off the post-update `updateCombat(round→1)` rather than the
- * synchronous `combatStart` hook (which fires BEFORE core's start update and would race our reordering).
- */
-async function ensureBossSlots(combat) {
-  if (!combat || game.users.activeGM?.id !== game.user.id) return;
-  // A spread needs a range to place against — roll initiative for anyone still missing it.
-  const unrolled = combat.combatants.filter((c) => c.initiative === null).map((c) => c.id);
-  if (unrolled.length) await combat.rollInitiative(unrolled);
-
-  let expanded = false;
-  for (const primary of [...combat.combatants]) {
-    if (primary.getFlag("project-anime", "bossClone") || primary.getFlag("project-anime", "bossExpanded")) continue;
-    const n = actionsPerRound(primary, combat);
-    if (n <= 1) continue;
-    const clones = Array.from({ length: n - 1 }, () => ({
-      tokenId: primary.tokenId, sceneId: primary.sceneId, actorId: primary.actorId, hidden: primary.hidden,
-      flags: { "project-anime": { bossClone: primary.id } }
-    }));
-    await primary.setFlag("project-anime", "bossExpanded", true);
-    const created = clones.length ? await combat.createEmbeddedDocuments("Combatant", clones) : [];
-    await spreadBossInitiative(combat, [primary, ...created]);
-    expanded = true;
-  }
-  // Adding entries + re-spreading reorders the tracker AFTER core fixed turn 0 against the pre-clone array,
-  // so realign the round to the true top of the new order (no-op when nothing expanded).
-  if (expanded && combat.started) await combat.update({ turn: 0 });
-}
-
-/** Place a boss group's entries in the GAPS between the OTHER combatants' initiatives, so each boss action
- *  falls between players' turns. Entries are forced into DISTINCT, strictly-spread slots, so with
- *  n ≤ (others + 1) — always true for a Boss vs its own players — no two boss entries land adjacent. */
-async function spreadBossInitiative(combat, group) {
-  const groupIds = new Set(group.map((c) => c.id));
-  const anchors = [...combat.combatants]
-    .filter((c) => !groupIds.has(c.id) && !c.getFlag("project-anime", "bossClone") && Number.isFinite(c.initiative))
-    .map((c) => c.initiative)
-    .sort((a, b) => b - a);
-  const n = group.length;
-  const updates = [];
-  if (!anchors.length) {
-    group.forEach((c, k) => updates.push({ _id: c.id, initiative: 100 - k * 10 }));   // boss alone — just space them
-  } else {
-    // Candidate slots, high → low: above the top anchor, the midpoint of each adjacent pair, below the bottom.
-    const slots = [anchors[0] + 5];
-    for (let i = 1; i < anchors.length; i++) slots.push((anchors[i - 1] + anchors[i]) / 2);
-    slots.push(anchors[anchors.length - 1] - 5);
-    // Pick n slot indices spread evenly but forced STRICTLY INCREASING, so two boss entries never share a
-    // slot (which would put them back-to-back). Clamps to the last slot only if n exceeds the slot count.
-    let prev = -1;
-    group.forEach((c, k) => {
-      let idx = n <= 1 ? 0 : Math.round((k * (slots.length - 1)) / (n - 1));
-      idx = Math.min(slots.length - 1, Math.max(prev + 1, idx));
-      prev = idx;
-      // Per-entry epsilon: keeps the boss's own entries strictly ordered and off any exact anchor tie.
-      updates.push({ _id: c.id, initiative: slots[idx] - k * 1e-3 });
-    });
-  }
-  await combat.updateEmbeddedDocuments("Combatant", updates);
-}
-
 /** True the FIRST time `key` is requested for a combatant TOKEN in the current round, recording it so a
  *  Boss with several combatant entries (which all share ONE token) — or a GM stepping the tracker — ticks
  *  ONCE PER ROUND PER CREATURE, not once per entry. Keyed on the token id (a flat document id): boss
@@ -1117,20 +810,6 @@ async function clearActedMarkers(combat) {
   if (updates.length) await combat.updateEmbeddedDocuments("Combatant", updates);
 }
 
-/** Auto-pass a Stunned unit: it still Sustains and takes its Lingering fire (a turn passes), but it takes
- *  no action and the Stunned status clears (rules p.13 — lose your next turn, then it ends), then it's
- *  marked done for the round. Status Durations count down on their creators' phases, not here (v0.03). */
-async function autoSkipStunned(combat, c) {
-  const actor = c.actor;
-  if (actor?.statuses?.has?.("stunned")) {
-    await runStartOfTurnTicks(combat, c);
-    tickCard(actor, game.i18n.format("PROJECTANIME.Effect.stunnedSkip", { name: actor.name }));
-    await actor.toggleStatusEffect?.("stunned", { active: false });
-    await runEndOfTurnTicks(combat, c);
-  }
-  await c.setFlag("project-anime", "actedRound", combat.round);
-}
-
 /** PUT A UNIT ON (free-pick): make `id` the acting combatant, if it's a valid, un-acted, actable unit on
  *  the currently-active side. Points `turn` at it (so combat.combatant is the roller — Combo reads it —
  *  and the UI lights the row), then fires its start-of-turn ticks explicitly. GM-side. */
@@ -1170,13 +849,13 @@ async function endActivation(combat, id = combat.combatant?.id) {
       return;                                            // stays the acting unit for a 2nd action
     }
     await runEndOfTurnTicks(combat, c);
-    // Boss Bars (v0.03): a Boss takes one full turn per REMAINING Bar during the Enemy Phase. Count this
-    // activation; leave it un-acted (still pickable this phase) until it has spent all its Bar-turns.
+    // Boss (rules: Bosses) — "The Boss acts twice per Enemy Phase". Count this activation; leave it
+    // un-acted (still pickable this phase) until it has spent both actions.
     if (isBossCombatant(c)) {
       const used = (Number(c.getFlag("project-anime", "bossTurns")) || 0) + 1;
-      const allowed = Math.max(1, Number(c.actor.system.boss?.remaining) || 1);
+      const allowed = Math.max(1, Number(PROJECTANIME.boss?.actionsPerPhase) || 2);
       await c.setFlag("project-anime", "bossTurns", used);
-      if (used < allowed) return reconcilePhase(combat);   // more Bar-turns left → the phase re-offers it
+      if (used < allowed) return reconcilePhase(combat);   // a second action remains → the phase re-offers it
     }
     await c.setFlag("project-anime", "actedRound", combat.round);
     return reconcilePhase(combat);
@@ -1192,28 +871,20 @@ async function endActivation(combat, id = combat.combatant?.id) {
   return reconcilePhase(combat);
 }
 
-/** Reconcile the phase after a unit ends: auto-pass a side whose only pending units are Stunned, drop the
- *  now-spent "current" so the active side is free to pick, and when all three phases are done bump the
- *  round and reopen Player Phase. `turn: null` = "nobody up" — the active side free-picks; no phantom
- *  current lingers across a phase boundary or at round start. GM-side. */
+/** Reconcile the phase after a unit ends: drop the now-spent "current" so the active side is free to
+ *  pick, and when all three phases are done bump the round and reopen Player Phase. `turn: null` =
+ *  "nobody up" — the active side free-picks; no phantom current lingers across a phase boundary or at
+ *  round start. GM-side. */
 async function reconcilePhase(combat) {
   if (!combat || game.users.activeGM?.id !== game.user.id) return;
-  // Bounded loop: a round boundary re-enters so a new round that opens on an all-stunned side still
-  // auto-advances. autoSkipStunned CLEARS the stun, so a side can't stall a call for more than one lap.
   for (let guard = 0; guard < 8; guard++) {
-    let side = activeSide(combat);
-    while (side) {
-      const pend = pendingOnSide(combat, side);
-      if (pend.some((c) => !isSkippable(c))) break;      // a real, actable unit remains → await a pick
-      for (const c of pend) await autoSkipStunned(combat, c);
-      side = activeSide(combat);
-    }
+    const side = activeSide(combat);
     if (side) {                                          // the active phase awaits a pick
       const cur = combat.combatant;
       if (!cur || hasActed(cur, combat.round) || combatantSide(cur) !== side) {
         if (combat.turn !== null) await combat.update({ turn: null });   // drop the spent / off-phase current
       }
-      // The phase has OPENED — count down every Duration this side created before it acts (v0.03).
+      // The phase has OPENED — count down every Duration this side created before it acts.
       await maybeRunPhaseTick(combat, side);
       return;
     }
@@ -1258,7 +929,6 @@ async function resetEncounterState(combat, { bars = false } = {}) {
       await a.update({
         "system.boss.remaining": barCount,
         "system.boss.broken": 0,
-        "system.boss.resolveUsed": false,
         "system.hp.value": barHp
       });
     }
@@ -1284,19 +954,6 @@ Hooks.on("updateCombatant", (combatant, change) => {
 Hooks.on("updateCombat", (combat, change) => {
   if (change?.round === 1 && game.users.activeGM?.id === game.user.id) startSideInitiative(combat);
 });
-// ENEMY-REWORK: the boss multi-entry action economy (actionsPerRound / ensureBossSlots / spreadBossInitiative
-// above) is RETAINED but UNWIRED under Side Initiative — a boss acts once, in the Enemy Phase. The clone
-// cleanup below is inert (no clones are created) but kept for when the enemy redesign revives boss slots.
-Hooks.on("deleteCombatant", async (combatant) => {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  const combat = combatant.parent;
-  if (!combat || !combatant.getFlag("project-anime", "bossExpanded")) return;
-  const orphans = combat.combatants
-    .filter((c) => c.getFlag("project-anime", "bossClone") === combatant.id)
-    .map((c) => c.id);
-  if (orphans.length) await combat.deleteEmbeddedDocuments("Combatant", orphans);
-});
-
 /* -------------------------------------------- */
 /*  Defeat & end-of-combat recovery (rules p.14) */
 /* -------------------------------------------- */
@@ -1316,33 +973,31 @@ function markDefeatedFromHP(actor, changes) {
     c.update({ defeated });
     crossed = true;
     // Auto-hide a defeated Hostile token (and reveal it again if it's healed back above 0). Only
-    // Hostile tokens vanish: player characters (FRIENDLY) are downed, not removed, and recover at end
-    // of combat (rules p.14), and friendly / neutral NPCs stay on the board. NPCs default Hostile.
+    // Hostile tokens vanish: player characters (FRIENDLY) are downed, not removed; friendly /
+    // neutral NPCs stay on the board. NPCs default Hostile.
     const tok = c.token;
     if (tok && tok.disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE
         && tok.hidden !== defeated) tok.update({ hidden: defeated });
   }
-  if (defeated && crossed) tickCard(actor, game.i18n.format("PROJECTANIME.Effect.defeated", { name: actor.name }));
-
-  // v0.03 Gathering: a defeated foe yields materials to the party stash, once per defeat. Keyed off
-  // the HP crossing (works in or out of combat) and guarded by a flag so a heal→re-defeat can drop
-  // again. computeDrops returns nothing for an untiered/roleless NPC, so only Monster-Creator foes
-  // drop; a Rival that keeps escaping is never defeated, so its Prime naturally waits.
-  if (actor.type === "npc") {
-    // A Boss's token HP hits 0 on every Bar break (then refills) — only drop when the LAST Bar is
-    // gone (boss.remaining ≤ 0), so mid-fight breaks don't pay out early.
-    const boss = actor.system.boss;
-    const trulyDefeated = defeated && !(boss?.enabled && (Number(boss.remaining) || 0) > 0);
-    const dropped = !!actor.getFlag("project-anime", "materialsDropped");
-    if (trulyDefeated && !dropped) {
-      actor.setFlag("project-anime", "materialsDropped", true);
-      awardDefeatDrops(actor);
-    } else if (!defeated && dropped) {
-      actor.unsetFlag("project-anime", "materialsDropped");
-    }
+  if (defeated && crossed) {
+    tickCard(actor, game.i18n.format("PROJECTANIME.Effect.defeated", { name: actor.name }));
+    maybeTakeWound(actor);
   }
 }
 Hooks.on("updateActor", markDefeatedFromHP);
+
+/** Wounds (rules: Wounds) — the FIRST time a character is Defeated in a Conflict Scene they take
+ *  a Wound, locking one hit box until a Town clears it. Only Player Characters (and Companions)
+ *  take Wounds; enemies are simply Defeated. Once per combat, tracked by a combat-id flag. */
+async function maybeTakeWound(actor) {
+  const combat = game.combat;
+  if (!combat?.started || actor?.type !== "character") return;
+  if (actor.getFlag("project-anime", "woundedConflict") === combat.id) return;
+  const wounds = [...(actor.system.wounds ?? []), { id: foundry.utils.randomID(), note: "" }];
+  await actor.update({ "system.wounds": wounds, "flags.project-anime.woundedConflict": combat.id });
+  tickCard(actor, game.i18n.format("PROJECTANIME.Effect.woundTaken", { name: actor.name, n: wounds.length }));
+  if (wounds.length >= 3) tickCard(actor, game.i18n.format("PROJECTANIME.Effect.woundBar", { name: actor.name }));
+}
 
 // Stash the pre-update HP so the Critical watcher below can tell a CROSSING from a re-assertion.
 Hooks.on("preUpdateActor", (actor, changes, options) => {
@@ -1395,7 +1050,8 @@ function showPhaseBanner(side) {
   el.dataset.side = side;
   const band = document.createElement("div");
   band.className = "pa-phase-banner__band";
-  band.textContent = game.i18n.localize(`PROJECTANIME.Combat.phase.${side}`);
+  // Sides are "friendly"/"hostile"/"neutral" — sideLabel maps them onto the phase lang keys.
+  band.textContent = game.i18n.localize(PROJECTANIME.sideLabel[side] ?? "");
   el.appendChild(band);
   document.body.appendChild(el);
   el.addEventListener("animationend", (ev) => { if (ev.animationName === "pa-phase-out") el.remove(); });
@@ -1413,11 +1069,9 @@ Hooks.on("updateCombat", (combat, changes) => {
 Hooks.on("deleteCombat", (combat) => { if (combat === game.combat || !game.combat) paLastBannerSide = null; });
 Hooks.once("ready", () => { paLastBannerSide = game.combat?.started ? activeSide(game.combat) : null; });
 
-/** End of combat: ANY still-Defeated combatant recovers to half their Max HP, rounded down
- *  (v0.03: "any character still Defeated recovers"). Hostile tokens auto-hidden at defeat STAY
- *  hidden — the combat is already gone by this hook, so markDefeatedFromHP's unhide never fires;
- *  the creature just isn't a corpse if the story brings it back. Only those at/below 0 HP —
- *  anyone who ended the fight above 0 keeps their HP. GM-side only. */
+/** End of combat (rules: After Combat): ALL energy boxes clear immediately; hit boxes do NOT
+ *  clear — except any character still Defeated clears half their hit boxes, rounded up. Hostile
+ *  tokens auto-hidden at defeat STAY hidden. Also clears the per-conflict wound marker. GM-side. */
 async function recoverDefeatedOnCombatEnd(combat) {
   if (game.users.activeGM?.id !== game.user.id) return;
   const seen = new Set();
@@ -1426,11 +1080,18 @@ async function recoverDefeatedOnCombatEnd(combat) {
     if (!actor || seen.has(actor.uuid)) continue;
     if (actor.type !== "character" && actor.type !== "npc") continue;
     seen.add(actor.uuid);
+    const updates = {};
+    const en = actor.system.energy ?? { value: 0, max: 0 };
+    if ((en.value ?? 0) < (en.max ?? 0)) updates["system.energy.value"] = en.max;
     const hp = actor.system.hp ?? { value: 0, max: 0 };
-    if ((hp.value ?? 0) > 0) continue;
-    const healed = Math.floor((hp.max ?? 0) / 2);
-    await actor.update({ "system.hp.value": healed });
-    tickCard(actor, game.i18n.format("PROJECTANIME.Effect.recovered", { name: actor.name, hp: healed }));
+    let healed = null;
+    if ((hp.value ?? 0) <= 0) {
+      healed = Math.max(1, Math.ceil((hp.max ?? 0) / 2));
+      updates["system.hp.value"] = healed;
+    }
+    if (actor.getFlag("project-anime", "woundedConflict")) updates["flags.project-anime.-=woundedConflict"] = null;
+    if (Object.keys(updates).length) await actor.update(updates);
+    if (healed != null) tickCard(actor, game.i18n.format("PROJECTANIME.Effect.recovered", { name: actor.name, hp: healed }));
   }
 }
 Hooks.on("deleteCombat", recoverDefeatedOnCombatEnd);
@@ -1695,14 +1356,7 @@ function paDrawBar(number, bar, data) {
     }
   }
 
-  // A Minion Squad pools its HP; the HP bar (number 0) appends its living-member count so the GM
-  // reads "12 / 24 · 3◊" — three of the squad still standing — straight off the token.
-  let labelText = `${data.value} / ${data.max}`;
-  if (number === 0) {
-    const actor = doc.actor;
-    if (actor && isSquad(actor)) labelText += ` · ${squadMembers(actor)}/${squadSize(actor)}◊`;
-  }
-  paBarLabel(bar, labelText, innerW, bh);
+  paBarLabel(bar, `${data.value} / ${data.max}`, innerW, bh);
   return true;
 }
 
@@ -1782,43 +1436,24 @@ async function ensureDefaultParty() {
   await game.settings.set("project-anime", DEFAULT_PARTY_SETTING, true);
 }
 
-// A party's roster IS its folder's Characters, so adding/removing a member mutates the CHARACTER
-// (its `folder`) — never the party Document — and the open party sheet won't refresh on its own.
-// Re-render any open party sheet whenever folder membership could have shifted: a character's
-// folder changes, or one is created / deleted. Debounced so the burst of updates ensurePartyFolder
-// fires (party + legacy members in one go) collapses into a single render. Pure local refresh —
-// runs for every user with a party sheet open (players included), no GM gate.
+// A party's roster IS its folder's Characters, so nearly everything the sheet displays lives on
+// OTHER documents — a member's folder/HP/gear, a Companion's boxes — never the party Document,
+// and the open party sheet won't refresh on its own. Re-render any open party sheet whenever a
+// character or NPC changes. Debounced so bursts (ensurePartyFolder's party + legacy members,
+// a combat round of updates) collapse into a single render. Pure local refresh — runs for every
+// user with a party sheet open (players included), no GM gate.
 const refreshOpenPartySheets = foundry.utils.debounce(() => {
   for (const app of foundry.applications.instances.values())
     if (app instanceof ProjectAnimePartySheet) app.render(false);
 }, 50);
-Hooks.on("updateActor", (actor, changes) => { if (actor.type === "character" && "folder" in changes) { refreshOpenPartySheets(); reconcileHQBoons(); } });
-Hooks.on("createActor", (actor) => { if (actor.type === "character") { refreshOpenPartySheets(); reconcileHQBoons(); } });
-// A Follower Bond's residency / favored facility lives on the PC (system.bonds), not the HQ object, so a
-// change there must nudge any open Headquarters window — its residents/candidates are derived from bonds.
+// Characters and NPCs both matter to an open party sheet (members + the Companions strip); any
+// system change re-renders it (debounced) so the Hit/Energy box strips track live damage.
 Hooks.on("updateActor", (actor, changes) => {
-  if (actor.type !== "character" || !foundry.utils.hasProperty(changes, "system.bonds")) return;
-  for (const app of foundry.applications.instances.values()) if (app.id === "pa-codex") app.notifyHQChanged?.();
+  if (actor.type !== "character" && actor.type !== "npc") return;
+  if ("folder" in changes || "name" in changes || "img" in changes || changes.system !== undefined || changes.flags !== undefined) refreshOpenPartySheets();
 });
-Hooks.on("deleteActor", (actor) => { if (actor.type === "character") refreshOpenPartySheets(); });
-
-// SIGNATURE TRAIT + TRAITS: project the Signature Trait and each Trait as always-on AEs
-// (helpers/trait-effect.mjs, the hq-boons HAVE/WANT mirror) whenever a card is authored/cleared or an
-// actor is created. Internally GM-gated (single active GM); the ready hook below does the initial pass.
-Hooks.on("updateActor", (actor, changes) => {
-  if (foundry.utils.hasProperty(changes, "system.trait") || foundry.utils.hasProperty(changes, "system.traits")) reconcileTraits(actor);
-});
-Hooks.on("createActor", (actor) => reconcileTraits(actor));
-
-// BONDS (v0.03): project each unlocked PARTY benefit as a toggleable AE (helpers/bond-effect.mjs
-// reconcileBonds) AND keep both sides of every Party Bond consistent (helpers/bonds.mjs
-// syncPartyBonds) whenever a character's bonds change (earn BP / rank up / forge) or an actor is
-// created. Both are GM-gated + idempotent, like the trait projection above; the ready hook does the
-// initial pass. Runs GM-side so a player can't self-grant by editing their own bond.
-Hooks.on("updateActor", (actor, changes) => {
-  if (foundry.utils.hasProperty(changes, "system.bonds")) { reconcileBonds(actor); syncPartyBonds(actor); }
-});
-Hooks.on("createActor", (actor) => reconcileBonds(actor));
+Hooks.on("createActor", (actor) => { if (actor.type === "character" || actor.type === "npc") refreshOpenPartySheets(); });
+Hooks.on("deleteActor", (actor) => { if (actor.type === "character" || actor.type === "npc") refreshOpenPartySheets(); });
 
 // Open the Party sheet most relevant to this user: for a player, the party whose folder holds a
 // character they own; otherwise (and for the GM) the first party they can view. Backs both the
@@ -1873,17 +1508,15 @@ Hooks.on("renderActorDirectory", (app, element) => {
 Hooks.on("getSceneControlButtons", (controls) => {
   const tools = controls.tokens?.tools;
   if (!tools) return;
-  // Open the CODEX (Quests / Factions / Home) — available to everyone; the GM additionally authors here.
+  // Open the CODEX (the quest log) — available to everyone; the GM additionally authors here.
   tools["project-anime-codex"] = {
     name: "project-anime-codex",
     order: 99,
     title: "PROJECTANIME.Codex.open",
-    icon: "fa-solid fa-house",
+    icon: "fa-solid fa-book-open",
     button: true,
     onClick: () => Codex.open()
   };
-  // (The Covenant scene-control button is gone: Bonds live on each character's "Bonds" sheet drawer,
-  // and Factions + Home moved into the Codex.)
   if (game.settings.get("project-anime", TOKEN_INFO_SETTING)) {
     tools["project-anime-token-info"] = {
       name: "project-anime-token-info",
@@ -1909,247 +1542,117 @@ Hooks.on("getSceneControlButtons", (controls) => {
 });
 
 /* -------------------------------------------- */
-/*  HP baseline migration (one-time, v0.03)     */
+/*  Talent items → actor data (v0.5.1)          */
 /* -------------------------------------------- */
 
-// v0.03: HP = 6 + ⟪Might⟫×2 (was ⟪Might⟫×2). Every existing Character gets the flat +6 on max
-// AND current HP so nobody loads wounded; new Characters start on the new baseline via the
-// schema/creator. GM-side, once per world. Reads `_source` so derived clamping never skews the
-// arithmetic. NPCs are untouched (their vitals come from the Monster Creator's own model).
-async function migrateHpBaseV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", HP_BASE_V003_SETTING)) return;
-  const updates = [];
-  for (const actor of game.actors) {
-    if (actor.type !== "character") continue;
-    const hp = actor._source.system?.hp ?? {};
-    const max = (Number(hp.max) || 0) + 6;
-    updates.push({ _id: actor.id, "system.hp.max": max, "system.hp.value": Math.min((Number(hp.value) || 0) + 6, max) });
-  }
-  if (updates.length) await Actor.updateDocuments(updates);
-  await game.settings.set("project-anime", HP_BASE_V003_SETTING, true);
-}
-
-// v0.03: EP = 6 + ⟪Spirit⟫×2 (was ⟪Spirit⟫×2) — the flat +6 mirrors HP so a low-Spirit build isn't
-// priced out of its own Skills. Every existing Character AND monster NPC gets +6 on the authored max
-// AND current EP (nobody loads drained); the +6 preserves each actor's PURCHASED EP because the SP
-// accounting baseline moved up by 6 too. Reads `_source` so the derived taxes/clamp never skew the
-// arithmetic, and only touches actors that actually carry an Energy pool. GM-side, once per world.
-async function migrateEpBaseV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", EP_BASE_V003_SETTING)) return;
-  const updates = [];
-  for (const actor of game.actors) {
-    if (actor.type !== "character" && actor.type !== "npc") continue;
-    const energy = actor._source.system?.energy;
-    if (!energy || typeof energy.max !== "number") continue;
-    const max = (Number(energy.max) || 0) + 6;
-    updates.push({ _id: actor.id, "system.energy.max": max, "system.energy.value": Math.min((Number(energy.value) || 0) + 6, max) });
-  }
-  if (updates.length) await Actor.updateDocuments(updates);
-  await game.settings.set("project-anime", EP_BASE_V003_SETTING, true);
-}
-
-// v0.3.13 (doc v0.03 revised): seed lifetime-earned SP + Rank for existing Characters. Lifetime
-// earned can't be reconstructed exactly, so it's estimated as unspent SP + every ledger spend −
-// the creation budget (creation SP never counts toward Rank) — floored at 0, GM-adjustable on the
-// Skills drawer afterward. The Rank is granted immediately rather than at the next rest — these
-// characters already lived through those rests. Runs AFTER backfillSkillPointLog (needs the ledger).
-async function migrateRankV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", RANK_V003_SETTING)) return;
-  const updates = [];
-  for (const actor of game.actors) {
-    if (actor.type !== "character") continue;
-    const sp = actor._source.system?.skillPoints ?? {};
-    const logSpent = (Array.isArray(sp.log) ? sp.log : []).reduce((n, e) => n + (Number(e?.amount) || 0), 0);
-    const earned = Math.max(0, (Number(sp.value) || 0) + logSpent - creationStartingSkillPoints());
-    updates.push({ _id: actor.id, "system.skillPoints.earned": earned, "system.rank": rankFromEarned(earned) });
-  }
-  if (updates.length) {
-    await Actor.updateDocuments(updates);
-    console.log(`Project: Anime | rankV003 — seeded lifetime SP + Rank on ${updates.length} character(s).`);
-  }
-  await game.settings.set("project-anime", RANK_V003_SETTING, true);
-}
-
-// v0.3.3: retire the flat HQ resource pools in favour of carried graded materials. Best-effort:
-// convert whatever's in the legacy stockpile into Common Tier-I materials in the party stash, mapped
-// by type (manacite→Essence, cloth→Hide, stone/wood→Ore, herb→Reagent). The pools are LEFT intact so
-// the parallel HQ Workshop keeps working until Phase 6 fully retires it — this only SEEDS the new
-// system, it doesn't drain the old. GM-side, once per world.
-const POOL_TO_MATERIAL = { cloth: "hide", herb: "reagent", manacite: "essence", stone: "ore", wood: "ore" };
-async function migrateMaterialsV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", MATERIALS_V003_SETTING)) return;
-
-  const party = await resolveParty();
-  let resources = {};
-  try { resources = getHQ()?.resources ?? {}; } catch (_e) { /* HQ not set up — nothing to seed */ }
-
-  let deposited = 0;
-  if (party) {
-    for (const [key, amt] of Object.entries(resources)) {
-      const n = Math.floor(Number(amt) || 0);
-      if (n <= 0) continue;
-      await depositMaterial(party, { grade: "common", tier: 1, category: POOL_TO_MATERIAL[key] ?? "ore", qty: n });
-      deposited += n;
+// Talents live on the actor now (`system.talents`, Daggerheart-Experience-style — no item
+// sheet). The `talent` Item type is unregistered, so any survivor is an invalid document:
+// read the raw source and convert each into a `system.talents` row KEYED BY THE OLD ITEM ID,
+// so weapon/Technique `talentId` links and advancement-ledger refs keep resolving, then delete
+// the items. Standalone world talents have no actor to land on — deleted. Idempotent.
+async function migrateTalentsToActorData() {
+  for (const a of game.actors ?? []) {
+    if (a.type !== "character" && a.type !== "npc") continue;
+    const rows = (a._source?.items ?? []).filter((i) => i.type === "talent");
+    if (!rows.length) continue;
+    const upd = {};
+    for (const r of rows) {
+      upd[`system.talents.${r._id}`] = {
+        name: r.name ?? "",
+        die: Number(r.system?.die) || 4,
+        attribute: r.system?.attribute in PROJECTANIME.attributes ? r.system.attribute : "might"
+      };
     }
+    await a.update(upd);
+    await a.deleteEmbeddedDocuments("Item", rows.map((r) => r._id));
+    console.log(`Project: Anime | Migrated ${rows.length} Talent item(s) → actor data on "${a.name}".`);
   }
-  await game.settings.set("project-anime", MATERIALS_V003_SETTING, true);
-  if (deposited > 0) {
-    console.log(`Project: Anime | materialsV003: seeded ${deposited} Common material(s) from the legacy HQ pools into the party stash.`);
-    ui.notifications.info(game.i18n.format("PROJECTANIME.Migration.materialsV003", { n: deposited }));
-  }
-}
-
-/**
- * One-shot (v0.3.4): remap every legacy solo bond card to a v0.03 paired bond. The old model was a
- * per-character card (rank 0–5, `prog`, per-rank `abilities`, an `actorUuid` link) — the doc-v0.03
- * model is a paired relationship (kind/partnerUuid, rank C/B/A/S = index 0–3, Bond Points). Per the
- * owner's decision, every legacy card maps to a FOLLOWER Bond (they were NPC-linked): the old rank
- * 0–5 buckets to C/B/A/S and BP settles at that rank's threshold; identity (name/img/title/quote/
- * accent) carries over; the NPC link becomes partnerUuid; the authored abilities/dossier/vitals are
- * dropped (doc-minimal). Reads `_source` so the new schema's cleaning hasn't yet stripped the legacy
- * fields. GM-side, once.
- */
-async function migrateBondsV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", BONDS_V003_SETTING)) return;
-
-  const updates = [];
-  let migrated = 0;
-  for (const actor of game.actors) {
-    if (actor.type !== "character") continue;
-    const raw = actor._source.system?.bonds;
-    if (!Array.isArray(raw) || !raw.length) continue;
-    // Only touch actors that still hold at least one LEGACY card (a v0.03 bond always has `kind`).
-    if (!raw.some((b) => b && b.kind === undefined)) continue;
-
-    const next = raw.map((b) => {
-      if (b?.kind !== undefined) return b;   // already v0.03 — leave it
-      const oldRank = Math.max(0, Math.min(5, Number(b?.rank) || 0));
-      const rank = Math.min(PROJECTANIME.bondMaxRank, Math.round(oldRank * 0.6));   // 0→C 1→C 2→B 3→A 4→A 5→S
-      return blankBond({
-        id: b?.id || foundry.utils.randomID(),
-        kind: "follower",
-        partnerUuid: b?.actorUuid || "",
-        name: b?.name || game.i18n.localize("PROJECTANIME.Bond.newBondName"),
-        img: b?.img || "",
-        title: b?.title || "",
-        quote: b?.quote || "",
-        accent: b?.accent || "",
-        rank,
-        bp: PROJECTANIME.bondThresholds[rank] || 0
-      });
-    });
-    updates.push({ _id: actor.id, "system.bonds": next });
-    migrated += next.length;
-  }
-  if (updates.length) await Actor.updateDocuments(updates, { diff: false, recursive: false });
-  await game.settings.set("project-anime", BONDS_V003_SETTING, true);
-  if (migrated) console.log(`Project: Anime | bondsV003 — remapped ${migrated} legacy bond card(s) to v0.03 Follower Bonds.`);
-}
-
-/**
- * One-shot (v0.3.5): stand up the doc-v0.03 Headquarters. The base's identity (name/crest/accent/motto/
- * banner) carries over untouched; a world that already used the HQ is marked "established" so its v0.03
- * fields (rank C, a fresh 14-facility catalog, the Mission Board) come alive on the Home tab. The legacy
- * resource pools are DRAINED (zeroed) here — Phase 4 already copied them into the party stash as carried
- * materials, and the parallel HQ Workshop that kept them is retired. The dormant legacy People/Facilities/
- * dispatch data is left in place (unsurfaced) so nothing is lost, but the v0.03 Home tab reads only the
- * new fields. GM-side, once per world.
- */
-async function migrateHqV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", HQ_V003_SETTING)) return;
-
-  let hq;
-  try { hq = getHQ(); } catch (_e) { hq = null; }
-  if (hq) {
-    const usedBefore = !!(hq.name || hq.crest || hq.motto || hq.banner
-      || (hq.people ?? []).length || (hq.facilities ?? []).length || (hq.recruits ?? []).length
-      || Object.keys(hq.resources ?? {}).length);
-    if (usedBefore) hq.established = true;
-    if (!hq.rank) hq.rank = "C";
-    hq.resources = {}; // pools drained (already seeded to the stash in v0.3.3); Workshop retired
-    await saveHQ(hq);
-  }
-  await game.settings.set("project-anime", HQ_V003_SETTING, true);
-  console.log("Project: Anime | hqV003 — Headquarters migrated to the v0.03 model (pools drained; catalog facilities + Mission Board live).");
-}
-
-/**
- * One-shot: remap every existing monster NPC from the retired ★×Tier model to v0.03 Role × Tier.
- *  • shape → Role: minion → Swarm · standard → Grunt · elite / solo → Elite (a Solo becomes an Elite;
- *    the GM re-flags it a Boss if wanted — the Solo/champion model is retired).
- *  • stars → Tier: 1–2 → I · 3 → II · 4 → III · 5 → IV · unrated → II (on-level).
- * Then recompute the finished statblock (Strong/Weak dice derive live; store HP/EP + role delta bonuses)
- * and retire the legacy tier/stars/squad fields so squad pooling never re-engages. Social NPCs (role
- * "npc") and NPCs already on the new model are skipped. Logs the count. GM-side, once.
- */
-async function migrateNpcRoleV003() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", NPC_ROLE_V003_SETTING)) return;
-  const shapeToRole = { minion: "swarm", standard: "grunt", elite: "elite", solo: "elite" };
-  const starToTier = (s) => (s >= 5 ? 4 : s >= 4 ? 3 : s >= 3 ? 2 : s >= 1 ? 1 : 2);
-  const updates = [];
-  for (const actor of game.actors) {
-    if (actor.type !== "npc") continue;
-    const sys = actor._source.system ?? {};
-    if ((sys.role ?? "monster") === "npc") continue;    // social NPC — no combat statblock
-    if (sys.enemyRole) continue;                        // already migrated
-    const legacyTier = sys.tier;
-    const stars = Number(sys.stars) || 0;
-    // Only convert NPCs that were actually built on the old model (a legacy shape or a star rating).
-    if (!shapeToRole[legacyTier] && stars < 1) continue;
-    const roleKey = shapeToRole[legacyTier] ?? "grunt";
-    const tier = starToTier(stars);
-    // Elite picks three Strong Attributes — carry over the three highest from the old five-attribute build.
-    let strongAttrs = [];
-    if (roleKey === "elite") {
-      strongAttrs = [...PROJECTANIME.attributeKeys]
-        .sort((a, b) => (Number(sys.attributes?.[b]?.base) || 4) - (Number(sys.attributes?.[a]?.base) || 4))
-        .slice(0, 3);
-    }
-    const strong = enemyStrongAttrs(roleKey, strongAttrs);
-    const { hp, energy } = enemyVitals(roleKey, tier, strong);
-    const d = PROJECTANIME.enemyRoles[roleKey]?.deltas ?? {};
-    updates.push({
-      _id: actor.id,
-      "system.enemyRole": roleKey,
-      "system.enemyTier": tier,
-      "system.strongAttrs": strongAttrs,
-      "system.hp.max": hp, "system.hp.value": hp,
-      "system.energy.max": energy, "system.energy.value": energy,
-      "system.atk.bonus": Number(d.atk) || 0,
-      "system.matk.bonus": Number(d.atk) || 0,
-      "system.defense.bonus": Number(d.defense) || 0,
-      "system.res.bonus": Number(d.res) || 0,
-      "system.evasion.bonus": Number(d.evasion) || 0,
-      "system.as.bonus": Number(d.as) || 0,
-      "system.movement.bonus": Number(d.movement) || 0,
-      // Retire the legacy shape + squad so pooling never re-engages (fields kept only for validation).
-      "system.tier": "",
-      "system.stars": 0,
-      "system.squad.size": 1
-    });
-  }
-  if (updates.length) await Actor.updateDocuments(updates);
-  console.log(`Project: Anime | NPC Role v0.03 — remapped ${updates.length} monster NPC(s) to Role × Tier.`);
-  await game.settings.set("project-anime", NPC_ROLE_V003_SETTING, true);
+  const worldTalents = [...game.items.invalidDocumentIds].filter((id) => game.items.getInvalid(id)?.type === "talent");
+  if (worldTalents.length) await Item.deleteDocuments(worldTalents);
 }
 
 /* -------------------------------------------- */
+/*  Version 2 actor migration (one-time)        */
+/* -------------------------------------------- */
 
-// v0.03: re-base every EXISTING world/actor-owned weapon, armor, and shield to the new gear
-// tables (the packs are reconciled separately by auditGearPacks). Renamed items ("Katana") are
-// found through their compendium origin (_stats.compendiumSource → pack index name); items with
-// no origin match by name. GM homebrew that matches neither is untouched. Natural Attacks move
-// from the old Unarmed DMG −2 to the v0.03 flat 0 unless the GM retuned them. GM-side, once.
-async function migrateGearRebaseV003() {
+// V2: every actor re-baselines to the box model — Characters to Hit/Energy Boxes 5 (the data
+// model's migrateData collapses the old numeric pools in memory; this bakes it), monster NPCs to
+// their mapped enemy Type's printed stat line (npcType is seeded from the retired Role by the
+// model's migrateData: grunt→standard, brute→bruiser, skirmisher→skirmisher, caster→standard,
+// support→support, swarm→minion, elite→elite). Bosses re-derive their Bars from the party size
+// (Bars = ⌈party/2⌉, Bar HB = party × 2, EB 6). Basic-attack weapons get the Type's printed
+// Damage + Threshold. GM-side, once per world.
+async function migrateActorsV2() {
   if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", GEAR_REBASE_V003_SETTING)) return;
+  if (game.settings.get("project-anime", ACTORS_V2_SETTING)) return;
+  const partySize = Math.max(1, partyMembers(game.actors.find((a) => a.type === "party"))?.length || 4);
+  let count = 0;
+  for (const actor of game.actors) {
+    if (actor.type === "party") continue;
+    const upd = { _id: actor.id };
+    if (actor.type === "character") {
+      // Bake the in-memory re-baseline (migrateData clamps >10 pools down to the base 5).
+      upd["system.hp.max"] = Math.clamp(actor.system.hp.max + (actor.system.woundCount ?? 0), 1, PROJECTANIME.maxBoxes);
+      upd["system.hp.value"] = Math.clamp(actor.system.hp.value, 0, PROJECTANIME.maxBoxes);
+      upd["system.energy.max"] = Math.clamp(actor.system.energy.base ?? actor.system.energy.max, 0, PROJECTANIME.maxBoxes);
+      upd["system.energy.value"] = Math.clamp(actor.system.energy.value, 0, PROJECTANIME.maxBoxes);
+    } else if (actor.type === "npc") {
+      const line = PROJECTANIME.enemyTypes[actor.system.npcType];
+      if (line) {
+        const boss = actor.system.boss?.enabled;
+        if (boss) {
+          const bars = Math.max(1, Math.ceil(partySize / 2));
+          const barHp = Math.max(1, partySize * 2);
+          Object.assign(upd, {
+            "system.boss.bars": bars, "system.boss.barHp": barHp,
+            "system.boss.remaining": bars, "system.boss.broken": 0,
+            "system.hp.max": barHp, "system.hp.value": barHp,
+            "system.energy.max": PROJECTANIME.boss.energyPerBar, "system.energy.value": PROJECTANIME.boss.energyPerBar,
+            "system.guard.bonus": PROJECTANIME.boss.guard - PROJECTANIME.baseGuard,
+            "system.movement.bonus": PROJECTANIME.boss.movement - PROJECTANIME.armorStyles.unarmored.movement
+          });
+        } else {
+          Object.assign(upd, {
+            "system.hp.max": line.hb, "system.hp.value": line.hb,
+            "system.energy.max": line.eb, "system.energy.value": line.eb,
+            "system.guard.bonus": line.guard - PROJECTANIME.baseGuard,
+            "system.movement.bonus": line.movement - PROJECTANIME.armorStyles.unarmored.movement
+          });
+        }
+        // Basic attacks (weapon items with no compendium origin, incl. the Natural Attack) take
+        // the Type's printed Damage + Threshold.
+        const atkDamage = boss ? PROJECTANIME.boss.damage : line.damage;
+        const atkThreshold = boss ? PROJECTANIME.boss.threshold : line.threshold;
+        const itemUpdates = [];
+        for (const item of actor.items) {
+          if (item.type !== "weapon" || item._stats?.compendiumSource) continue;
+          itemUpdates.push({ _id: item.id, "system.damage.value": atkDamage, "system.threshold": atkThreshold });
+        }
+        if (itemUpdates.length) await actor.updateEmbeddedDocuments("Item", itemUpdates);
+      } else {
+        // Untyped NPC: just bake the box clamp.
+        upd["system.hp.max"] = Math.clamp(actor.system.hp.max, 1, PROJECTANIME.maxBoxes);
+        upd["system.hp.value"] = Math.clamp(actor.system.hp.value, 0, PROJECTANIME.maxBoxes);
+        upd["system.energy.max"] = Math.clamp(actor.system.energy.base ?? actor.system.energy.max, 0, PROJECTANIME.maxBoxes);
+        upd["system.energy.value"] = Math.clamp(actor.system.energy.value, 0, PROJECTANIME.maxBoxes);
+      }
+    } else {
+      continue;
+    }
+    await actor.update(upd);
+    count++;
+  }
+  console.log(`Project: Anime | V2 actor migration — re-baselined ${count} actor(s) to the box model.`);
+  await game.settings.set("project-anime", ACTORS_V2_SETTING, true);
+}
+
+// V2: re-base every EXISTING world/actor-owned weapon, armor, and shield to the Style tables
+// (the packs are reconciled separately by auditGearPacks). Renamed items ("Katana") are found
+// through their compendium origin (_stats.compendiumSource → pack index name); items with no
+// origin match by name. GM homebrew that matches neither is untouched. GM-side, once.
+async function migrateGearRebaseV2() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", GEAR_REBASE_V2_SETTING)) return;
   const PACK_FOR_TYPE = { weapon: "weapons", armor: "armor", shield: "shields" };
   const rowFor = (item) => {
     const packKey = PACK_FOR_TYPE[item.type];
@@ -2163,25 +1666,10 @@ async function migrateGearRebaseV003() {
     }
     return targets[item.name] ?? null;
   };
-  const updatesFor = (items, { npc = false } = {}) => {
+  const updatesFor = (items) => {
     const updates = [];
     for (const item of items) {
-      if (item.getFlag("project-anime", "natural")) {
-        const mod = Number(item.system?.damage?.mod) || 0;
-        // PCs: old Unarmed −2 → the doc's 0. NPCs: their innate strikes ride the v0.02 scale
-        // (0) — lift to blade-tier 3 so monsters keep pace with the rebased party until the
-        // Phase-3 enemy redesign recalibrates them properly.
-        if (npc && (mod === 0 || mod === -2)) updates.push({ _id: item.id, "system.damage.mod": 3 });
-        else if (!npc && mod === -2) updates.push({ _id: item.id, "system.damage.mod": 0 });
-        continue;
-      }
-      // Monster-Creator Basic Attacks (icons/svg/sword.svg, size 0, no compendium origin) carry
-      // no `natural` flag — catch them by shape so existing monsters get the same interim lift.
-      if (npc && item.type === "weapon" && item.img === "icons/svg/sword.svg" && !(Number(item.system?.size) || 0)
-          && !item._stats?.compendiumSource && (Number(item.system?.damage?.mod) || 0) <= 0) {
-        updates.push({ _id: item.id, "system.damage.mod": 3 });
-        continue;
-      }
+      if (item.getFlag("project-anime", "natural")) continue;   // stamped by migrateActorsV2 / born right
       const row = rowFor(item);
       if (row) updates.push({ _id: item.id, ...row });
     }
@@ -2191,100 +1679,57 @@ async function migrateGearRebaseV003() {
   const worldUpdates = updatesFor(game.items);
   if (worldUpdates.length) { await Item.updateDocuments(worldUpdates); count += worldUpdates.length; }
   for (const actor of game.actors) {
-    const updates = updatesFor(actor.items, { npc: actor.type === "npc" });
+    const updates = updatesFor(actor.items);
     if (updates.length) { await actor.updateEmbeddedDocuments("Item", updates); count += updates.length; }
   }
-  if (count) console.log(`Project: Anime | Gear rebase — ${count} owned/world item(s) aligned to the v0.03 tables.`);
-  await game.settings.set("project-anime", GEAR_REBASE_V003_SETTING, true);
+  if (count) console.log(`Project: Anime | Gear rebase — ${count} owned/world item(s) aligned to the V2 Style tables.`);
+  await game.settings.set("project-anime", GEAR_REBASE_V2_SETTING, true);
 }
 
-/* -------------------------------------------- */
-/*  Skill-Point ledger backfill (one-time)      */
-/* -------------------------------------------- */
-
-// Seed the Skill-Point ledger for characters made before it existed: one refundable "skill"
-// entry per self-built Skill (its spCost), plus a single non-refundable "Prior advancement"
-// lump estimating SP spent on attribute raises (the 5 cheapest steps are the free creation
-// step-ups) + stat buys (carry/move bonuses + HP/Energy bought over the 6+Might×2 / 6+Spirit×2 baseline).
-// GM-side, once per actor (flagged "spLogBackfilled"); NPCs are just flagged (no SP advancement).
-async function backfillSkillPointLog() {
+// V2 accessories rewire: re-base every world/actor-owned copy of the five printed Accessories to
+// the updated pack line — item fields plus a REPLACED wired Active Effect (Belt +1 max Hit Box,
+// Sandals +1 Movement, Scouter reveals Guard, Lucky Pendant tunes a restored Luck Die, Trader's
+// Pass sell +10%) — and re-stamp the Armor Style descriptions the earlier rebase never carried.
+// Renamed copies are found through their compendium origin, like migrateGearRebaseV2. GM-side, once.
+async function migrateAccessoriesV2() {
   if (game.users.activeGM?.id !== game.user.id) return;
-  const STEP = { 4: 1, 6: 2, 8: 3, 10: 4 };
-  const updates = [];
-  for (const actor of game.actors) {
-    if (actor.getFlag("project-anime", "spLogBackfilled")) continue;
-    if (actor.type !== "character") {
-      updates.push({ _id: actor.id, "flags.project-anime.spLogBackfilled": true });
-      continue;
-    }
-    const log = [];
-    // Self-built Skills — exact, refundable (Refund deletes the skill and returns its SP).
-    for (const item of actor.items) {
-      if (item.type !== "skill" || item.getFlag("project-anime", "granted")) continue;
-      const amount = Number(item.system?.spCost ?? 0) || 0;
-      if (amount > 0) log.push({ id: foundry.utils.randomID(), label: item.name, amount, kind: "skill", ref: item.id, data: {}, time: null });
-    }
-    // Prior advancement — can't be itemised after the fact, so one non-refundable lump.
-    const src = actor._source.system ?? {};
-    const steps = [];
-    for (const k of PROJECTANIME.attributeKeys) {
-      const base = src.attributes?.[k]?.base ?? 4;
-      for (let v = 4; v < base; v += 2) steps.push(STEP[v] ?? 0);
-    }
-    steps.sort((a, b) => a - b);
-    let spent = steps.slice(5).reduce((s, c) => s + c, 0);   // drop the 5 free creation steps
-    spent += (src.carryingCapacity?.bonus ?? 0);             // 1 SP each
-    spent += (src.movement?.bonus ?? 0) * 3;                 // 3 SP each
-    const might = actor.system.attributes?.might?.value ?? 4;
-    const spirit = actor.system.attributes?.spirit?.value ?? 4;
-    spent += Math.max(0, Math.round(((src.hp?.max ?? 0) - (6 + might * 2)) / 2));
-    spent += Math.max(0, Math.round(((src.energy?.max ?? 0) - (6 + spirit * 2)) / 2));
-    if (spent > 0) log.push({ id: foundry.utils.randomID(), label: game.i18n.localize("PROJECTANIME.SkillLog.legacy"), amount: spent, kind: "legacy", ref: "", data: {}, time: null });
+  if (game.settings.get("project-anime", ACCESSORIES_V2_SETTING)) return;
 
-    updates.push({ _id: actor.id, "system.skillPoints.log": log, "flags.project-anime.spLogBackfilled": true });
-  }
-  if (updates.length) await Actor.updateDocuments(updates);
-}
+  // Canonical name for a pack-born copy (compendiumSource → pack index name), else its own name.
+  const canonNameFor = (item, packKey) => {
+    const src = item._stats?.compendiumSource ?? "";
+    const m = /^Compendium\.project-anime\.([^.]+)\.Item\.(\w+)$/.exec(src);
+    if (m && m[1] === packKey) {
+      const name = game.packs.get(`project-anime.${packKey}`)?.index.get(m[2])?.name;
+      if (name) return name;
+    }
+    return item.name;
+  };
 
-/* -------------------------------------------- */
-/*  NPC Skill-Point ledger backfill (one-time)  */
-/* -------------------------------------------- */
-
-// Give existing NPCs the SAME refundable Skill-Point ledger PCs carry, synthesised from current
-// state so "Spent" stays correct once the ledger view takes over: one refundable "skill" entry per
-// self-built Skill, plus one non-refundable "legacy" lump for the remainder of the old `spent`
-// scalar (the attribute / stat advancement). GM-side, once per NPC (flag "npcStarLogBackfilled").
-// NOTE: we deliberately do NOT auto-stamp a ★ star rating here — a legacy NPC was built against the
-// global Encounter Power dial, not a known star, so guessing a star would mislabel its power level
-// (and resize how the Monster Creator would rebuild it). The encounter budget now reads from the Tier
-// in Party-Equivalents, not the star, so leaving a legacy NPC unrated never changes a planned fight's
-// cost. The GM rates a monster when they choose, via the Monster Creator's star picker (or the sheet).
-async function backfillNpcSkillLog() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  const updates = [];
-  for (const actor of game.actors) {
-    if (actor.type !== "npc") continue;
-    if (actor.getFlag("project-anime", "npcStarLogBackfilled")) continue;
-    const sys = actor.system ?? {};
-    const upd = { _id: actor.id, "flags.project-anime.npcStarLogBackfilled": true };
-    // Ledger seed: skip NPCs already on the log (created after this feature).
-    const sp = sys.skillPoints ?? {};
-    if (!Array.isArray(sp.log) || !sp.log.length) {
-      const log = [];
-      let skillsTotal = 0;
-      for (const item of actor.items) {
-        if (item.type !== "skill" || item.getFlag("project-anime", "granted")) continue;
-        const amount = Number(item.system?.spCost ?? 0) || 0;
-        if (amount > 0) { log.push({ id: foundry.utils.randomID(), label: item.name, amount, kind: "skill", ref: item.id, data: {}, time: null }); skillsTotal += amount; }
+  let count = 0;
+  const rewire = async (items) => {
+    for (const item of items) {
+      if (item.type === "armor") {
+        const row = PACK_TARGETS.armor?.[canonNameFor(item, "armor")];
+        if (row) { await item.update(row); count++; }
+        continue;
       }
-      // The old `spent` scalar tracked skills + advancement; the non-skill remainder is the legacy lump.
-      const advance = Math.max(0, (Number(sp.spent) || 0) - skillsTotal);
-      if (advance > 0) log.push({ id: foundry.utils.randomID(), label: game.i18n.localize("PROJECTANIME.SkillLog.legacy"), amount: advance, kind: "legacy", ref: "", data: {}, time: null });
-      upd["system.skillPoints.log"] = log;
+      if (item.type !== "accessory") continue;
+      const canonName = canonNameFor(item, "accessories");
+      const canon = ACCESSORY_CANON[canonName];
+      if (!canon) continue; // GM homebrew — untouched
+      await item.update({ "system.cost": canon.cost, "system.description": canon.description });
+      // Replace the wired effect wholesale — the stale pre-V2 rules are wrong, not tunable.
+      const stale = item.effects.map((e) => e.id);
+      if (stale.length) await item.deleteEmbeddedDocuments("ActiveEffect", stale);
+      await item.createEmbeddedDocuments("ActiveEffect", [accessoryEffectData(canonName)]);
+      count++;
     }
-    updates.push(upd);
-  }
-  if (updates.length) await Actor.updateDocuments(updates);
+  };
+  await rewire(game.items);
+  for (const actor of game.actors) await rewire(actor.items);
+  if (count) console.log(`Project: Anime | Accessories rewire — ${count} owned/world item(s) re-based to the V2 line.`);
+  await game.settings.set("project-anime", ACCESSORIES_V2_SETTING, true);
 }
 
 /* -------------------------------------------- */
@@ -2349,40 +1794,6 @@ async function backfillWeaponTypes() {
   }
 
   await game.settings.set("project-anime", WEAPON_TYPE_BACKFILL_SETTING, true);
-}
-
-/* -------------------------------------------- */
-/*  Encounter squad migration (one-time)        */
-/* -------------------------------------------- */
-
-// Retire the old Encounter-Builder "× quantity" multiplier. Each legacy line carried a `qty`; under
-// the new squad model a Minion fields as ONE pooled squad (qty → its squad SIZE) and a Standard /
-// Elite / Solo is one body per line (qty → that many individual lines). Consumes `qty` (it is a
-// transitional field) and normalizes every party's encounter array. GM-side, once per world.
-async function migrateEncounterSquads() {
-  if (game.users.activeGM?.id !== game.user.id) return;
-  if (game.settings.get("project-anime", ENCOUNTER_SQUAD_MIGRATION_SETTING)) return;
-  for (const party of game.actors) {
-    if (party.type !== "party") continue;
-    const list = party.system?.encounter ?? [];
-    if (!list.length || !list.some((e) => e?.qty != null)) continue;   // nothing legacy to consume
-    const next = [];
-    for (const e of list) {
-      const qty = Number(e?.qty);
-      const n = Number.isFinite(qty) && qty > 1 ? Math.floor(qty) : 1;
-      const actor = e?.uuid ? (fromUuidSync(e.uuid) ?? null) : null;
-      if (actor && isMinionTier(actor)) {
-        if (n > 1) await setSquadSize(actor, n);                       // a stack → one squad of n
-        next.push({ id: e.id || foundry.utils.randomID(), uuid: e.uuid });
-      } else if (n > 1) {
-        for (let i = 0; i < n; i++) next.push({ id: foundry.utils.randomID(), uuid: e.uuid }); // n bodies
-      } else {
-        next.push({ id: e.id || foundry.utils.randomID(), uuid: e.uuid });
-      }
-    }
-    await party.update({ "system.encounter": next });
-  }
-  await game.settings.set("project-anime", ENCOUNTER_SQUAD_MIGRATION_SETTING, true);
 }
 
 /* -------------------------------------------- */
@@ -2481,13 +1892,9 @@ Hooks.once("ready", function () {
   // Restore the on-canvas quest tracker for whatever quest this client was tracking.
   ChronicleTracker.refresh();
 
-  // One-time (v0.03): raise every Character to the HP = 6 + ⟪Might⟫×2 baseline and every actor to the
-  // EP = 6 + ⟪Spirit⟫×2 baseline, THEN seed the Skill-Point ledger — its "HP/EP bought over baseline"
-  // lump must read post-migration vitals — THEN seed lifetime SP + Rank from that ledger (v0.3.13).
-  migrateHpBaseV003().then(() => migrateEpBaseV003()).then(() => backfillSkillPointLog()).then(() => migrateRankV003());
-
-  // One-time: give pre-existing NPCs their own refundable Skill-Point ledger (left unrated by ★).
-  backfillNpcSkillLog();
+  // One-time (V2): re-baseline every actor to the box model (Hit/Energy Boxes, Guard, Movement)
+  // and remap monster NPCs to the V2 enemy Types.
+  migrateActorsV2();
 
   // One-time: give pre-existing creatures their innate Natural Attack.
   backfillNaturalAttacks();
@@ -2495,34 +1902,15 @@ Hooks.once("ready", function () {
   // One-time: seed each weapon/shield's Type from its name (they were named after their type).
   backfillWeaponTypes();
 
-  // One-time: migrate legacy Encounter-Builder "× qty" lines to the squad model (minion qty → squad
-  // size; non-minion qty → individual lines).
-  migrateEncounterSquads();
-
-  // One-time (v0.3.2): remap monster NPCs from ★×Tier to the v0.03 Role × Tier model.
-  migrateNpcRoleV003();
-
-  // One-time (v0.3.3): seed carried materials from the legacy HQ resource pools (pools kept for the
-  // parallel Workshop until Phase 6).
-  migrateMaterialsV003();
-
-  // One-time (v0.3.4): remap legacy solo bond cards to v0.03 paired Follower Bonds.
-  migrateBondsV003();
-  migrateHqV003();
-
-  // One-time: materialise the 12 Twists into the Skills compendium as pickable Skill items.
-  if (paIsActiveGM() && !game.settings.get("project-anime", TWIST_SEED_SETTING)) {
-    seedTwistSkills().then(() => game.settings.set("project-anime", TWIST_SEED_SETTING, true));
-  }
-
-  // One-time (v0.03): reconcile the gear compendiums to the rules doc's tables, then re-base the
-  // copies players already own (order matters — the rebase reads the freshly-audited pack index).
+  // One-time (V2): reconcile the gear compendiums to the Style tables, then re-base the copies
+  // players already own (order matters — the rebase reads the freshly-audited pack index).
   if (paIsActiveGM() && !game.settings.get("project-anime", PACK_AUDIT_SETTING)) {
     auditGearPacks()
       .then(() => game.settings.set("project-anime", PACK_AUDIT_SETTING, true))
-      .then(() => migrateGearRebaseV003());
+      .then(() => migrateGearRebaseV2())
+      .then(() => migrateAccessoriesV2());
   } else {
-    migrateGearRebaseV003();
+    migrateGearRebaseV2().then(() => migrateAccessoriesV2());
   }
 
   // One-time: switch existing tokens to always-on HP/Energy bars (the bottom-stacked overlay).
@@ -2532,17 +1920,35 @@ Hooks.once("ready", function () {
   // then ensure the world ships with a Party at all — seed a starter one if it has none.
   if (paIsActiveGM()) ensureAllPartyFolders().then(ensureDefaultParty);
 
-  // One-time HQ migrations (ordered): fold any legacy per-faction recruit rosters into the HQ pool,
-  // THEN split the fused recruits[] into the People/Facilities model, THEN project passive boons.
-  if (paIsActiveGM()) { migrateRostersToHQ().then(() => migrateHQModel()).then(() => reconcileHQBoons()); }
+  // Bonds removed (v0.4.0) + NPC Signature Trait/Traits removed (v0.5.2): purge any effect those
+  // retired engines projected onto an actor (flagged bondKey / traitKey / legacy traitEffect), so
+  // stale toggles and trait buffs don't linger.
+  if (paIsActiveGM()) for (const a of game.actors ?? []) {
+    const stale = (a.effects ?? []).filter((e) => {
+      const f = e.flags?.["project-anime"];
+      return f?.bondKey || f?.traitKey || f?.traitEffect;
+    }).map((e) => e.id);
+    if (stale.length) a.deleteEmbeddedDocuments("ActiveEffect", stale);
+  }
 
-  // Initial self-healing pass for every actor's Signature Trait + Traits (the onChange hooks don't fire
-  // on load). Each call is GM-gated + idempotent, so it's a cheap no-op for actors with no trait cards.
-  if (paIsActiveGM()) for (const a of game.actors ?? []) reconcileTraits(a);
+  // Crafting removed (v0.4.3): purge carried `material` Items. The type is unregistered, so any
+  // survivor is an invalid document — read the raw source, delete by id. GM-gated + idempotent.
+  if (paIsActiveGM()) {
+    for (const a of game.actors ?? []) {
+      const mats = (a._source?.items ?? []).filter((i) => i.type === "material").map((i) => i._id);
+      if (mats.length) a.deleteEmbeddedDocuments("Item", mats);
+    }
+    const worldMats = [...game.items.invalidDocumentIds].filter((id) => game.items.getInvalid(id)?.type === "material");
+    if (worldMats.length) Item.deleteDocuments(worldMats);
+    // …and the crafting-only Artisan's Kit from the gear packs.
+    purgeRetiredPackItems();
+    // …and re-point items still wearing a broken seed image (the old Casting Weapon staff).
+    healBrokenItemIcons();
+  }
 
-  // Initial pass for Party-benefit effects + party-bond sync too (GM-gated, idempotent no-op for
-  // bondless actors).
-  if (paIsActiveGM()) for (const a of game.actors ?? []) { reconcileBonds(a); syncPartyBonds(a); }
+  // Talents are actor data now (v0.5.1, Daggerheart-Experience-style) — convert any retired
+  // `talent` Items into `system.talents` rows. GM-gated + idempotent.
+  if (paIsActiveGM()) migrateTalentsToActorData();
 
   // Self-heal: a Toggleable effect is switched by its player toggle, so it must stay ENABLED to be
   // live (the collectors read appliedEffects, which drops disabled effects). Enable any effect saved
@@ -2565,11 +1971,10 @@ Hooks.once("ready", function () {
   game.socket.on("system.project-anime", (payload) => {
     if (game.users.activeGM?.id !== game.user.id) return;
     if (payload?.type === "applyDamage") dice.applyDamageTo(payload.targetUuid, payload.amount, payload.heal, payload.pool, { ignoreBarrier: payload.ignoreBarrier });
-    else if (payload?.type === "applyStatus") dice.applyStatusTo(payload.targetUuid, payload.statusId, payload.active, payload.duration, { decayType: payload.decayType, value: payload.value, pool: payload.pool, overcomeCT: payload.overcomeCT, side: payload.side });
+    else if (payload?.type === "applyStatus") dice.applyStatusTo(payload.targetUuid, payload.statusId, payload.active, payload.duration, { value: payload.value, pool: payload.pool, overcomeCT: payload.overcomeCT, side: payload.side });
     else if (payload?.type === "applyEffect") dice.applyEffectTo(payload.targetUuid, payload.effectData);
     else if (payload?.type === "stealItem") dice.stealItemTo(payload.stealerUuid, payload.targetUuid, payload.itemId);
     else if (payload?.type === "createItems") dice.createItemsOn(payload.targetUuid, payload.items);
-    else if (payload?.type === "raiseServant") raiseServant(payload.casterUuid, payload.itemId, payload.corpseUuid, payload.userId);
     else if (payload?.type === "createCompanion") createCompanion(payload.casterUuid, payload.itemId, payload.name, payload.userId);
     else if (payload?.type === "dismissServant") removeServantActor(payload.servantUuid);
     else if (payload?.type === "placeGates") {
@@ -2612,18 +2017,6 @@ Hooks.once("ready", function () {
           || !!c.actor?.testUserPermission(user, "OWNER");
         if (owns) activateCombatant(combat, payload.combatantId);
       }
-    }
-    else if (payload?.type === "buildFacility") {
-      // A player asked to build/upgrade an HQ facility. The HQ is GM-owned, so the GM performs it —
-      // but ONLY for a facility the GM has flagged `unlocked` (others are GM-managed; players can't touch).
-      const f = getHQ().facilities.find((x) => x.id === payload.facilityId);
-      if (f && f.unlocked) buildFacility(payload.facilityId);
-    }
-    else if (payload?.type === "craftRecipe") {
-      // A player asked to craft at a Workshop. The HQ is GM-owned, so the GM performs the craft —
-      // but ONLY at a workshop facility the GM has flagged `unlocked` (others are GM-managed).
-      const f = getHQ().facilities.find((x) => x.id === payload.facilityId);
-      if (f && f.role === "workshop" && f.unlocked) craftRecipe(payload.facilityId, payload.recipeId);
     }
   });
 

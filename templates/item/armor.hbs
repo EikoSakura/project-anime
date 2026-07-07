@@ -3,22 +3,27 @@
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.defense"}}</h4>
     <div class="form-grid">
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.protection"}}</label>
-        <input type="number" name="system.protection" value="{{system.protection}}" min="0" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.defSplit"}}</label>
-        <input type="number" name="system.defSplit" value="{{system.defSplit}}" min="0" max="{{system.protection}}" data-action="armorSplit" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.resSplit"}}</label>
-        <input type="number" name="system.resSplit" value="{{system.resSplit}}" min="0" max="{{system.protection}}" data-action="armorSplit" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.evasionMod"}}</label>
-        <input type="number" name="system.evasionMod" value="{{system.evasionMod}}" /></div>
+      <div class="form-group span-2 style-picker"><label>{{localize "PROJECTANIME.Field.style"}}</label>
+        <div class="style-tiles">
+          {{#each styleTiles as |s|}}
+          <button type="button" class="style-tile{{#if s.selected}} on{{/if}}" data-action="setStyle" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip" aria-label="{{s.label}}">
+            <img src="{{s.icon}}" alt="{{s.label}}" />
+          </button>
+          {{/each}}
+        </div>
+      </div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Stat.guard"}}</label>
+        <input type="number" name="system.guardBonus" value="{{system.guardBonus}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Stat.movement"}}</label>
+        <input type="number" name="system.movement" value="{{system.movement}}" min="0" /></div>
+      <div class="form-group"><label>{{localize "PROJECTANIME.Field.energyRegen"}}</label>
+        <input type="number" name="system.energyRegen" value="{{system.energyRegen}}" min="0" /></div>
     </div>
   </div>
 
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.equipment"}}</h4>
     <div class="form-grid">
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.size"}}</label>
-        <input type="number" name="system.size" value="{{system.size}}" min="0" /></div>
       <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
         <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
       <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>

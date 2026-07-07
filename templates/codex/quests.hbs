@@ -1,5 +1,5 @@
-{{!-- Codex — QUESTS pane (the Chronicle quest log). Rail + cinematic detail. GM authors inline. --}}
-<section class="codex-pane cdx-quests{{#if onQuests}} active{{/if}}" data-pane="quests">
+{{!-- Codex — the Chronicle quest log. Rail + cinematic detail. GM authors inline. --}}
+<section class="codex-pane cdx-quests active" data-pane="quests">
 <div class="chronicle-wrap">
 
   <div class="cw-toolbar">
@@ -181,7 +181,6 @@
             </div>
             {{/each}}
             {{#if @root.editMode}}<div class="reward-drop" data-drop="reward"><i class="fa-solid fa-arrow-down-to-bracket"></i> {{localize 'PROJECTANIME.Chronicle.dropItem'}}</div>{{/if}}
-            {{#if @root.editMode}}<div class="reward-drop bond-drop" data-drop="bond"><i class="fa-solid fa-heart"></i> {{localize 'PROJECTANIME.Chronicle.dropBond'}}</div>{{/if}}
           </div>
           {{#if @root.editMode}}
           <div class="add-reward cols3">
@@ -191,18 +190,6 @@
               <span class="ar-label"><span class="ar-glyph gold">G</span>{{localize 'PROJECTANIME.Chronicle.reward.gold'}}</span>
               <input data-ar="gold" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
             </div>
-            <div class="ar-col ar-faction">
-              <span class="ar-label"><span class="ar-glyph rep"><i class="fa-solid fa-handshake"></i></span>{{localize 'PROJECTANIME.Chronicle.factionReward'}}</span>
-              <div class="ar-faction-row">
-                <select data-ar="faction">
-                  <option value="">{{localize 'PROJECTANIME.Chronicle.selectFaction'}}</option>
-                  {{#each factionChoices}}<option value="{{id}}">{{name}}</option>{{/each}}
-                </select>
-                <input data-ar="rep" inputmode="numeric" placeholder="{{localize 'PROJECTANIME.Chronicle.amount'}}">
-              </div>
-            </div>
-            {{!-- Recruit unlocks are now tied from the Recruitment setup (a recruit's "Quest Complete"
-                  condition), not authored on the quest. --}}
             <button type="button" class="gbtn ar-add" data-action="addReward">＋ {{localize 'PROJECTANIME.Chronicle.add'}}</button>
           </div>
           {{/if}}

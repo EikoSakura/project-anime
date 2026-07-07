@@ -39,10 +39,10 @@
     <div class="ti-health" style="--hc:{{health.tint}}"><i class="fas fa-heart-pulse"></i> {{health.label}}</div>
     {{/if}}{{/unless}}
 
-    {{#if sp.show}}
+    {{#if guard.show}}
     <div class="ti-stat">
-      <span class="k">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
-      <span class="v">{{sp.value}}</span>
+      <span class="k">{{localize "PROJECTANIME.Stat.guard"}}</span>
+      <span class="v">{{guard.value}}</span>
     </div>
     {{/if}}
     {{#each customFields}}

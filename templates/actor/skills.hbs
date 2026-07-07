@@ -22,14 +22,14 @@
       </div>
       {{/if}}
       <div class="section-controls">
-        <label class="meta-stat sp" title="{{localize 'PROJECTANIME.Stat.skillPoints'}}">
+        {{#if isCharacter}}
+        <label class="meta-stat sp" title="{{localize 'PROJECTANIME.Advance.advancements'}}">
           <i class="fas fa-star"></i>
-          <span class="meta-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
-          <input type="number" name="system.skillPoints.value" value="{{system.skillPoints.value}}" min="0" />
+          <span class="meta-label">{{localize "PROJECTANIME.Advance.advancements"}}</span>
+          <input type="number" name="system.advancement.value" value="{{system.advancement.value}}" min="0" />
         </label>
+        {{/if}}
         {{#if @root.editable}}
-        {{!-- Both PCs and NPCs build skills through the Skill Builder (same SP-gated wizard); the
-              actor's SP just routes differently on commit (ledger for PCs, `spent` scalar for NPCs). --}}
         <a class="item-create" data-action="buildSkill" title="{{localize 'PROJECTANIME.SkillBuilder.title'}}">
           <i class="fas fa-plus"></i> {{localize "PROJECTANIME.SkillBuilder.title"}}
         </a>
@@ -41,24 +41,10 @@
         <div class="sp-summary">
           <span class="sp-stat"><span class="sp-val">{{spInfo.available}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.available"}}</span></span>
           <span class="sp-stat"><span class="sp-val">{{spInfo.spent}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.spent"}}</span></span>
-          {{#if spInfo.granted}}<span class="sp-stat granted"><span class="sp-val">{{spInfo.granted}}</span><span class="sp-key">{{localize "PROJECTANIME.Skill.spGranted"}}</span></span>{{/if}}
           <span class="sp-stat total"><span class="sp-val">{{spInfo.total}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.total"}}</span></span>
-          {{#if rankInfo}}
-          {{!-- Lifetime SP earned in play (drives Rank; editable — the migration estimate may need a nudge). --}}
-          <span class="sp-stat earned" title="{{localize 'PROJECTANIME.Rank.earnedHint'}}">
-            <input class="sp-val" type="number" name="system.skillPoints.earned" value="{{rankInfo.earned}}" min="0" />
-            <span class="sp-key">{{localize "PROJECTANIME.Rank.earned"}}</span>
-          </span>
-          <span class="sp-stat rank" title="{{#if rankInfo.next}}{{localize 'PROJECTANIME.Rank.nextAt' sp=rankInfo.next}}{{else}}{{localize 'PROJECTANIME.Rank.max'}}{{/if}}">
-            <span class="sp-val">{{rankInfo.letter}} · {{rankInfo.tier}}</span>
-            <span class="sp-key">{{localize "PROJECTANIME.Rank.label"}}</span>
-          </span>
-          {{/if}}
         </div>
 
         {{#if @root.showSpLog}}
-        {{!-- Opens the Skill Point Log dialog (the scrollable, refundable transaction ledger).
-              Characters + Monster-role NPCs (both carry the ledger). --}}
         <a class="sp-log-open" data-action="openSkillLog">
           <i class="fas fa-scroll"></i> {{localize "PROJECTANIME.SkillLog.title"}}
           {{#if spLogCount}}<span class="sp-log-count">{{spLogCount}}</span>{{/if}}
@@ -93,7 +79,7 @@
             <span class="tile-name">{{skill.name}}</span>
             <div class="tile-meta">
               {{#if skill.granted}}<span class="tile-granted" title="{{skill.grantedTip}}"><i class="fas fa-gift"></i></span>{{/if}}
-              {{#if skill.stars}}<span class="tile-rank" title="{{localize 'PROJECTANIME.Skill.field.rank'}}">{{skill.stars}}</span>{{/if}}
+              {{#if skill.stars}}<span class="tile-rank" title="{{localize 'PROJECTANIME.Skill.field.energyCost'}}">{{skill.stars}}</span>{{/if}}
               {{#if skill.energyCost}}<span class="meta-energy{{#unless skill.affordable}} unaffordable{{/unless}}" title="{{localize 'PROJECTANIME.Skill.field.energyCost'}}"><i class="fas fa-bolt"></i>{{skill.energyCost}}</span>{{/if}}
             </div>
             <div class="tile-actions">

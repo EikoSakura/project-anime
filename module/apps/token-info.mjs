@@ -7,7 +7,7 @@
  *
  * Visibility model ("read enemies, own your own"): with the setting on, anyone who can
  * SEE a token reads its HP / Energy; the GM and a token's owner see it for their own
- * tokens too. Deeper layers (Skill Points, Attributes, Combat Stats, Skills, Affinities)
+ * tokens too. Deeper layers (Skill Points, Attributes, Combat Stats, Skills)
  * are added in later phases and gated behind the viewer's Reveal effects + a right-click
  * dossier — this phase is the basic HP / MP glance only.
  *
@@ -16,7 +16,6 @@
  */
 import { collectReveals } from "../helpers/effects.mjs";
 import { PROJECTANIME, healthStatus } from "../helpers/config.mjs";
-import { elementLabel } from "../helpers/elements.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const L = (k) => (k ? game.i18n.localize(k) : "");
@@ -64,12 +63,17 @@ export const TOKEN_INFO_FIELDS_SETTING = "tokenInfoFields";
 export const TOKEN_FIELD_GATES = {
   always: "PROJECTANIME.TokenFields.gate.always",
   owner: "PROJECTANIME.TokenFields.gate.owner",
-  skillPoints: "PROJECTANIME.Effect.reveal.skillPoints",
+  guard: "PROJECTANIME.Effect.reveal.guard",
   attributes: "PROJECTANIME.Effect.reveal.attributes",
   combatStats: "PROJECTANIME.Effect.reveal.combatStats",
-  skills: "PROJECTANIME.Effect.reveal.skills",
-  affinities: "PROJECTANIME.Effect.reveal.affinities"
+  skills: "PROJECTANIME.Effect.reveal.skills"
 };
+
+/** Fold a stored gate to a live one: the retired Skill-Points reveal (V2) reads as Guard. */
+export function foldFieldGate(gate) {
+  const g = gate || "always";
+  return g === "skillPoints" ? "guard" : g;
+}
 
 /** Where a custom field appears. */
 export const TOKEN_FIELD_SURFACES = {
@@ -91,7 +95,7 @@ export function customFieldRows(actor, { full = false, reveals = null, surface =
   const out = [];
   for (const f of tokenFields()) {
     if (!f?.path || (f.surface || "dossier") !== surface) continue;
-    const gate = f.gate || "always";
+    const gate = foldFieldGate(f.gate);
     const visible = gate === "always" ? true : gate === "owner" ? full : (full || !!reveals?.has(gate));
     if (!visible) continue;
     const raw = foundry.utils.getProperty(actor, f.path);
@@ -106,16 +110,16 @@ export function customFieldRows(actor, { full = false, reveals = null, surface =
 }
 
 /**
- * The reveal-gated stat-block view-model shared by the right-click Token Dossier and the Codex
- * Archive. Returns the deeper layers that read straight off an actor's system data — Attributes,
- * Combat Stats, Affinities — plus the GM-authored custom dossier fields. Each section is omitted
+ * The reveal-gated stat-block view-model behind the right-click Token Dossier.
+ * Returns the deeper layers that read straight off an actor's system data — Attributes,
+ * Combat Stats — plus the GM-authored custom dossier fields. Each section is omitted
  * (null / empty array) unless the viewer's gate passes: `full` = owner/GM (sees everything),
  * `reveals` = the viewer's unlocked Scouter category Set (from collectReveals) for any other viewer.
  * Skills (async) and HP/Energy (token-gated via canSeeTokenVitals) stay with each caller.
- * @returns {{attributes: object[]|null, combat: object|null, affinities: object[], customFields: object[]}}
+ * @returns {{attributes: object[]|null, combat: object|null, customFields: object[]}}
  */
 export function actorStatBlock(actor, { full = false, reveals = null } = {}) {
-  if (!actor) return { attributes: null, combat: null, affinities: [], customFields: [] };
+  if (!actor) return { attributes: null, combat: null, customFields: [] };
   const sys = actor.system ?? {};
   const can = (cat) => full || !!reveals?.has(cat);
 
@@ -126,40 +130,12 @@ export function actorStatBlock(actor, { full = false, reveals = null } = {}) {
       }))
     : null;
 
-  const combat = can("combatStats")
-    ? { evasion: sys.evasion?.value ?? 0, defense: sys.defense?.value ?? 0, movement: sys.movement?.value ?? 0 }
+  // The full Combat Stats layer, or Guard alone (the printed Scouter reveals only Guard).
+  const combat = (can("combatStats") || can("guard"))
+    ? { guard: sys.guard?.value ?? 0, movement: sys.movement?.value ?? 0, showMovement: can("combatStats") }
     : null;
 
-  const affinities = [];
-  if (can("affinities")) {
-    for (const [key, level] of Object.entries(sys.affinities ?? {})) {
-      if (!level || level === "none") continue;
-      affinities.push({ key, label: elementLabel(key) || key, level, levelLabel: L(PROJECTANIME.affinityLevels[level] ?? level) });
-    }
-    affinities.sort((a, b) => a.label.localeCompare(b.label));
-  }
-
-  return { attributes, combat, affinities, customFields: customFieldRows(actor, { full, reveals, surface: "dossier" }) };
-}
-
-/** A character/NPC's TOTAL Skill Points: unspent + everything spent + free granted abilities.
- *  Characters use the Skill-Point ledger (`Spent = Σ log.amount`); NPCs (no ledger) fall back
- *  to the derived sum (the advancement `spent` scalar + every owned skill's `spCost`). */
-export function totalSkillPoints(actor) {
-  const sp = actor?.system?.skillPoints;
-  if (!sp) return 0;
-  const value = Number(sp.value) || 0;
-  if (Array.isArray(sp.log)) {
-    const spent = sp.log.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    let granted = 0;
-    for (const item of actor.items ?? []) {
-      if (item.type === "skill" && item.getFlag("project-anime", "granted")) granted += Number(item.system?.spCost) || 0;
-    }
-    return value + spent + granted;
-  }
-  let total = value + (Number(sp.spent) || 0);
-  for (const item of actor.items ?? []) if (item.type === "skill") total += Number(item.system?.spCost) || 0;
-  return total;
+  return { attributes, combat, customFields: customFieldRows(actor, { full, reveals, surface: "dossier" }) };
 }
 
 export class TokenInfoPanel extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -234,7 +210,6 @@ export class TokenInfoPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     // viewer sees a deeper layer only if their own Scouter unlocks that category.
     const reveals = view.owner ? null : viewerReveals();
     const can = (cat) => view.owner || !!reveals?.has(cat);
-    const hasSkillPoints = sys.skillPoints !== undefined;
 
     // HP/Energy visibility ("allies only" hides enemy/neutral vitals from players) — same gate as
     // the on-canvas bars, so the panel never reveals what the bars hide.
@@ -255,7 +230,8 @@ export class TokenInfoPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       // Minion Squad: living / total members (the pooled-HP unit reads "3 / 6 standing").
       squad: sys.squad?.isSquad ? { members: sys.squad.members ?? 0, max: sys.squad.maxMembers ?? 0 } : null,
       energy: { value: energy.value ?? 0, max: energy.max ?? 0, pct: pct(energy.value, energy.max) },
-      sp: { show: hasSkillPoints && can("skillPoints"), value: totalSkillPoints(actor) },
+      // The printed Scouter: the wearer sees the Guard of any creature they can see.
+      guard: { show: can("guard"), value: sys.guard?.value ?? 0 },
       customFields: customFieldRows(actor, { full: view.owner, reveals, surface: "panel" })
     };
   }

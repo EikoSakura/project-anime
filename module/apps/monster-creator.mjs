@@ -1,50 +1,89 @@
 /**
- * Project: Anime — step-by-step Monster Creator.
+ * Project: Anime — step-by-step Monster Creator (V2 enemies).
  *
- * A guided ApplicationV2 that builds a combat NPC ("monster") on the SAME rules as a
- * Player Character — the five Attributes start at d4 and you spend Step-Ups; HP =
- * 6 + ⟪Might⟫×2, Energy = 6 + ⟪Spirit⟫×2 — then scales it by an anime power **Tier** (Minion /
- * Standard / Elite / Solo; see PROJECTANIME.monsterTiers). The Tier sets the Step-Up
- * budget, multiplies HP / Energy, grants flat Evasion / Defense, and hands out Skill
- * Points to build the monster's powers with the in-game Skill Builder.
+ * A guided ApplicationV2 that builds an enemy the way the rules do (Enemies → Building Your
+ * Own): pick a TYPE (a complete stat line — Minion / Standard / Bruiser / Skirmisher / Support /
+ * Elite; see PROJECTANIME.enemyTypes), assign the type's Attribute dice, choose Talents at the
+ * printed die sizes, and write Techniques with the same Skill Browser / Builder players use.
  *
- * It is a deliberately simple STARTING point — generate a reasonable statblock fast,
- * then hand-tune any number on the sheet afterwards (the Tier values live in config and
- * are meant to be rebalanced). Like the Character Creator it operates on the LIVE actor
- * and registers in `actor.apps`, so changes refresh it live; it sets the same
- * `flags.project-anime.creationComplete` on finish.
+ * Picking a type stamps the printed line onto the actor: Hit Boxes, Energy Boxes, Guard
+ * (as `guard.bonus` = printed − base 6), Movement (as `movement.bonus` = printed − unarmored 6)
+ * and the Basic Attack's Damage + Threshold (onto every owned weapon item — the Natural Attack
+ * included). The GM then picks the attack's two accuracy Attributes (the same Attribute may be
+ * chosen twice) or links a Talent, which replaces one die and adds the Trained Edge.
  *
- * Reuses the Character Creator's `.cc-*` stylesheet via the shared `character-creator`
- * class (plus `monster-creator` for the Tier-specific bits).
+ * RIVAL is a designation (Threat 2 — a recurring villain built as a full PC). BOSS starts from
+ * an Elite and applies the Boss line (PROJECTANIME.boss): Bars = ⌈party ÷ 2⌉, each Bar party × 2
+ * hit boxes, 6 Energy Boxes per Bar, Damage 3 / Threshold 11, Guard 9, Movement 5; it acts twice
+ * per Enemy Phase and budgets two Techniques per Bar (a break unlocks the next Bar's).
+ *
+ * Like the Character Creator it operates on the LIVE actor and registers in `actor.apps`, so
+ * changes refresh it live; it sets the same `flags.project-anime.creationComplete` on finish.
+ * Reuses the Character Creator's `.cc-*` stylesheet via the shared `character-creator` class.
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
 import { SkillBrowserApp } from "./skill-browser.mjs";
-import { PROJECTANIME, enemyStrongAttrs, enemyVitals, enemyTierDie, bossBarCount, bossBarHp } from "../helpers/config.mjs";
-import { partyRailStats } from "../helpers/encounter.mjs";
-import { partyTier } from "../helpers/chronicle.mjs";
-import { elementLabel } from "../helpers/elements.mjs";
-import {
-  GEAR_GROUPS, SLOT_ACCEPTS,
-  buildGearContext, slotOccupant, equipToSlot, clearSlot, importDroppedItem, readDrag, draggedItem
-} from "../helpers/gear.mjs";
+import { PROJECTANIME, bossBarCount, bossBarHp, bossThreat, actorTalents } from "../helpers/config.mjs";
+import { formatThreat } from "../helpers/encounter.mjs";
+import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Creation steps, in order (v0.03). FRAME picks the build path + Role + Tier (I–IV) and reads the
- *  finished statblock off a live card. TUNE is Build-Your-Own: trade stats inside the Four Rails.
- *  ABILITIES adds Skills — from the Skill Browser (incl. the preset Twists) or the Skill Builder. */
-const STEPS = ["concept", "frame", "tune", "abilities", "gear", "finish"];
+/** Creation steps, in order (rules: pick a type → assign Attributes → choose Talents → write
+ *  Techniques), book-ended by Concept and Review. */
+const STEPS = ["concept", "type", "attributes", "talents", "techniques", "finish"];
 
-/** The three build paths (rules "Enemies"): copy a tier row, reshape it with a Role + a Twist, or
- *  trade stats yourself. Guidance only — all three write the same Role × Tier statblock; the path just
- *  decides whether the Tune step exposes the trade controls. */
-const BUILD_PATHS = ["row", "reshape", "custom"];
-
-/** Default icon for a freshly-created Basic Attack (natural weapon). */
+/** Default icon for a freshly-created Basic Attack weapon. */
 const NATURAL_WEAPON_IMG = "icons/svg/sword.svg";
+
+/** Starting-Talent loadouts per type (rules: Step 3) — each option is one full loadout. */
+const TALENT_OPTIONS = {
+  minion: [],
+  standard: [[6]],
+  bruiser: [[8]],
+  skirmisher: [[6]],
+  support: [[6]],
+  elite: [[8], [6, 6]]
+};
+
+/** A Boss's Talent loadouts: one at d10, or two at d8. */
+const BOSS_TALENT_OPTIONS = [[10], [8, 8]];
+
+/** Suggested Technique counts per type (display budget; rules: Step 4). */
+const TECHNIQUE_BUDGET = { minion: "0", standard: "1–2", bruiser: "1–2", skirmisher: "1–2", support: "2", elite: "2" };
 
 /** Stable ordering: by sort, then name. */
 const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
+
+/** An enemy Type's printed stat line as rich tooltip HTML — the same `.pa-tooltip` card the
+ *  Style pickers use (glyph head, labeled stat rows), with Threat leading the rows. */
+function typeTooltipHTML(t) {
+  const L = (k) => game.i18n.localize(k);
+  const row = (icon, key, value) =>
+    `<div class="pa-tt-row"><span class="k"><i class="fa-solid ${icon}"></i> ${L(key)}</span><span class="v">${value}</span></div>`;
+  const rows = [
+    row("fa-skull", "PROJECTANIME.Threat.label", formatThreat(t.threat)),
+    row("fa-heart", "PROJECTANIME.Stat.hp", t.hb),
+    row("fa-bolt", "PROJECTANIME.Stat.energy", t.eb),
+    row("fa-shield", "PROJECTANIME.Stat.guard", t.guard),
+    row("fa-shoe-prints", "PROJECTANIME.Stat.movement", t.movement),
+    row("fa-burst", "PROJECTANIME.Roll.damage", t.damage),
+    row("fa-bullseye", "PROJECTANIME.Field.threshold", t.threshold)
+  ];
+  return `<div class="pa-tt-head"><span class="pa-tt-img pa-tt-glyph" style="--tier-color: ${t.color}"><i class="${t.icon}"></i></span>`
+    + `<div class="pa-tt-heads"><div class="pa-tt-title">${L(t.label)}</div>`
+    + `<div class="pa-tt-type">${L("PROJECTANIME.MonsterCreator.step.type")}</div></div></div>`
+    + `<div class="pa-tt-body"><div class="pa-tt-rows">${rows.join("")}</div></div>`;
+}
+
+/** The live party size — unique Characters across every Party folder (4 when there's no roster). */
+function livePartySize() {
+  const seen = new Set();
+  for (const p of partyActors()) {
+    for (const m of partyMembers(p)) if (m?.type === "character") seen.add(m.id);
+  }
+  return seen.size || 4;
+}
 
 export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(actor, options = {}) {
@@ -54,7 +93,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
 
   static DEFAULT_OPTIONS = {
     // `character-creator` pulls in the shared creator stylesheet; `monster-creator`
-    // carries the Tier-specific deltas.
+    // carries the enemy-specific deltas.
     classes: ["project-anime", "character-creator", "monster-creator"],
     tag: "form",
     position: { width: 660, height: "auto" },
@@ -65,30 +104,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       stepBack: MonsterCreatorApp.#onStepBack,
       gotoStep: MonsterCreatorApp.#onGotoStep,
       pickImage: MonsterCreatorApp.#onPickImage,
-      pickPath: MonsterCreatorApp.#onPickPath,
-      pickRole: MonsterCreatorApp.#onPickRole,
-      pickTier: MonsterCreatorApp.#onPickTier,
+      pickType: MonsterCreatorApp.#onPickType,
       toggleRival: MonsterCreatorApp.#onToggleRival,
       toggleBoss: MonsterCreatorApp.#onToggleBoss,
-      pickStrong: MonsterCreatorApp.#onPickStrong,
-      recalcVitals: MonsterCreatorApp.#onRecalcVitals,
-      browseSkills: MonsterCreatorApp.#onBrowseSkills,
       addAttack: MonsterCreatorApp.#onAddAttack,
       editAttack: MonsterCreatorApp.#onEditAttack,
       removeAttack: MonsterCreatorApp.#onRemoveAttack,
+      addTalent: MonsterCreatorApp.#onAddTalent,
+      removeTalent: MonsterCreatorApp.#onRemoveTalent,
+      browseSkills: MonsterCreatorApp.#onBrowseSkills,
       openSkillBuilder: MonsterCreatorApp.#onOpenSkillBuilder,
       removeSkill: MonsterCreatorApp.#onRemoveSkill,
-      // Gear step — the same loadout actions the actor sheet's Gear drawer uses.
-      selectBag: MonsterCreatorApp.#onSelectBag,
-      toggleEquip: MonsterCreatorApp.#onToggleEquip,
-      unequipSlot: MonsterCreatorApp.#onUnequipSlot,
-      cycleShieldUse: MonsterCreatorApp.#onCycleShieldUse,
-      pickSlot: MonsterCreatorApp.#onPickSlot,
-      createItem: MonsterCreatorApp.#onCreateItem,
-      createMenu: MonsterCreatorApp.#onCreateMenu,
-      editItem: MonsterCreatorApp.#onEditItem,
-      deleteItem: MonsterCreatorApp.#onDeleteItem,
-      rollItem: MonsterCreatorApp.#onRollItem,
       finish: MonsterCreatorApp.#onFinish
     }
   };
@@ -100,49 +126,52 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /** Current step index. */
   #step = 0;
 
-  /** Selected inventory bag (container id, "" = backpack) on the Gear step. */
-  #selectedBag = "";
-
-  /** Chosen build path (row / reshape / custom) — guidance + gates the Tune trade controls. */
-  #path = "row";
+  /** Manual party-size override for the Boss Bars (null = read the live roster). */
+  #partySizeOverride = null;
 
   get title() {
     return `${game.i18n.localize("PROJECTANIME.MonsterCreator.title")} — ${this.actor.name}`;
   }
 
   /* -------------------------------------------- */
-  /*  Role / Tier helpers                         */
+  /*  Type helpers                                */
   /* -------------------------------------------- */
 
-  /** The selected Role's config entry, or null while unset. */
-  #role() {
-    const key = this.actor.system.enemyRole;
-    return key ? PROJECTANIME.enemyRoles[key] : null;
+  /** The selected Type's config entry, or null while unset. */
+  #type() {
+    const key = this.actor.system.npcType;
+    return key ? PROJECTANIME.enemyTypes[key] : null;
   }
 
-  /** The selected Tier (1–4; 0 = unpicked). */
-  #tierNum() {
-    return Number(this.actor.system.enemyTier) || 0;
+  #isBoss() {
+    return !!this.actor.system.boss?.enabled;
   }
 
-  /** The resolved Strong-Attribute set (Role's fixed pair, or the Elite's stored three). */
-  #strong() {
-    return enemyStrongAttrs(this.actor.system.enemyRole, this.actor.system.strongAttrs);
+  /** The printed stat line in force — the Boss line overrides the Type's while enabled. */
+  #line() {
+    return this.#isBoss() ? PROJECTANIME.boss : this.#type();
   }
 
-  /** This monster's derived HP / EP under the v0.03 Role × Tier model. */
-  #vitals() {
-    return enemyVitals(this.actor.system.enemyRole, this.#tierNum(), this.#strong());
-  }
-
-  /** The party size for Boss Bars + the Four Rails (live roster, else an assumed 4). */
-  #partySize() {
-    return partyRailStats()?.size ?? 4;
-  }
-
-  /** Both Role AND Tier chosen — the minimum for a real statblock. */
+  /** A Type (or the Boss line, or the Rival designation) chosen — the minimum for a statblock. */
   #framed() {
-    return !!this.#role() && this.#tierNum() >= 1;
+    return !!this.#type() || this.#isBoss() || !!this.actor.system.rival;
+  }
+
+  /** The party size for the Boss Bars (manual override, else the live roster). */
+  #partySize() {
+    return this.#partySizeOverride ?? livePartySize();
+  }
+
+  /** The Attribute-die budget in force (Boss three d10 + two d6; else the Type's array). */
+  #attrBudget() {
+    if (this.#isBoss()) return PROJECTANIME.boss.attrs;
+    return this.#type()?.attrs ?? null;
+  }
+
+  /** The Talent loadout options in force (Boss: one d10 or two d8). */
+  #talentOptions() {
+    if (this.#isBoss()) return BOSS_TALENT_OPTIONS;
+    return TALENT_OPTIONS[this.actor.system.npcType] ?? [];
   }
 
   /* -------------------------------------------- */
@@ -155,24 +184,25 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     const sys = this.actor.system;
     const stepKey = STEPS[this.#step];
     const ctx = { config: cfg };
+    const L = (k) => game.i18n.localize(k);
 
     ctx.steps = STEPS.map((k, i) => ({
       key: k,
       num: i + 1,
-      label: game.i18n.localize(`PROJECTANIME.MonsterCreator.step.${k}`),
+      label: L(`PROJECTANIME.MonsterCreator.step.${k}`),
       index: i,
       active: i === this.#step,
       done: i < this.#step
     }));
     ctx.stepLabel = game.i18n.format("PROJECTANIME.MonsterCreator.stepOf", { n: this.#step + 1, total: STEPS.length });
-    ctx.stepTitle = game.i18n.localize(`PROJECTANIME.MonsterCreator.step.${stepKey}`);
+    ctx.stepTitle = L(`PROJECTANIME.MonsterCreator.step.${stepKey}`);
     ctx.isFirst = this.#step === 0;
     ctx.isLast = this.#step === STEPS.length - 1;
     ctx.onConcept = stepKey === "concept";
-    ctx.onFrame = stepKey === "frame";
-    ctx.onTune = stepKey === "tune";
-    ctx.onAbilities = stepKey === "abilities";
-    ctx.onGear = stepKey === "gear";
+    ctx.onType = stepKey === "type";
+    ctx.onAttributes = stepKey === "attributes";
+    ctx.onTalents = stepKey === "talents";
+    ctx.onTechniques = stepKey === "techniques";
     ctx.onFinish = stepKey === "finish";
 
     // Identity.
@@ -181,82 +211,125 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.biography = sys.biography ?? "";
     ctx.disposition = sys.disposition ?? "hostile";
 
-    const L = (k) => game.i18n.localize(k);
-
-    // Build path — guidance + gates the Tune trade controls (Build Your Own).
-    ctx.path = this.#path;
-    ctx.pathCustom = this.#path === "custom";
-    ctx.paths = BUILD_PATHS.map((k) => ({ key: k, label: L(`PROJECTANIME.MonsterCreator.path.${k}`), selected: this.#path === k }));
-
-    // Role cards — the 7 Roles, each with its Threat and Strong Attributes.
-    ctx.enemyRole = sys.enemyRole ?? "";
-    ctx.roles = cfg.enemyRoleKeys.map((k) => {
-      const r = cfg.enemyRoles[k];
-      const strong = Array.isArray(r.strong) ? r.strong : null;
+    // Type tiles — glyph + name on the face; the printed stat line lives in the hover tooltip
+    // (matches the Character Creator's Weapon/Armor Style cards).
+    ctx.npcType = sys.npcType ?? "";
+    ctx.types = cfg.enemyTypeKeys.map((k) => {
+      const t = cfg.enemyTypes[k];
       return {
-        key: k, label: L(r.label), icon: r.icon, color: r.color,
-        threat: r.threat,
-        strong: (strong ?? []).map((a) => L(cfg.attributes[a])),
-        anyThree: !strong,
-        selected: sys.enemyRole === k
+        key: k, label: L(t.label), icon: t.icon, color: t.color,
+        tooltip: typeTooltipHTML(t),
+        selected: sys.npcType === k
       };
     });
 
-    // Tier buttons I–IV — the Strong / Weak dice each grants.
-    ctx.enemyTier = this.#tierNum();
-    ctx.tiers = cfg.enemyTierKeys.map((t) => ({
-      key: t, numeral: cfg.enemyTierNumerals[t],
-      strong: `d${enemyTierDie(t, true)}`, weak: `d${enemyTierDie(t, false)}`,
-      selected: this.#tierNum() === t
-    }));
-
     // Rival / Boss flags + whether the frame is complete.
     ctx.rival = !!sys.rival;
-    ctx.boss = !!sys.boss?.enabled;
+    ctx.boss = this.#isBoss();
     ctx.framed = this.#framed();
 
-    // Elite (or Boss) picks three Strong Attributes.
-    const strongSet = this.#strong();
-    ctx.picksStrong = (sys.enemyRole === "elite") || ctx.boss;
-    ctx.strongPicks = cfg.attributeKeys.map((k) => ({
-      key: k, label: L(cfg.attributes[k]), icon: cfg.attributeIcons?.[k] ?? "", on: strongSet.includes(k)
-    }));
-
-    // Derived statblock — the finished numbers this build stores (read the chart).
-    ctx.stat = {
-      hp: sys.hp.max,
-      energy: sys.energy.base ?? sys.energy.max,
-      atk: sys.atk.value, matk: sys.matk.value,
-      defense: sys.defense.value, res: sys.res.value,
-      evasion: sys.evasion.value, as: sys.as.value, movement: sys.movement.value
-    };
-    ctx.magic = !!this.#role()?.magic;   // Caster attacks target RES
-    // A stored statblock drifts from the Role × Tier chart only if a stat was hand-edited then the Role
-    // changed; the Recalc button re-seeds HP/EP + role deltas.
-    const fresh = this.#framed() ? this.#vitals() : null;
-    ctx.vitalsStale = !!fresh && ((sys.energy.base ?? sys.energy.max) !== fresh.energy);
-
-    // Four Rails audit vs the party (or a Tempered tier row when there are no sheets).
-    ctx.rails = this.#framed() ? this.#railsAudit() : null;
-
-    // Boss Bars readout.
+    // Boss readout — Bars × per-Bar boxes, the party size driving them, and the display notes
+    // (acts twice per Enemy Phase; 6 Energy Boxes per Bar; two Techniques per Bar, a break
+    // unlocks the next Bar's).
     ctx.bossBars = ctx.boss ? {
       count: Number(sys.boss.bars) || 0,
       barHp: Number(sys.boss.barHp) || 0,
-      total: (Number(sys.boss.bars) || 0) * (Number(sys.boss.barHp) || 0)
+      partySize: this.#partySize()
     } : null;
 
-    // Basic Attacks — natural weapons. The rules' "Basic Attack" strikes with an equipped
-    // weapon and costs NO Energy (and no Skill Points); these roll through rollAttack from
-    // the NPC's quick-attack panel. Built/renamed inline here, fully tunable on the item sheet.
+    // Derived statblock — the printed numbers this build stores.
+    const attack = this.actor.items.filter((i) => i.type === "weapon").sort(bySort)[0] ?? null;
+    const line = this.#line();
+    ctx.stat = ctx.framed ? {
+      hb: sys.hp.max,
+      eb: sys.energy.base ?? sys.energy.max,
+      guard: sys.guard.value,
+      movement: sys.movement.value,
+      damage: attack ? (Number(attack.system.damage?.value) || 0) : (line?.damage ?? 1),
+      threshold: attack ? (Number(attack.system.threshold) || 0) : (line?.threshold ?? 10)
+    } : null;
+    ctx.attrDice = cfg.attributeKeys.map((k) => ({
+      key: k,
+      label: L(cfg.attributeAbbr[k]),
+      die: `d${sys.attributes[k]?.base ?? 4}`
+    }));
+
+    // Attribute assignment — one die select per Attribute, audited against the budget chips.
+    const budget = this.#attrBudget();
+    ctx.attributes = cfg.attributeKeys.map((k) => ({
+      key: k,
+      label: L(cfg.attributes[k]),
+      icon: cfg.attributeIcons?.[k] ?? "",
+      base: sys.attributes[k]?.base ?? 4,
+      options: [4, 6, 8, 10, 12].map((d) => ({ value: d, label: `d${d}`, selected: (sys.attributes[k]?.base ?? 4) === d }))
+    }));
+    if (budget) {
+      const need = {};
+      for (const d of budget) need[d] = (need[d] ?? 0) + 1;
+      const used = {};
+      for (const k of cfg.attributeKeys) {
+        const d = sys.attributes[k]?.base ?? 4;
+        used[d] = (used[d] ?? 0) + 1;
+      }
+      ctx.attrBudget = Object.keys(need).map(Number).sort((a, b) => b - a).map((d) => ({
+        die: `d${d}`, need: need[d], used: used[d] ?? 0, ok: (used[d] ?? 0) === need[d]
+      }));
+      // Off-budget when the assigned multiset differs from the printed one in any way.
+      ctx.attrBudgetOff = Object.keys({ ...need, ...used }).some((d) => (need[d] ?? 0) !== (used[d] ?? 0));
+    } else {
+      ctx.attrBudget = null;
+      ctx.attrBudgetOff = false;
+    }
+
+    // Embedded Talents (`system.talents`) — inline-editable rows (name · die · primary Attribute).
+    const talents = actorTalents(this.actor);
+    ctx.talents = talents.map((t) => ({
+      id: t.id,
+      name: t.name,
+      die: t.die,
+      dieOptions: [4, 6, 8, 10, 12].map((d) => ({ value: d, label: `d${d}`, selected: t.die === d })),
+      attrOptions: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: t.attribute === k }))
+    }));
+    ctx.talentCount = talents.length;
+    // The printed loadouts ("1 × d8" / "2 × d6") + one quick-add button per distinct die.
+    const options = this.#talentOptions();
+    ctx.talentBudget = options.map((set) => {
+      const per = {};
+      for (const d of set) per[d] = (per[d] ?? 0) + 1;
+      return Object.keys(per).map((d) => `${per[d]} × d${d}`).join(" + ");
+    });
+    const addDice = [...new Set(options.flat())].sort((a, b) => b - a);
+    ctx.talentAdds = (addDice.length ? addDice : [6]).map((d) => ({
+      die: d,
+      label: addDice.length
+        ? game.i18n.format("PROJECTANIME.MonsterCreator.addTalentDie", { die: d })
+        : L("PROJECTANIME.MonsterCreator.addTalent")
+    }));
+
+    // Basic Attacks — weapon items (the Natural Attack included). Each row exposes the two
+    // accuracy Attributes (the same Attribute may be chosen twice) and the Talent link that
+    // replaces one die and adds the Trained Edge.
     ctx.attacks = this.actor.items
       .filter((i) => i.type === "weapon")
       .sort(bySort)
-      .map((i) => ({ id: i.id, name: i.name, img: i.img, summary: this.#attackSummary(i) }));
+      .map((i) => {
+        const acc = i.system.accuracy ?? {};
+        return {
+          id: i.id,
+          name: i.name,
+          img: i.img,
+          natural: !!i.getFlag("project-anime", "natural"),
+          damage: Number(i.system.damage?.value) || 0,
+          threshold: Number(i.system.threshold) || 0,
+          attrA: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: acc.attrA === k })),
+          attrB: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: acc.attrB === k })),
+          talentOptions: talents.map((t) => ({ value: t.id, label: `${t.name} (d${t.die})`, selected: i.system.talentId === t.id }))
+        };
+      });
     ctx.attackCount = ctx.attacks.length;
 
-    // Abilities — the Skills on this monster (built, browsed, or the preset Twists). Enemies have no
-    // Skill Points; EP fuels active Skills. Twist-flagged Skills wear a small marker in the list.
+    // Techniques — built with the Skill Builder or picked from the Skill Browser. The Type sets
+    // the suggested count; a Support wants at least one Heal or Empower (soft note only).
     ctx.skills = this.actor.items
       .filter((i) => i.type === "skill")
       .sort(bySort)
@@ -264,70 +337,61 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         id: i.id,
         name: i.name,
         img: i.img,
-        cost: i.system.actionType === "passive" ? L("PROJECTANIME.Skill.passive")
-          : (i.system.perConflict ? L("PROJECTANIME.Skill.perConflict") : `${i.system.energyCost ?? 0} EP`),
-        actionLabel: L(cfg.actionTypes[i.system.actionType] ?? ""),
-        passive: i.system.actionType === "passive",
-        twist: !!i.getFlag("project-anime", "twist")
+        cost: i.system.actionType === "passive" ? L("PROJECTANIME.Skill.passive") : `${i.system.energyCost ?? 0} EP`,
+        actionLabel: L(cfg.actionTypes[i.system.actionType] ?? "")
       }));
     ctx.skillCount = ctx.skills.length;
+    // A Boss budgets two Techniques per Bar (total shown; a break unlocks the next Bar's).
+    ctx.techBudget = ctx.boss
+      ? String(PROJECTANIME.boss.techniquesPerBar * (Number(sys.boss.bars) || 1))
+      : (TECHNIQUE_BUDGET[sys.npcType] ?? "");
+    ctx.supportNote = sys.npcType === "support" && !ctx.boss
+      && !this.actor.items.some((i) => i.type === "skill"
+        && (["mend", "bolster"].includes(i.system.effect) || ["mend", "bolster"].includes(i.system.secondaryEffect)));
 
-    // Review (last step) — a compact summary badge (Role · Tier + Rival/Boss + Threat).
-    ctx.reviewBadge = this.#role()
-      ? { label: L(this.#role().label), icon: this.#role().icon, color: this.#role().color,
-          tierNumeral: cfg.enemyTierNumerals[this.#tierNum()],
-          rival: ctx.rival, boss: ctx.boss,
-          threat: ctx.rival ? 3 : (ctx.boss ? this.#partySize() : this.#role().threat) }
-      : null;
-
-    // Gear step — the same carried-gear UI players get on the actor sheet (paperdoll + bags + grid,
-    // via helpers/gear.mjs → gear-body.hbs), plus a live Defense/Evasion readout so the GM sees armor
-    // take effect. Only built while on the step; buildGearContext also corrects a stale selected bag.
-    if (ctx.onGear) {
-      ctx.actor = this.actor;
-      ctx.system = sys;
-      ctx.editable = this.actor.isOwner;
-      const gear = buildGearContext(this.actor, { selectedBag: this.#selectedBag });
-      this.#selectedBag = gear.selectedBag;
-      Object.assign(ctx, gear);   // paperdoll, bags, bagItems, selectedBag
-      ctx.defense = sys.defense.value;
-      ctx.evasion = sys.evasion.value;
-    }
+    // Review (last step) — a compact summary badge (Type + Rival/Boss + Threat).
+    const typeCfg = this.#type();
+    ctx.reviewBadge = ctx.framed ? {
+      label: typeCfg ? L(typeCfg.label) : "",
+      icon: typeCfg?.icon ?? "",
+      color: ctx.boss ? "#9c4f6c" : ctx.rival ? "#c08a3e" : (typeCfg?.color ?? "var(--pa-line)"),
+      rival: ctx.rival,
+      boss: ctx.boss,
+      threat: formatThreat(ctx.boss ? bossThreat(this.#partySize()) : ctx.rival ? cfg.rivalThreat : (typeCfg?.threat ?? 1))
+    } : null;
 
     return ctx;
-  }
-
-  /** A compact "⟪A⟫ + ⟪B⟫ · Type · Melee N" line describing a Basic Attack (natural weapon). */
-  #attackSummary(item) {
-    const cfg = CONFIG.PROJECTANIME;
-    const s = item.system ?? {};
-    const acc = s.accuracy ?? {};
-    const a = game.i18n.localize(cfg.attributes[acc.attrA] ?? acc.attrA ?? "");
-    const b = game.i18n.localize(cfg.attributes[acc.attrB] ?? acc.attrB ?? "");
-    const accMod = Number(acc.mod) || 0;
-    const accStr = `⟪${a}⟫ + ⟪${b}⟫${accMod ? ` ${accMod > 0 ? "+" : "−"}${Math.abs(accMod)}` : ""}`;
-    const dmgMod = Number(s.damage?.mod) || 0;
-    const dmgStr = `${dmgMod ? `${dmgMod > 0 ? "+" : "−"}${Math.abs(dmgMod)} ` : ""}${elementLabel(s.damage?.type)}`;
-    const rangeType = game.i18n.localize(cfg.rangeTypes[s.range?.type] ?? s.range?.type ?? "");
-    const rangeStr = `${rangeType} ${Number(s.range?.tiles) || 0}`;
-    return `${accStr} · ${dmgStr} · ${rangeStr}`;
   }
 
   /* -------------------------------------------- */
   /*  Render lifecycle                            */
   /* -------------------------------------------- */
 
-  /** @override — live-refresh on actor changes by joining the document app registry. */
+  /** @override — live-refresh on actor changes by joining the document app registry. All inline
+   *  row controls are intentionally UNNAMED so the actor form #sync never reads them; each
+   *  commits straight to its document on change. */
   async _onRender(context, options) {
     await super._onRender(context, options);
     this.actor.apps[this.id] = this;
-    // Inline rename for Basic Attack rows. The input is intentionally unnamed so the actor
-    // form #sync never reads it; commit straight to the weapon item on change (blur).
+    // Attribute die selects (Attributes step).
+    for (const sel of this.element.querySelectorAll(".mc-attr-select")) {
+      sel.addEventListener("change", (ev) => this.#commitAttribute(ev.currentTarget));
+    }
+    // Basic Attack rows: inline rename + accuracy Attribute / Talent-link selects.
     for (const input of this.element.querySelectorAll(".cc-attack-name")) {
       input.addEventListener("change", (ev) => this.#commitAttackName(ev.currentTarget));
     }
-    // Gear step: wire drag-drop (compendium/sidebar copy + paperdoll/bag equip zones).
-    if (this.actor.isOwner && STEPS[this.#step] === "gear") this.#bindGearDnD();
+    for (const sel of this.element.querySelectorAll(".mc-attack-sel")) {
+      sel.addEventListener("change", (ev) => this.#commitAttackField(ev.currentTarget));
+    }
+    // Talent rows: inline rename + die / primary-Attribute selects.
+    for (const el of this.element.querySelectorAll(".mc-talent-name, .mc-talent-sel")) {
+      el.addEventListener("change", (ev) => this.#commitTalentField(ev.currentTarget));
+    }
+    // Boss party-size override → recompute the Bars.
+    for (const input of this.element.querySelectorAll(".mc-party-size")) {
+      input.addEventListener("change", (ev) => this.#commitPartySize(ev.currentTarget));
+    }
   }
 
   _onClose(options) {
@@ -363,14 +427,12 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     await this.#sync();
     if (!this.#validateStep()) return;
     if (this.#step < STEPS.length - 1) this.#step += 1;
-    await this.#onEnterStep();
     this.render();
   }
 
   static async #onStepBack() {
     await this.#sync();
     if (this.#step > 0) this.#step -= 1;
-    await this.#onEnterStep();
     this.render();
   }
 
@@ -378,22 +440,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     await this.#sync();
     const i = Number(target.dataset.step);
     if (i >= 0 && i < STEPS.length) this.#step = i;
-    await this.#onEnterStep();
     this.render();
   }
 
-  /** Block leaving the Frame step until both a Role AND a Tier are chosen (the minimum statblock). */
+  /** Block leaving the Type step until a Type is chosen (a Rival or Boss counts as framed). */
   #validateStep() {
-    const key = STEPS[this.#step];
-    if ((key === "frame" || key === "tune") && !this.#framed()) {
-      ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.pickRoleTierFirst"));
+    if (STEPS[this.#step] === "type" && !this.#framed()) {
+      ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.pickTypeFirst"));
       return false;
     }
     return true;
   }
-
-  /** No per-step side effects — the Role/Tier picks already write the statblock live. */
-  async #onEnterStep() {}
 
   /* -------------------------------------------- */
   /*  Concept                                     */
@@ -412,229 +469,125 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /* -------------------------------------------- */
-  /*  Frame — build path, Role, Tier              */
+  /*  Type (stat line · Rival · Boss)             */
   /* -------------------------------------------- */
 
-  /** Pick a build path (guidance only; gates the Tune trade controls). */
-  static #onPickPath(event, target) {
-    const key = target.closest("[data-path]")?.dataset.path;
-    if (BUILD_PATHS.includes(key)) { this.#path = key; this.render(); }
-  }
-
-  /** Pick a Role: stamp it (reset the Elite strong-pick when leaving Elite) and re-derive the block. */
-  static async #onPickRole(event, target) {
-    const key = target.closest("[data-role]")?.dataset.role;
-    if (!PROJECTANIME.enemyRoles[key]) return;
-    const update = { "system.enemyRole": key };
-    // A fixed Role owns its Strong set; clear a stale Elite pick so the derived dice don't linger.
-    if (key !== "elite") update["system.strongAttrs"] = [];
-    await this.actor.update(update);
-    await this.#applyRoleTier();
+  /** Pick a Type: stamp its key, then write the printed line + seed the Attribute dice. */
+  static async #onPickType(event, target) {
+    const key = target.closest("[data-type]")?.dataset.type;
+    if (!PROJECTANIME.enemyTypes[key]) return;
+    await this.actor.update({ "system.npcType": key });
+    await this.#applyLine({ seedAttrs: true });
     this.render();
   }
 
-  /** Pick a Tier I–IV (toggle off by clicking the current one) and re-derive the block. */
-  static async #onPickTier(event, target) {
-    const t = Number(target.closest("[data-tier]")?.dataset.tier) || 0;
-    if (!(t >= 1 && t <= 4)) return;
-    const next = (t === this.#tierNum()) ? 0 : t;
-    await this.actor.update({ "system.enemyTier": next });
-    await this.#applyRoleTier();
-    this.render();
-  }
-
-  /** Toggle the Rival flag (a full-PC-rules villain; Elite + 1 Threat). */
+  /** Toggle the Rival designation (a recurring villain built as a full PC; Threat 2). */
   static async #onToggleRival() {
     await this.actor.update({ "system.rival": !this.actor.system.rival });
     this.render();
   }
 
-  /** Toggle the Boss flag — a Boss is an Elite whose HP becomes Bars. Enabling it sets the Role to
-   *  Elite and computes Bars (⌈party ÷ 2⌉) + Bar HP (8/10/12/14 × party by Tier); disabling restores
-   *  normal HP from the Role × Tier chart. */
+  /** Toggle the Boss flag — a Boss starts from an Elite and swaps its hit boxes for Bars.
+   *  Enabling sets the Type to Elite and applies the Boss line; disabling restores the Type's. */
   static async #onToggleBoss() {
     const on = !this.actor.system.boss?.enabled;
     const update = { "system.boss.enabled": on };
-    if (on && this.actor.system.enemyRole !== "elite") update["system.enemyRole"] = "elite";
+    if (on && this.actor.system.npcType !== "elite") update["system.npcType"] = "elite";
     await this.actor.update(update);
-    await this.#applyRoleTier();
-    this.render();
-  }
-
-  /** Toggle one of an Elite's three Strong Attributes (exactly three; ignore a 4th pick). */
-  static async #onPickStrong(event, target) {
-    const key = target.closest("[data-attr]")?.dataset.attr;
-    if (!PROJECTANIME.attributeKeys.includes(key)) return;
-    const cur = new Set(this.#strong());
-    if (cur.has(key)) cur.delete(key);
-    else { if (cur.size >= 3) return ui.notifications.warn(game.i18n.localize("PROJECTANIME.EnemyRole.strongPickHint")); cur.add(key); }
-    await this.actor.update({ "system.strongAttrs": [...cur] });
-    await this.#applyRoleTier();
-    this.render();
-  }
-
-  static async #onRecalcVitals() {
-    await this.#applyRoleTier();
+    await this.#applyLine({ seedAttrs: true });
     this.render();
   }
 
   /**
-   * Write the finished statblock from the Role × Tier: the attribute dice derive live (data model), so
-   * here we only stamp the Role's flat stat DELTAS onto the `.bonus` fields, store HP / EP, flip a
-   * Caster's Basic Attacks to a magical (Mind) accuracy so they target RES, and (for a Boss) compute
-   * the Bars. No-op until both Role and Tier are chosen.
+   * Write the printed stat line onto the actor: HB / EB, Guard as a bonus over the base 6,
+   * Movement as a bonus over the unarmored 6, the attack Damage + Threshold onto every owned
+   * weapon and (optionally) the Attribute dice seeded largest-first. For a Boss, hit boxes
+   * become Bars (count from the party size; the token bar shows ONE Bar) and Energy is 6 per Bar.
    */
-  async #applyRoleTier() {
-    if (!this.#framed()) return;
-    const role = this.#role();
-    const d = role.deltas ?? {};
-    const { hp, energy } = this.#vitals();
-    const boss = !!this.actor.system.boss?.enabled;
+  async #applyLine({ seedAttrs = false } = {}) {
+    const line = this.#line();
+    if (!line) return;
     const update = {
-      // Role deltas → the derived-stat bonuses (overwrite, so re-picking a Role never stacks).
-      "system.atk.bonus": Number(d.atk) || 0,
-      "system.matk.bonus": Number(d.atk) || 0,
-      "system.defense.bonus": Number(d.defense) || 0,
-      "system.res.bonus": Number(d.res) || 0,
-      "system.evasion.bonus": Number(d.evasion) || 0,
-      "system.as.bonus": Number(d.as) || 0,
-      "system.movement.bonus": Number(d.movement) || 0,
-      "system.energy.max": energy,
-      "system.energy.value": energy
+      "system.guard.bonus": (Number(line.guard) || 0) - PROJECTANIME.baseGuard,
+      "system.movement.bonus": (Number(line.movement) || 0) - PROJECTANIME.armorStyles.unarmored.movement
     };
-    if (boss) {
-      // Boss: HP becomes Bars. hp.max shows ONE Bar; the Bar count + per-Bar HP drive the rest.
+    if (this.#isBoss()) {
       const size = this.#partySize();
       const bars = bossBarCount(size);
-      const barHp = bossBarHp(this.#tierNum(), size);
+      const barHp = bossBarHp(size);
       update["system.boss.bars"] = bars;
       update["system.boss.barHp"] = barHp;
       update["system.boss.remaining"] = bars;
       update["system.boss.broken"] = 0;
-      update["system.boss.resolveUsed"] = false;
       update["system.hp.max"] = barHp;
       update["system.hp.value"] = barHp;
+      update["system.energy.max"] = PROJECTANIME.boss.energyPerBar;
+      update["system.energy.value"] = PROJECTANIME.boss.energyPerBar;
     } else {
-      update["system.hp.max"] = hp;
-      update["system.hp.value"] = hp;
+      update["system.hp.max"] = line.hb;
+      update["system.hp.value"] = line.hb;
+      update["system.energy.max"] = line.eb;
+      update["system.energy.value"] = line.eb;
+    }
+    if (seedAttrs) {
+      const dice = [...(this.#attrBudget() ?? [])].sort((a, b) => b - a);
+      PROJECTANIME.attributeKeys.forEach((k, i) => {
+        update[`system.attributes.${k}.base`] = dice[i] ?? 4;
+      });
     }
     await this.actor.update(update);
-    // Caster: its Basic Attacks target RES — a magical strike rolls off Mind (dice.mjs keys defenseKey
-    // to the accuracy Attributes). Flip any natural/equipped weapon's accuracy to Mind + Spirit.
-    if (role.magic) await this.#retuneAttacksMagical(true);
-    else await this.#retuneAttacksMagical(false);
+    await this.#stampAttacks();
   }
 
-  /** Point every Basic Attack's accuracy at Mind+Spirit (magical → targets RES) or Might+Agility
-   *  (physical → targets DEF), matching the Role. Only touches weapons on this monster. */
-  async #retuneAttacksMagical(magical) {
-    const updates = [];
-    for (const it of this.actor.items) {
-      if (it.type !== "weapon") continue;
-      const acc = it.system?.accuracy ?? {};
-      const want = magical ? { attrA: "mind", attrB: "spirit" } : { attrA: "might", attrB: "agility" };
-      if (acc.attrA !== want.attrA || acc.attrB !== want.attrB) {
-        updates.push({ _id: it.id, "system.accuracy.attrA": want.attrA, "system.accuracy.attrB": want.attrB });
-      }
-    }
+  /** Stamp the printed Damage + Threshold onto every owned weapon (the Basic Attacks). */
+  async #stampAttacks() {
+    const line = this.#line();
+    if (!line) return;
+    const updates = this.actor.items
+      .filter((i) => i.type === "weapon")
+      .filter((i) => (Number(i.system.damage?.value) || 0) !== line.damage || (Number(i.system.threshold) || 0) !== line.threshold)
+      .map((i) => ({ _id: i.id, "system.damage.value": line.damage, "system.threshold": line.threshold }));
     if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
   }
 
-  /**
-   * The Four Rails audit vs the party (rules "Build Your Own"): ATK ≤ lowest party DEF + 6 · DEF ≤
-   * lowest party ATK − 2 · AS ≤ slowest party AS + 4 (a deliberate Skirmisher is exempt) · EVA ≤
-   * 7 + party Tier (doc v0.03 revised). With no party sheets, run against a Tempered tier row (a
-   * same-Tier Grunt + 1 ATK/DEF at Tier III, +2 at IV; the EVA rail reads the monster's own Tier).
-   * Returns one row per rail {key, ok, actual, limit, exempt}. This IS the Forecast for now.
-   */
-  #railsAudit() {
-    const sys = this.actor.system;
-    const tier = this.#tierNum();
-    const skirmisher = this.actor.system.enemyRole === "skirmisher";
-    const enemyAtk = this.#role()?.magic ? sys.matk.value : sys.atk.value;
-    let ref = partyRailStats();
-    let evaTier = partyTier();
-    if (!ref) {
-      // Tempered tier row = a same-Tier Grunt (Might/Agility strong), + temper at Tier III/IV.
-      const strong = enemyTierDie(tier, true);
-      const temper = tier >= 4 ? 2 : (tier >= 3 ? 1 : 0);
-      ref = {
-        lowestDef: Math.floor(strong / 2) + temper,   // Grunt DEF = floor(Might/2)
-        lowestAtk: strong + 3 + temper,               // Might + a basic weapon
-        slowestAs: strong                             // Agility, no bulk
-      };
-      evaTier = tier;
-    }
-    const rails = [
-      { key: "damageIn",  actual: enemyAtk,        limit: ref.lowestDef + 6 },
-      { key: "damageOut", actual: sys.defense.value, limit: ref.lowestAtk - 2 },
-      { key: "speed",     actual: sys.as.value,    limit: ref.slowestAs + 4, exempt: skirmisher },
-      { key: "evasion",   actual: sys.evasion.value, limit: 7 + evaTier }
-    ];
-    return rails.map((r) => ({
-      key: r.key,
-      label: game.i18n.localize(`PROJECTANIME.MonsterCreator.rail.${r.key}`),
-      actual: r.actual,
-      limit: r.limit,
-      exempt: !!r.exempt,
-      ok: r.exempt || r.actual <= r.limit
-    }));
-  }
-
-  /* -------------------------------------------- */
-  /*  Abilities (Browser + Skill Builder)         */
-  /* -------------------------------------------- */
-
-  /** Open the Skill Browser — an MMO-inventory-bag picker of every world/compendium Skill (including
-   *  the preset Twists) to hand to this monster. It writes straight to the actor, so this creator (in
-   *  actor.apps) refreshes live. */
-  static #onBrowseSkills() {
-    SkillBrowserApp.open(this.actor);
-  }
-
-  /* -------------------------------------------- */
-  /*  Abilities (Skill Builder hand-off)          */
-  /* -------------------------------------------- */
-
-  /** Open (or focus) the in-game Skill Builder, jumping straight into Build mode. */
-  static #onOpenSkillBuilder() {
-    const id = `pa-skill-builder-${this.actor.id}`;
-    const existing = foundry.applications.instances.get(id);
-    if (existing) return existing.bringToFront();
-    return new SkillBuilderApp(this.actor, { startMode: "build" }).render(true);
-  }
-
-  /** Delete a built ability (creation is a sandbox — undo is free). */
-  static async #onRemoveSkill(event, target) {
-    const id = target.closest("[data-skill-id]")?.dataset.skillId;
-    const item = this.actor.items.get(id);
-    if (!item || item.type !== "skill") return;
-    if (item.getFlag("project-anime", "granted")) return;
-    await item.delete();
+  /** Commit the Boss party-size override and recompute the Bars from it. */
+  async #commitPartySize(input) {
+    const n = Math.max(1, Number(input.value) || 0);
+    this.#partySizeOverride = n === livePartySize() ? null : n;
+    if (this.#isBoss()) await this.#applyLine();
     this.render();
   }
 
   /* -------------------------------------------- */
-  /*  Basic Attacks (no-Energy natural weapons)   */
+  /*  Attributes                                  */
   /* -------------------------------------------- */
 
-  /** Add a Basic Attack: a natural weapon, equipped so it surfaces in the NPC's quick-attack
-   *  panel and rolls through rollAttack — which never spends Energy (the rules' "A Basic Attack
-   *  costs no Energy"). Weighs nothing (size 0) and costs no Skill Points. A sensible Might +
-   *  Agility melee strike by default; rename it inline and fine-tune it on its item sheet. */
+  /** Commit one Attribute's assigned die (Attributes step select). */
+  async #commitAttribute(select) {
+    const key = select.closest("[data-attribute]")?.dataset.attribute;
+    if (!PROJECTANIME.attributeKeys.includes(key)) return;
+    const die = Number(select.value) || 4;
+    await this.actor.update({ [`system.attributes.${key}.base`]: die });
+    this.render();
+  }
+
+  /* -------------------------------------------- */
+  /*  Basic Attacks                               */
+  /* -------------------------------------------- */
+
+  /** Add a Basic Attack: an equipped weapon carrying the Type's printed Damage + Threshold.
+   *  Strikes with it roll through rollAttack and never spend Energy. Weighs nothing (size 0);
+   *  rename it inline and fine-tune it on its item sheet. */
   static async #onAddAttack() {
-    // A Caster's Basic Attack is magical (Mind + Spirit → targets RES); everyone else is a Might strike.
-    const magic = !!this.#role()?.magic;
-    const acc = magic ? { attrA: "mind", attrB: "spirit", mod: 0 } : { attrA: "might", attrB: "agility", mod: 0 };
+    const line = this.#line();
     await this.actor.createEmbeddedDocuments("Item", [{
       name: game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName"),
       type: "weapon",
       img: NATURAL_WEAPON_IMG,
       system: {
-        accuracy: acc,
-        // Blade-tier on the v0.03 absolute DMG scale, so a fresh Basic Attack keeps pace with rebased
-        // party gear; tune the exact DMG on the item sheet.
-        damage: { mod: 3, type: "physical" },
+        accuracy: { attrA: "might", attrB: "agility", mod: 0 },
+        damage: { value: line?.damage ?? 1 },
+        threshold: line?.threshold ?? 10,
         range: { type: "melee", tiles: 1 },
         size: 0,
         equipped: true,
@@ -645,17 +598,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Open a Basic Attack's item sheet for full tuning (grip / two-handed, size, cost…). */
+  /** Open a Basic Attack's item sheet for full tuning (range, grip, size…). */
   static #onEditAttack(event, target) {
     const id = target.closest("[data-attack-id]")?.dataset.attackId;
     this.actor.items.get(id)?.sheet?.render(true);
   }
 
-  /** Delete a Basic Attack (creation is a sandbox — undo is free). */
+  /** Delete a Basic Attack (the innate Natural Attack is protected). */
   static async #onRemoveAttack(event, target) {
     const id = target.closest("[data-attack-id]")?.dataset.attackId;
     const item = this.actor.items.get(id);
-    if (!item || item.type !== "weapon") return;
+    if (!item || item.type !== "weapon" || item.getFlag("project-anime", "natural")) return;
     await item.delete();
     this.render();
   }
@@ -669,234 +622,87 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     if (name !== item.name) await item.update({ name });
   }
 
-  /* -------------------------------------------- */
-  /*  Gear (loadout — same as the actor sheet)    */
-  /* -------------------------------------------- */
-
-  /** Resolve the item a gear row/tile belongs to (by the closest [data-item-id]). */
-  #getItem(target) {
-    const id = target.closest("[data-item-id]")?.dataset.itemId;
-    return id ? this.actor.items.get(id) : null;
+  /** Commit an attack row's accuracy Attribute (attrA / attrB) or Talent link (talentId). */
+  async #commitAttackField(select) {
+    const id = select.closest("[data-attack-id]")?.dataset.attackId;
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "weapon") return;
+    const field = select.dataset.field;
+    if (field === "talent") return item.update({ "system.talentId": select.value });
+    if (field === "attrA" || field === "attrB") {
+      if (!PROJECTANIME.attributeKeys.includes(select.value)) return;
+      return item.update({ [`system.accuracy.${field}`]: select.value });
+    }
   }
 
-  /** Select a bag (container) → re-render so the inventory grid shows its contents. */
-  static #onSelectBag(event, target) {
-    this.#selectedBag = target.dataset.bagId || "";
+  /* -------------------------------------------- */
+  /*  Talents                                     */
+  /* -------------------------------------------- */
+
+  /** Add a Talent at the clicked die size (the printed loadout; the GM may add more). */
+  static async #onAddTalent(event, target) {
+    const die = Number(target.dataset.die) || 6;
+    await this.actor.update({
+      [`system.talents.${foundry.utils.randomID()}`]: {
+        name: game.i18n.localize("PROJECTANIME.MonsterCreator.talentName"),
+        die,
+        attribute: "might"
+      }
+    });
     this.render();
   }
 
-  static async #onToggleEquip(event, target) {
-    const item = this.#getItem(target);
-    if (!item || !("equipped" in item.system)) return;
-    await item.update({ "system.equipped": !item.system.equipped });
+  /** Delete a Talent (creation is a sandbox — undo is free). Clears any attack link to it. */
+  static async #onRemoveTalent(event, target) {
+    const id = target.closest("[data-talent-id]")?.dataset.talentId;
+    if (!this.actor.system.talents?.[id]) return;
+    await this.actor.removeTalent(id);
+    this.render();
   }
 
-  static async #onUnequipSlot(event, target) {
-    await clearSlot(this.actor, target.dataset.slot);
-  }
-
-  static async #onCycleShieldUse(event, target) {
-    const item = this.#getItem(target);
-    if (!item || item.type !== "shield") return;
-    await item.update({ "system.use": item.system.use === "dual" ? "shield" : "dual" });
-  }
-
-  static #onPickSlot(event, target) {
-    this.#openSlotPicker(target.dataset.slot, target);
-  }
-
-  static #onCreateMenu(event, target) {
-    this.#openCreateMenu(target);
-  }
-
-  static async #onCreateItem(event, target) {
-    event.preventDefault();
-    await this.#createGearItem(target.dataset.type || "gear");
-  }
-
-  static #onEditItem(event, target) {
-    this.#getItem(target)?.sheet?.render(true);
-  }
-
-  static async #onDeleteItem(event, target) {
-    await this.#getItem(target)?.deleteDialog();
-  }
-
-  static async #onRollItem(event, target) {
-    this.#getItem(target)?.roll({ event });
-  }
-
-  /** Create one gear item of `type`, filed into the bag currently being viewed. */
-  async #createGearItem(type) {
-    const name = game.i18n.format("DOCUMENT.New", { type: game.i18n.localize(`TYPES.Item.${type}`) });
-    const data = { name, type };
-    if (this.#selectedBag && GEAR_GROUPS.includes(type)) data["system.container"] = this.#selectedBag;
-    await this.actor.createEmbeddedDocuments("Item", [data]);
-  }
-
-  /** Open the click-to-equip popover for a paperdoll slot: eligible items + an Unequip row. */
-  #openSlotPicker(slotKey, anchor) {
-    if (!this.actor.isOwner || !slotKey) return;
-    this.element.querySelector(".pd-picker")?.remove();
-
-    const base = slotKey.startsWith("accessory") ? "accessory" : slotKey;
-    const accepts = SLOT_ACCEPTS[base] ?? [];
-    const equipped = this.actor.items.filter((i) => i.system?.equipped);
-    const occupant = slotOccupant(slotKey, equipped);
-    const candidates = this.actor.items.filter((i) => accepts.includes(i.type)).sort(bySort);
-
-    const menu = document.createElement("div");
-    menu.className = "pd-picker";
-    menu.setAttribute("popover", "auto");
-
-    const addRow = (cls, build, onClick) => {
-      const row = document.createElement("div");
-      row.className = cls;
-      build(row);
-      row.addEventListener("click", () => { menu.hidePopover(); onClick(); });
-      menu.appendChild(row);
-    };
-
-    if (occupant) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Equipment.empty")), () => clearSlot(this.actor, slotKey));
-    for (const it of candidates) {
-      addRow(`pd-option${occupant && it.id === occupant.id ? " is-selected" : ""}`, (r) => {
-        const img = document.createElement("img");
-        img.src = it.img;
-        const span = document.createElement("span");
-        span.textContent = it.name;
-        r.append(img, span);
-      }, () => equipToSlot(this.actor, it, slotKey));
+  /** Commit a Talent row's inline edit (name / die / primary Attribute). */
+  async #commitTalentField(el) {
+    const id = el.closest("[data-talent-id]")?.dataset.talentId;
+    const talent = this.actor.system.talents?.[id];
+    if (!talent) return;
+    const field = el.dataset.field;
+    if (field === "name") {
+      const name = (el.value || "").trim() || game.i18n.localize("PROJECTANIME.MonsterCreator.talentName");
+      if (name !== talent.name) return this.actor.update({ [`system.talents.${id}.name`]: name });
+      return;
     }
-    if (!menu.children.length) addRow("pd-empty", (r) => (r.textContent = game.i18n.localize("PROJECTANIME.Empty")), () => {});
-
-    this.element.appendChild(menu);
-    menu.addEventListener("toggle", (ev) => {
-      if (ev.newState === "open") this.#placePopover(menu, anchor);
-      else menu.remove();
-    });
-    menu.showPopover();
-  }
-
-  /** Item-creation type picker (the + tile in the flat inventory grid). */
-  #openCreateMenu(anchor) {
-    if (!this.actor.isOwner) return;
-    this.element.querySelector(".pd-picker")?.remove();
-    const icons = { weapon: "fa-khanda", armor: "fa-shirt", shield: "fa-shield-halved", accessory: "fa-ring", consumable: "fa-flask", gear: "fa-box-archive" };
-
-    const menu = document.createElement("div");
-    menu.className = "pd-picker";
-    menu.setAttribute("popover", "auto");
-    for (const type of GEAR_GROUPS) {
-      const row = document.createElement("div");
-      row.className = "pd-option";
-      const i = document.createElement("i");
-      i.className = `fas ${icons[type] ?? "fa-box"}`;
-      const span = document.createElement("span");
-      span.textContent = game.i18n.localize(`TYPES.Item.${type}`);
-      row.append(i, span);
-      row.addEventListener("click", () => { menu.hidePopover(); this.#createGearItem(type); });
-      menu.appendChild(row);
-    }
-    this.element.appendChild(menu);
-    menu.addEventListener("toggle", (ev) => {
-      if (ev.newState === "open") this.#placePopover(menu, anchor);
-      else menu.remove();
-    });
-    menu.showPopover();
-  }
-
-  /** Fixed-position a popover beside its anchor (flips above if it won't fit below). */
-  #placePopover(menu, anchor) {
-    const r = anchor.getBoundingClientRect();
-    Object.assign(menu.style, { position: "fixed", inset: "auto", margin: "0", left: `${Math.round(r.left)}px`, minWidth: `${Math.max(r.width, 170)}px` });
-    const h = menu.offsetHeight;
-    const fitsBelow = r.bottom + 4 + h <= window.innerHeight;
-    menu.style.top = `${Math.round(fitsBelow || r.top - h - 4 < 0 ? r.bottom + 4 : r.top - h - 4)}px`;
-  }
-
-  /** Native drag-and-drop for the Gear step: drop a gear item from a compendium / sidebar / another
-   *  sheet onto the step to copy it here; drag a tile onto a paperdoll slot to equip, onto the bag to
-   *  unequip, onto a bag tab to refile. Mirrors the actor sheet's #bindPaperdoll + #onSheetDrop —
-   *  standalone, since the creator is not an ActorSheetV2 (no base ondrop to fight). */
-  #bindGearDnD() {
-    const root = this.element;
-    if (!root) return;
-
-    // Root copy target lives on the persistent window root → bind once.
-    if (!root.dataset.paCreatorDrop) {
-      root.dataset.paCreatorDrop = "1";
-      root.addEventListener("dragover", (ev) => { ev.preventDefault(); });
-      root.addEventListener("drop", (ev) => this.#onGearDrop(ev));
-    }
-
-    // Per-render: (re)mark tiles draggable + (re)wire the paperdoll / bag drop zones.
-    for (const el of root.querySelectorAll("[data-item-id][draggable='true']")) {
-      for (const img of el.querySelectorAll("img")) img.setAttribute("draggable", "false");
-      el.addEventListener("dragstart", (ev) => {
-        const uuid = this.actor?.items.get(el.dataset.itemId)?.uuid;
-        ev.dataTransfer.setData("text/plain", JSON.stringify({ paItem: el.dataset.itemId, type: "Item", uuid }));
-        ev.dataTransfer.effectAllowed = "copyMove";
-      });
-    }
-
-    for (const slot of root.querySelectorAll(".pd-slot")) {
-      slot.addEventListener("dragover", (ev) => { ev.preventDefault(); slot.classList.add("drag-over"); });
-      slot.addEventListener("dragleave", () => slot.classList.remove("drag-over"));
-      slot.addEventListener("drop", async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        slot.classList.remove("drag-over");
-        // Own item → equip it; foreign item → copy it onto this monster first, then equip the copy.
-        const item = draggedItem(this.actor, ev) ?? await importDroppedItem(this.actor, readDrag(ev));
-        if (item) equipToSlot(this.actor, item, slot.dataset.slot);
-      });
-    }
-
-    const bag = root.querySelector(".pd-bag");
-    if (bag) {
-      bag.addEventListener("dragover", (ev) => ev.preventDefault());
-      bag.addEventListener("drop", (ev) => {
-        const item = draggedItem(this.actor, ev);
-        if (item?.system?.equipped) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          item.update({ "system.equipped": false });
-        }
-      });
-    }
-
-    for (const tab of root.querySelectorAll(".bag-tab")) {
-      tab.addEventListener("dragover", (ev) => { ev.preventDefault(); tab.classList.add("drag-over"); });
-      tab.addEventListener("dragleave", () => tab.classList.remove("drag-over"));
-      tab.addEventListener("drop", async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        tab.classList.remove("drag-over");
-        const bagId = tab.dataset.bagId || "";
-        const item = draggedItem(this.actor, ev);
-        if (item) {
-          // Own item → just refile it into this bag.
-          if (item.type !== "container" && (item.system.container || "") !== bagId) {
-            await item.update({ "system.container": bagId });
-          }
-          return;
-        }
-        // Foreign item → copy it straight into this bag.
-        await importDroppedItem(this.actor, readDrag(ev), { container: bagId });
-      });
+    if (field === "die") return this.actor.update({ [`system.talents.${id}.die`]: Number(el.value) || 6 });
+    if (field === "attribute" && PROJECTANIME.attributeKeys.includes(el.value)) {
+      return this.actor.update({ [`system.talents.${id}.attribute`]: el.value });
     }
   }
 
-  /** Root drop: copy a dropped foreign gear item onto the monster (own-tile drops are handled by the
-   *  paperdoll/bag zones, which stopPropagation). No-op off the Gear step. */
-  async #onGearDrop(ev) {
-    if (STEPS[this.#step] !== "gear") return;
-    if (ev.target?.closest?.("prose-mirror, .ProseMirror, .editor-content")) return;
-    const data = readDrag(ev);
-    if (data?.type !== "Item" || !data.uuid) return;
-    if (data.paItem && this.actor.items.has(data.paItem)) return; // own tile → its zone handles it
-    ev.preventDefault();
-    await importDroppedItem(this.actor, data);
+  /* -------------------------------------------- */
+  /*  Techniques (Browser + Skill Builder)        */
+  /* -------------------------------------------- */
+
+  /** Open the Skill Browser — an MMO-inventory-bag picker of every world/compendium Technique to
+   *  hand to this enemy. It writes straight to the actor, so this creator refreshes live. */
+  static #onBrowseSkills() {
+    SkillBrowserApp.open(this.actor);
+  }
+
+  /** Open (or focus) the in-game Skill Builder, jumping straight into Build mode. */
+  static #onOpenSkillBuilder() {
+    const id = `pa-skill-builder-${this.actor.id}`;
+    const existing = foundry.applications.instances.get(id);
+    if (existing) return existing.bringToFront();
+    return new SkillBuilderApp(this.actor, { startMode: "build" }).render(true);
+  }
+
+  /** Delete a Technique (creation is a sandbox — undo is free). */
+  static async #onRemoveSkill(event, target) {
+    const id = target.closest("[data-skill-id]")?.dataset.skillId;
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "skill") return;
+    if (item.getFlag("project-anime", "granted")) return;
+    await item.delete();
+    this.render();
   }
 
   /* -------------------------------------------- */

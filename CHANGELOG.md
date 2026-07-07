@@ -1,5 +1,208 @@
 # Changelog
 
+## 0.5.4 - 2026-07-07
+
+- Version 2 rules adopted wholesale: Hit/Energy Boxes, single Guard stat, Talents with Trained Edge, pure-Energy Techniques, milestone Advancements, fixed Damage + Threshold, Wounds, Camp/Town rest, six enemy Types with a party-size Threat budget
+- Systems removed by design, with migrations and a dead-code sweep: Headquarters/factions, Bonds, Damage Types/Elements, Crafting, social NPC sheets
+- Armor and Accessories rebuilt to the printed V2 tables and fully wired: Scouter reveals Guard, Lucky Pendant tunes a restored Luck Die, Belt of the Titan grants +1 max Hit Box; copies players own migrate automatically
+- Companions ride the party: a Companions strip on the party sheet, Milestone awards include them, and they advance on their own slot caps (Milestone no-party bug fixed)
+- Party sheet revamp: clickable Hit/Energy mark-box strips for members and Companions, live-refreshing as damage lands
+
+## 0.5.3 - 2026-07-07
+
+**Armor & Accessories re-based to the printed V2 line** — the Armor and Accessories compendiums are rewritten in place to the Version 2 Equipment tables, and every accessory is now mechanically wired.
+
+- **Armor pack** — the four Style items carry clean V2 data (Unarmored +0 Guard/Move 6/2 energy regen · Light +1/6 · Medium +3/5 · Heavy +5/4) with the printed line as description; the stale pre-V2 fields (Defense/Evasion/Protection splits) are purged from the stored source. Fixes Heavy Armor deriving Movement 6 instead of 4.
+- **Belt of the Titan** — effect corrected from the old +4 max HP to the printed +1 maximum Hit Boxes (the box cap keeps it at 10).
+- **Running Sandals** — +1 Movement, unchanged; its effect finally has a name.
+- **Trader's Pass** — sell at 60% instead of half, unchanged; description aligned to the doc.
+- **Scouter** — now reveals GUARD (the old Skill-Points reveal died with SP in v0.5.0): the wearer sees a Guard row in a hovered token's info panel and in the right-click dossier of any creature they can see. A "Guard" Reveal category replaces Skill Points in the Effect Builder and the custom token-field gates; stored Skill-Points reveals/gates fold to Guard at read.
+- **Lucky Pendant** — wired to the printed rider: whenever you restore a Luck Die — a Camp's restored die, a Town's fresh three, or a chained Combo's restored die — a dialog offers to nudge one held Luck Die ±1. The "Luck" effect rule now means this tune-on-restore (the retired Step-Up-at-roll reading is gone; the rule had no live consumer since V2 landed).
+- **Owned copies migrate** — a one-shot GM pass (`accessoriesV2`) re-bases world/actor copies of the five accessories (found by name or compendium origin, so renamed ones count): printed cost + description, and the wired effect replaced wholesale. Owned armor gets the printed description line stamped.
+
+**Milestone tool fixed** — awarding advancements always warned "no party members found": the tool read the party without awaiting the (async) party resolver, so the roster came back empty every time. It now resolves the party properly and pays every character in the folder.
+
+**Companions ride the party** — the Party sheet and the Milestone tool now know the party's Companions: any actor bonded to a roster member by the Companion Effect, any NPC filed in the party's own folder, and anything filed under a folder whose name says "companion" (the system's "Servants & Companions" folder or a GM's own "Companions" folder, subfolders included). Raised servants and roster members never count.
+
+- **Party sheet** — a Companions strip under the member grid (only when the party has any): portrait, name, bonded-to, HP bar, an unspent-Advancements badge, and an Advancement button for owners.
+- **Milestone tool** — Companions earn the same advancements as the party (rules: Companion Advancement — 1 whenever their bonder earns 1) and are listed on the award card.
+- **Companion advancement wired** — NPCs now carry the same advancement pool + refundable ledger as Characters (monsters simply never receive any), and the Advancement dialog opens for a Companion from the party strip, enforcing the Companion's own slot caps (Create a Technique 3 instead of 6).
+
+**Party sheet: real Hit & Energy boxes** — member cards and Companion rows drop their percent bars for the character sheet's mark-box strips: one box per point, marked as damage lands or energy is spent, with Wound-locked hit boxes and Passive-locked energy boxes trailing padlocked. Owners and the GM mark/clear straight from the party sheet (box n marks n; the topmost marked box clears); everyone else gets a read-only strip. Companion rows gain an Energy strip alongside HP. The boxes are the whole readout — no value/max numerals — and Guard + Movement stack in one slim column so the strips keep the card's width.
+
+- Open party sheets now live-refresh whenever any member or Companion changes — before, only roster moves triggered a refresh, so HP shown on the cards could go stale mid-fight.
+
+## 0.5.2 - 2026-07-07
+
+**HUD console: centre slimmed** — the tall Guard/Movement square (pf2e's "statistics" region, duplicating the small strip above it since V2 retired the other derived stats) is gone from the action console. The small Guard · Movement strip keeps its top-row spot with a compact Luck dice square right under it, the disposition cycler moves onto the left menu rail (wearing its side color), and all the freed width flows into the shortcut slots.
+
+**Phase banner fixed + polished** — the side-initiative sweep banner showed a raw lang key (`PROJECTANIME.COMBAT.PHASE.FRIENDLY`) and never wore its side color: it localized the raw side key instead of mapping it through `sideLabel`, and the CSS tints matched the wrong `data-side` values. Now it reads Player/Enemy/Neutral Phase in the right color, fades into the scene at both ends instead of cutting off hard, and a shine-line sweeps through while it holds.
+
+**Monster Creator Type tiles** — the Type step gets the Style-picker treatment from the Character Creator: clean tiles (tier-tinted type glyph + name, check on the pick), with the printed line (Threat · Hit Boxes · Energy Boxes · Guard · Movement · Damage · Threshold) moved into the rich hover tooltip card.
+
+**Social-NPC sheet removed** — an NPC is a Monster, full stop. The Monster⇄NPC crest on the portrait and the social "dossier" layout (Signature Trait + Traits cards) are gone; every NPC sheet now shows the combat statblock, and the Monster Creator button always sits in the header.
+
+- `system.role`, `system.trait`, and `system.traits` are deleted from the NPC data model, along with the trait-projection engine (helpers/trait-effect.mjs) — monster abilities live in Talents and Techniques.
+- At ready (GM-side, one pass) any Active Effect the trait engine projected onto an actor is purged, so stale trait buffs don't linger.
+- The Effect Builder's data mode (built for authoring trait cards) is removed with its only consumer; the builder now always edits a live Active Effect.
+- Swept the stale Strong/Weak attribute tag off the monster statblock (a retired Role×Tier leftover) plus the orphaned Tier gem and dossier/crest CSS and lang strings.
+
+**Talent chips on the Check dialog** — Roll a Check now surfaces your Talents Daggerheart-style: a Talents panel of pill chips under the Attribute selects (name + die + the Trained Edge, e.g. "Swordplay (d8 +1)"), laid out in three columns filled top to bottom. Clicking a chip lights it and parks the Second Attribute select — the Talent takes that die slot, exactly the printed Attribute + Talent +1 Check — and clicking it again releases the slot back to Attribute + Attribute. One chip at a time.
+
+- Replaces the old Talents optgroup hidden inside the Second Attribute dropdown.
+- Contested Checks and Tests vs a Challenge Threshold both honor the chip, and the Overcome roll's dialog gets the same treatment.
+- Roll-relevant effect toggles re-filter live when a chip is picked (a Talent rides the First Attribute's die for those).
+- The Situational Modifier field is removed from the roll dialogs for now (rolls carry a 0 modifier; the plumbing stays for its return).
+
+**Gear step removed from the Character Creator** — the Gold-budget gear shop no longer exists, so creation runs Attributes → Talents → Weapon Style → Armor Style → Techniques → Combat Stats → Luck Dice → Finishing Touches (the optional Choose step still leads).
+
+- The shop step, its catalogue/filter/buy/sell machinery, and the one-time starting-Gold grant are deleted from the Creator.
+- The Character Creation settings menu drops the Gold Budget, Purchasable Types, and Open Compendiums sections — it now configures Attribute Step-Ups and the creation Choices.
+- Actor Gold itself is untouched (party stash and Quest Log rewards still pay it).
+
+## 0.5.1 - 2026-07-07
+
+**Talents as actor data** — Talents work like Daggerheart Experiences now: simple rows on the actor, not Item documents. The rules are unchanged (die d4–d12 · Primary Attribute · Trained Edge +1 · die/2 scaling).
+
+- **New storage** — `system.talents` on Characters and NPCs holds `{name, die, attribute}` rows keyed by id. The `talent` Item type, its data model, and its item sheet are removed.
+- **Sheet** — Talents live on the always-visible side panel, under Luck Dice, Daggerheart-style: a side-lined TALENTS title, then one glass row per Talent (die badge · name · post-to-chat icon). **+** adds, clicking a row opens a small Name/Die/Primary Attribute dialog, right-click offers Delete. Deleting a Talent unlinks any weapons/Techniques built under it and refunds its Advancement Log entries.
+- **Everything rewired** — attack/Technique/Check rolls, the Check dialog's Talent slot, Contest Targets, Modifier scaling, the Skill Builder's Talent picker, weapon/shield sheets, the Character Creator's Define Talents + weapon pairing, the Monster Creator's Talent step, and the Advancement dialog (New Talent / Step Up a Talent now write actor data in the same atomic update as the ledger).
+- **Migration** — at ready (GM-side, idempotent) every owned `talent` Item converts to a `system.talents` row keyed by the old item id, so `talentId` links and Advancement Log refs keep resolving; standalone world talents are deleted.
+
+**Style picker on gear sheets** — the weapon, shield, and armor item sheets replace the Style dropdown with a strip of image tiles (one per printed Style). Hovering a tile shows the printed line as a tooltip (Damage · Threshold · Range · Guard/Movement · properties); clicking one stamps that line onto the item — Damage, Threshold, Range, Dual Wield/Two-Handed grip, Guard bonus, Movement, Energy Regen — so a Style pick fills the sheet in one click (the fields stay editable for homebrew). Clicking the active tile unsets the Style tag without touching the numbers, and the View tab shows the picked Style as a chip.
+
+- The Character Creator's Weapon Style and Armor Style cards get the same treatment: icon art + name on the card, the printed line in the hover tooltip.
+- Style tooltips use the system's rich card (icon header with the Style name and kind, glyph-led stat rows, Dual Wield/Two-Handed as pill tags), and every Style picker lists its tiles alphabetically.
+- Fixed the seeded "Casting Weapon" pack item pointing at a nonexistent core icon (`staff-orb-blue` → `staff-orb-purple`); a self-heal at load re-points any pack/world/actor copy still wearing the broken image.
+
+## 0.5.0 - 2026-07-07
+
+**Version 2 rules adoption** — the full "Project: Anime Version 2" printing implemented wholesale. Plan and gap analysis in `OVERHAUL-V2.md`; verify checklist in `VERIFY-V2.md`.
+
+### Core Rules
+- **Hit Boxes & Energy Boxes** — HP/Energy pools are re-baselined to the box model: base 5 each, hard cap 10. Passive Techniques lock energy boxes equal to their total cost. The sheet draws them as individual mark boxes in a centered strip, marked up from 0 as damage lands / energy is spent (click box n to mark n; click the topmost mark to clear it); the value readout counts marks too. Locked boxes (Wound-locked hit boxes, Passive/Servant-locked energy boxes) stay on the strip wearing a gold padlock instead of disappearing. Storage still tracks boxes remaining.
+- **Guard** — one defensive number: 6 + Armor Style + Shield Style. Evasion, DEF, RES, ATK, MATK, Attack Speed, and Carrying Capacity are all retired.
+- **Checks** — exactly two dice: Attribute + Talent +1 (the Trained Edge) or Attribute + Attribute; Tests use the Challenge Threshold ladder 7/9/11/13/15; the Check dialog offers your Talents.
+- **Attacks** — roll vs Guard; damage is the weapon's fixed Damage in boxes; meeting the weapon's **Threshold** marks 1 additional box. Weakened raises your Threshold by 2, a Prone target lowers it by 2, Blinded steps both attack dice down.
+- **Luck Dice** — three recorded d12s; spending one **replaces** a rolled die, and Fumble/Combo read the dice as they stand after replacement (the old "locked result" rule is gone — Luck can make or unmake either). A Combo during a Combo turn adjusts a Luck die ±1, or records a fresh d12 when none remain.
+- **Contests** — Opposing Techniques roll against a Contest Target of 6 + the defender's die/2 (+1 when Talent-built); Weaken, Disarm, Nullify, Overcome, Steal-from-equipped, Sense vs Vanish, and Stay Hidden all resolve this way.
+
+### Talents
+- New **Talent** item type: a named discipline with a d4–d12 die and a Primary Attribute. Weapons and Techniques link a Talent to roll it with the Trained Edge; area/distance Modifiers scale at die/2 (+1 with a Talent).
+
+### Techniques
+- Skills are now **Techniques**: Energy cost = Effect (0; Companion 2) + Modifiers (Standard +1, Heavy 🔶 +2, Extreme +3), minimum 1. The SP economy, Ranks, Tier Ceilings, and Skill Enhancements are gone.
+- The 15 printed Effects (Empower/Heal/Weaken/Control keep their stored ids) and the full V2 Modifier list: Barrier, Chain, Charge, Cover, Drain, Inflict, Inflict (Severe), Link, Manifest, Potent (twice), Protection (+1 Guard), Reflect, Regen, Reposition, Retaliation, Scene, Waypoint, and the rest.
+- Passive Techniques choose **Sustained** or **Standing**; a Companion's 2-box lock lifts while it's Left at Home.
+- The Technique Builder, auto-description, item cards, and chat cards are rebuilt to the new economy.
+
+### Advancement
+- No levels, no SP: **Milestones** pay Advancements (Episode 2 · Arc 4 · Season 6 — the Quest Log milestone tool) and the Advancement dialog spends them on the slot-capped list: Create a Technique 6 · +1 Energy 5 · +1 Hit Box 5 · New Talent 2 · Rebuild 2 · Step Up Attribute 4 · Step Up Talent 8. The refundable ledger is now the Advancement Log.
+- Character creation runs the doc's eight steps: 5 attribute step-ups (cap d10), two d6 Talents, a Weapon Style + Paired Attribute, an Armor Style, up to three Techniques, fixed stats, 3d12 Luck, names.
+
+### Equipment
+- Gear is defined by **Styles**: seven Weapon Styles (fixed Damage/Threshold/Range, Dual Wield / Two-Handed), two Shield Styles (+1/+2 Guard), four Armor Styles (Guard / Movement; Unarmored clears 2 energy boxes per turn). The compendiums are rebased and the doc's Accessories and Consumables (Restorative 2 · Strong 4 · Energy Drinks) are seeded.
+
+### Combat
+- Energy Regen: clear 1 energy box at the start of each turn (2 Unarmored).
+- Statuses are the printed nine — **Exposed** (−2 Guard) and **Weakened** are new; Stunned is retired (and its auto-skip removed). Cursed blocks clearing its chosen pool; Lingering still marks 1 box at end of turn.
+- **Wounds** — the first Defeat each Conflict locks a hit box (auto-applied, with a note field on the Defenses drawer); three Wounds bar a character from Conflict Scenes; a Town clears one.
+- After Combat: all energy boxes clear; anyone still Defeated clears half their hit boxes rounded up. **Camp**: half hit boxes, all energy, restore one Luck die. **Town**: everything, all three Luck dice, clear one Wound.
+- **Bosses** act twice per Enemy Phase; Bars = ⌈party/2⌉ with party×2 boxes each, 6 energy per Bar, 2 Techniques per Bar unlocking on breaks (Desperation/Resolve retired).
+- Follow-Up attacks and Minion Squads are retired (a Minion is one 1-box body).
+
+### Enemies & Encounters
+- Enemies build as the six printed **Types** — Minion ½ · Standard 1 · Bruiser 1½ · Skirmisher 1 · Support 1 · Elite 2 — with the printed stat lines, attribute budgets, and starting Talents; Rival = a PC-built villain at Threat 2. The Monster Creator walks Type → Attributes → Talents → Techniques (Role × Tier and Twists are retired).
+- The Encounter Builder budget = party size (Easy −1 · Standard · Hard ×1.5 · Climax ×2), with a warning when Minions exceed half the budget.
+
+### Migration
+- One-time `actorsV2`: characters re-baseline to the box model; Role × Tier monsters remap to the nearest Type with the printed stat line stamped; Bosses re-derive Bars from party size. One-time `gearRebaseV2` + pack audit: gear rebases to the Style tables.
+- Stored Skills re-derive their Energy cost automatically; retired Modifiers fold to their V2 counterparts (drainHP/drainEnergy→Drain, combo→Link, push/pull→Reposition, heavy Inflicts→Inflict (Severe), Barrier/Regen/Reflect Inflicts→their Modifiers).
+
+## 0.4.4 - 2026-07-07
+
+**Dead-code sweep** after the v0.4.x removals (Elements, HQ/Factions, Bonds, Crafting) and the v0.3.2 enemy rebuild.
+
+### Removed
+- **Boss multi-entry action economy** — the unwired `ensureBossSlots` / `spreadBossInitiative` / `actionsPerRound` block and its inert clone-cleanup hook (superseded by Boss Bars).
+- **Encounter Power** — the GM world setting (it steered nothing since the Role×Tier rebuild) and the whole ★-star vitals/scaling block in config (`starPower`, `npcVitals`, `tierScaling`, …). `monsterTiers` is slimmed to its labels.
+- **Party "Power" gauge chain** — the roster build-strength raters in the encounter helper (`monsterSPCost`, `memberPower`, `partyPower`, `partyAverageSP`, `encounterSpent`, `combatPlayerCount`).
+- **Chronicle leftovers** — the unused `OBJECTIVE_TYPES` / `REWARD_TYPES` / `getQuest` exports, the faction field in the reward shape, and the compat re-export of party helpers.
+- **Orphaned localization** — ~90 unused strings (Shop block, Factions/Home party tabs, Skill Ranks, PC-equivalents/Worth, recruit rewards, old damage-card Apply keys, ★/Tier picker strings, and other stragglers); the Quest Log keybinding hint no longer mentions Headquarters.
+- **Dead CSS** — recruit-reward picker, reputation reward chips, NPC Talents grid + dossier identity fields, Minion-squad panel, ★×Tier picker and star badges, Skill Rank cards, sheet Initiative button, stats-bar effect toggles, quest-completion card, and other unreferenced blocks.
+
+### Fixed
+- The Squad Strike roll dialog rendered a raw localization key — `squadStrikeHint` now lives under `Roll` where the dialog looks it up.
+
+## 0.4.3 - 2026-07-06
+
+**Crafting is removed from the system.**
+
+### Removed
+- **The Craft Workbench** — Forge, Traits, Temper, Brew, and Projects, with the crafting engine behind them.
+- **Materials** — the `material` Item type (grade × Tier × type), the carried-materials section on the Gear tab, material Bulk bundling, and the party-stash material economy.
+- **Gathering** — automatic material drops from defeated foes and the "Materials Gathered" card.
+- **Crafted gear modifications** — gear Traits (all 14), Temper (including its Tier-based cap), Sockets, and ST-authored Flaws; the crafted-mod badges on item sheets. Printed gear stats are now exactly what the item says.
+- **Specialties** — the five 1-SP crafting disciplines, their Advancement section, and their Skill Point Log entries.
+- **The Craft rest Activity** and its Downtime Slot; the Artisan's Kit is deleted from the Gear & Containers pack.
+
+### Migration
+- On first GM load, any carried or world `material` Items are purged, and the Artisan's Kit is removed from the pack. Stale crafted fields on gear (Traits/Temper/Sockets/Flaw) are ignored and clean up on the item's next save.
+
+## 0.4.2 - 2026-07-06
+
+**Damage Types are removed from the system.** Damage is untyped everywhere — a hit is Power minus DEF/RES, nothing else.
+
+### Removed
+- **The Elements list** — the seven default damage channels, the GM "Homebrew Elements" settings menu, and the world setting behind it.
+- **Actor Affinities** — the per-element Weak/Resist/Immune/Absorb grid ("Elemental Defense" on the Defenses drawer), its damage math (+2/−2/0/heal) in every damage path, and the Affinities layer in the Token Info panel / Dossier (including its Scouter reveal category and the Analyze "Affinities" pick).
+- **Typed damage on gear and Skills** — the weapon/shield Damage Type field, the Skill/secondary-slot Damage Type, the Lingering (Decay) element and its typed end-of-turn tick, and the Retaliation element.
+- **Element-only Skill Modifiers** — Absorb and Affinity (Damage). Immunity and Infuse lose their Damage-Type halves and are **Status-only** now; the retired Affinity *Effect* is gone entirely.
+- **Effect Builder pieces** — the Affinity rule type and the "If target affinity" predicate.
+- **Crafting hooks** — the Attuned gear Trait (its whole purpose was granting a Damage Type) and Ward Salve's typed Resist (it now reads as a flat ward).
+
+### Kept
+- **Affinity (Status)** and **Status Immunity** — they key off Status Effects, not damage types.
+- **Elemental Control** — its element is free-form flavor text, never tied to the Damage Type list.
+
+### Migration
+- Stored Skills self-migrate on load: an Affinity-Effect Skill folds into a Custom effect; Absorb / Affinity (Damage) Modifiers drop off; element-kind Immunity / Infuse drop their Modifier (status-kind keeps it); an "Affinities" Analyze pick falls back to Vitals. Removed data fields are ignored and cleaned on the next save; stale Lingering-element flags self-clean.
+
+## 0.4.1 - 2026-07-06
+
+**Bonds are removed from the system.**
+
+### Removed
+- **The Bonds drawer** — the actor sheet's relationship cards (tarot grid, detail books, portraits, the rank-up flourish) and the Bonds button on the sheet nav.
+- **The Bond model** — paired Party/Follower Bonds, Bond Points, C/B/A/S ranks, the Bond Scene / Standing Together earners, the Charm rank-B+ capacity cap, and the `system.bonds` actor data.
+- **Party benefits** — the auto-projected Side by Side / Back to Back toggle effects and the Dual Strike reaction. On first load a GM cleanup pass strips any of these effects still sitting on characters.
+- **Union Skills** — the rank-S shared-Skill slot (the Skills themselves survive as ordinary Skills).
+- **Quest Bond rewards** — the "Drag NPC → Bond" reward drop and its payout (Gold, Items, and Unlocks still pay).
+- **The Bond rest Activity** and the party sheet's member-drawer Bonds list.
+- The `bondsV003` migration and the drag-an-actor-onto-a-sheet bond forging.
+
+### Kept
+- Servant/Companion "bonding" (the Animate/Companion Skill effects) — unrelated to the Bonds system.
+
+## 0.4.0 - 2026-07-06
+
+The **Headquarters is removed from the system**. The Quest Log stays.
+
+### Removed
+- **The Headquarters window** — the Factions, Home, and Codex (encyclopedia) tabs are gone. The scene-controls button and the "L" key now open the **Quest Log** directly (the "H" and "K" keybindings are retired).
+- **Factions** — the world faction codex, standing tiers, relationship web, faction tier rewards, and the NPC faction affiliation field.
+- **The HQ engine** — Renown/ranks, the 14-facility catalog, Gold builds and upgrades, stewards, residents, the Mission Board, the HQ rest benefits, and the "Rest at the Headquarters" toggle on the Rest dialog.
+- **The legacy HQ half** — resource pools, the Workshop recipe queue, the Structures window, the vendor Shop window (and material shops), recruitment flip-cards, dispatch missions, and the HQ import/export.
+- **NPC Talents** — the five work dice existed only for HQ downtime jobs. The Signature Trait + Traits ability cards stay.
+- **Effect Builder rules** Talent, HQ Output, and Gather (HQ-only), and the Homebrew "Material Categories" settings menu (the legacy pool axis; crafting Material Types are untouched).
+- **Bond HQ hooks** — the Favored Facility slot and "Resides at HQ" checkbox on Follower Bonds; the rank-S HQ bond-capacity bonus.
+- **Quest rewards** — the Faction-reputation and Recruit reward types (Gold, Items, Bonds, and Unlocks still pay out).
+- The "Headquarters Settings" menu (Factions/Home toggle, Lethal Dispatch, Workshop facility requirements) and the HQ migrations.
+
+### Kept
+- **The Quest Log** — the full Chronicle: authoring, objectives, rewards, deadlines, the Milestone SP tool, Distribute Rewards, and the on-canvas tracker. The window is now titled "Quest Log".
+- Bonds, crafting (Craft Workbench, materials, gathering drops), the party stash, and everything else outside the Headquarters.
+
 ## 0.3.13 - 2026-07-05
 
 Rules pass for the **revised v0.03 playtest doc** — Rank & Tier arrive, and eight smaller rules move to the new printing.

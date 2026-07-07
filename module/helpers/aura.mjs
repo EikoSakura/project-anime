@@ -133,7 +133,7 @@ function auraEffectDataFor(skill, sourceToken) {
       raw.push({ name: skill.name, img: skill.img, flags: { [FLAG_SCOPE]: { rules: { version: 1, list } } } });
     }
   }
-  // 3) Auto Modifier rules — Protection (+1 Defense) / Affinity (Damage) project to the aura's
+  // 3) Auto Modifier rules — Protection (+1 Defense) projects to the aura's
   //    recipients exactly as they apply to the bearer (effects.mjs skillModifierRules).
   {
     const list = skillModifierRules(skill);
@@ -144,7 +144,7 @@ function auraEffectDataFor(skill, sourceToken) {
   //    the bearer even for a PASSIVE aura (the in-memory passive path never grants an inflicted status,
   //    so the caster's own field wouldn't heal them otherwise). A valued Regen rides a `sustain` rule
   //    worth the Skill's Rank × 2 so collectSustain regenerates it each turn (Barrier's absorb isn't an
-  //    aura yet — it needs the per-pool actor flag). Lingering keeps its own element-aware on-hit path.
+  //    aura yet — it needs the per-pool actor flag). Lingering keeps its own dedicated on-hit path.
   const statusRaw = [];
   const inflictSt = (skill.system?.modifiers ?? []).includes("inflict") ? skill.system.inflictStatus : "";
   if (inflictSt && inflictSt !== "decay" && (PROJECTANIME.conditionKeys ?? []).includes(inflictSt)) {

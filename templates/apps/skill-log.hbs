@@ -1,19 +1,18 @@
 <div class="skill-log-body">
   <div class="sp-summary">
-    <span class="sp-stat"><span class="sp-val">{{spInfo.available}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.available"}}</span></span>
-    <span class="sp-stat"><span class="sp-val">{{spInfo.spent}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.spent"}}</span></span>
-    {{#if spInfo.granted}}<span class="sp-stat granted"><span class="sp-val">{{spInfo.granted}}</span><span class="sp-key">{{localize "PROJECTANIME.Skill.spGranted"}}</span></span>{{/if}}
-    <span class="sp-stat total"><span class="sp-val">{{spInfo.total}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.total"}}</span></span>
+    <span class="sp-stat"><span class="sp-val">{{advInfo.available}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.available"}}</span></span>
+    <span class="sp-stat"><span class="sp-val">{{advInfo.spent}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.spent"}}</span></span>
+    <span class="sp-stat total"><span class="sp-val">{{advInfo.total}}</span><span class="sp-key">{{localize "PROJECTANIME.SkillLog.total"}}</span></span>
   </div>
 
   <ul class="sp-log-list">
-    {{#each spLog as |entry|}}
-    <li class="sp-log-entry kind-{{entry.kind}}{{#unless entry.refundable}} locked{{/unless}}">
+    {{#each advLog as |entry|}}
+    <li class="sp-log-entry kind-{{entry.kind}}{{#unless entry.refundable}} locked{{/unless}}" data-entry-id="{{entry.id}}">
       <i class="sp-log-icon fas {{entry.icon}}"></i>
       <span class="sp-log-label" title="{{entry.label}}">{{entry.label}}</span>
       <span class="sp-log-amount">&minus;{{entry.amount}}</span>
       {{#if @root.editable}}{{#if entry.refundable}}
-      <a class="sp-log-refund" data-action="refundSp" data-entry-id="{{entry.id}}">{{localize "PROJECTANIME.SkillLog.refund"}}</a>
+      <a class="sp-log-refund" data-action="refundEntry">{{localize "PROJECTANIME.SkillLog.refund"}}</a>
       {{/if}}{{/if}}
     </li>
     {{else}}

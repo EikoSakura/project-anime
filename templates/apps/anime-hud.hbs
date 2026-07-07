@@ -89,10 +89,11 @@
       </article>
     </div>
 
-    {{!-- menu (menu col · top→bottom) — grouped icon rail --}}
+    {{!-- menu (menu col · top→bottom) — grouped icon rail (picker · disposition cycle / sheet · settings) --}}
     <div data-panel="menu">
       <div class="group single">
         <a data-action="hudPicker" data-tooltip="{{name}}"><i class="fas fa-user-pen"></i></a>
+        <a class="disp-{{alliance.key}}{{#unless alliance.canCycle}} disabled{{/unless}}"{{#if alliance.canCycle}} data-action="hudAlliance"{{/if}} data-tooltip="{{alliance.label}}"><i class="{{alliance.icon}}"></i></a>
       </div>
       <div class="group bottom">
         <a data-action="hudSheet" data-tooltip="{{localize 'PROJECTANIME.Hud.openSheet'}}"><i class="fas fa-id-badge"></i></a>
@@ -132,33 +133,16 @@
       {{/each}}
     </div>
 
-    {{!-- details (statistics col · top) — 2 identity stats (Carry · Movement) --}}
+    {{!-- details (statistics col · top) — the small Guard · Movement strip --}}
     <div data-panel="details">
       {{#each details}}
-      <div data-section="{{key}}" class="{{#if danger}}danger{{/if}}" data-tooltip="{{label}}">
+      <div data-section="{{key}}" data-tooltip="{{label}}">
         <i class="{{icon}}"></i><span>{{value}}</span>
       </div>
       {{/each}}
     </div>
 
-    {{!-- statistics (statistics col · middle) — 6 DERIVED, 3 rows auto-flow column --}}
-    <div data-panel="statistics">
-      {{#each derived}}
-      <a data-section="statistics" class="stat-{{key}}" data-action="hudStat" data-kind="derived" data-stat="{{key}}" data-label="{{label}}" data-value="{{value}}" data-tooltip="{{label}}">
-        <i class="{{icon}}"></i><span>{{value}}</span>
-      </a>
-      {{/each}}
-    </div>
-
-    {{!-- alliance (resources col · top) — token disposition / side --}}
-    <div data-panel="alliance">
-      <a data-section="alliance" class="disp-{{alliance.key}}{{#unless alliance.canCycle}} disabled{{/unless}}"{{#if alliance.canCycle}} data-action="hudAlliance"{{/if}} data-tooltip="{{alliance.label}}">
-        <i class="{{alliance.icon}}"></i>
-        <span>{{#if alliance.canCycle}}<i class="fa-solid fa-arrow-rotate-right"></i>{{/if}}</span>
-      </a>
-    </div>
-
-    {{!-- resources (resources col · middle) — Luck dice, drawn as the character sheet's dice cubes --}}
+    {{!-- resources (statistics col · middle) — Luck dice, drawn as the character sheet's dice cubes --}}
     <div data-panel="resources">
       <div class="hud-luck" data-tooltip="{{luck.tooltip}}">
         <div class="luck-dice">

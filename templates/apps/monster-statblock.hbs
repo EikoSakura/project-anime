@@ -1,21 +1,26 @@
-{{!-- Shared derived statblock readout for the Monster Creator (Frame + Tune steps). Reads the finished
-      numbers off the actor (ctx.stat); a Caster shows MATK (its attacks target RES). --}}
+{{!-- Shared derived statblock readout for the Monster Creator (Type + Review steps). Reads the V2
+      stat line off the actor (ctx.stat): HB · EB · Guard · Movement · Damage · Threshold, the five
+      Attribute dice, and (for a Boss) the Bars readout plus its display notes. --}}
 <div class="cc-statblock">
   <div class="cc-vitals-grid cc-frame-stats">
-    <div class="cc-vital hp"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.hp"}}</span><span class="cc-v-val">{{stat.hp}}</span></div>
-    <div class="cc-vital energy"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.energy"}}</span><span class="cc-v-val">{{stat.energy}}</span></div>
-    {{#if magic}}
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.matkShort"}}</span><span class="cc-v-val">{{stat.matk}}</span></div>
-    {{else}}
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.atkShort"}}</span><span class="cc-v-val">{{stat.atk}}</span></div>
-    {{/if}}
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.defShort"}}</span><span class="cc-v-val">{{stat.defense}}</span></div>
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.resShort"}}</span><span class="cc-v-val">{{stat.res}}</span></div>
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.evaShort"}}</span><span class="cc-v-val">{{stat.evasion}}</span></div>
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.asShort"}}</span><span class="cc-v-val">{{stat.as}}</span></div>
+    <div class="cc-vital hp"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.hbShort"}}</span><span class="cc-v-val">{{stat.hb}}</span></div>
+    <div class="cc-vital energy"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.ebShort"}}</span><span class="cc-v-val">{{stat.eb}}</span></div>
+    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.guard"}}</span><span class="cc-v-val">{{stat.guard}}</span></div>
     <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.movShort"}}</span><span class="cc-v-val">{{stat.movement}}</span></div>
+    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.dmgShort"}}</span><span class="cc-v-val">{{stat.damage}}</span></div>
+    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.thrShort"}}</span><span class="cc-v-val">{{stat.threshold}}</span></div>
+  </div>
+  <div class="cc-role-strong">
+    {{#each attrDice as |a|}}
+    <span class="cc-strong-chip">{{a.label}} {{a.die}}</span>
+    {{/each}}
   </div>
   {{#if bossBars}}
-  <div class="cc-boss-bars"><i class="fas fa-crown"></i> {{localize "PROJECTANIME.Boss.bars"}}: <strong>{{bossBars.count}}</strong> × <strong>{{bossBars.barHp}}</strong> {{localize "PROJECTANIME.Stat.hp"}}</div>
+  <div class="cc-boss-bars"><i class="fas fa-crown"></i> {{localize "PROJECTANIME.Boss.bars"}}: <strong>{{bossBars.count}}</strong> × <strong>{{bossBars.barHp}}</strong> {{localize "PROJECTANIME.Stat.hbShort"}}</div>
+  <div class="cc-role-strong">
+    <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.actsTwice"}}</span>
+    <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.energyPerBar"}}</span>
+    <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.techniquesPerBar"}}</span>
+  </div>
   {{/if}}
 </div>

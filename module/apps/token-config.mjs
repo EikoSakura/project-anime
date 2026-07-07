@@ -17,8 +17,8 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 export class TokenSettingsConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "project-anime-token-settings",
-    // Reuse the Elements config chrome (.ec-body / .ec-footer / .ec-save); add our own field layout.
-    classes: ["project-anime", "element-config", "token-settings-config"],
+    // Reuse the shared config-menu chrome (.ec-body / .ec-footer / .ec-save); add our own field layout.
+    classes: ["project-anime", "config-menu", "token-settings-config"],
     tag: "form",
     position: { width: 460, height: "auto" },
     window: { title: "PROJECTANIME.Settings.tokenSettings.title", icon: "fa-solid fa-people-group" },

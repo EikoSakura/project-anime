@@ -1,51 +1,14 @@
-{{!-- GM Character-Creation settings: starting numbers, purchasable types, open compendiums. --}}
+{{!-- GM Character-Creation settings: starting numbers, creation Choices. --}}
 <div class="cc-config">
 
   <section class="ccf-section">
     <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.numbers"}}</h3>
     <div class="ccf-nums">
       <label class="ccf-field">
-        <span>{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
-        <input type="number" name="skillPoints" value="{{cfg.skillPoints}}" min="0" step="1" />
-      </label>
-      <label class="ccf-field">
         <span>{{localize "PROJECTANIME.Settings.creation.stepUps"}}</span>
         <input type="number" name="stepUps" value="{{cfg.stepUps}}" min="0" step="1" />
       </label>
-      <label class="ccf-field">
-        <span>{{localize "PROJECTANIME.Settings.creation.gold"}}</span>
-        <input type="number" name="gold" value="{{cfg.gold}}" min="0" step="1" />
-      </label>
     </div>
-  </section>
-
-  <section class="ccf-section">
-    <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.types"}}</h3>
-    <div class="ccf-checks">
-      {{#each types as |t|}}
-      <label class="ccf-check">
-        <input class="pa-cc-type" type="checkbox" value="{{t.type}}" {{#if t.checked}}checked{{/if}} />
-        <span>{{t.label}}</span>
-      </label>
-      {{/each}}
-    </div>
-  </section>
-
-  <section class="ccf-section">
-    <h3 class="ccf-title">{{localize "PROJECTANIME.Settings.creation.packs"}}</h3>
-    {{#if packs.length}}
-    <div class="ccf-packs">
-      {{#each packs as |p|}}
-      <label class="ccf-check ccf-pack">
-        <input class="pa-cc-pack" type="checkbox" value="{{p.id}}" {{#if p.checked}}checked{{/if}} />
-        <span class="ccf-pack-label">{{p.label}}</span>
-        <span class="ccf-pack-src">{{p.source}}</span>
-      </label>
-      {{/each}}
-    </div>
-    {{else}}
-    <p class="muted">{{localize "PROJECTANIME.Settings.creation.noPacks"}}</p>
-    {{/if}}
   </section>
 
   <section class="ccf-section">

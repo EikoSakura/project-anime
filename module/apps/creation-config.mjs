@@ -1,17 +1,13 @@
 /**
  * Project: Anime — Character-Creation config app + settings registration.
  *
- * A GM-only Configure-Settings menu (like the Elements / Bio Fields / Token Fields
- * menus) that tunes the Character Creator: starting Skill Points, free Attribute
- * Step-Ups, the Gold budget, which Item types may be purchased, and which compendium
- * packs the gear shop draws from. Mirrors element-config.mjs.
+ * A GM-only Configure-Settings menu (like the Bio Fields / Token Fields
+ * menus) that tunes the Character Creator: free Attribute Step-Ups and the
+ * creation Choices (Race/Class/… Packages). Mirrors bio-field-config.mjs.
  */
 import { CREATION_SETTING, getCreationConfig } from "../helpers/creation.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
-
-/** Item types offered as purchasable-type checkboxes (everything but Skill). */
-const SHOP_CANDIDATE_TYPES = ["weapon", "armor", "shield", "accessory", "consumable", "container", "gear"];
 
 /** Reduce a label to a stable slug usable as a choice id. */
 function slugify(value) {
@@ -47,8 +43,7 @@ export class CreationConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this.#state) return;
     const c = getCreationConfig();
     this.#state = {
-      skillPoints: c.skillPoints, stepUps: c.stepUps, gold: c.gold,
-      allowedTypes: [...c.allowedTypes], packs: [...c.packs],
+      stepUps: c.stepUps,
       choices: c.choices.map((ch) => ({ ...ch, options: ch.options.map((o) => ({ ...o })) }))
     };
   }
@@ -57,24 +52,8 @@ export class CreationConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext() {
     this.#seed();
     const s = this.#state;
-    const allowed = new Set(s.allowedTypes);
-    const open = new Set(s.packs);
     return {
-      cfg: { skillPoints: s.skillPoints, stepUps: s.stepUps, gold: s.gold },
-      types: SHOP_CANDIDATE_TYPES.map((t) => ({
-        type: t,
-        label: game.i18n.localize(`TYPES.Item.${t}`),
-        checked: allowed.has(t)
-      })),
-      packs: (game.packs ?? [])
-        .filter((p) => p.documentName === "Item")
-        .map((p) => ({
-          id: p.collection,
-          label: p.metadata?.label ?? p.title ?? p.collection,
-          source: p.metadata?.packageType === "world" ? "World"
-            : (p.metadata?.system === game.system.id ? "System" : "Module"),
-          checked: open.has(p.collection)
-        })),
+      cfg: { stepUps: s.stepUps },
       modeChoices: {
         single: game.i18n.localize("PROJECTANIME.Settings.creation.mode.single"),
         pickN: game.i18n.localize("PROJECTANIME.Settings.creation.mode.pickN")
@@ -114,15 +93,10 @@ export class CreationConfig extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!this.element) return;
     const form = this.element;
     const num = (name, fb) => { const v = Number(form.elements[name]?.value); return Number.isFinite(v) ? Math.max(0, Math.round(v)) : fb; };
-    const checked = (cls) => Array.from(form.querySelectorAll(`input.${cls}:checked`)).map((c) => c.value);
     const obj = foundry.utils.expandObject(new foundry.applications.ux.FormDataExtended(form).object);
     const rawChoices = obj.choices ? Object.values(obj.choices) : [];
     this.#state = {
-      skillPoints: num("skillPoints", 6),
       stepUps: num("stepUps", 5),
-      gold: num("gold", 1500),
-      allowedTypes: checked("pa-cc-type"),
-      packs: checked("pa-cc-pack"),
       choices: rawChoices.map((c) => ({
         id: String(c.id ?? "").trim(),
         label: String(c.label ?? "").trim(),
@@ -196,11 +170,7 @@ export class CreationConfig extends HandlebarsApplicationMixin(ApplicationV2) {
       choices.push({ id, label: c.label || id, mode: c.mode, n: c.n, options: c.options });
     }
     await game.settings.set("project-anime", CREATION_SETTING, {
-      skillPoints: s.skillPoints,
       stepUps: s.stepUps,
-      gold: s.gold,
-      allowedTypes: s.allowedTypes,
-      packs: s.packs,
       choices
     });
     ui.notifications.info(game.i18n.localize("PROJECTANIME.Settings.creation.saved"));
@@ -223,7 +193,7 @@ export function registerCreationSettings() {
     type: Object,
     default: {},
     onChange: () => {
-      // Re-render any open Project: Anime app (the Creator picks up new numbers/types).
+      // Re-render any open Project: Anime app (the Creator picks up new numbers/choices).
       for (const app of foundry.applications.instances.values()) {
         if (app.options?.classes?.includes("project-anime")) app.render(false);
       }

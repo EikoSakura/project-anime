@@ -1,108 +1,77 @@
-{{!-- Skill builder --}}
+{{!-- Technique — edit pane: a read-only build summary (editing routes through the Technique
+      Builder wizard) plus the fields that live outside the wizard. --}}
 <section class="item-body skill-builder tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
 
   <div class="build-summary">
-    <span>{{localize "PROJECTANIME.Skill.field.spCost"}}: <strong>{{system.spCost}}</strong></span>
+    <span>{{localize (lookup config.actionTypes system.actionType)}}</span>
+    {{#if (eq system.actionType "passive")}}<span>{{localize (lookup config.passiveModes system.passiveMode)}}</span>{{/if}}
     {{#if system.energyCost}}<span>{{localize "PROJECTANIME.Skill.field.energyCost"}}: <strong>{{system.energyCost}}</strong></span>{{/if}}
-    <span class="mod-budget">{{localize "PROJECTANIME.Skill.field.modifiers"}}: <strong>{{system.modifiersUsed}}</strong></span>
+    {{#if system.passiveEnergyTax}}<span>{{localize "PROJECTANIME.Skill.field.energyLock"}}: <strong>{{system.passiveEnergyTax}}</strong></span>{{/if}}
   </div>
 
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
     <div class="form-grid">
       <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.field.actionType"}}</label>
-        <select name="system.actionType">{{selectOptions config.actionTypes selected=system.actionType localize=true}}</select>
+        <label>{{localize "PROJECTANIME.Skill.field.effect"}}</label>
+        <span>{{localize (lookup config.skillEffects system.effect)}}</span>
+      </div>
+      {{#if system.secondaryEffect}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.Skill.field.secondaryEffect"}}</label>
+        <span>{{localize (lookup config.skillEffects system.secondaryEffect)}}</span>
+      </div>
+      {{/if}}
+      <div class="form-group">
+        <label>{{localize "PROJECTANIME.SkillBuilder.roll"}}</label>
+        <span>{{#if system.talentId}}{{localize "PROJECTANIME.Skill.field.talent"}}{{else}}{{localize (lookup config.attributes system.attributes.attrA)}} + {{localize (lookup config.attributes system.attributes.attrB)}}{{/if}}</span>
       </div>
       <div class="form-group">
         <label>{{localize "PROJECTANIME.Skill.field.range"}}</label>
-        <select name="system.range.scope">{{selectOptions config.ranges selected=system.range.scope localize=true}}</select>
+        <span>{{localize (lookup config.ranges system.range.scope)}}{{#if (eq system.range.scope "tiles")}} · {{system.range.tiles}} {{localize "PROJECTANIME.Skill.tiles"}}{{/if}}</span>
       </div>
-      {{#if rangeHasTiles}}
-      <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.tiles"}}</label>
-        <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" step="1" />
-      </div>
-      {{/if}}
       <div class="form-group">
         <label>{{localize "PROJECTANIME.Skill.field.target"}}</label>
-        <select name="system.target">{{selectOptions config.skillTargets selected=system.target localize=true}}</select>
+        <span>{{localize (lookup config.skillTargets system.target)}}</span>
       </div>
       <div class="form-group">
         <label>{{localize "PROJECTANIME.Skill.field.duration"}}</label>
-        <select name="system.duration">{{selectOptions config.skillDurations selected=system.duration localize=true}}</select>
+        <span>{{localize (lookup config.skillDurations system.duration)}}{{#if (eq system.duration "standard")}}{{#if system.effectDuration}} · {{system.effectDuration}} {{localize "PROJECTANIME.Skill.turns"}}{{/if}}{{/if}}</span>
       </div>
-      <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.field.skillEvasion"}}</label>
-        <select name="system.skillEvasion">{{selectOptions config.skillEvasionAttrs selected=system.skillEvasion localize=true blank="—"}}</select>
-      </div>
-      {{#if showDamageType}}
-      <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.field.damageType"}}</label>
-        <select name="system.damageType">{{selectOptions damageTypeChoices selected=system.damageType blank=""}}</select>
-      </div>
-      {{/if}}
-      {{#if showControlElement}}
+      {{#if system.controlElement}}
       <div class="form-group">
         <label>{{localize "PROJECTANIME.Skill.field.controlElement"}}</label>
-        <input type="text" name="system.controlElement" value="{{system.controlElement}}" />
+        <span>{{system.controlElement}}</span>
       </div>
       {{/if}}
-      {{#if showDamagePool}}
+      {{#if (eq system.actionType "react")}}
       <div class="form-group">
-        <label>{{localize poolLabel}}</label>
-        <select name="system.damagePool">{{selectOptions damagePoolChoices selected=system.damagePool localize=true}}</select>
-      </div>
-      {{/if}}
-      <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.field.attrA"}}</label>
-        <select name="system.attributes.attrA">{{selectOptions config.attributes selected=system.attributes.attrA localize=true}}</select>
-      </div>
-      <div class="form-group">
-        <label>{{localize "PROJECTANIME.Skill.field.attrB"}}</label>
-        <select name="system.attributes.attrB">{{selectOptions config.attributes selected=system.attributes.attrB localize=true}}</select>
-      </div>
-      {{#if showDamageDie}}
-      <div class="form-group">
-        <label>{{localize damageDieLabel}}</label>
-        <select name="system.damageAttr">{{selectOptions damageDieChoices selected=system.damageAttr}}</select>
-      </div>
-      {{/if}}
-      {{#if isReact}}
-      <div class="form-group span-2 {{#unless system.trigger}}needs-trigger{{/unless}}">
         <label>{{localize "PROJECTANIME.Skill.field.trigger"}}</label>
-        <select name="system.trigger">{{selectOptions config.triggers selected=system.trigger localize=true blank=""}}</select>
-        {{#unless system.trigger}}<span class="hint warn">{{localize "PROJECTANIME.Skill.reactNeedsTrigger"}}</span>{{/unless}}
+        <span>{{localize (lookup config.triggers system.trigger)}}</span>
       </div>
       {{/if}}
     </div>
   </div>
+
+  {{#if system.modifiers.length}}
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Skill.field.modifiers"}} <span class="muted">(+{{system.modifiersUsed}})</span></h4>
+    <div class="form-grid">
+      <div class="form-group span-2">
+        <span>{{#each system.modifiers as |m|}}{{localize (lookup ../config.skillModifiers m)}}{{#if (eq m "potent")}}{{#if (eq ../system.potentCount 2)}} ×2{{/if}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}</span>
+      </div>
+    </div>
+  </div>
+  {{/if}}
 
   <div class="form-section">
-    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.effect"}}</h4>
-    <div class="effect-block">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.properties"}}</h4>
+    <div class="form-grid">
       <div class="form-group">
-        <select name="system.effect">{{selectOptions config.skillEffects selected=system.effect localize=true}}</select>
+        <label>{{localize "PROJECTANIME.Skill.field.usesPerConflict"}}</label>
+        <input type="number" name="system.usesPerConflict" value="{{system.usesPerConflict}}" min="0" step="1" />
       </div>
-      <p class="effect-desc">{{effectDesc}}</p>
     </div>
-  </div>
-
-  <div class="modifiers-block">
-    <header class="group-header">
-      <h3>{{localize "PROJECTANIME.Skill.field.modifiers"}}
-        <span class="muted">({{system.modifiersUsed}})</span></h3>
-    </header>
-    <ul class="modifier-list">
-      {{#each modifierList as |mod|}}
-      <li class="modifier-row {{#if mod.selected}}selected{{/if}}"
-          {{#if @root.editable}}data-action="toggleModifier" data-modifier="{{mod.key}}"{{/if}}>
-        <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
-        <span class="mod-name">{{mod.label}}{{#if mod.heavy}} <span class="heavy-badge">{{localize "PROJECTANIME.Skill.heavy"}}</span>{{/if}}</span>
-        <span class="mod-desc muted">{{mod.desc}}</span>
-      </li>
-      {{/each}}
-    </ul>
   </div>
 
   {{!-- Optional override: when non-blank, replaces the auto-written rules on the View tab + card. --}}

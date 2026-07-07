@@ -21,7 +21,7 @@
  */
 
 import { canSeeTokenVitals } from "./token-info.mjs";
-import { PROJECTANIME, combatantSide, activeSide, pendingOnSide, hasActed, isSkippable, healthStatus, enemyRoleThreat } from "../helpers/config.mjs";
+import { PROJECTANIME, combatantSide, activeSide, hasActed, isSkippable, healthStatus, enemyTypeThreat } from "../helpers/config.mjs";
 import { rollCheck } from "../helpers/dice.mjs";
 import { liveEffects } from "../helpers/effects.mjs";
 
@@ -245,7 +245,7 @@ export function applyHudState() {
 export class HudSettingsConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "project-anime-hud-settings",
-    classes: ["project-anime", "element-config", "hud-settings-config"],
+    classes: ["project-anime", "config-menu", "hud-settings-config"],
     tag: "form",
     position: { width: 460, height: "auto" },
     window: { title: "PROJECTANIME.Settings.hudSettings.title", icon: "fa-solid fa-gamepad" },
@@ -375,9 +375,9 @@ export class AnimeHud extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /** @override — build every pf2e region for the driven actor: effects strip · vitals overlay ·
-   *  5 attributes (info) · 6 derived (statistics) · 2 identity stats (details) · Luck (resources) ·
-   *  disposition (alliance) · sidebar tabs · 10 shortcut slots · page slider. Popovers (picker /
-   *  settings / sidebar panel) are reachable even with no actor so a GM can still configure. */
+   *  5 attributes (info) · Guard·Mov strip (details) · Luck (resources) · disposition (alliance) ·
+   *  sidebar tabs · shortcut slots · page slider. Popovers (picker / settings / sidebar panel)
+   *  are reachable even with no actor so a GM can still configure. */
   async _prepareContext() {
     const actor = this.actor;
     const L = (k) => game.i18n.localize(k);
@@ -439,21 +439,10 @@ export class AnimeHud extends HandlebarsApplicationMixin(ApplicationV2) {
         value: Number(s.attributes?.[k]?.value ?? 0)
       }));
 
-      // statistics → the 6 DERIVED (reference values, click posts a compact line to chat).
-      ctx.derived = [
-        { key: "evasion",  icon: "fa-solid fa-person-running", label: L("PROJECTANIME.Stat.evasion"),     value: Number(s.evasion?.value ?? 0) },
-        { key: "defense",  icon: "fa-solid fa-shield-halved",  label: L("PROJECTANIME.Stat.defense"),     value: Number(s.defense?.value ?? 0) },
-        { key: "res",      icon: "fa-solid fa-hand-sparkles",  label: L("PROJECTANIME.Stat.resistance"),  value: Number(s.res?.value ?? 0) },
-        { key: "atk",      icon: "fa-solid fa-khanda",         label: L("PROJECTANIME.Stat.atk"),         value: Number(s.atk?.value ?? 0) },
-        { key: "as",       icon: "fa-solid fa-gauge-high",     label: L("PROJECTANIME.Stat.attackSpeed"), value: Number(s.as?.value ?? 0) },
-        { key: "movement", icon: "fa-solid fa-shoe-prints",    label: L("PROJECTANIME.Stat.movement"),    value: Number(s.movement?.value ?? 0) }
-      ];
-
-      // details → 2 identity stats (Carry · Movement — the pf2e level/speed slot).
-      const carry = s.carryingCapacity ?? {};
+      // details → the small Guard · Movement strip (the pf2e level/speed slot).
       ctx.details = [
-        { key: "carry",    icon: "fa-solid fa-weight-hanging", label: L("PROJECTANIME.Hud.carry"),     value: Number(carry.value ?? 0), danger: !!carry.overloaded },
-        { key: "movement", icon: "fa-solid fa-shoe-prints",    label: L("PROJECTANIME.Stat.movement"), value: Number(s.movement?.value ?? 0) }
+        { key: "guard",    icon: "fa-solid fa-shield-halved", label: L("PROJECTANIME.Stat.guard"),    value: Number(s.guard?.value ?? 0) },
+        { key: "movement", icon: "fa-solid fa-shoe-prints",   label: L("PROJECTANIME.Stat.movement"), value: Number(s.movement?.value ?? 0) }
       ];
 
       // resources → Luck dice (the hero-points analog).
@@ -761,21 +750,14 @@ export class AnimeHud extends HandlebarsApplicationMixin(ApplicationV2) {
     // enabled/party route through applyHudState (may close us); style keys re-render via onChange.
   }
 
-  /** Click a centre-zone stat. Attribute chips roll a Check (rollCheck — the sheet's path, so it
-   *  honours the roll dialog / Luck / contested targeting); derived chips have no roll, so they post a
-   *  compact reference line to chat (announce your Evasion/Defense/etc. at the table). */
+  /** Click an attribute chip → roll a Check (rollCheck — the sheet's path, so it honours the
+   *  roll dialog / Luck / contested targeting). */
   static async #onStat(event, target) {
     const actor = this.actor;
     if (!actor) return;
     const key = target.dataset.stat;
     if (!key) return;
-    if (target.dataset.kind === "attr") return rollCheck(actor, { attrA: key, attrB: key });
-    const label = target.dataset.label ?? key;
-    const value = target.dataset.value ?? "";
-    await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="pa-stat-ref"><span class="k">${label}</span><span class="v">${value}</span></div>`
-    });
+    return rollCheck(actor, { attrA: key, attrB: key });
   }
 
   /** Toggle a sidebar tab open/closed. Opening one closes any popover; the filter resets. */
@@ -1190,9 +1172,9 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
     };
   }
 
-  /** GM-only encounter Threat readout for the header: sum each hostile NPC's Threat cost (Rival 3 ·
-   *  Boss = party size · else its Role's Threat) against a Standard budget of the PC count, banded
-   *  Easy / Standard / Hard / Climax (the encounter-difficulty thresholds). null = nothing to show. */
+  /** GM-only encounter Threat readout for the header: sum each hostile NPC's Threat cost
+   *  (Rival 2 · Boss = party size · else its Type's Threat) against a Standard budget of the
+   *  PC count, banded Easy / Standard / Hard / Climax. null = nothing to show. */
   #threat(combat, isGM) {
     if (!isGM) return null;
     const party = combat.turns.filter((c) => c.actor?.type === "character").length;
@@ -1200,12 +1182,12 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
     let total = 0;
     for (const c of combat.turns) {
       const a = c.actor;
-      if (a?.type !== "npc" || combatantSide(c) !== "enemy") continue;
+      if (a?.type !== "npc" || combatantSide(c) !== "hostile") continue;
       const s = a.system ?? {};
-      total += s.rival ? 3 : s.boss?.enabled ? party : enemyRoleThreat(s.enemyRole);
+      total += s.boss?.enabled ? party : s.rival ? PROJECTANIME.rivalThreat : enemyTypeThreat(s.npcType);
     }
     if (total <= 0) return null;
-    const band = total <= party - 1 ? "easy" : total <= party ? "standard" : total <= party + 1.5 ? "hard" : "climax";
+    const band = total <= party - 1 ? "easy" : total <= party ? "standard" : total <= party * 1.5 ? "hard" : "climax";
     const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
     return { total: fmt(total), party, band, label: game.i18n.localize(PROJECTANIME.encounterDifficulty[band].label) };
   }

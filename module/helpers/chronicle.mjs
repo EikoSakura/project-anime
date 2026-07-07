@@ -6,7 +6,6 @@
  * rules:
  *   • Gold         → +value to the party stash treasury (`party.system.gold`)
  *   • Items        → a copy of each dragged Item into the party stash
- *   • Reputation   → no-op for now (a faction system is coming; the value is stored + shown)
  *   • Unlock       → narrative only (shown, granted nothing mechanically)
  *
  * v0.03: "A quest never pays SP directly. SP flows only through Episodes, Arcs, Seasons, and
@@ -14,15 +13,8 @@
  * header) pays Episode/Arc/Season SP instead. Legacy sp rewards on stored quests are skipped
  * (kept in data, logged, never paid).
  */
-import { partyMembers, partyActors, resolveParty } from "./party-folder.mjs";
-import { tierFromRank } from "./config.mjs";
-import { applyRepToFaction, factionById, unlockRecruits } from "./factions.mjs";
-import { applyBondReward } from "./bonds.mjs";
+import { partyMembers, partyActors, partyCompanions, resolveParty } from "./party-folder.mjs";
 import { stampCompendiumSource } from "./gear.mjs";
-
-// `partyActors`/`resolveParty` moved to party-folder.mjs (shared with FACTION tier rewards); re-export
-// them here so existing importers of the Chronicle module keep working.
-export { partyActors, resolveParty };
 
 export const QUESTS_SETTING = "quests";
 export const TRACKED_SETTING = "chronicleTracked";
@@ -39,64 +31,53 @@ export const PARTY_TIER_SETTING = "partyTierOverride";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 /* -------------------------------------------------------------------------- */
-/*  Party Tier (v0.03)                                                        */
+/*  Party Tier (legacy scale for quest reward budgets)                        */
 /* -------------------------------------------------------------------------- */
 
 const TIER_NUMERALS = ["I", "I", "II", "III", "IV"];
 
-/** The party's Tier, 1–4 (v0.03 revised "Rank and Tier"): the Tier shared by MOST of the party's
- *  characters (each character's own Tier comes from their Rank); an even split reads the higher.
- *  A GM override on the party sheet wins; with no roster at all, fall back to the old Seasons
- *  formula (1 + Seasons concluded, max IV). Work pay, Posting budgets, and material prices read this. */
+/** A 1–4 campaign-scale dial for quest reward budgets (Ranks are gone in V2 — this is now just
+ *  the GM's override on the party sheet, else 1 + Seasons concluded, max IV). */
 export function partyTier() {
   const override = Number(game.settings.get("project-anime", PARTY_TIER_SETTING)) || 0;
   if (override >= 1) return Math.min(4, override);
   return partyTierAuto();
 }
 
-/** The auto-derived party Tier (ignores the GM pin): majority member Tier, ties read the higher;
- *  the old Seasons formula only backstops a world with no roster. */
+/** The auto-derived campaign scale (ignores the GM pin): 1 + Seasons concluded, max IV. */
 export function partyTierAuto() {
-  const members = partyActors().flatMap((p) => partyMembers(p));
-  if (members.length) {
-    const counts = [0, 0, 0, 0];
-    for (const m of members) counts[tierFromRank(m.system?.rank) - 1] += 1;
-    let best = 1;
-    let bestCount = 0;
-    for (let t = 1; t <= 4; t++) if (counts[t - 1] >= bestCount && counts[t - 1] > 0) { best = t; bestCount = counts[t - 1]; }
-    return best;
-  }
   const seasons = Number(game.settings.get("project-anime", SEASON_COUNT_SETTING)) || 0;
   return Math.min(4, 1 + seasons);
 }
 
-/** Roman numeral for a Tier value (defaults to the current party Tier). */
+/** Roman numeral for a Tier value (defaults to the current campaign scale). */
 export function tierNumeral(tier = partyTier()) {
   return TIER_NUMERALS[Math.max(1, Math.min(4, Math.round(Number(tier) || 1)))];
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Milestone SP (v0.03)                                                      */
+/*  Milestone Advancements (V2)                                               */
 /* -------------------------------------------------------------------------- */
 
-/** The Milestone award dialog — the campaign's SP faucet (v0.03: "SP flows only through
- *  Episodes, Arcs, Seasons, and Train"). Episode +2, Arc +3, Season +5; rewards STACK: an Arc's
- *  climax is also an Episode and pays both, a Season's conclusion pays all three. Awards the sum
- *  to every character in the party folder, posts one card, and advances the Season counter when
- *  a Season is included. GM only. */
+/** The Milestone award dialog — the campaign's advancement faucet (rules: Advancement —
+ *  Episode 2 · Arc 4 · Season 6; each milestone is picked on its own, no stacking implied by
+ *  the doc's table). Awards the chosen milestones' advancements to every character in the
+ *  party folder, posts one card, and advances the Season counter when a Season is included.
+ *  GM only. */
 export async function promptMilestoneAward() {
   const L = (k) => game.i18n.localize(k);
-  const party = resolveParty();
+  const party = await resolveParty();
   const members = party ? partyMembers(party) : [];
   if (!members.length) return ui.notifications.warn(L("PROJECTANIME.Chronicle.milestoneNoParty"));
 
-  const row = (key, sp) => `
+  const cfg = CONFIG.PROJECTANIME?.milestones ?? {};
+  const row = (key) => `
     <label class="ms-row"><input type="checkbox" name="${key}" />
-      <span>${L(`PROJECTANIME.Chronicle.milestones.${key}`)}</span><b>+${sp} SP</b></label>`;
+      <span>${L(`PROJECTANIME.Chronicle.milestones.${key}`)}</span><b>+${cfg[key]?.advancements ?? 0}</b></label>`;
   const res = await foundry.applications.api.DialogV2.wait({
     window: { title: L("PROJECTANIME.Chronicle.milestone"), icon: "fa-solid fa-flag-checkered" },
     classes: ["project-anime"],
-    content: `<div class="project-anime roll-dialog pa-milestones">${row("episode", 2)}${row("arc", 3)}${row("season", 5)}</div>`,
+    content: `<div class="project-anime roll-dialog pa-milestones">${row("episode")}${row("arc")}${row("season")}</div>`,
     buttons: [
       {
         action: "award", label: L("PROJECTANIME.Chronicle.award"), icon: "fa-solid fa-medal", default: true,
@@ -112,38 +93,34 @@ export async function promptMilestoneAward() {
   });
   if (!res || res === "cancel") return;
 
-  // Stacking: a Season concludes an Arc, an Arc's climax is also an Episode — the doc pays both.
-  const season = res.season;
-  const arc = res.arc || season;
-  const episode = res.episode || arc;
-  if (!episode) return;
   const parts = [];
-  if (episode) parts.push({ key: "episode", sp: 2 });
-  if (arc) parts.push({ key: "arc", sp: 3 });
-  if (season) parts.push({ key: "season", sp: 5 });
-  const total = parts.reduce((n, p) => n + p.sp, 0);
+  for (const key of ["episode", "arc", "season"]) {
+    if (res[key]) parts.push({ key, n: cfg[key]?.advancements ?? 0 });
+  }
+  if (!parts.length) return;
+  const total = parts.reduce((n, p) => n + p.n, 0);
 
-  // Milestone SP is EARNED SP — it feeds the lifetime total that drives Rank (v0.03 revised).
-  await Promise.all(members.map((m) =>
-    m.update({
-      "system.skillPoints.value": (m.system.skillPoints?.value ?? 0) + total,
-      "system.skillPoints.earned": (m.system.skillPoints?.earned ?? 0) + total
-    })
+  // Companions advance with their bonders (rules: Companion Advancement — the Companion earns
+  // 1 whenever you earn 1), so each earns the same total.
+  const companions = partyCompanions(party);
+  await Promise.all([...members, ...companions].map((m) =>
+    m.update({ "system.advancement.value": (m.system.advancement?.value ?? 0) + total })
   ));
 
   let seasonLine = "";
-  if (season) {
+  if (res.season) {
     const n = (Number(game.settings.get("project-anime", SEASON_COUNT_SETTING)) || 0) + 1;
     await game.settings.set("project-anime", SEASON_COUNT_SETTING, n);
     seasonLine = `<p class="muted">${game.i18n.format("PROJECTANIME.Chronicle.seasonAdvanced", { n })}</p>`;
   }
-  const breakdown = parts.map((p) => `${L(`PROJECTANIME.Chronicle.milestones.${p.key}`)} +${p.sp}`).join(" · ");
+  const breakdown = parts.map((p) => `${L(`PROJECTANIME.Chronicle.milestones.${p.key}`)} +${p.n}`).join(" · ");
   await ChatMessage.create({
     content: `
       <div class="project-anime chat-card">
         <header class="card-title"><i class="fa-solid fa-flag-checkered"></i> ${L("PROJECTANIME.Chronicle.milestone")}</header>
-        <p><strong>+${total} SP</strong> — ${breakdown}</p>
+        <p><strong>+${total} ${L("PROJECTANIME.Advance.advancements")}</strong> — ${breakdown}</p>
         <p class="muted">${members.map((m) => m.name).join(", ")}</p>
+        ${companions.length ? `<p class="muted"><i class="fa-solid fa-paw"></i> ${companions.map((c) => c.name).join(", ")}</p>` : ""}
         ${seasonLine}
       </div>`
   });
@@ -158,9 +135,6 @@ export const QUEST_CATEGORIES = {
 
 /** Posting Sizes (v0.03) — the reward-budget axis. Categories stay the journal's display colors. */
 export const QUEST_SIZES = ["job", "request", "commission"];
-
-/** The 9 Objective types a Posting is built from (v0.03). */
-export const OBJECTIVE_TYPES = ["clear", "deliver", "duel", "escort", "hunt", "protect", "recover", "scout", "survive"];
 
 /** Reward Budget in Gold: Job 100G × Tier · Request 100G × Tier per character ·
  *  Commission 200G × Tier per character (paid at the climax). */
@@ -211,10 +185,6 @@ export async function tickQuestDeadlines() {
   return lines;
 }
 
-/** Reward types the Chronicle understands. `party` = distributed to the party on completion.
- *  (`sp` retired v0.03 — quests never pay SP; see the Milestone tool.) */
-export const REWARD_TYPES = ["gold", "rep", "bond", "item", "unlock", "recruit"];
-
 /* -------------------------------------------------------------------------- */
 /*  Read / write                                                              */
 /* -------------------------------------------------------------------------- */
@@ -228,10 +198,6 @@ export function getQuests() {
 /** Persist the full quest list (GM only — the setting is world-scoped). */
 export async function saveQuests(quests) {
   return game.settings.set("project-anime", QUESTS_SETTING, quests);
-}
-
-export function getQuest(id) {
-  return getQuests().find((q) => q.id === id) ?? null;
 }
 
 /** A fresh, empty quest. */
@@ -251,8 +217,8 @@ export function blankQuest() {
     deadline: "", // rests remaining ("" = none); ticks down on party rests, expires at 0
     consequence: "", // printed with the Deadline — what happens when it expires (public)
     complication: "", // the hidden truth — GM eyes only
-    objectives: [], // { id, type, text, done, hidden, optional }
-    rewards: [], // { type, value?, faction?, uuid?, name?, img?, label? }
+    objectives: [], // { id, text, done, hidden, optional }
+    rewards: [], // { type, value?, uuid?, name?, img?, label? }
     granted: false
   };
 }
@@ -276,7 +242,7 @@ export function questProgress(quest) {
 export async function grantRewards(quest, { goldItemsTo = "stash" } = {}) {
   if (!game.user.isGM) return null;
   const rewards = quest.rewards ?? [];
-  const summary = { sp: 0, gold: 0, items: 0, members: 0, rep: 0, bond: 0, recruits: 0, party: null, goldItemsTo };
+  const summary = { sp: 0, gold: 0, items: 0, members: 0, party: null, goldItemsTo };
   if (!rewards.length) return summary;
 
   const needsParty = rewards.some((r) => ["sp", "gold", "item"].includes(r.type));
@@ -289,16 +255,10 @@ export async function grantRewards(quest, { goldItemsTo = "stash" } = {}) {
   const members = party ? partyMembers(party) : [];
   let gold = 0;
   const itemObjs = [];
-  const repRewards = [];
-  const bondRewards = [];
-  const recruitIds = [];
   for (const r of rewards) {
     // Legacy `sp` rewards (pre-v0.03 quests): never paid — SP flows only through Milestones/Train.
     if (r.type === "sp") { console.log(`Project: Anime | Quest sp reward skipped (v0.03): ${r.value}`); continue; }
     if (r.type === "gold") gold += Number(r.value) || 0;
-    else if (r.type === "rep") repRewards.push(r);
-    else if (r.type === "bond") bondRewards.push(r);
-    else if (r.type === "recruit" && r.recruitId) recruitIds.push(r.recruitId);
     else if (r.type === "item" && r.uuid) {
       const item = await fromUuid(r.uuid).catch(() => null);
       if (item?.toObject) {
@@ -337,26 +297,6 @@ export async function grantRewards(quest, { goldItemsTo = "stash" } = {}) {
     }
     summary.items = itemObjs.length;
   }
-
-  // Reputation → bump the matching faction's standing, resolving by id first (the dropdown stores it)
-  // and falling back to the snapshot name. No-op when nothing matches.
-  for (const r of repRewards) {
-    const name = (r.factionId ? factionById(r.factionId)?.name : null) ?? r.faction;
-    await applyRepToFaction(name, r.value);
-    summary.rep += 1;
-  }
-
-  // Bond → forge or deepen a bond with the target NPC (defaults to the quest giver) on every member.
-  for (const r of bondRewards) {
-    const name = r.name || quest.giver?.name || "";
-    const actorUuid = r.uuid || quest.giver?.uuid || "";
-    if (!name && !actorUuid) continue;
-    await applyBondReward({ name, actorUuid, img: r.img || quest.giver?.img || "", ranks: r.value });
-    summary.bond += 1;
-  }
-
-  // Recruit → unlock the referenced HQ recruit-pool entries so they become available to recruit.
-  if (recruitIds.length) summary.recruits = (await unlockRecruits(recruitIds)).length;
 
   summary.party = party?.name ?? null;
   return summary;

@@ -5,12 +5,12 @@
  * launched from an item's "Effects" tab. Every modification is a dropdown-built
  * "sentence" row — the GM/player never types a data path or JSON. Saves the rules to
  * effect.flags["project-anime"].rules (+ the effect's name/icon/enabled). Mirrors the
- * element-config form pattern (working copy survives interactive re-renders).
+ * config-menu form pattern (working copy survives interactive re-renders).
  */
 import {
   blankRule, normalizeRule, effectRules, ruleChoices
 } from "../helpers/effects.mjs";
-import { isImageIcon } from "../helpers/elements.mjs";
+import { isImageIcon } from "../helpers/config.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -65,14 +65,8 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     form: { template: "systems/project-anime/templates/apps/effect-builder.hbs", scrollable: [""] }
   };
 
-  /** The ActiveEffect being edited (null in data mode — see #data). */
+  /** The ActiveEffect being edited. */
   #effect;
-
-  /** Data-mode descriptor: `{ id, title, name, img, rules, onSave }`. When set, the builder edits a
-   *  plain data object instead of a live ActiveEffect — seeded from it and, on save, handed back to
-   *  `onSave({name, img, rules})` instead of writing a document. Used to author an effect that's
-   *  STORED in schema and projected as an AE elsewhere (e.g. an actor's signature Trait effect). */
-  #data = null;
 
   /** Working copy of editable state (survives interactive add/delete re-renders). */
   #name = null;
@@ -82,7 +76,6 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   #durUnit = "none";
   #durValue = 0;
   #rules = null;
-  #desc = ""; // optional flavor line (data mode + withDesc — e.g. a Signature Trait's prose)
 
   /** Grant-item snapshots (uuid → self-contained item data), seeded from existing rules + each drop.
    *  Held on the instance because the form round-trip only carries uuid/name/img; reattached at submit
@@ -90,48 +83,23 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
   #grantSnapshots = new Map();
 
   constructor(effect, options = {}) {
-    const data = options.dataMode ?? null;
-    super({ ...options, id: `pa-effect-builder-${data ? data.id : effect.id}` });
+    super({ ...options, id: `pa-effect-builder-${effect.id}` });
     this.#effect = effect;
-    this.#data = data;
-  }
-
-  /**
-   * Open the builder on a plain DATA object instead of a live ActiveEffect. Seeds from
-   * `{name, img, rules}` and, on submit, calls `onSave({name, img, rules})` rather than writing a
-   * document. `id` makes the window unique / re-focusable per source. In this mode the always-on meta
-   * controls (enabled / toggleable / duration) are hidden — a stored effect is reconciled always-on
-   * by whatever projects it (e.g. helpers/trait-effect.mjs).
-   */
-  static forData({ id, title, name = "", img = "icons/svg/aura.svg", rules = [], desc = "", withDesc = false, toggle = false, allowToggle = false, onSave }) {
-    return new EffectBuilder(null, { dataMode: { id, title, name, img, rules, desc, withDesc, toggle, allowToggle, onSave } });
   }
 
   get title() {
-    if (this.#data) return this.#data.title || game.i18n.localize("PROJECTANIME.Effect.builderTitle");
     return `${game.i18n.localize("PROJECTANIME.Effect.builderTitle")} — ${this.#effect.name}`;
   }
 
-  /** Seed the working copy from the effect (or the data descriptor) on first render. */
+  /** Seed the working copy from the effect on first render. */
   #initState() {
     if (this.#rules !== null) return;
     // Seed the snapshot map from any grant rules that already carry a self-contained `data` snapshot,
     // so re-saving an existing grant preserves it (the form round-trip would otherwise drop it).
-    const srcRules = this.#data ? (this.#data.rules ?? []) : effectRules(this.#effect);
+    const srcRules = effectRules(this.#effect);
     for (const r of srcRules) {
       if (r?.type !== "grant") continue;
       for (const it of r.items ?? []) if (it?.uuid && it?.data) this.#grantSnapshots.set(it.uuid, it.data);
-    }
-    if (this.#data) {
-      this.#name = this.#data.name ?? "";
-      this.#img = this.#data.img ?? "icons/svg/aura.svg";
-      this.#enabled = true;     // a stored Trait effect is reconciled always-on
-      this.#toggle = !!this.#data.toggle;   // but it MAY be a player-toggle (allowToggle consumers, e.g. bonds)
-      this.#durUnit = "none";
-      this.#durValue = 0;
-      this.#rules = (this.#data.rules ?? []).map(seedRule);
-      this.#desc = this.#data.desc ?? "";
-      return;
     }
     this.#name = this.#effect.name;
     this.#img = this.#effect.img;
@@ -148,15 +116,6 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#initState();
     const choices = ruleChoices();
     return {
-      // Data mode (a stored effect, e.g. a signature Trait): hide the always-on meta controls
-      // (enabled / toggleable / duration) — the projector keeps it always-on. `withDesc` adds an
-      // optional flavor textarea (the Signature Trait's prose for not-yet-codeable abilities).
-      rulesOnly: !!this.#data,
-      // The toggleable checkbox shows in full mode always, and in data mode only when the consumer
-      // opts in (allowToggle) — e.g. bond rank effects, so a boon can be flipped on situationally.
-      showToggle: !this.#data || !!this.#data?.allowToggle,
-      withDesc: !!this.#data?.withDesc,
-      desc: this.#desc,
       name: this.#name,
       img: this.#img,
       iconImg: isImageIcon(this.#img),
@@ -173,13 +132,9 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
           ...r,
           isNone: r.type === "none",
           isAttribute: r.type === "attribute",
-          isTalent: r.type === "talent",
-          isHq: r.type === "hq",
-          isGather: r.type === "gather",
           isStat: r.type === "stat",
           isResource: r.type === "resource",
           isSustain: r.type === "sustain",
-          isAffinity: r.type === "affinity",
           isRoll: r.type === "roll",
           isNcCheck: r.type === "ncCheck",
           isCondition: r.type === "condition",
@@ -195,13 +150,10 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
           predType: pt,
           predStatus: pred.status ?? "",
           predPct: pred.pct ?? "",
-          predElement: pred.element ?? "",
-          predLevel: pred.level ?? "",
           predSelf: pt === "selfCondition",
           predHp: pt === "hpBelow",
           predEnergy: pt === "energyBelow",
-          predTargetCond: pt === "targetCondition",
-          predTargetAff: pt === "targetAffinity"
+          predTargetCond: pt === "targetCondition"
         };
       })
     };
@@ -269,7 +221,6 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#toggle = !!data.toggle;
     this.#durUnit = data.durUnit ?? this.#durUnit;
     this.#durValue = data.durValue ?? this.#durValue;
-    this.#desc = data.desc ?? this.#desc;
     this.#rules = data.rules
       ? Object.values(data.rules).map((r) => {
           const rule = { ...r };
@@ -316,18 +267,6 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const rule of list) {
       if (rule.type !== "grant") continue;
       for (const it of rule.items ?? []) if (!it.data && this.#grantSnapshots.has(it.uuid)) it.data = this.#grantSnapshots.get(it.uuid);
-    }
-    // Data mode: hand the cleaned rules + name/icon (+ optional flavor) back to the owner; no document
-    // is written.
-    if (this.#data) {
-      const payload = {
-        name: (data.name || "").trim(),
-        img: (data.img || "").trim() || this.#data.img,
-        rules: list
-      };
-      if (this.#data.allowToggle) payload.toggle = !!data.toggle;
-      if (this.#data.withDesc) payload.desc = (data.desc || "").trim();
-      return this.#data.onSave(payload);
     }
     const duration = toDuration(data.durUnit, data.durValue);
     // Stamp start markers so duration.remaining counts down from now (combat + world time).

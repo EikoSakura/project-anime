@@ -2,76 +2,13 @@
 <section class="stats-main">
 
   <nav class="section-nav">
-    {{#unless isNpcRole}}
     <button type="button" data-action="openDrawer" data-section="skills"><i class="fas fa-bolt"></i><span>{{localize "PROJECTANIME.Tab.skills"}}</span></button>
     <button type="button" data-action="openDrawer" data-section="gear"><i class="fas fa-box-open"></i><span>{{localize "PROJECTANIME.Tab.gear"}}</span></button>
     <button type="button" data-action="openDrawer" data-section="defenses"><i class="fas fa-shield-halved"></i><span>{{localize "PROJECTANIME.Defenses.title"}}</span></button>
     <button type="button" data-action="openDrawer" data-section="effects"><i class="fas fa-wand-magic-sparkles"></i><span>{{localize "PROJECTANIME.Effect.title"}}</span></button>
-    {{/unless}}
-    {{#if isCharacter}}<button type="button" data-action="openDrawer" data-section="bonds"><i class="fas fa-hand-holding-heart"></i><span>{{localize "PROJECTANIME.Tab.bonds"}}</span></button>{{/if}}
     <button type="button" data-action="openDrawer" data-section="biography"><i class="fas fa-feather"></i><span>{{localize "PROJECTANIME.Tab.biography"}}</span></button>
   </nav>
 
-  {{#if isNpcRole}}
-  {{!-- NPC identity dossier — leads with who they are; combat stats fold below. --}}
-  <section class="npc-dossier">
-    {{!-- Identity fields live on the Biography tab. This dossier is the HQ work profile:
-          Talents (work dice) + Unique Trait + Trait Bonuses. --}}
-    <div class="nd-talents">
-      <div class="nd-thead"><i class="fas fa-dice-d20"></i> {{localize "PROJECTANIME.Talent.title"}}</div>
-      <div class="attributes nd-talents-grid">
-        {{#each talentList as |t|}}
-        <div class="attribute-card" data-attribute="{{t.key}}">
-          <div class="attr-head"><i class="attr-icon {{t.icon}}"></i><span class="attr-name">{{t.label}}</span></div>
-          <div class="attr-die rollable" data-action="rollTalent" data-talent="{{t.key}}" title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span class="die-face">{{t.die}}</span></div>
-          <label class="attr-base-edit" title="{{localize 'PROJECTANIME.Field.base'}}">
-            <span class="abe-label">{{localize "PROJECTANIME.Field.base"}}</span>
-            <input class="attr-base" type="number" name="system.talents.{{t.key}}.base" value="{{t.base}}" min="4" max="12" step="2" />
-          </label>
-        </div>
-        {{/each}}
-      </div>
-      {{!-- Signature Trait — the NPC's one defining ability, as a skill-style card (click to author). --}}
-      <div class="nd-sig">
-        <div class="nd-thead"><i class="fas fa-fire-flame-curved"></i> {{localize "PROJECTANIME.Talent.signature"}}{{#if editable}}{{#if signature.empty}} <a class="nd-tadd" data-action="editSignature"><i class="fas fa-plus"></i></a>{{/if}}{{/if}}</div>
-        {{#unless signature.empty}}
-        <div class="nd-card sig"{{#if editable}} data-action="editSignature"{{/if}}>
-          <div class="nd-card-ico"><img src="{{signature.img}}" alt="" /></div>
-          <div class="nd-card-body">
-            <div class="nd-card-name">{{#if signature.name}}{{signature.name}}{{else}}{{localize "PROJECTANIME.Talent.traitUntitled"}}{{/if}}</div>
-            {{#if signature.descHTML}}<div class="nd-card-desc">{{{signature.descHTML}}}</div>{{/if}}
-          </div>
-          {{#if editable}}
-          <span class="nd-card-edit"><i class="fas fa-pen"></i></span>
-          <a class="nd-card-clear" data-action="clearSignature" title="{{localize 'PROJECTANIME.Talent.signatureClear'}}"><i class="fas fa-xmark"></i></a>
-          {{/if}}
-        </div>
-        {{/unless}}
-      </div>
-
-      <div class="nd-traits">
-        <div class="nd-thead"><i class="fas fa-layer-group"></i> {{localize "PROJECTANIME.Talent.traits"}}{{#if editable}} <a class="nd-tadd" data-action="addTrait" title="{{localize 'PROJECTANIME.Talent.addTrait'}}"><i class="fas fa-plus"></i></a>{{/if}}</div>
-        {{#each traitsList as |t|}}
-        <div class="nd-card trait" data-trait-id="{{t.id}}"{{#if @root.editable}} data-action="editTrait"{{/if}}>
-          <div class="nd-card-ico sm"><img src="{{t.img}}" alt="" /></div>
-          <div class="nd-card-body">
-            <div class="nd-card-name">{{#if t.name}}{{t.name}}{{else}}{{localize "PROJECTANIME.Talent.traitUntitled"}}{{/if}}</div>
-            {{#if t.descHTML}}<div class="nd-card-desc">{{{t.descHTML}}}</div>{{/if}}
-          </div>
-          {{#if @root.editable}}
-          <span class="nd-card-edit"><i class="fas fa-pen"></i></span>
-          <a class="nd-card-clear" data-action="removeTrait" title="{{localize 'PROJECTANIME.Talent.removeTrait'}}"><i class="fas fa-xmark"></i></a>
-          {{/if}}
-        </div>
-        {{/each}}
-      </div>
-    </div>
-  </section>
-  {{/if}}
-
-  {{!-- Combat statblock — shown for Characters and Monster-mode NPCs; a social NPC stays a clean
-        dossier (flip the header role toggle to Monster to reveal the statblock). --}}
-  {{#unless isNpcRole}}
   <div class="statblock">
     <div class="statblock-body">
 
@@ -85,17 +22,6 @@
       </div>
       <div class="attr-die rollable" data-action="rollCheck" data-attribute="{{attr.key}}"
            title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span class="die-face">{{attr.die}}</span></div>
-      {{!-- Base value: kept wired (same data path) but tucked away — reveals on hover/focus to edit. A
-            Monster's dice derive from its Role × Tier (Strong/Weak), so its base is not hand-edited here. --}}
-      {{#unless @root.isMonster}}
-      <label class="attr-base-edit" title="{{localize 'PROJECTANIME.Field.base'}}">
-        <span class="abe-label">{{localize "PROJECTANIME.Field.base"}}</span>
-        <input class="attr-base" type="number" name="system.attributes.{{attr.key}}.base"
-               value="{{attr.base}}" min="4" max="12" step="2" />
-      </label>
-      {{else}}
-      <span class="attr-sw {{#if attr.strong}}strong{{else}}weak{{/if}}">{{#if attr.strong}}{{localize "PROJECTANIME.EnemyRole.strongShort"}}{{else}}{{localize "PROJECTANIME.EnemyRole.weakShort"}}{{/if}}</span>
-      {{/unless}}
     </div>
     {{/each}}
   </div>
@@ -125,6 +51,7 @@
                 <div class="eq-rows">
                   {{#if w.accHTML}}<div class="eq-row"><span class="k"><i class="fas fa-crosshairs"></i>{{localize "PROJECTANIME.Field.accuracy"}}</span><span class="v">{{{w.accHTML}}}</span></div>{{/if}}
                   {{#if w.dmgLabel}}<div class="eq-row"><span class="k"><i class="fas fa-burst"></i>{{localize "PROJECTANIME.Roll.damage"}}</span><span class="v">{{w.dmgLabel}}</span></div>{{/if}}
+                  {{#if w.threshold}}<div class="eq-row"><span class="k"><i class="fas fa-bullseye"></i>{{localize "PROJECTANIME.Field.threshold"}}</span><span class="v">{{w.threshold}}</span></div>{{/if}}
                   {{#if w.rangeText}}<div class="eq-row"><span class="k"><i class="fas fa-arrows-left-right-to-line"></i>{{localize "PROJECTANIME.Field.range"}}</span><span class="v">{{w.rangeText}}</span></div>{{/if}}
                 </div>
                 {{#if w.descHTML}}<div class="eq-desc">{{{w.descHTML}}}</div>{{/if}}
@@ -194,6 +121,5 @@
   </div>
     </div>
   </div>
-  {{/unless}}
 
 </section>

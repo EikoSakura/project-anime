@@ -48,10 +48,6 @@
     <span class="meta-value">{{system.buyRate}}%</span>
   </div>
   {{/if}}
-  <div class="carry-indicator {{#if system.carryingCapacity.overloaded}}overloaded{{/if}}">
-    <span>{{localize "PROJECTANIME.Stat.carryingCapacity"}}: <strong>{{system.carryingCapacity.value}} / {{system.carryingCapacity.max}}</strong></span>
-    {{#if system.carryingCapacity.overloaded}}<span class="warn">{{localize "PROJECTANIME.Overloaded"}}</span>{{/if}}
-  </div>
 </div>
 
 {{!-- Reusable inventory tile — shared by the single-bag grid and the combined-view sections. Called
@@ -159,26 +155,4 @@
       {{#if @root.editable}}{{> addTile}}{{/if}}
     </div>
   </div>
-{{/if}}
-
-{{#if hasMaterials}}
-<div class="mat-section">
-  <h4 class="mat-h"><i class="fa-solid fa-gem"></i> {{localize "PROJECTANIME.Material.label"}}</h4>
-  <div class="mat-list">
-    {{#each materials}}
-    <div class="mat-row{{#if prime}} is-prime{{/if}}" data-item-id="{{id}}" title="{{name}}">
-      <span class="mat-ico"><i class="{{icon}}"></i></span>
-      <span class="mat-name">{{name}}</span>
-      <span class="mat-tier">{{tierRoman}}</span>
-      <span class="mat-qty">×{{qty}}</span>
-      {{#if @root.editable}}
-      <span class="mat-actions">
-        <a data-action="editItem" data-item-id="{{id}}" title="{{localize 'PROJECTANIME.Action.edit'}}"><i class="fas fa-edit"></i></a>
-        <a data-action="deleteItem" data-item-id="{{id}}" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>
-      </span>
-      {{/if}}
-    </div>
-    {{/each}}
-  </div>
-</div>
 {{/if}}

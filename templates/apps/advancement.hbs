@@ -1,18 +1,74 @@
-{{!-- Advancement — the staged "level-up" status window. Everything +/− stages against the SP
-      pool; CONFIRM commits. The Skill Enhancement section (moved here from the Skill Builder)
-      selects a Skill in a paged icon grid and raises its enhancement tracks. --}}
+{{!-- Advancement — the V2 milestone spender. Every +/− stages one advancement against the
+      unspent pool and the option's slot cap; CONFIRM commits the lot. --}}
 <div class="lv-body">
 
   <div class="lv-sp">
-    <span class="lv-sp-label">{{localize "PROJECTANIME.Stat.skillPoints"}}</span>
-    <span class="lv-sp-right"><i class="lv-dia"></i><span class="lv-sp-val">{{spLeft}}</span></span>
+    <span class="lv-sp-label">{{localize "PROJECTANIME.Advancement.available"}}</span>
+    <span class="lv-sp-right"><i class="lv-dia"></i><span class="lv-sp-val">{{left}}</span></span>
   </div>
-  {{#if rank}}
-  <div class="lv-sp lv-rank" title="{{#if rank.next}}{{localize 'PROJECTANIME.Rank.nextAt' sp=rank.next}}{{else}}{{localize 'PROJECTANIME.Rank.max'}}{{/if}}">
-    <span class="lv-sp-label">{{localize "PROJECTANIME.Rank.label"}}</span>
-    <span class="lv-sp-right"><span class="lv-sp-val">{{rank.letter}} · {{rank.tier}}</span></span>
+
+  <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.optionList"}}</span><span class="lv-ln"></span></div>
+
+  {{!-- Create a Technique --}}
+  <div class="lv-row">
+    <span class="lv-nm2"><i class="fa-solid fa-wand-sparkles"></i><span>{{technique.label}}<span class="lv-hint">{{technique.slots}}</span></span></span>
+    <span class="lv-fill"></span>
+    {{#if technique.staged}}<span class="lv-val lv-staged">+1</span>{{/if}}
+    <span class="lv-stp">
+      <button type="button" data-action="stage" data-kind="technique" data-delta="-1" {{#unless technique.canMinus}}disabled{{/unless}}>&minus;</button>
+      <span class="lv-cost">1</span>
+      <button type="button" data-action="stage" data-kind="technique" data-delta="1" {{#unless technique.canPlus}}disabled{{/unless}}>+</button>
+    </span>
   </div>
-  {{/if}}
+
+  {{!-- +1 Energy Box --}}
+  <div class="lv-row">
+    <span class="lv-nm2"><i class="fa-solid fa-bolt"></i><span>{{energy.label}}<span class="lv-hint">{{energy.slots}}</span></span></span>
+    <span class="lv-val lv-fill">{{energy.value}}{{#if energy.stagedAmount}} <span class="lv-staged">{{energy.stagedAmount}}</span>{{/if}}</span>
+    <span class="lv-stp">
+      <button type="button" data-action="stage" data-kind="energy" data-delta="-1" {{#unless energy.canMinus}}disabled{{/unless}}>&minus;</button>
+      <span class="lv-cost">1</span>
+      <button type="button" data-action="stage" data-kind="energy" data-delta="1" {{#unless energy.canPlus}}disabled{{/unless}}>+</button>
+    </span>
+  </div>
+
+  {{!-- +1 Hit Box --}}
+  <div class="lv-row">
+    <span class="lv-nm2"><i class="fa-solid fa-heart-circle-plus"></i><span>{{hitBox.label}}<span class="lv-hint">{{hitBox.slots}}</span></span></span>
+    <span class="lv-val lv-fill">{{hitBox.value}}{{#if hitBox.stagedAmount}} <span class="lv-staged">{{hitBox.stagedAmount}}</span>{{/if}}</span>
+    <span class="lv-stp">
+      <button type="button" data-action="stage" data-kind="hitBox" data-delta="-1" {{#unless hitBox.canMinus}}disabled{{/unless}}>&minus;</button>
+      <span class="lv-cost">1</span>
+      <button type="button" data-action="stage" data-kind="hitBox" data-delta="1" {{#unless hitBox.canPlus}}disabled{{/unless}}>+</button>
+    </span>
+  </div>
+
+  {{!-- Learn a New Talent --}}
+  <div class="lv-row">
+    <span class="lv-nm2"><i class="fa-solid fa-graduation-cap"></i><span>{{talent.label}}<span class="lv-hint">{{talent.slots}}</span></span></span>
+    <span class="lv-fill"></span>
+    <span class="lv-stp">
+      <span class="lv-cost">1</span>
+      <button type="button" data-action="addTalent" {{#unless talent.canPlus}}disabled{{/unless}}>+</button>
+    </span>
+  </div>
+  {{#each talent.rows as |t|}}
+  <div class="lv-row">
+    <input type="text" class="adv-talent-name lv-fill" data-index="{{t.index}}" value="{{t.name}}" placeholder="{{localize 'PROJECTANIME.Talent.name'}}" />
+    <select class="adv-talent-attr" data-index="{{t.index}}">{{selectOptions @root.attrChoices selected=t.attr}}</select>
+    <span class="lv-stp"><button type="button" data-action="removeTalent" data-index="{{t.index}}">&minus;</button></span>
+  </div>
+  {{/each}}
+
+  {{!-- Rebuild a Technique --}}
+  <div class="lv-row">
+    <span class="lv-nm2"><i class="fa-solid fa-rotate"></i><span>{{rebuild.label}}<span class="lv-hint">{{rebuild.slots}}</span></span></span>
+    <select class="adv-rebuild lv-fill" {{#if rebuild.disabled}}disabled{{/if}}>
+      <option value="">{{localize "PROJECTANIME.Advancement.pickTechnique"}}</option>
+      {{#each rebuild.options as |o|}}<option value="{{o.id}}" {{#if o.selected}}selected{{/if}}>{{o.name}}</option>{{/each}}
+    </select>
+    <span class="lv-stp"><span class="lv-cost">1</span></span>
+  </div>
 
   <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.attributes"}}</span><span class="lv-ln"></span></div>
   {{#each attributes as |a|}}
@@ -24,120 +80,33 @@
     <span class="lv-die{{#if a.staged}} up{{/if}}">{{a.die}}</span>
     <span class="lv-stp">
       <button type="button" data-action="stage" data-kind="attr" data-key="{{a.key}}" data-delta="-1" {{#unless a.canMinus}}disabled{{/unless}}>&minus;</button>
-      <span class="lv-cost">{{#if a.cost}}{{a.cost}}{{else}}&mdash;{{/if}}</span>
+      <span class="lv-cost">1</span>
       <button type="button" data-action="stage" data-kind="attr" data-key="{{a.key}}" data-delta="1" {{#unless a.canPlus}}disabled{{/unless}}>+</button>
     </span>
   </div>
   {{/each}}
 
-  <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.combatStats"}}</span><span class="lv-ln"></span></div>
-  {{#each stats as |s|}}
+  {{#if hasTalents}}
+  <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.talents"}}</span><span class="lv-ln"></span></div>
+  {{#each talentRows as |t|}}
   <div class="lv-row">
-    <span class="lv-nm"><i class="{{s.icon}}"></i><span>{{s.label}}</span></span>
-    <span class="lv-hint lv-fill">+{{s.per}}</span>
-    <span class="lv-val">{{s.value}}{{#if s.stagedAmount}} <span class="lv-staged">{{s.stagedAmount}}</span>{{/if}}</span>
-    <span class="lv-stp">
-      <button type="button" data-action="stage" data-kind="stat" data-key="{{s.stat}}" data-delta="-1" {{#unless s.canMinus}}disabled{{/unless}}>&minus;</button>
-      <span class="lv-cost">{{s.cost}}</span>
-      <button type="button" data-action="stage" data-kind="stat" data-key="{{s.stat}}" data-delta="1" {{#unless s.canPlus}}disabled{{/unless}}>+</button>
+    <span class="lv-nm2"><i class="fa-solid fa-graduation-cap"></i><span>{{t.name}}<span class="lv-hint">{{t.attrLabel}}</span></span></span>
+    <span class="lv-track">
+      {{#each t.nodes as |n|}}<i class="lv-node {{n.cls}}"></i>{{#unless n.last}}<i class="lv-link {{n.linkCls}}"></i>{{/unless}}{{/each}}
     </span>
-  </div>
-  {{/each}}
-
-  {{#if specialty}}
-  <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Specialty.label"}}</span><span class="lv-ln"></span></div>
-  {{#if specialty.learned}}
-  <div class="lv-row lv-spec-learned">
-    <span class="lv-nm"><i class="fa-solid fa-medal"></i><span>{{specialty.currentLabel}}</span></span>
-    <span class="lv-hint lv-fill">{{specialty.currentBenefit}}</span>
-  </div>
-  {{else}}
-  {{#each specialty.options as |o|}}
-  <div class="lv-row lv-spec{{#if o.staged}} sel{{/if}}" {{#if o.canPick}}data-action="stageSpecialty" data-key="{{o.key}}"{{/if}}>
-    <span class="lv-nm"><i class="fa-solid {{#if o.staged}}fa-check{{else}}fa-medal{{/if}}"></i><span>{{o.label}}</span></span>
-    <span class="lv-hint lv-fill">{{o.benefit}}</span>
-    <span class="lv-cost">{{@root.specialty.cost}}</span>
-  </div>
-  {{/each}}
-  {{/if}}
-  {{/if}}
-
-  {{#if hasSkills}}
-  <div class="lv-shd"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.Advancement.skillEnhancement"}}</span><span class="lv-ln"></span></div>
-  <div class="lv-gwrap">
-    <button type="button" class="lv-pg" data-action="pageSkills" data-delta="-1" {{#unless canPrev}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Advancement.prevPage'}}"><i class="fa-solid fa-chevron-left"></i></button>
-    <div class="lv-grid">
-      {{#each skillTiles as |sk|}}
-      <div class="lv-gtile{{#if sk.sel}} sel{{/if}}" data-action="selectSkill" data-skill-id="{{sk.id}}" data-tooltip="{{sk.name}}"><img src="{{sk.img}}" alt="{{sk.name}}" /></div>
-      {{/each}}
-      {{#each emptyTiles}}<div class="lv-gtile emp"><i></i></div>{{/each}}
-    </div>
-    <button type="button" class="lv-pg" data-action="pageSkills" data-delta="1" {{#unless canNext}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Advancement.nextPage'}}"><i class="fa-solid fa-chevron-right"></i></button>
-  </div>
-  {{#if pageDots.length}}
-  <div class="lv-dots">{{#each pageDots as |p|}}<i class="lv-dot{{#if p.on}} on{{/if}}" data-action="pageSkills" data-page="{{p.idx}}"></i>{{/each}}</div>
-  {{/if}}
-
-  {{#if skill}}
-  <div class="lv-skhead">
-    <span class="lv-skname">{{skill.name}}</span>
-    <span class="lv-skmeta">{{skill.sp}} {{localize "PROJECTANIME.Stat.skillPointsAbbr"}} &middot; {{skill.actionLabel}}{{#if skill.showEnergy}} &middot; <i class="fa-solid fa-bolt"></i><span{{#if skill.energyStaged}} class="lv-staged"{{/if}}>{{skill.energy}}</span>{{/if}}</span>
-  </div>
-
-  {{#each tracks as |t|}}
-  <div class="lv-row">
-    <span class="lv-nm2"><i class="{{t.icon}}"></i><span>{{t.label}}<span class="lv-hint">{{t.hint}}</span></span></span>
-    {{#if t.pips}}
-    <span class="lv-pips">{{#each t.pips as |p|}}<i class="lv-pip {{p.cls}}"></i>{{/each}}</span>
-    {{else}}
-    <span class="lv-val lv-fill{{#if t.staged}} lv-staged{{/if}}">{{t.display}}</span>
-    {{/if}}
+    <span class="lv-die{{#if t.staged}} up{{/if}}">{{t.die}}</span>
     <span class="lv-stp">
-      <button type="button" data-action="stage" data-kind="track" data-key="{{t.op}}" data-delta="-1" {{#unless t.canMinus}}disabled{{/unless}}>&minus;</button>
+      <button type="button" data-action="stage" data-kind="talentStep" data-key="{{t.id}}" data-delta="-1" {{#unless t.canMinus}}disabled{{/unless}}>&minus;</button>
       <span class="lv-cost">1</span>
-      <button type="button" data-action="stage" data-kind="track" data-key="{{t.op}}" data-delta="1" {{#unless t.canPlus}}disabled{{/unless}}>+</button>
+      <button type="button" data-action="stage" data-kind="talentStep" data-key="{{t.id}}" data-delta="1" {{#unless t.canPlus}}disabled{{/unless}}>+</button>
     </span>
   </div>
   {{/each}}
-
-  <div class="lv-row">
-    <span class="lv-nm2"><i class="fa-solid fa-puzzle-piece"></i><span>{{localize "PROJECTANIME.Advancement.expansion"}}</span></span>
-    <span class="lv-chips">
-      {{#each modChips as |m|}}<span class="lv-mchip"><i></i>{{m}}</span>{{/each}}
-      {{#each stagedChips as |m|}}<span class="lv-mchip on" data-action="unstageMod" data-key="{{m.key}}" data-tooltip="{{localize 'PROJECTANIME.Advancement.unstage'}}"><i></i>{{m.label}}</span>{{/each}}
-    </span>
-    <span class="lv-stp">
-      <span class="lv-cost">1&ndash;2</span>
-      <button type="button" data-action="openPicker" {{#unless canExpand}}disabled{{/unless}}>+</button>
-    </span>
-  </div>
-  {{/if}}
   {{/if}}
 
   <div class="lv-foot">
-    <span class="lv-pend">{{#if hasStaged}}<span class="lv-staged">{{stagedTotal}} {{localize "PROJECTANIME.Stat.skillPointsAbbr"}}</span> {{localize "PROJECTANIME.Advancement.staged"}}{{else}}{{localize "PROJECTANIME.Advancement.noStaged"}}{{/if}}</span>
+    <span class="lv-pend">{{#if hasStaged}}<span class="lv-staged">{{stagedTotal}}</span> {{localize "PROJECTANIME.Advancement.staged"}}{{else}}{{localize "PROJECTANIME.Advancement.noStaged"}}{{/if}}</span>
     <button type="button" class="lv-confirm" data-action="confirmAdvance" {{#unless hasStaged}}disabled{{/unless}}>{{localize "PROJECTANIME.Advancement.confirm"}}</button>
   </div>
-
-  <div class="lv-setup">
-    <span data-action="calcVitals">{{localize "PROJECTANIME.Advancement.calcVitals"}}</span>
-    {{#if isCharacter}}<i class="lv-dot-sep"></i><span data-action="rollLuck">{{localize "PROJECTANIME.Advancement.rollLuck"}}</span>{{/if}}
-  </div>
-
-  {{#if picker}}
-  <div class="lv-picker">
-    <div class="lv-picker-backdrop" data-action="closePicker"></div>
-    <div class="lv-picker-panel">
-      <div class="lv-shd" style="margin-top:0"><span class="lv-dash">&mdash;</span><span class="lv-tt">{{localize "PROJECTANIME.SkillBuilder.addModifier"}}</span><span class="lv-ln"></span></div>
-      <div class="lv-picker-list">
-        {{#each picker as |p|}}
-        <button type="button" class="lv-pick" data-action="stageMod" data-key="{{p.key}}" {{#if p.disabled}}disabled{{/if}} data-tooltip="{{p.desc}}">
-          <span>{{p.label}}{{#if p.heavy}} <i class="lv-heavy"></i>{{/if}}</span><span class="lv-cost">{{p.cost}}</span>
-        </button>
-        {{/each}}
-      </div>
-    </div>
-  </div>
-  {{/if}}
 
 </div>

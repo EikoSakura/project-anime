@@ -9,16 +9,6 @@
     <i class="stud stud-e"></i>
     <i class="stud stud-s"></i>
     <i class="stud stud-w"></i>
-    {{#if isNPC}}
-    <button type="button" class="role-crest nested{{#if isNpcRole}} npc{{/if}}" data-action="toggleRole" title="{{localize 'PROJECTANIME.NpcRole.toggle'}}" aria-label="{{localize 'PROJECTANIME.NpcRole.toggle'}}">
-      <span class="dia"><span class="face">{{#if isNpcRole}}<i class="fas fa-user"></i>{{else}}<i class="fas fa-dragon"></i>{{/if}}</span></span>
-    </button>
-    {{/if}}
-    {{#if tierRoman}}
-    <span class="tier-crest" title="{{localize 'PROJECTANIME.EnemyTier.tier'}} {{tierRoman}}">
-      <span class="dia"><span class="face">{{tierRoman}}</span></span>
-    </span>
-    {{/if}}
   </div>
 
   <input class="char-name" type="text" name="name" value="{{actor.name}}" placeholder="{{localize 'Name'}}" />
@@ -39,14 +29,10 @@
 
   {{#if isNPC}}
   <div class="header-actions">
-    {{#if isMonster}}<button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.MonsterCreator.title'}}">
+    <button type="button" class="advance-btn create-btn" data-action="openCreator" title="{{localize 'PROJECTANIME.MonsterCreator.title'}}">
       <i class="fas fa-dragon"></i><span>{{localize "PROJECTANIME.MonsterCreator.open"}}</span>
-    </button>{{/if}}
-    {{#if isNpcRole}}
-    <button type="button" class="advance-btn" data-action="openAdvancement" title="{{localize 'PROJECTANIME.Advancement.title'}}">
-      <i class="fas fa-arrow-up-right-dots"></i><span>{{localize "PROJECTANIME.Advancement.open"}}</span>
     </button>
-    {{/if}}
+    <select name="system.disposition">{{selectOptions config.dispositions selected=system.disposition localize=true}}</select>
   </div>
   {{/if}}
 
@@ -56,10 +42,9 @@
            placeholder="{{localize 'PROJECTANIME.Field.pronouns'}}" />
     {{/if}}
     {{#if isNPC}}
-    <select name="system.disposition">{{selectOptions config.dispositions selected=system.disposition localize=true}}</select>
     {{#if tierBadge}}
     <span class="tier-badge" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
-      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>{{#if tierBadge.tierNumeral}}<span class="tier-numeral">{{localize "PROJECTANIME.EnemyTier.tier"}} {{tierBadge.tierNumeral}}</span>{{/if}}
+      <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>
     </span>
     {{#if tierBadge.rival}}<span class="enemy-chip rival" title="{{localize 'PROJECTANIME.Rival.badgeHint'}}"><i class="fas fa-chess-king"></i>{{localize "PROJECTANIME.Rival.badge"}}</span>{{/if}}
     {{#if tierBadge.boss}}<span class="enemy-chip boss" title="{{localize 'PROJECTANIME.Boss.badgeHint'}}"><i class="fas fa-crown"></i>{{localize "PROJECTANIME.Boss.badge"}}</span>{{/if}}
@@ -95,32 +80,28 @@
     <div class="resource hp">
       <div class="resource-top">
         <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
-        {{#if system.squad.isSquad}}
-        {{!-- Minion Squad: HP is pooled (per-member × members, derived) — the max is read-only here so
-              a sheet edit can't be silently overwritten; size it in the Monster Creator / Encounter Builder. --}}
         <span class="resource-vals">
-          <input type="number" name="system.hp.value" value="{{system.hp.value}}" min="0" />
+          {{!-- Reads in MARKS (0 = untouched), not remaining — no `name`, persisted by #bindMarkedInputs. --}}
+          <input type="number" data-marked="hp" value="{{hpMarked}}" min="0" max="{{system.hp.max}}" />
           <span class="sep">/</span>
-          <span class="num" data-tooltip="{{localize 'PROJECTANIME.MonsterCreator.squadNote'}}">{{system.hp.max}}</span>
+          {{!-- Shows the EFFECTIVE maximum (authored − Wound locks; a Boss shows its Bar HP). NO
+                `name`: the form's submitOnChange would write this derived number back into the
+                authored max on every edit, compounding one box away per Wound. #bindHpMax persists
+                the AUTHORED max instead (entered + current Wound locks). --}}
+          <input type="number" data-hp-max value="{{system.hp.max}}" min="0" />
         </span>
-        {{else}}
-        <span class="resource-vals">
-          <input type="number" name="system.hp.value" value="{{system.hp.value}}" min="0" />
-          <span class="sep">/</span>
-          <input type="number" name="system.hp.max" value="{{system.hp.max}}" min="0" />
-        </span>
-        {{/if}}
       </div>
-      <div class="bar"><div class="fill hp-fill" style="width: {{hpPct}}%"></div></div>
-      {{#if system.squad.isSquad}}
-      <div class="squad-line muted"><i class="fas fa-people-group"></i> {{system.squad.members}} / {{system.squad.maxMembers}} {{localize "PROJECTANIME.Party.squadMembers"}}</div>
+      <div class="boxes">{{#each hpBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setResourceBox" data-resource="hp" data-n="{{b.n}}" aria-label="{{localize 'PROJECTANIME.Stat.hp'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
+      {{#if woundCount}}
+      <div class="squad-line muted" title="{{localize 'PROJECTANIME.Wound.hint'}}"><i class="fas fa-heart-crack"></i> {{woundCount}} {{localize "PROJECTANIME.Wound.plural"}}</div>
       {{/if}}
     </div>
     <div class="resource energy">
       <div class="resource-top">
         <label>{{localize "PROJECTANIME.Stat.energy"}}</label>
         <span class="resource-vals">
-          <input type="number" name="system.energy.value" value="{{system.energy.value}}" min="0" />
+          {{!-- Reads in MARKS (0 = untouched), not remaining — no `name`, persisted by #bindMarkedInputs. --}}
+          <input type="number" data-marked="energy" value="{{energyMarked}}" min="0" max="{{system.energy.max}}" />
           <span class="sep">/</span>
           {{!-- The Max field shows the EFFECTIVE maximum (authored − passive/servant tax) so it visibly
                 drops as passives are added. It carries data-energy-max and NO `name`, so the sheet's
@@ -131,19 +112,14 @@
           <input type="number" data-energy-max value="{{system.energy.max}}" min="0" />
         </span>
       </div>
-      <div class="bar"><div class="fill energy-fill" style="width: {{energyPct}}%"></div></div>
+      <div class="boxes">{{#each energyBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setResourceBox" data-resource="energy" data-n="{{b.n}}" aria-label="{{localize 'PROJECTANIME.Stat.energy'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
     </div>
   </div>
 
   <div class="panel-rule"></div>
 
   <div class="panel-vitals">
-    {{#if system.atk.value}}<div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.atkShort"}}</span><span class="v-val">{{system.atk.value}}</span></div>{{/if}}
-    {{#if system.matk.value}}<div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.matkShort"}}</span><span class="v-val">{{system.matk.value}}</span></div>{{/if}}
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.defShort"}}</span><span class="v-val">{{system.defense.value}}</span></div>
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.resShort"}}</span><span class="v-val">{{system.res.value}}</span></div>
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.evaShort"}}</span><span class="v-val">{{system.evasion.value}}</span></div>
-    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.asShort"}}</span><span class="v-val">{{system.as.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.guardShort"}}</span><span class="v-val">{{system.guard.value}}</span></div>
     <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.movShort"}}</span><span class="v-val">{{system.movement.value}}</span></div>
   </div>
 
@@ -153,6 +129,28 @@
     <span class="panel-luck-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
     <div class="luck-dice">
       {{#each system.luckDice as |d|}}<span class="luck-die">{{d}}</span>{{else}}<em class="muted">—</em>{{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if showTalents}}
+  <div class="panel-talents">
+    <div class="panel-talents-title">
+      <span class="pt-line"></span>
+      <span class="panel-talents-label">{{localize "PROJECTANIME.Item.talents"}}</span>
+      {{#if editable}}<a class="talent-add" data-action="addTalent" title="{{localize 'PROJECTANIME.Talent.add'}}"><i class="fas fa-plus"></i></a>{{/if}}
+      <span class="pt-line"></span>
+    </div>
+    <div class="talent-rows">
+      {{#each talents as |t|}}
+      <div class="talent-row" data-talent-id="{{t.id}}">
+        <button type="button" class="tr-main" data-action="editTalent" title="{{t.attribute}}">
+          <span class="tr-die">{{t.die}}</span>
+          <span class="tr-name">{{t.name}}</span>
+        </button>
+        <a class="tr-chat" data-action="postTalent" title="{{localize 'PROJECTANIME.Talent.toChat'}}"><i class="fa-regular fa-message"></i></a>
+      </div>
+      {{/each}}
     </div>
   </div>
   {{/if}}

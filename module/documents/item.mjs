@@ -1,9 +1,8 @@
-import { rollAttack, rollSquadStrike, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
-import { isSquad } from "../helpers/squad.mjs";
+import { rollAttack, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
 
 /**
  * Extends the base Item with Project: Anime behaviour: roll data and a
- * type-aware `roll()` (weapons/shields attack, skills resolve, others post a card).
+ * type-aware `roll()` (weapons/shields attack, techniques resolve, others post a card).
  */
 export class ProjectAnimeItem extends Item {
   /** @override */
@@ -20,11 +19,7 @@ export class ProjectAnimeItem extends Item {
    */
   async roll(options = {}) {
     if (this.actor) {
-      if (this.type === "weapon" || this.type === "shield") {
-        // A Minion Squad's Basic Attack strikes once per living member, as one consolidated volley.
-        if (isSquad(this.actor)) return rollSquadStrike(this.actor, this, options);
-        return rollAttack(this.actor, this, options);
-      }
+      if (this.type === "weapon" || this.type === "shield") return rollAttack(this.actor, this, options);
       if (this.type === "skill") return rollSkill(this.actor, this, options);
       if (this.type === "consumable") return postConsumableCard(this.actor, this);
     }
@@ -32,8 +27,7 @@ export class ProjectAnimeItem extends Item {
   }
 
   /** Post this item's identity + description card to chat — the read-only "show it" action, never
-   *  an attack/skill roll (rolling stays on the main-screen quick panel). Consumables keep their
-   *  ▶ Use card so it can still be consumed from the post. */
+   *  an attack/technique roll. Consumables keep their ▶ Use card so it can still be consumed. */
   async toChat() {
     if (this.actor && this.type === "consumable") return postConsumableCard(this.actor, this);
     return this.#postDescriptionCard();

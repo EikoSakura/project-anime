@@ -1,35 +1,45 @@
 /**
- * Project: Anime — step-by-step Character Creator.
+ * Project: Anime — step-by-step Character Creator (rules doc V2).
  *
  * A guided ApplicationV2 that walks a new Player Character through the rulebook's
- * six creation steps (p.6):
- *   1. Concept        — portrait, name, and a concept / appearance blurb.
- *   2. Attributes     — the five Attributes start at d4; spend 5 free Step-Ups (none above d10).
- *   3. Combat Stats   — HP = 6 + ⟪Might⟫×2, Energy = 6 + ⟪Spirit⟫×2 (set to full), the
- *                       derived Evasion/Carry/Movement, and 3 Luck Dice (⟪Charm⟫).
- *   4. Create Skills  — begin with 6 SP; hands off to the in-game Skill Builder.
- *   5. Purchase Gear  — a 1500G budget shop over this system's Item compendiums
- *                       + world Items (weapons/armor/shields/consumables/gear only).
- *   6. Finishing      — pronouns and the GM-configurable dossier fields.
+ * eight creation steps:
+ *   1. Set Attributes       — all start d4; spend the configured Step-Ups (default 5), max d10.
+ *   2. Define Talents       — exactly two named Talents, each with a Primary Attribute, at d6.
+ *   3. Choose Weapon Style  — pick a Style, assign the Paired Attribute plus a matching Talent
+ *                             or a second Attribute, name the weapon.
+ *   4. Choose Armor Style   — pick a Style, name it.
+ *   5. Build Techniques     — up to three, via the Technique Builder.
+ *   6. Set Stats            — fixed baselines: 5 Hit Boxes, 5 Energy Boxes, Guard 6 + gear,
+ *                             Movement from armor.
+ *   7. Roll Luck Dice       — 3d12, recorded once.
+ *   8. Name Everything      — name, portrait, pronouns, and the dossier fields.
+ * The GM-configured extras keep their places: the optional Choices step (Race/Class packages)
+ * leads.
  *
- * Like the Skill Builder and Advancement apps, it operates on the LIVE actor and
- * registers in `actor.apps`, so changes made here — or in the Skill Builder it
- * launches — refresh it live. Sets `flags.project-anime.creationComplete` on finish
- * (the actor sheet auto-opens this once for an owner until that flag is set).
+ * Like the Technique Builder and Advancement apps, it operates on the LIVE actor and
+ * registers in `actor.apps`, so changes made here — or in the Builder it launches —
+ * refresh it live. Sets `flags.project-anime.creationComplete` on finish (the actor
+ * sheet auto-opens this once for an owner until that flag is set).
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
 import { stampCompendiumSource } from "../helpers/gear.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
-import { isImageIcon } from "../helpers/elements.mjs";
-import { collectLuckSteps, stepUpDie } from "../helpers/effects.mjs";
+import { isImageIcon, actorTalents, styleTooltipHTML } from "../helpers/config.mjs";
 import { getCreationConfig } from "../helpers/creation.mjs";
 import { postRollCard } from "../helpers/dice.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Base creation steps, in rulebook order. The optional "choose" step (Race/Class/…) is
- *  inserted after Concept only when the GM has configured creation Choices. */
-const BASE_STEPS = ["concept", "attributes", "stats", "skills", "gear", "finish"];
+/** Base creation steps, in rulebook order. The optional "choose" step (Race/Class/…)
+ *  leads only when the GM has configured Choices. */
+const BASE_STEPS = ["attributes", "talents", "weapon", "armor", "techniques", "stats", "luck", "finish"];
+
+/** A character builds up to three Techniques at creation. */
+const MAX_TECHNIQUES = 3;
+
+/** Default images for the creation gear. */
+const WEAPON_IMG = "icons/svg/sword.svg";
+const ARMOR_IMG = "icons/svg/shield.svg";
 
 /** Stable ordering: by sort, then name. */
 const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
@@ -55,16 +65,13 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
       pickImage: CharacterCreatorApp.#onPickImage,
       raiseAttr: CharacterCreatorApp.#onRaiseAttr,
       lowerAttr: CharacterCreatorApp.#onLowerAttr,
-      recalcVitals: CharacterCreatorApp.#onRecalcVitals,
+      pickWeaponStyle: CharacterCreatorApp.#onPickWeaponStyle,
+      pickArmorStyle: CharacterCreatorApp.#onPickArmorStyle,
       rollLuck: CharacterCreatorApp.#onRollLuck,
       openSkillBuilder: CharacterCreatorApp.#onOpenSkillBuilder,
       editSkill: CharacterCreatorApp.#onEditSkill,
       removeSkill: CharacterCreatorApp.#onRemoveSkill,
       chooseOption: CharacterCreatorApp.#onChooseOption,
-      shopFilter: CharacterCreatorApp.#onShopFilter,
-      refreshShop: CharacterCreatorApp.#onRefreshShop,
-      buyItem: CharacterCreatorApp.#onBuyItem,
-      sellItem: CharacterCreatorApp.#onSellItem,
       finish: CharacterCreatorApp.#onFinish
     }
   };
@@ -75,20 +82,32 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
 
   /** Current step index. */
   #step = 0;
-  /** Cached shop entries (compendium + world Items of the allowed types); null = unloaded. */
-  #shop = null;
-  /** Shop type filter ("all" | one of the configured purchasable types). */
-  #shopType = "all";
+  /** Staged Define Talents rows [{name, attr}, {name, attr}]; null = unseeded. */
+  #talents = null;
+  /** Staged Weapon Style pick {style, name, attrA, pair}; null = unseeded.
+   *  `pair` is "talent:<talentKey>" or "attr:<attrKey>". */
+  #weapon = null;
+  /** Staged Armor Style pick {style, name}; null = unseeded. */
+  #armor = null;
 
   get title() {
     return `${game.i18n.localize("PROJECTANIME.Creator.title")} — ${this.actor.name}`;
   }
 
-  /** The active step keys — "choose" is present only when the GM configured Choices. */
+  /** The active step keys — "choose" leads only when the GM configured Choices. */
   #stepKeys() {
     const keys = [...BASE_STEPS];
-    if (getCreationConfig().choices?.length) keys.splice(1, 0, "choose");
+    if (getCreationConfig().choices?.length) keys.unshift("choose");
     return keys;
+  }
+
+  /* -------------------------------------------- */
+  /*  Creation gear lookups                       */
+  /* -------------------------------------------- */
+
+  /** The weapon / armor this creator authored (re-entering the step edits it in place). */
+  #creationItem(type, flag) {
+    return this.actor.items.find((i) => i.type === type && i.getFlag("project-anime", flag));
   }
 
   /* -------------------------------------------- */
@@ -116,13 +135,17 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     ctx.stepTitle = game.i18n.localize(`PROJECTANIME.Creator.step.${stepKey}`);
     ctx.isFirst = this.#step === 0;
     ctx.isLast = this.#step === steps.length - 1;
-    ctx.onConcept = stepKey === "concept";
     ctx.onChoose = stepKey === "choose";
     ctx.onAttributes = stepKey === "attributes";
+    ctx.onTalents = stepKey === "talents";
+    ctx.onWeapon = stepKey === "weapon";
+    ctx.onArmor = stepKey === "armor";
+    ctx.onTechniques = stepKey === "techniques";
     ctx.onStats = stepKey === "stats";
-    ctx.onSkills = stepKey === "skills";
-    ctx.onGear = stepKey === "gear";
+    ctx.onLuck = stepKey === "luck";
     ctx.onFinish = stepKey === "finish";
+
+    ctx.attrChoices = Object.fromEntries(cfg.attributeKeys.map((k) => [k, game.i18n.localize(cfg.attributes[k])]));
 
     // Creation Choices (Race/Class/…) — each offers Package options that grant abilities
     // for free. Current selection(s) = the chosen-option Packages already on the actor.
@@ -145,13 +168,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
       });
     }
 
-    // Identity.
-    ctx.name = this.actor.name;
-    ctx.img = this.actor.img;
-    ctx.biography = sys.biography ?? "";
-    ctx.pronouns = sys.pronouns ?? "";
-
-    // Attributes — the free creation Step-Ups (count from the GM setting).
+    // 1 · Set Attributes — the free creation Step-Ups (count from the GM setting).
     const used = this.#stepsUsed();
     ctx.stepsUsed = used;
     ctx.stepsTotal = creation.stepUps;
@@ -165,28 +182,81 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
         icon: cfg.attributeIcons?.[k] ?? "",
         base: a.base,
         die: `d${a.base}`,
-        canRaise: a.base < 12 && ctx.stepsLeft > 0,
+        canRaise: a.base < 10 && ctx.stepsLeft > 0,
         canLower: a.base > 4
       };
     });
 
-    // Combat Stats (computed from the current attributes; the model derives the rest).
-    const might = sys.attributes.might.base;
-    const spirit = sys.attributes.spirit.base;
-    ctx.vitals = {
-      hp: sys.hp.max,
-      energy: sys.energy.base ?? sys.energy.max,
-      evasion: sys.evasion.value,
-      carry: sys.carryingCapacity.max,
-      movement: sys.movement.value
-    };
-    ctx.vitalsStale = sys.hp.max !== 6 + might * 2 || (sys.energy.base ?? sys.energy.max) !== 6 + spirit * 2;
-    ctx.luckDice = sys.luckDice ?? [];
-    ctx.luckRolled = !!this.actor.getFlag("project-anime", "luckRolled");
-    ctx.charmDie = `d${sys.attributes.charm.base}`;
+    // 2 · Define Talents — two named Talents at d6.
+    if (stepKey === "talents") {
+      if (!this.#talents) {
+        const owned = actorTalents(this.actor);
+        this.#talents = [0, 1].map((i) => ({
+          name: owned[i]?.name ?? "",
+          attr: owned[i]?.attribute ?? "might"
+        }));
+      }
+      ctx.talentSlots = this.#talents.map((t, i) => ({ index: i, name: t.name, attr: t.attr }));
+    }
 
-    // Skills — the starting 6 SP and what's been built.
-    ctx.sp = sys.skillPoints?.value ?? 0;
+    // 3 · Choose Weapon Style.
+    if (stepKey === "weapon") {
+      if (!this.#weapon) {
+        const w = this.#creationItem("weapon", "creationWeapon");
+        this.#weapon = w ? {
+          style: w.system.style || "",
+          name: w.name,
+          attrA: w.system.accuracy?.attrA ?? "might",
+          pair: w.system.talentId ? `talent:${w.system.talentId}` : `attr:${w.system.accuracy?.attrB ?? ""}`
+        } : { style: "", name: "", attrA: "might", pair: "" };
+      }
+      const w = this.#weapon;
+      // Icon cards, alphabetized — the printed line lives in the hover tooltip (matches the
+      // item sheets).
+      ctx.weaponStyles = cfg.weaponStyleKeys.map((k) => {
+        const st = cfg.weaponStyles[k];
+        return {
+          key: k,
+          label: game.i18n.localize(st.label),
+          icon: st.icon,
+          tooltip: styleTooltipHTML(st, "PROJECTANIME.Style.weapon"),
+          selected: k === w.style
+        };
+      }).sort((a, b) => a.label.localeCompare(b.label));
+      const talents = actorTalents(this.actor);
+      ctx.weapon = { name: w.name, attrA: w.attrA };
+      ctx.pairChoices = {
+        ...Object.fromEntries(talents.map((t) => [
+          `talent:${t.id}`,
+          game.i18n.format("PROJECTANIME.Creator.talentOpt", { name: t.name })
+        ])),
+        ...Object.fromEntries(cfg.attributeKeys.map((k) => [`attr:${k}`, game.i18n.localize(cfg.attributes[k])]))
+      };
+      ctx.weaponPair = w.pair;
+    }
+
+    // 4 · Choose Armor Style.
+    if (stepKey === "armor") {
+      if (!this.#armor) {
+        const a = this.#creationItem("armor", "creationArmor");
+        this.#armor = a ? { style: a.system.style || "", name: a.name } : { style: "", name: "" };
+      }
+      // Icon cards, alphabetized — the printed line lives in the hover tooltip (matches the
+      // item sheets).
+      ctx.armorStyles = cfg.armorStyleKeys.map((k) => {
+        const st = cfg.armorStyles[k];
+        return {
+          key: k,
+          label: game.i18n.localize(st.label),
+          icon: st.icon,
+          tooltip: styleTooltipHTML(st, "PROJECTANIME.Style.armor"),
+          selected: k === this.#armor.style
+        };
+      }).sort((a, b) => a.label.localeCompare(b.label));
+      ctx.armor = { name: this.#armor.name };
+    }
+
+    // 5 · Build Techniques — up to three via the Technique Builder.
     ctx.skills = this.actor.items
       .filter((i) => i.type === "skill")
       .sort(bySort)
@@ -194,33 +264,32 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
         id: i.id,
         name: i.name,
         img: i.img,
-        stars: `${i.system.spCost ?? 0} SP`,
         actionLabel: game.i18n.localize(cfg.actionTypes[i.system.actionType] ?? ""),
         energyCost: i.system.energyCost ?? 0,
-        spCost: i.system.spCost ?? 0,
         passive: i.system.actionType === "passive"
       }));
+    ctx.techniqueMax = MAX_TECHNIQUES;
+    ctx.canBuild = ctx.skills.length < MAX_TECHNIQUES;
 
-    // Gear shop (lazy-load the catalogue the first time this step is shown).
-    if (stepKey === "gear") {
-      if (this.#shop === null) await this.#loadShop();
-      const gold = sys.gold ?? 0;
-      ctx.gold = gold;
-      ctx.budget = creation.gold;
-      ctx.shopFilters = [
-        { key: "all", label: game.i18n.localize("PROJECTANIME.Creator.all"), active: this.#shopType === "all" },
-        ...creation.allowedTypes.map((t) => ({ key: t, label: game.i18n.localize(`TYPES.Item.${t}`), active: this.#shopType === t }))
-      ];
-      ctx.shop = (this.#shop ?? [])
-        .filter((e) => this.#shopType === "all" || e.type === this.#shopType)
-        .map((e) => ({ ...e, affordable: e.cost <= gold }));
-      ctx.owned = this.actor.items
-        .filter((i) => creation.allowedTypes.includes(i.type))
-        .sort(bySort)
-        .map((i) => ({ id: i.id, name: i.name, img: i.img, cost: Number(i.system?.cost ?? 0) || 0 }));
-    }
+    // 6 · Set Stats — fixed baselines + the equipped gear's contribution (model-derived).
+    ctx.stats = {
+      hp: cfg.baseHitBoxes,
+      energy: cfg.baseEnergyBoxes,
+      guard: sys.guard?.value ?? cfg.baseGuard,
+      movement: sys.movement?.value ?? 0,
+      regen: sys.energyRegen ?? cfg.baseEnergyRegen
+    };
 
-    // Finishing Touches — pronouns + the GM-configurable dossier fields.
+    // 7 · Roll Luck Dice.
+    ctx.luckDice = sys.luckDice ?? [];
+    ctx.luckRolled = !!this.actor.getFlag("project-anime", "luckRolled");
+    ctx.luckFormula = `${cfg.luckDiceCount}d${cfg.luckDie}`;
+
+    // 8 · Name Everything — name, portrait, pronouns + the GM-configurable dossier fields.
+    ctx.name = this.actor.name;
+    ctx.img = this.actor.img;
+    ctx.biography = sys.biography ?? "";
+    ctx.pronouns = sys.pronouns ?? "";
     ctx.bioFields = getBioFields().map((f) => ({
       key: f.key,
       label: f.label,
@@ -266,12 +335,30 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     return this.#sync();
   }
 
-  /** Persist the open step's text inputs (name + any system.* fields) to the actor. */
+  /** Persist the open step's inputs: actor fields (name + any system.* paths) update the
+   *  document; the staged creation inputs (Talent slots, weapon, armor) update this app's
+   *  working state and commit as items on navigation. */
   async #sync() {
     if (!this.element || !this.actor.isOwner) return;
     // Flatten so dotted (`system.details.age`) keys resolve whether FormDataExtended
     // returns a flat or a nested object.
     const data = foundry.utils.flattenObject(new foundry.applications.ux.FormDataExtended(this.element).object);
+
+    // Staged creation state.
+    if (this.#talents) {
+      this.#talents.forEach((t, i) => {
+        if (typeof data[`talentName.${i}`] === "string") t.name = data[`talentName.${i}`];
+        if (typeof data[`talentAttr.${i}`] === "string") t.attr = data[`talentAttr.${i}`];
+      });
+    }
+    if (this.#weapon) {
+      if (typeof data.weaponName === "string") this.#weapon.name = data.weaponName;
+      if (typeof data.weaponAttrA === "string") this.#weapon.attrA = data.weaponAttrA;
+      if (typeof data.weaponPair === "string") this.#weapon.pair = data.weaponPair;
+    }
+    if (this.#armor && typeof data.armorName === "string") this.#armor.name = data.armorName;
+
+    // Actor fields.
     const update = {};
     if (typeof data.name === "string" && data.name !== this.actor.name) update.name = data.name;
     for (const [key, val] of Object.entries(data)) {
@@ -287,6 +374,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
   static async #onStepNext() {
     await this.#sync();
     if (!this.#validateStep()) return;
+    await this.#commitStep();
     if (this.#step < this.#stepKeys().length - 1) this.#step += 1;
     await this.#onEnterStep();
     this.render();
@@ -294,6 +382,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
 
   static async #onStepBack() {
     await this.#sync();
+    await this.#commitStep();
     if (this.#step > 0) this.#step -= 1;
     await this.#onEnterStep();
     this.render();
@@ -301,81 +390,152 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
 
   static async #onGotoStep(event, target) {
     await this.#sync();
+    await this.#commitStep();
     const i = Number(target.dataset.step);
     if (i >= 0 && i < this.#stepKeys().length) this.#step = i;
     await this.#onEnterStep();
     this.render();
   }
 
-  /** Block leaving a step that isn't legal yet: all Step-Ups distributed; every single-pick
-   *  Choice (Race/Class) selected. */
+  /** Block leaving a step that isn't legal yet. */
   #validateStep() {
     const creation = getCreationConfig();
     const key = this.#stepKeys()[this.#step];
-    if (key === "attributes" && this.#stepsUsed() < creation.stepUps) {
-      ui.notifications.warn(game.i18n.format("PROJECTANIME.Creator.stepsRemaining", {
-        n: creation.stepUps - this.#stepsUsed()
-      }));
-      return false;
-    }
+    const warn = (k, data) => { ui.notifications.warn(game.i18n.format(k, data ?? {})); return false; };
+
     if (key === "choose") {
       const missing = creation.choices.find((c) => c.mode === "single" && this.#chosenUuidsFor(c.id).size === 0);
-      if (missing) {
-        ui.notifications.warn(game.i18n.format("PROJECTANIME.Creator.chooseRequired", { label: missing.label }));
-        return false;
+      if (missing) return warn("PROJECTANIME.Creator.chooseRequired", { label: missing.label });
+    }
+    if (key === "attributes" && this.#stepsUsed() < creation.stepUps) {
+      return warn("PROJECTANIME.Creator.stepsRemaining", { n: creation.stepUps - this.#stepsUsed() });
+    }
+    if (key === "talents" && this.#talents?.some((t) => !t.name.trim())) {
+      return warn("PROJECTANIME.Creator.talentsRequired");
+    }
+    if (key === "weapon") {
+      const w = this.#weapon;
+      if (!w?.style || !w.name.trim() || !w.pair) return warn("PROJECTANIME.Creator.weaponRequired");
+      // The second Attribute must differ from the Paired Attribute — Heavy alone may double
+      // up, and only on Might (rules: Weapon Styles, the Might + Might exception).
+      if (w.pair === `attr:${w.attrA}` && !(w.style === "heavy" && w.attrA === "might")) {
+        return warn("PROJECTANIME.Creator.weaponPairSame");
       }
+    }
+    if (key === "armor" && (!this.#armor?.style || !this.#armor.name.trim())) {
+      return warn("PROJECTANIME.Creator.armorRequired");
+    }
+    if (key === "luck" && !this.actor.getFlag("project-anime", "luckRolled")) {
+      return warn("PROJECTANIME.Creator.luckRequired");
     }
     return true;
   }
 
-  /** Side effects on entering a step: keep HP/Energy synced; grant the gear budget once. */
-  async #onEnterStep() {
+  /** Commit the open step's staged state to the actor (Talent / weapon / armor items).
+   *  Best-effort — incomplete staging simply isn't written yet. */
+  async #commitStep() {
     const key = this.#stepKeys()[this.#step];
-    if (key === "stats") {
-      // During initial creation, keep HP/Energy synced to the attributes (rules: set
-      // at creation from ⟪Might⟫/⟪Spirit⟫). Once creation is finished, don't auto-reset
-      // — that would wipe HP/Energy bought later via Advancement; the manual Recalculate
-      // button still lets them re-derive on purpose.
-      const a = this.actor.system.attributes;
-      const stale = this.actor.system.hp.max !== 6 + a.might.base * 2 || (this.actor.system.energy.base ?? this.actor.system.energy.max) !== 6 + a.spirit.base * 2;
-      if (stale && !this.actor.getFlag("project-anime", "creationComplete")) await this.#applyVitals();
-    } else if (key === "gear") {
-      // Grant the starting Gold budget exactly once (so re-running the creator, or
-      // stepping back and forth, never resets gold the player has spent).
-      if (!this.actor.getFlag("project-anime", "creatorBudget")) {
-        await this.actor.update({ "system.gold": getCreationConfig().gold });
-        await this.actor.setFlag("project-anime", "creatorBudget", true);
+    if (key === "talents") return this.#commitTalents();
+    if (key === "weapon") return this.#commitWeapon();
+    if (key === "armor") return this.#commitArmor();
+  }
+
+  /** Write the two Define-Talents slots as embedded Talent rows at d6 (create or update in place). */
+  async #commitTalents() {
+    if (!this.#talents) return;
+    const existing = actorTalents(this.actor);
+    const changes = {};
+    this.#talents.forEach((t, i) => {
+      const name = (t.name ?? "").trim();
+      if (!name) return;
+      const row = existing[i];
+      if (row) {
+        if (row.name !== name || row.attribute !== t.attr) {
+          changes[`system.talents.${row.id}.name`] = name;
+          changes[`system.talents.${row.id}.attribute`] = t.attr;
+        }
+      } else {
+        changes[`system.talents.${foundry.utils.randomID()}`] = { name, die: 6, attribute: t.attr };
       }
+    });
+    if (Object.keys(changes).length) await this.actor.update(changes);
+  }
+
+  /** Write the staged Weapon Style as an equipped weapon item (create or update in place). */
+  async #commitWeapon() {
+    const cfg = CONFIG.PROJECTANIME;
+    const w = this.#weapon;
+    const st = w ? cfg.weaponStyles[w.style] : null;
+    if (!st || !(w.name ?? "").trim()) return;
+    const [min, max] = st.range;
+    const talentId = w.pair?.startsWith("talent:") ? w.pair.slice(7) : "";
+    const attrB = w.pair?.startsWith("attr:") ? w.pair.slice(5) : w.attrA;
+    const system = {
+      style: w.style,
+      accuracy: { attrA: w.attrA, attrB: attrB in cfg.attributes ? attrB : w.attrA, mod: 0 },
+      talentId: talentId && this.actor.system.talents?.[talentId] ? talentId : "",
+      damage: { value: st.damage },
+      threshold: st.threshold,
+      range: { type: max > 1 ? "ranged" : "melee", tiles: max, minTiles: min > 1 ? min : 0 },
+      dual: !!st.dual,
+      grip: st.twoHanded ? "two" : "one",
+      twoHandedOnly: !!st.twoHanded,
+      equipped: true,
+      hand: "main"
+    };
+    const existing = this.#creationItem("weapon", "creationWeapon");
+    if (existing) await existing.update({ name: w.name.trim(), system });
+    else {
+      await this.actor.createEmbeddedDocuments("Item", [{
+        name: w.name.trim(), type: "weapon", img: WEAPON_IMG, system,
+        flags: { "project-anime": { creationWeapon: true } }
+      }]);
     }
   }
 
-  /** Set HP and Energy to full from the current attributes (v0.03: HP = 6 + ⟪Might⟫×2, EP = 6 + ⟪Spirit⟫×2). */
-  async #applyVitals() {
-    const a = this.actor.system.attributes;
-    const hp = 6 + a.might.base * 2;
-    const energy = 6 + a.spirit.base * 2;
-    await this.actor.update({
-      "system.hp.max": hp,
-      "system.hp.value": hp,
-      "system.energy.max": energy,
-      "system.energy.value": energy
-    });
+  /** Write the staged Armor Style as an equipped armor item (create or update in place). */
+  async #commitArmor() {
+    const cfg = CONFIG.PROJECTANIME;
+    const a = this.#armor;
+    const st = a ? cfg.armorStyles[a.style] : null;
+    if (!st || !(a.name ?? "").trim()) return;
+    const system = {
+      style: a.style,
+      guardBonus: st.guard,
+      movement: st.movement,
+      energyRegen: st.energyRegen ?? 0,
+      equipped: true
+    };
+    const existing = this.#creationItem("armor", "creationArmor");
+    if (existing) await existing.update({ name: a.name.trim(), system });
+    else {
+      await this.actor.createEmbeddedDocuments("Item", [{
+        name: a.name.trim(), type: "armor", img: ARMOR_IMG, system,
+        flags: { "project-anime": { creationArmor: true } }
+      }]);
+    }
   }
 
-  /* -------------------------------------------- */
-  /*  Concept                                     */
-  /* -------------------------------------------- */
-
-  static async #onPickImage() {
-    const FP = foundry.applications.apps.FilePicker?.implementation
-      ?? foundry.applications.apps.FilePicker
-      ?? globalThis.FilePicker;
-    const fp = new FP({
-      type: "image",
-      current: this.actor.img || "",
-      callback: (path) => this.actor.update({ img: path }).catch((err) => ui.notifications.error(err.message))
-    });
-    return fp.browse();
+  /** Side effects on entering a step: write the fixed stat baselines. */
+  async #onEnterStep() {
+    const cfg = CONFIG.PROJECTANIME;
+    const key = this.#stepKeys()[this.#step];
+    if (key === "stats") {
+      // Set Stats (rules): Hit Boxes 5, Energy Boxes 5, both full. Only during initial
+      // creation — once finished, boxes bought through Advancement must survive a re-run.
+      if (!this.actor.getFlag("project-anime", "creationComplete")) {
+        const src = this.actor._source.system;
+        if (src.hp.max !== cfg.baseHitBoxes || src.hp.value !== cfg.baseHitBoxes
+          || src.energy.max !== cfg.baseEnergyBoxes || src.energy.value !== cfg.baseEnergyBoxes) {
+          await this.actor.update({
+            "system.hp.max": cfg.baseHitBoxes,
+            "system.hp.value": cfg.baseHitBoxes,
+            "system.energy.max": cfg.baseEnergyBoxes,
+            "system.energy.value": cfg.baseEnergyBoxes
+          });
+        }
+      }
+    }
   }
 
   /* -------------------------------------------- */
@@ -385,8 +545,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
   static async #onRaiseAttr(event, target) {
     const key = target.closest("[data-attribute]")?.dataset.attribute;
     const attr = this.actor.system.attributes[key];
-    // No Attribute may exceed d10 AT CREATION (v0.03 ratified model); the general d12 ceiling only
-    // applies to post-creation growth and NPC builds.
+    // No Attribute may exceed d10 AT CREATION; the d12 ceiling belongs to advancement.
     if (!attr || attr.base >= 10) return;
     if (this.#stepsUsed() >= getCreationConfig().stepUps) {
       return ui.notifications.warn(game.i18n.localize("PROJECTANIME.Creator.noStepsLeft"));
@@ -402,47 +561,58 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
   }
 
   /* -------------------------------------------- */
-  /*  Combat Stats                                */
+  /*  Weapon / Armor Styles                       */
   /* -------------------------------------------- */
 
-  static async #onRecalcVitals() {
-    await this.#applyVitals();
+  static async #onPickWeaponStyle(event, target) {
+    await this.#sync();
+    if (!this.#weapon) return;
+    this.#weapon.style = target.dataset.style || "";
+    this.render();
   }
 
+  static async #onPickArmorStyle(event, target) {
+    await this.#sync();
+    if (!this.#armor) return;
+    this.#armor.style = target.dataset.style || "";
+    this.render();
+  }
+
+  /* -------------------------------------------- */
+  /*  Luck Dice                                   */
+  /* -------------------------------------------- */
+
   static async #onRollLuck() {
-    // Luck Dice are rolled exactly once during creation and then locked in — no
-    // re-rolling until you get the spread you want. (A GM can clear the
-    // `luckRolled` flag to allow another roll.)
+    // Luck Dice are rolled exactly once during creation and then locked in. (A GM can
+    // clear the `luckRolled` flag to allow another roll.)
     if (this.actor.getFlag("project-anime", "luckRolled")) return;
-    // A Lucky Pendant (or any "luck" effect) Steps Up the Charm die for this roll.
-    const steps = collectLuckSteps(this.actor);
-    const die = stepUpDie(this.actor.system.attributes.charm.value, steps);
-    const roll = await new Roll(`3d${die}`).evaluate();
+    const cfg = CONFIG.PROJECTANIME;
+    const roll = await new Roll(`${cfg.luckDiceCount}d${cfg.luckDie}`).evaluate();
     const values = roll.dice[0].results.map((r) => r.result);
     await this.actor.update({ "system.luckDice": values });
     await this.actor.setFlag("project-anime", "luckRolled", true);
-    const lines = [`${game.i18n.localize("PROJECTANIME.Stat.luckDice")}: <strong>${values.join(", ")}</strong>`];
-    if (steps > 0) lines.push(`<em class="muted">${game.i18n.localize("PROJECTANIME.Effect.luckStepUp")}</em>`);
     await postRollCard(this.actor, {
       title: game.i18n.localize("PROJECTANIME.Advancement.rollLuck"),
-      roll, lines
+      roll,
+      lines: [`${game.i18n.localize("PROJECTANIME.Stat.luckDice")}: <strong>${values.join(", ")}</strong>`]
     });
     this.render();
   }
 
   /* -------------------------------------------- */
-  /*  Skills (Skill Builder hand-off)             */
+  /*  Techniques (Builder hand-off)               */
   /* -------------------------------------------- */
 
-  /** Open (or focus) the in-game Skill Builder, jumping straight into Build mode. */
+  /** Open (or focus) the in-game Technique Builder, jumping straight into Build mode. */
   static #onOpenSkillBuilder() {
+    if (this.actor.items.filter((i) => i.type === "skill").length >= MAX_TECHNIQUES) return;
     const id = `pa-skill-builder-${this.actor.id}`;
     const existing = foundry.applications.instances.get(id);
     if (existing) return existing.bringToFront();
     return new SkillBuilderApp(this.actor, { startMode: "build" }).render(true);
   }
 
-  /** Edit a built Skill in the full Skill Builder, pre-loaded with all its choices. */
+  /** Edit a built Technique in the full Builder, pre-loaded with all its choices. */
   static #onEditSkill(event, target) {
     const id = target.closest("[data-skill-id]")?.dataset.skillId;
     const item = this.actor.items.get(id);
@@ -450,13 +620,12 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     return SkillBuilderApp.open(this.actor, { skillId: id });
   }
 
-  /** Delete a built Skill (creation is a sandbox — undo is free). Deleting a Skill refunds its
-   *  logged SP and prunes its ledger entries automatically via the deleteItem hook. */
+  /** Delete a built Technique (creation is a sandbox — undo is free). */
   static async #onRemoveSkill(event, target) {
     const id = target.closest("[data-skill-id]")?.dataset.skillId;
     const item = this.actor.items.get(id);
     if (!item || item.type !== "skill") return;
-    // Granted (free) abilities never charged SP and are managed by their source bundle.
+    // Granted (free) abilities are managed by their source bundle.
     if (item.getFlag("project-anime", "granted")) return;
     await item.delete();
     this.render();
@@ -520,75 +689,19 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
   }
 
   /* -------------------------------------------- */
-  /*  Gear shop                                   */
+  /*  Pick portrait                               */
   /* -------------------------------------------- */
 
-  /** Build the purchasable catalogue from the GM-configured open compendium packs,
-   *  filtered to the allowed Item types. Compendium-only (no world-Items scan). */
-  async #loadShop() {
-    const { allowedTypes, packs } = getCreationConfig();
-    const allowed = new Set(allowedTypes);
-    const open = new Set(packs);
-    const entries = [];
-    for (const pack of game.packs ?? []) {
-      if (pack.documentName !== "Item" || !open.has(pack.collection)) continue;
-      try {
-        for (const item of await pack.getDocuments()) {
-          if (!allowed.has(item.type)) continue;
-          entries.push({
-            uuid: item.uuid,
-            name: item.name,
-            img: item.img,
-            type: item.type,
-            typeLabel: game.i18n.localize(`TYPES.Item.${item.type}`),
-            cost: Number(item.system?.cost ?? 0) || 0
-          });
-        }
-      } catch (_e) {
-        /* unreadable pack — skip it */
-      }
-    }
-    entries.sort((a, b) => allowedTypes.indexOf(a.type) - allowedTypes.indexOf(b.type) || a.name.localeCompare(b.name));
-    this.#shop = entries;
-  }
-
-  static #onShopFilter(event, target) {
-    this.#shopType = target.dataset.type || "all";
-    this.render();
-  }
-
-  static #onRefreshShop() {
-    this.#shop = null;
-    this.render();
-  }
-
-  static async #onBuyItem(event, target) {
-    const uuid = target.closest("[data-uuid]")?.dataset.uuid;
-    if (!uuid) return;
-    const src = await fromUuid(uuid);
-    if (!src) return;
-    const cost = Number(src.system?.cost ?? 0) || 0;
-    const gold = this.actor.system.gold ?? 0;
-    if (cost > gold) {
-      return ui.notifications.warn(game.i18n.format("PROJECTANIME.Creator.cantAfford", { name: src.name, cost, gold }));
-    }
-    const data = src.toObject();
-    delete data._id;
-    stampCompendiumSource(data, src);
-    await this.actor.createEmbeddedDocuments("Item", [data]);
-    if (cost > 0) await this.actor.update({ "system.gold": gold - cost });
-    ui.notifications.info(game.i18n.format("PROJECTANIME.Creator.bought", { name: src.name, cost }));
-    this.render();
-  }
-
-  static async #onSellItem(event, target) {
-    const id = target.closest("[data-item-id]")?.dataset.itemId;
-    const item = this.actor.items.get(id);
-    if (!item) return;
-    const cost = Number(item.system?.cost ?? 0) || 0;
-    await item.delete();
-    if (cost > 0) await this.actor.update({ "system.gold": (this.actor.system.gold ?? 0) + cost });
-    this.render();
+  static async #onPickImage() {
+    const FP = foundry.applications.apps.FilePicker?.implementation
+      ?? foundry.applications.apps.FilePicker
+      ?? globalThis.FilePicker;
+    const fp = new FP({
+      type: "image",
+      current: this.actor.img || "",
+      callback: (path) => this.actor.update({ img: path }).catch((err) => ui.notifications.error(err.message))
+    });
+    return fp.browse();
   }
 
   /* -------------------------------------------- */

@@ -1,21 +1,22 @@
 /**
- * Project: Anime — auto-written Skill rules description.
+ * Project: Anime — auto-written Technique rules description (rules doc Version 2).
  *
- * Turns a Skill's mechanics + Active Effects into a FLOWING PARAGRAPH that reads like a real game
- * description ("This attack deals d8 fire damage to a target within Near, pushing the target 2
- * spaces away. Costs 4 Energy."). Plain numbers (dice, ranges, Energy, modifier values) are wrapped
- * in `.pa-rules-num`; SP-bought IMPROVEMENTS (Sharpen Accuracy/Damage, Lower Energy) in
- * `.pa-rules-improve` — so both pop out. Shown on the Skill's sheet (View tab) and its chat card;
- * the typed `system.description` stays FLAVOR, and an optional `system.rulesOverride` replaces this
- * auto text. Pure + synchronous — safe during render. Sentence templates live under
- * `PROJECTANIME.Skill.narr.*`; per-effect-rule clauses come from effects.mjs `narrateRule`.
+ * Turns a Technique's mechanics + Active Effects into a FLOWING PARAGRAPH that reads like a
+ * real game description ("This attack deals the weapon's Damage to an enemy within your
+ * weapon's reach. Costs 3 Energy."). Plain numbers (boxes, tiles, Energy, Modifier values)
+ * are wrapped in `.pa-rules-num` so they pop out. Shown on the Technique's sheet (View tab)
+ * and its chat card; the typed `system.description` stays FLAVOR, and an optional
+ * `system.rulesOverride` replaces this auto text. Pure + synchronous — safe during render.
+ * Sentence templates live under `PROJECTANIME.Skill.narr.*`; per-effect-rule clauses come
+ * from effects.mjs `narrateRule`.
  */
-import { PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, rangeLabel, skillNeedsAccuracy, skillTarget, skillDuration, skillEvasionAttr, skillEvasionKeys, skillEvasionLabel, auraAudience, isSelfCenteredArea } from "./config.mjs";
-import { narrateRule, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect, hinderStatusIds } from "./effects.mjs";
-import { elementLabel } from "./elements.mjs";
+import {
+  PROJECTANIME, modifierValue, skillEffectKeys, skillDieSpecs, rangeLabel, skillNeedsAccuracy,
+  skillTarget, skillDuration, auraAudience, isSelfCenteredArea, techniqueEnergyCost, modifierTakes
+} from "./config.mjs";
+import { narrateRule, effectRules, bolsterHinderRules, hasAuthoredAttributeEffect } from "./effects.mjs";
 
 const numSpan = (v) => `<span class="pa-rules-num">${v}</span>`;
-const impSpan = (v) => `<span class="pa-rules-improve">${v}</span>`;
 const loc = (k, d) => (k ? (d ? game.i18n.format(k, d) : game.i18n.localize(k)) : "");
 /** Localize/format a `PROJECTANIME.Skill.narr.*` template. */
 const N = (k, d) => loc(`PROJECTANIME.Skill.narr.${k}`, d);
@@ -38,41 +39,23 @@ function boldList(arr) {
   return joinClauses(arr.map((s) => `<strong>${s}</strong>`));
 }
 
-/** The auto rules write-up for a Skill, as an HTML `<div class="skill-rules">`. "" for non-Skills. */
+/** The auto rules write-up for a Technique, as an HTML `<div class="skill-rules">`. "" otherwise. */
 export function skillRulesHTML(item) {
   const sys = item?.system;
   if (!sys || item.type !== "skill") return "";
   const cfg = PROJECTANIME;
   const mods = sys.modifiers ?? [];
   const has = (m) => mods.includes(m);
-  const actor = item.actor ?? null;
-  // POWER (v0.03): a flat number — the chosen ACC Attribute's value, plus Weapon DMG for a
-  // weapon-range Skill. On an actor the resolved number shows; standalone names the Attribute.
-  const weaponSkill = sys.range?.scope === "weapon";
-  const powerWeapon = weaponSkill && actor
-    ? ((actor.items ?? []).find((w) => w.type === "weapon" && w.system?.equipped && w.system.hand === "main")
-      ?? (actor.items ?? []).find((w) => w.type === "weapon" && w.system?.equipped) ?? null)
-    : null;
-  const powerAttrKey = (slot) => {
-    if (powerWeapon) {
-      const a = powerWeapon.system.accuracy ?? {};
-      return (slot === "attrB" ? a.attrB : a.attrA) ?? "might";
-    }
-    return sys.attributes?.[slot] ?? "might";
-  };
-  const attrName = (slot) => loc(cfg.attributes[powerAttrKey(slot)] ?? "");
-  const dmgAmount = (slot) => {
-    const size = actor?.system?.attributes?.[powerAttrKey(slot)]?.value;
-    if (!size) return N("yourDie", { attr: `<strong>${attrName(slot)}</strong>` });
-    return numSpan(size + (powerWeapon ? (Number(powerWeapon.system.damage?.mod) || 0) : 0));
-  };
   const mv = (k) => numSpan(modifierValue(item, k));
   const condLabel = (id) => { const c = (cfg.statusConditions ?? []).find((x) => x.id === id); return c ? loc(c.name) : id; };
+  const poolName = (p) => loc(cfg.damagePools[p === "energy" ? "energy" : "hp"]);
+  const totalCost = Number(sys.totalCost) || techniqueEnergyCost(sys);
+  const isCompanion = sys.effect === "companion";
+  const passive = sys.actionType === "passive" || isCompanion;
 
-  // ---- Who/what the Skill hits (a noun, no preposition — clauses add "to" themselves). The
-  // explicit Target (rules v0.01) names the single-target noun: "an enemy" / "an ally (not
-  // yourself)" / "a creature"; area Skills keep their crowd nouns (the Target already filters
-  // who the area catches at use). ----
+  // ---- Who/what the Technique hits (a noun, no preposition — clauses add "to" themselves).
+  // The explicit Target (the free Target Modifiers) names the single-target noun; area
+  // Modifiers keep their crowd nouns (the Target filters who the area catches at use). ----
   const scope = sys.range?.scope;
   const tgt = skillTarget(sys);
   let target;
@@ -85,60 +68,38 @@ export function skillRulesHTML(item) {
   else if (tgt === "ally") target = N("targetAlly", { range: colorizeNumbers(rangeLabel(sys.range)) });
   else target = N("targetWithin", { range: colorizeNumbers(rangeLabel(sys.range)) });
 
-  // ---- Core action clause(s): one per die-Effect slot (Strike → damage, Mend → healing). ----
+  // ---- Core action clause(s), one per Strike/Heal slot (rules: Technique Damage / Heal):
+  // a weapon-range Strike deals the weapon's Damage with Threshold; any other range marks 1
+  // hit box, no Threshold. Heal clears 1 box of the pool chosen at creation. ----
   const core = [];
   let hasStrike = false;
   for (const ds of skillDieSpecs(sys)) {
     if (ds.effect === "strike") {
       hasStrike = true;
-      const t = ds.damageType ? elementLabel(ds.damageType) : "";
-      core.push(t ? N("deals", { dmg: dmgAmount(ds.damageAttr), type: t }) : N("dealsPlain", { dmg: dmgAmount(ds.damageAttr) }));
+      core.push(scope === "weapon" ? N("strikeWeapon") : N("strikeBox", { n: numSpan(1) }));
     } else if (ds.effect === "mend") {
-      // v0.03: a Heal restores HP — or TRANSFERS the caster's own EP (chosen at creation).
-      const pool = loc(cfg.damagePools[(ds.damagePool === "energy") ? "energy" : "hp"]);
-      core.push(N(ds.damagePool === "energy" ? "transfers" : "restores", { dmg: dmgAmount(ds.damageAttr), pool }));
+      core.push(N("mendBox", { n: numSpan(1), pool: poolName(ds.damagePool) }));
     }
   }
 
-  // ---- Inline attack riders (woven into the lead sentence). ----
+  // ---- Inline riders (woven into the lead sentence): the scaled movement/leap Modifiers. ----
   const riders = [];
-  if (has("pierce")) riders.push(N("pierce"));
-  if (has("push")) riders.push(N("push", { n: mv("push") }));
-  if (has("pull")) riders.push(N("pull", { n: mv("pull") }));
   if (has("chain")) riders.push(N("chain", { n: mv("chain") }));
-  // The Move Modifier repositions the target up to the Skill's Rank in tiles (grown by Tune a
-  // Modifier), or moves the caster up to their own Movement when they're the target — so the
-  // auto-text shows BOTH numbers. Movement is actor-derived; without an actor we name it instead.
-  if (has("move")) {
-    const selfMv = actor?.system?.movement?.value;
-    riders.push(selfMv
-      ? N("moveMod", { self: numSpan(selfMv), n: mv("move") })
-      : N("moveModNoActor", { n: mv("move") }));
-  }
+  if (has("move")) riders.push(N("move", { n: mv("move") }));
+  if (has("reposition")) riders.push(N("reposition", { n: mv("reposition") }));
 
-  // ---- Lead sentence: subject + the core predicate + any inline riders, joined naturally
-  // ("This attack deals d8 fire damage to a target within Near and pushes the target 2 spaces away.")
-  // An always-on "None" Effect (effect None + Passive Action Type) has no action of its own — its
-  // lead just says its Modifiers run continuously; their stand-alone sentences below carry the
-  // substance. An Action/React "None" Effect gets the normal lead so its Modifier riders read inline.
+  // ---- Lead sentence: subject + the core predicate + any inline riders, joined naturally.
+  // The legacy always-on "None" carrier has no action of its own — its Modifiers carry it. ----
   const subject = hasStrike ? N("subjAttack") : N("subjSkill");
   const firstPred = core.length ? `${joinClauses(core)} ${N("toTarget", { target })}` : N("affects", { target });
   const sentences = (sys.effect === "passive" && sys.actionType === "passive")
     ? [N("passiveCarrier")]
     : [`${subject} ${joinClauses([firstPred, ...riders])}.`];
 
-  // ---- Rules text for the v0.01 Effect catalog — one sentence block per Effect slot. These are
-  // the doc's own mechanics, condensed; the numbers that scale (Animate's Energy locks, Steal's
-  // rank gate) read from the Skill so the text is always current. ----
+  // ---- The V2 Effect catalog — one doc-literal line per Effect slot. Empower / Weaken /
+  // Transform read through the attribute narration below (their picks drive the exact text). ----
   for (const eff of skillEffectKeys(sys)) {
     switch (eff) {
-      case "animate": {
-        const cost = Number(sys.energyCost) || 0;
-        const lock = (mult) => numSpan(Math.max(1, Math.floor(cost * mult)));
-        sentences.push(N("animate"));
-        sentences.push(N("animateTiers", { minion: lock(0.5), standard: lock(1), elite: lock(2), solo: lock(3) }));
-        break;
-      }
       case "companion":
         sentences.push(N("companion"));
         break;
@@ -149,7 +110,6 @@ export function skillRulesHTML(item) {
         sentences.push(N("disguise"));
         break;
       case "elementalControl": {
-        // The element is free text (any element the player imagined, untied to the Damage Types).
         const el = (sys.controlElement ?? "").trim();
         sentences.push(el ? N("elementalControlTyped", { element: `<strong>${foundry.utils.escapeHTML(el)}</strong>` }) : N("elementalControl"));
         break;
@@ -160,8 +120,10 @@ export function skillRulesHTML(item) {
       case "illusion":
         sentences.push(N("illusion"));
         break;
+      case "sense":
+        sentences.push(N("sense", { n: numSpan(cfg.inherentRangeTiles?.sense ?? 5) }));
+        break;
       case "steal":
-        // v0.03: base Steal takes from inventory only — equipped items need the Disarm Modifier.
         sentences.push(N("steal"));
         break;
       case "telepathy":
@@ -170,9 +132,9 @@ export function skillRulesHTML(item) {
       case "vanish":
         sentences.push(N("vanish"));
         break;
-      case "sense":
-        // The doc's anti-Vanish clause rides every Sense Skill.
-        sentences.push(N("senseVanish"));
+      case "hinder":
+        // Weaken is contested by a non-willing creature (rules: Opposing Techniques).
+        sentences.push(N("contests"));
         break;
     }
   }
@@ -198,8 +160,8 @@ export function skillRulesHTML(item) {
       effectClauses.push(clause);
     }
   }
-  // Auto Bolster/Hinder: the Attribute changes the Skill raises/lowers (synthesized when the
-  // designer didn't author their own attribute effect) read like authored buffs/debuffs.
+  // Auto Empower/Weaken/Transform: the Attribute steps the Technique applies (synthesized when
+  // the designer didn't author their own attribute effect) read like authored buffs/debuffs.
   if (!hasAuthoredAttributeEffect(item)) {
     const auto = [];
     for (const mode of skillEffectKeys(sys)) {
@@ -210,143 +172,79 @@ export function skillRulesHTML(item) {
     }
     if (auto.length) effectClauses.push(joinClauses(auto));
   }
-  // A Hinder Skill's chosen Statuses are inflicted on a hit (its built-in counterpart to Inflict).
-  for (const id of hinderStatusIds(item)) targetStatuses.push(condLabel(id));
-  // The Inflict Modifier's chosen Status (Lingering gets its own damage sentence below); a still-
-  // unchosen Inflict falls back to the generic placeholder.
-  if (has("inflict") && sys.inflictStatus !== "decay") {
-    if (sys.inflictStatus) {
-      // A pool-choice Status (Barrier/Regen, or a Curse that blocks one pool's recovery) names
-      // the chosen Hit Points / Energy pool inline.
-      const poolSuffix = (cfg.poolChoiceStatuses ?? []).includes(sys.inflictStatus)
-        ? ` (${loc(cfg.damagePools[sys.inflictPool === "energy" ? "energy" : "hp"])})` : "";
-      targetStatuses.push(condLabel(sys.inflictStatus) + poolSuffix);
-    } else if (!targetStatuses.length) targetStatuses.push(N("aStatus"));
+  // The Inflict Modifiers' chosen Statuses (a Cursed Severe names its blocked pool inline);
+  // a still-unchosen Inflict falls back to the generic placeholder.
+  if (has("inflict")) {
+    if (sys.inflictStatus) targetStatuses.push(condLabel(sys.inflictStatus));
+    else if (!targetStatuses.length) targetStatuses.push(N("aStatus"));
+  }
+  if (has("inflictSevere") && sys.inflictSevereStatus) {
+    const poolSuffix = (cfg.poolChoiceStatuses ?? []).includes(sys.inflictSevereStatus)
+      ? ` (${poolName(sys.inflictPool)})` : "";
+    targetStatuses.push(condLabel(sys.inflictSevereStatus) + poolSuffix);
   }
 
   if (effectClauses.length) sentences.push(N("alsoEffects", { effects: joinClauses(effectClauses) }));
-  // Skill Evasion (rules v0.01): the defender rebuilds Evasion around the named Attribute — for
-  // a pair ("Mind or Charm"), around whichever of the two is better.
-  const seAttr = skillEvasionAttr(sys);
-  if (seAttr && skillNeedsAccuracy(sys)) {
-    const key = skillEvasionKeys(seAttr).length > 1 ? "skillEvasionLinePair" : "skillEvasionLine";
-    sentences.push(N(key, { attr: `<strong>${skillEvasionLabel(seAttr)}</strong>` }));
-  }
-  // "On a hit…" whenever the Skill rolls an Accuracy Check (Strike or an enemy debuff like Weaken);
-  // a self/ally Skill simply "applies …" with no roll.
+  // "On a hit…" whenever the Technique rolls to hit; a self/ally Technique simply applies.
   if (targetStatuses.length) sentences.push(N(skillNeedsAccuracy(sys) ? "onHit" : "applyTarget", { status: boldList(targetStatuses) }));
+  if ((has("inflict") || has("inflictSevere")) && targetStatuses.length) {
+    sentences.push(N("inflictLasts", { n: numSpan(2) }));
+  }
   if (selfStatuses.length) sentences.push(N("youGain", { status: boldList(selfStatuses) }));
 
-  // ---- Stand-alone modifier sentences. A PASSIVE drain rides the bearer's basic attacks
-  // (rules: "If this Skill is Passive, your basic attacks gain this effect"). ----
-  const passiveDrain = sys.actionType === "passive";
-  if (has("drainHP")) sentences.push(N(passiveDrain ? "drainHPPassive" : "drainHP"));
-  if (has("drainEnergy")) sentences.push(N(passiveDrain ? "drainEnergyPassive" : "drainEnergy"));
-  if (has("inflict") && sys.inflictStatus === "decay") {
-    const decayEl = sys.decayType ? elementLabel(sys.decayType) : "";
-    sentences.push(decayEl
-      ? N("decayTyped", { dmg: numSpan(1), element: `<strong>${decayEl}</strong>` })
-      : N("decay", { dmg: numSpan(1) }));
-  }
-  if (has("cleanse")) sentences.push(N("cleanse"));
-  if (has("cover")) sentences.push(N("cover"));
-  if (has("charge")) sentences.push(N("charge"));
-  if (has("protection")) {
-    const stat = loc(sys.protectionTarget === "res" ? "PROJECTANIME.Stat.resShort" : "PROJECTANIME.Stat.defShort");
-    sentences.push(N("protection", { n: numSpan("+" + modifierValue(item, "protection")), stat }));
-  }
-  if (has("retaliation")) {
-    const n = numSpan(modifierValue(item, "retaliation"));
-    const el = sys.retaliationType ? elementLabel(sys.retaliationType) : "";
-    sentences.push(el
-      ? N("retaliationTyped", { dmg: n, element: `<strong>${el}</strong>` })
-      : N("retaliation", { dmg: n }));
-  }
-  // The Affinity Modifiers are multi-take — one granted-affinity sentence per take.
-  if (has("affinityDamage")) {
-    for (const t of sys.affinityDamages ?? []) {
-      if (!t?.type) continue;
-      sentences.push(N("affinityGrant", {
-        thing: `<strong>${elementLabel(t.type)}</strong>`,
-        level: `<strong>${loc(cfg.affinityLevels[t.level] ?? "")}</strong>`
-      }));
-    }
-  }
-  // Status affinities grant Resist (v0.03: the chosen Status's duration is halved).
-  if (has("affinityStatus")) {
-    for (const id of sys.affinityStatusIds ?? []) {
-      if (!id) continue;
-      sentences.push(N("affinityStatusResist", { thing: `<strong>${condLabel(id)}</strong>` }));
-    }
-  }
-  // Absorb / Immunity (v0.03, Heavy Modifiers).
-  if (has("absorb") && sys.absorbElement) {
-    sentences.push(N("affinityGrant", {
-      thing: `<strong>${elementLabel(sys.absorbElement)}</strong>`,
-      level: `<strong>${loc(cfg.affinityLevels.absorb)}</strong>`
-    }));
-  }
-  if (has("immunity")) {
-    const thing = sys.immunityKind === "status"
-      ? (sys.immunityStatus ? condLabel(sys.immunityStatus) : "")
-      : (sys.immunityElement ? elementLabel(sys.immunityElement) : "");
-    if (thing) sentences.push(N("affinityGrant", {
-      thing: `<strong>${thing}</strong>`,
-      level: `<strong>${loc(cfg.affinityLevels.immune)}</strong>`
-    }));
-  }
+  // ---- Stand-alone Modifier sentences (V2 catalog). ----
   if (has("analyze")) {
     sentences.push(N("analyze", { category: `<strong>${loc(cfg.analyzeCategories[sys.analyzeCategory] ?? "")}</strong>` }));
   }
-  if (has("banish")) sentences.push(N("banish"));
-  if (has("infuse")) {
-    const thing = sys.infuseKind === "status"
-      ? (sys.infuseStatus ? condLabel(sys.infuseStatus) : loc(cfg.infuseKinds.status))
-      : (sys.infuseElement ? elementLabel(sys.infuseElement) : loc(cfg.infuseKinds.element));
-    sentences.push(N("infuse", { thing: `<strong>${thing}</strong>` }));
-  }
+  if (has("barrier")) sentences.push(N("barrier", { n: numSpan(totalCost) }));
+  if (has("charge")) sentences.push(N("charge"));
+  if (has("cleanse")) sentences.push(N("cleanse"));
+  if (has("cover")) sentences.push(N("cover"));
+  if (has("custom")) sentences.push(N("customMod"));
+  if (has("devour")) sentences.push(N("devour"));
+  if (has("disarm")) sentences.push(N("disarm"));
+  if (has("drain")) sentences.push(N("drain", { n: numSpan(1), pool: poolName(sys.drainPool) }));
+  if (has("link")) sentences.push(N("link"));
   if (has("manifest")) sentences.push(N("manifest"));
   if (has("nullify")) sentences.push(N("nullify"));
-  if (has("reequip")) sentences.push(N(sys.reequipHeavy ? "reequipHeavy" : "reequip"));
-  // v0.03 additions: Combo, Disarm, Waypoint (Mental reads through the Skill-Evasion line above).
-  if (has("combo")) sentences.push(N("combo"));
-  if (has("disarm")) sentences.push(N("disarm"));
+  if (has("potent")) sentences.push(N("potent", { n: numSpan(modifierTakes("potent", sys)) }));
+  if (has("protection")) sentences.push(N("protection", { n: numSpan("+" + (cfg.protectionGuard ?? 1)) }));
+  if (has("reequip")) sentences.push(N("reequip"));
+  if (has("reflect")) sentences.push(N("reflect"));
+  if (has("regen")) sentences.push(N("regen", { n: numSpan(cfg.regenHeal ?? 1) }));
+  if (has("retaliation")) sentences.push(N("retaliation", { dmg: numSpan(cfg.retaliationDamage ?? 1) }));
   if (has("waypoint")) sentences.push(N("waypoint"));
 
-  // ---- Closing: duration / action economy / Energy / Aura field / React trigger. ----
-  // Duration (rules v0.01): Channeled always announces its upkeep; Scene / Standard only when the
-  // Skill leaves something behind to time (an attribute change, authored effects, or an aura) —
-  // an instant Strike doesn't need "lasts 2 turns" noise. Always-on (Passive) Skills skip it
-  // entirely — including a Passive "None"; an Action/React "None" still times its lasting Modifiers.
-  if (sys.actionType !== "passive") {
-    const LASTING_EFFECTS = ["bolster", "hinder", "transform", "vanish", "disguise", "illusion", "telepathy", "gate", "conjure"];
+  // ---- Closing: duration / Energy / Aura field / React trigger / per-Conflict limit. ----
+  // Duration: Channeled always announces its upkeep; Scene / Standard only when the Technique
+  // leaves something behind to time — an instant Strike doesn't need "lasts 2 rounds" noise.
+  // A Standing Passive has no Duration (it waits on its condition); a Sustained one is always
+  // active, so its Duration line is skipped too.
+  if (!passive) {
+    const LASTING_EFFECTS = [...(cfg.durationEffects ?? []), "illusion", "gate", "conjure"];
+    const LASTING_MODS = ["protection", "regen", "retaliation", "barrier", "aura", "infuse"];
     const lasting = skillEffectKeys(sys).some((e) => LASTING_EFFECTS.includes(e))
-      || (item.effects ?? []).some((e) => !e.disabled && effectRules(e).length) || has("aura");
+      || (item.effects ?? []).some((e) => !e.disabled && effectRules(e).length)
+      || LASTING_MODS.some((m) => has(m));
     const dur = skillDuration(sys);
     if (dur === "channeled") sentences.push(N("channeledLine", { n: numSpan(1) }));
     else if (lasting && dur === "scene") sentences.push(N("sceneLine"));
     else if (lasting && dur === "standard") sentences.push(N("durationTurns", { n: numSpan(sys.effectDuration ?? cfg.standardDurationTurns) }));
   }
-  if (sys.actionType === "passive") sentences.push(N("passiveLine", { n: numSpan(sys.passiveEnergyTax ?? (Number(sys.baseEnergy) || 0)) }));
+  // Energy: a Passive LOCKS boxes equal to its total cost (Companion's lock lifts at home);
+  // an Action/React pays per use.
+  if (isCompanion) sentences.push(N("companionLock", { n: numSpan(totalCost) }));
+  else if (passive) sentences.push(N(sys.passiveMode === "standing" ? "passiveStanding" : "passiveSustained", { n: numSpan(totalCost) }));
   else if (Number(sys.energyCost) > 0) sentences.push(N("costs", { n: numSpan(sys.energyCost) }));
-  // Aura: the field applies the Skill's effect(s) to its audience nearby — the Skill's Target
+  // Aura: the field applies the Technique's effect(s) to its audience nearby — the Target
   // decides who (Ally → you and allies; Foe → enemies only, never you; Any → everyone).
   if (has("aura")) {
     const audience = auraAudience(sys);
     const key = audience === "foe" ? "auraLineEnemy" : audience === "any" ? "auraLineAny" : "auraLineAlly";
     sentences.push(N(key, { n: numSpan(modifierValue(item, "aura")) }));
   }
-  if (sys.actionType === "react" && sys.trigger) sentences.push(N("reactLine", { trigger: `<strong>${loc(cfg.triggers[sys.trigger])}</strong>` }));
+  if (sys.actionType === "react" && sys.trigger) sentences.push(N("reactLine", { trigger: `<strong>${loc(cfg.triggers[sys.trigger] ?? "") || foundry.utils.escapeHTML(sys.trigger)}</strong>` }));
+  if (Number(sys.usesPerConflict) > 0) sentences.push(N("perConflict", { n: numSpan(sys.usesPerConflict) }));
 
-  // ---- Improvements (SP-bought refinements), as a trailing line in the improvement color. ----
-  const imps = [];
-  if (sys.accuracyMod) imps.push(`${loc("PROJECTANIME.Skill.field.accuracyMod")} ${impSpan("+" + sys.accuracyMod)}`);
-  if (sys.damageMod && cfg.dieEffects.includes(sys.effect)) {
-    imps.push(`${loc(sys.effect === "mend" ? "PROJECTANIME.Skill.field.healMod" : "PROJECTANIME.Skill.field.damageMod")} ${impSpan("+" + sys.damageMod)}`);
-  }
-  if (sys.energyReduction) imps.push(`${loc("PROJECTANIME.Skill.auto.energyLowered")} ${impSpan("−" + sys.energyReduction)}`);
-
-  let html = `<p>${sentences.join(" ")}</p>`;
-  if (imps.length) html += `<p class="pa-rules-improve-line">${N("improved", { list: imps.join(", ") })}</p>`;
-  return `<div class="skill-rules">${html}</div>`;
+  return `<div class="skill-rules"><p>${sentences.join(" ")}</p></div>`;
 }

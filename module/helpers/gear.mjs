@@ -16,7 +16,7 @@ export const GEAR_GROUPS = ["weapon", "armor", "shield", "accessory", "consumabl
 export const EQUIPPABLE = new Set(["weapon", "armor", "shield", "accessory"]);
 
 /** Item types that can be copied onto an actor via drag-drop (every embeddable Item type). */
-export const TRANSFERABLE_ITEM_TYPES = new Set([...GEAR_GROUPS, "skill", "container", "package", "material"]);
+export const TRANSFERABLE_ITEM_TYPES = new Set([...GEAR_GROUPS, "skill", "container", "package"]);
 
 /** Paperdoll equip slots, positioned over the portrait in the Gear drawer (the
  *  template places each by `key` via CSS). The two accessory slots use the

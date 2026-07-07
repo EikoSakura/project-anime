@@ -1,6 +1,6 @@
 {{!-- View tab: read-only display. Skills show their auto-written (or overridden) rules summary;
-      every other item type shows the JRPG status card — icon stat tiles, meta chips, a description
-      card, and crafted-mod badges. --}}
+      every other item type shows the JRPG status card — icon stat tiles, meta chips, and a
+      description card. --}}
 <section class="item-details tab-pane{{#if tabView}} active{{/if}}" data-tab-pane="view">
   {{#if skillRules}}
   <div class="skill-rules-view">{{{skillRules}}}</div>
@@ -37,14 +37,6 @@
   <div class="desc-card">
     <div class="desc-card-h"><span class="chev"></span>{{localize "PROJECTANIME.Field.description"}}</div>
     <div class="desc-card-b">{{{enrichedDescription}}}</div>
-  </div>
-  {{/if}}
-
-  {{#if craftBadges.length}}
-  <div class="craft-badges">
-    {{#each craftBadges as |b|}}
-    <span class="craft-badge {{b.kind}}">{{#if b.icon}}<i class="{{b.icon}}"></i> {{/if}}{{b.text}}</span>
-    {{/each}}
   </div>
   {{/if}}
   {{/if}}

@@ -10,7 +10,7 @@
  * and reuses its `.ec-*` styling.
  */
 import {
-  TOKEN_INFO_FIELDS_SETTING, TOKEN_FIELD_GATES, TOKEN_FIELD_SURFACES, tokenFields
+  TOKEN_INFO_FIELDS_SETTING, TOKEN_FIELD_GATES, TOKEN_FIELD_SURFACES, tokenFields, foldFieldGate
 } from "./token-info.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -18,8 +18,8 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 export class TokenFieldConfig extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "project-anime-token-field-config",
-    // Reuse the Elements config chrome (.ec-*); `token-field-config` sets its own grid.
-    classes: ["project-anime", "element-config", "token-field-config"],
+    // Reuse the shared config-menu chrome (.ec-*); `token-field-config` sets its own grid.
+    classes: ["project-anime", "config-menu", "token-field-config"],
     tag: "form",
     position: { width: 640, height: "auto" },
     window: { title: "PROJECTANIME.Settings.tokenFields.title", icon: "fa-solid fa-table-list" },
@@ -46,7 +46,7 @@ export class TokenFieldConfig extends HandlebarsApplicationMixin(ApplicationV2) 
       rows: this.#rows.map((f) => ({
         label: f.label ?? "",
         path: f.path ?? "",
-        gate: f.gate ?? "always",
+        gate: foldFieldGate(f.gate),
         surface: f.surface ?? "dossier"
       })),
       gateChoices: map(TOKEN_FIELD_GATES),
@@ -62,7 +62,7 @@ export class TokenFieldConfig extends HandlebarsApplicationMixin(ApplicationV2) 
     return rows.map((f) => ({
       label: (f.label || "").trim(),
       path: (f.path || "").trim(),
-      gate: f.gate in TOKEN_FIELD_GATES ? f.gate : "always",
+      gate: foldFieldGate(f.gate) in TOKEN_FIELD_GATES ? foldFieldGate(f.gate) : "always",
       surface: f.surface in TOKEN_FIELD_SURFACES ? f.surface : "dossier"
     }));
   }
@@ -95,7 +95,7 @@ export class TokenFieldConfig extends HandlebarsApplicationMixin(ApplicationV2) 
       fields.push({
         label: (f.label || "").trim() || path,
         path,
-        gate: f.gate in TOKEN_FIELD_GATES ? f.gate : "always",
+        gate: foldFieldGate(f.gate) in TOKEN_FIELD_GATES ? foldFieldGate(f.gate) : "always",
         surface
       });
     }
