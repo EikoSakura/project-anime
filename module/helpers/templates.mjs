@@ -12,7 +12,10 @@ import { PROJECTANIME } from "./config.mjs";
  *
  * Templates are placed interactively (cursor preview → click) and the tokens caught
  * under the final shape become the user's targets. The V13 preview mechanism mirrors
- * core's TemplateLayer#_onDragLeftStart (canvas/layers/templates.mjs).
+ * core's TemplateLayer#_onDragLeftStart (canvas/layers/templates.mjs). Foundry V14
+ * removed Measured Templates outright (absorbed by Scene Regions), so there the preview
+ * is a hand-rolled PIXI overlay (placeAreaPixi) and nothing persists — the final shape
+ * flashes on the controls layer instead.
  */
 
 const i18n = (k, data) => (data ? game.i18n.format(k, data) : game.i18n.localize(k));
@@ -23,6 +26,13 @@ const FDE = () => foundry.applications?.ux?.FormDataExtended ?? globalThis.FormD
 function unitsPerTile() {
   return canvas?.dimensions?.distance || 1;
 }
+
+/** Whether this Foundry generation still has Measured Templates — v14 deleted the document
+ *  type and its canvas layer. When absent, placement runs on the PIXI fallback below. */
+const hasTemplateLayer = () => !!canvas?.templates && !!CONFIG.MeasuredTemplate?.objectClass;
+
+/** The acting user's color as a PIXI-ready number. */
+const userColor = () => Number(game.user?.color ?? 0xff0000) || 0xff0000;
 
 /* -------------------------------------------- */
 /*  Skill → area kind                           */
@@ -174,6 +184,60 @@ export async function pickTargetsDialog(tokens) {
 }
 
 /* -------------------------------------------- */
+/*  PIXI area preview (V14 — no template layer) */
+/* -------------------------------------------- */
+
+/** Local-space geometry for an area shape: a circle of `radiusPx`, or a ray polygon of
+ *  `lengthPx` × `widthPx` aimed along `radians` — the direction baked into the points and the
+ *  origin at the placement point, exactly the space templateTokens tests in. */
+function areaShape(t, { radiusPx = 0, lengthPx = 0, widthPx = 0, radians = 0 } = {}) {
+  if (t === "ray") {
+    const ux = Math.cos(radians), uy = Math.sin(radians);
+    const nx = -uy * (widthPx / 2), ny = ux * (widthPx / 2);
+    return new PIXI.Polygon([
+      { x: nx, y: ny },
+      { x: -nx, y: -ny },
+      { x: -nx + ux * lengthPx, y: -ny + uy * lengthPx },
+      { x: nx + ux * lengthPx, y: ny + uy * lengthPx }
+    ]);
+  }
+  return new PIXI.Circle(0, 0, radiusPx);
+}
+
+/** (Re)draw an area shape into a Graphics, template-style: translucent fill + solid border. */
+function drawAreaShape(g, shape, color) {
+  g.clear();
+  g.lineStyle(3, color, 0.9);
+  g.beginFill(color, 0.18);
+  if (shape instanceof PIXI.Circle) g.drawCircle(0, 0, shape.radius);
+  else g.drawPolygon(shape.points);
+  g.endFill();
+}
+
+/** Transient flash of a committed area: drawn on the controls layer and faded out over ~1.5s,
+ *  so the table still sees where the area landed even with nothing persisted. */
+function flashAreaShape(shape, x, y, color) {
+  const layer = canvas?.controls;
+  if (!layer) return;
+  const g = new PIXI.Graphics();
+  drawAreaShape(g, shape, color);
+  g.position.set(x, y);
+  layer.addChild(g);
+  const started = Date.now();
+  const life = 1500;
+  const tick = () => {
+    const t = (Date.now() - started) / life;
+    if (t >= 1 || g.destroyed) {
+      canvas.app?.ticker?.remove(tick);
+      if (!g.destroyed) g.destroy({ children: true });
+      return;
+    }
+    g.alpha = 1 - t;
+  };
+  canvas.app?.ticker?.add(tick);
+}
+
+/* -------------------------------------------- */
 /*  Self-centered Burst (emanation)             */
 /* -------------------------------------------- */
 
@@ -188,13 +252,18 @@ export async function emanateBurst(originToken, distanceTiles) {
   const radiusPx = Math.max(0, distanceTiles) * (canvas.dimensions?.size ?? 100);
   // A plain geometric circle (origin-local) is all templateTokens needs to test containment.
   const tokens = templateTokens(new PIXI.Circle(0, 0, radiusPx), c.x, c.y);
-  try {
-    await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
-      user: game.user.id, t: "circle", x: c.x, y: c.y,
-      distance: distanceTiles * per, direction: 0,
-      fillColor: game.user.color?.toString?.() ?? "#ff0000"
-    }]);
-  } catch (_e) { /* creation denied — targets are already captured */ }
+  if (hasTemplateLayer()) {
+    try {
+      await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
+        user: game.user.id, t: "circle", x: c.x, y: c.y,
+        distance: distanceTiles * per, direction: 0,
+        fillColor: game.user.color?.toString?.() ?? "#ff0000"
+      }]);
+    } catch (_e) { /* creation denied — targets are already captured */ }
+  } else {
+    // V14: nothing to persist — flash the emanation so the table sees its reach.
+    flashAreaShape(new PIXI.Circle(0, 0, radiusPx), c.x, c.y, userColor());
+  }
   return tokens;
 }
 
@@ -223,6 +292,10 @@ export async function placeTemplate({
   maxRangeTiles = null, widthTiles = 1, originHalfW = 0, originHalfH = 0, hint = ""
 } = {}) {
   if (!canvas?.ready) return null;
+  // V14 removed Measured Templates — same contract, PIXI preview, nothing persisted (doc: null).
+  if (!hasTemplateLayer()) {
+    return placeAreaPixi({ t, distanceTiles, origin, follow, maxRangeTiles, widthTiles, originHalfW, originHalfH, hint });
+  }
   const per = unitsPerTile();
   const cls = foundry.utils.getDocumentClass("MeasuredTemplate");
   const seed = origin ?? canvas.mousePosition ?? { x: canvas.dimensions.width / 2, y: canvas.dimensions.height / 2 };
@@ -311,6 +384,114 @@ export async function placeTemplate({
 
       try { canvas.templates.preview.removeChild(object); object.destroy({ children: true }); } catch (_e) { /* already gone */ }
       initialLayer?.activate?.();
+      resolve(payload);
+    };
+
+    const onDown = (event) => {
+      if (event.button != null && event.button !== 0) return; // left only
+      event.stopPropagation?.();
+      finish(true);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(false); }
+    };
+
+    if (view) view.oncontextmenu = (event) => { event.preventDefault(); finish(false); };
+    stage.on("pointermove", onMove);
+    stage.on("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+
+    update(canvas.mousePosition ?? seed);
+  });
+}
+
+/**
+ * V14 interactive area placement. Measured Templates are gone, so the cursor preview is a
+ * hand-rolled PIXI.Graphics on the controls layer and the capture is plain geometry
+ * (templateTokens on the same local-space shape). Same contract as placeTemplate; `doc` is
+ * always null — the committed shape flashes briefly instead of persisting.
+ */
+async function placeAreaPixi({
+  t = "circle", distanceTiles = 1, origin = null, follow = "point",
+  maxRangeTiles = null, widthTiles = 1, originHalfW = 0, originHalfH = 0, hint = ""
+} = {}) {
+  const layer = canvas?.controls;
+  if (!layer) return null;
+  const sizePx = canvas.dimensions?.size ?? 100;
+  const radiusPx = distanceTiles * sizePx;
+  const lengthPx = distanceTiles * sizePx;
+  const widthPx = widthTiles * sizePx;
+  const color = userColor();
+  const seed = origin ?? canvas.mousePosition ?? { x: canvas.dimensions.width / 2, y: canvas.dimensions.height / 2 };
+
+  const state = { x: seed.x, y: seed.y, radians: 0 };
+  const shapeNow = () => t === "ray"
+    ? areaShape("ray", { lengthPx, widthPx, radians: state.radians })
+    : areaShape("circle", { radiusPx });
+
+  const g = new PIXI.Graphics();
+  g.position.set(state.x, state.y);
+  drawAreaShape(g, shapeNow(), color);
+  layer.addChild(g);
+
+  if (hint) ui.notifications.info(hint);
+
+  // Snap like the old template layer did: grid centres + vertices.
+  const M = CONST.GRID_SNAPPING_MODES;
+  const snap = (p) => canvas.grid?.getSnappedPoint?.(p, { mode: M.CENTER | M.VERTEX }) ?? p;
+
+  return new Promise((resolve) => {
+    const stage = canvas.stage;
+    const view = canvas.app?.view;
+    const prevContext = view ? view.oncontextmenu : null;
+    let done = false;
+    let moveTime = 0;
+
+    const update = (cursor) => {
+      if (follow === "direction" && origin) {
+        const dx = cursor.x - origin.x, dy = cursor.y - origin.y;
+        state.radians = Math.atan2(dy, dx);
+        // Start the ray at the caster's square edge facing the cursor, not its centre.
+        const start = boxEdgePoint(origin, originHalfW, originHalfH, dx, dy);
+        state.x = start.x; state.y = start.y;
+      } else {
+        let p = snap(cursor);
+        if (origin && maxRangeTiles != null) {
+          const maxPx = maxRangeTiles * sizePx;
+          const dx = p.x - origin.x, dy = p.y - origin.y;
+          const px = Math.hypot(dx, dy);
+          if (px > maxPx && px > 0) p = { x: origin.x + (dx / px) * maxPx, y: origin.y + (dy / px) * maxPx };
+        }
+        state.x = p.x; state.y = p.y;
+      }
+      g.position.set(state.x, state.y);
+      drawAreaShape(g, shapeNow(), color);
+    };
+
+    const onMove = (event) => {
+      event.stopPropagation?.();
+      const now = Date.now();
+      if (now - moveTime <= 20) return;
+      moveTime = now;
+      update(event.getLocalPosition(stage));
+    };
+
+    const finish = (commit) => {
+      if (done) return;
+      done = true;
+      stage.off("pointermove", onMove);
+      stage.off("pointerdown", onDown);
+      if (view) view.oncontextmenu = prevContext;
+      window.removeEventListener("keydown", onKey, true);
+
+      let payload = null;
+      if (commit) {
+        const shape = shapeNow();
+        const tokens = templateTokens(shape, state.x, state.y);
+        flashAreaShape(shape, state.x, state.y, color);
+        payload = { tokens, point: { x: state.x, y: state.y }, doc: null };
+      }
+      try { g.destroy({ children: true }); } catch (_e) { /* already gone */ }
       resolve(payload);
     };
 

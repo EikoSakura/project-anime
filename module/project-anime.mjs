@@ -13,7 +13,7 @@ import { registerBioFieldSettings } from "./apps/bio-field-config.mjs";
 import { registerTokenFieldSettings } from "./apps/token-field-config.mjs";
 import { registerTokenSettings } from "./apps/token-config.mjs";
 import { registerCreationSettings } from "./apps/creation-config.mjs";
-import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain } from "./helpers/effects.mjs";
+import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain, durationRounds, durationRoundsUpdate } from "./helpers/effects.mjs";
 import { createCompanion, removeServantActor, confirmAndDismiss } from "./helpers/servants.mjs";
 import { auditGearPacks, purgeRetiredPackItems, healBrokenItemIcons, PACK_AUDIT_SETTING, PACK_TARGETS, ACCESSORY_CANON, accessoryEffectData } from "./helpers/pack-audit.mjs";
 import { syncAuras, isAuraEffect } from "./helpers/aura.mjs";
@@ -376,7 +376,11 @@ Hooks.once("init", function () {
   patchEffectsHalo(TokenClass);
 
   // Register the system's status conditions (token HUD icons + Active Effects).
-  CONFIG.statusEffects = PROJECTANIME.statusConditions.map((c) => ({ ...c }));
+  // v14 keys CONFIG.statusEffects by id ({[id]: config}); v13 wants the array form.
+  const statusConditions = PROJECTANIME.statusConditions.map((c) => ({ ...c }));
+  CONFIG.statusEffects = Number(game.release?.generation ?? 0) >= 14
+    ? Object.fromEntries(statusConditions.map((c) => [c.id, c]))
+    : statusConditions;
 
   // SIDE INITIATIVE (Fire-Emblem phases): turn order is NOT rolled — a combatant's `initiative` is
   // assigned deterministically from its side band (config.mjs sideInitiative), so Foundry groups the
@@ -421,7 +425,8 @@ Hooks.once("init", function () {
   };
 
   // Active Effects apply from the owning Item rather than being copied onto the Actor.
-  CONFIG.ActiveEffect.legacyTransferral = false;
+  // v14 removed the legacy model outright, so the opt-out only exists on v13.
+  if (Number(game.release?.generation ?? 0) < 14) CONFIG.ActiveEffect.legacyTransferral = false;
 
   // Register sheets, replacing the core defaults. The main sheet drives Characters and NPCs;
   // the Party (encounter-budget planner) is a distinct actor type with its own sheet.
@@ -714,17 +719,20 @@ async function runPhaseDurationTick(combat, side) {
       for (const id of expired) await expireStatusOnActor(actor, id);
     }
     // 2) Timed Active Effects — same rule (Scene / Channeled carry no round timer, so they're skipped).
+    // The round count reads/writes through the v13 ↔ v14 duration helpers (effects.mjs): v14 replaced
+    // the `rounds` field with `{value, units}`.
     const timed = actor.effects.filter((e) => {
       const f = e.flags?.["project-anime"];
       if (f?.scene || f?.channelKey) return false;
-      if (!Number.isFinite(e.duration?.rounds) || e.duration.rounds <= 0) return false;
+      const r = durationRounds(e);
+      if (!Number.isFinite(r) || r <= 0) return false;
       return mine(f?.creatorSide ?? null);
     });
     for (const e of timed) {
-      const n = e.duration.rounds - 1;
+      const n = durationRounds(e) - 1;
       if (n <= 0) { await e.delete(); await announceEffectExpired(actor, e); }
-      // Re-anchor startRound so Foundry's displayed `remaining` tracks the caster-keyed count.
-      else await e.update({ "duration.rounds": n, "duration.startRound": combat.round, "duration.startTurn": 0 });
+      // Re-anchor (v13) so Foundry's displayed `remaining` tracks the caster-keyed count.
+      else await e.update(durationRoundsUpdate(n, combat));
     }
   }
 }
@@ -1515,7 +1523,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     title: "PROJECTANIME.Codex.open",
     icon: "fa-solid fa-book-open",
     button: true,
-    onClick: () => Codex.open()
+    onChange: () => Codex.open()
   };
   if (game.settings.get("project-anime", TOKEN_INFO_SETTING)) {
     tools["project-anime-token-info"] = {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.8 - 2026-07-07
+
+- Foundry V14 compatibility (verified 14.364) - V13 still supported,Effect durations read and write both duration schemas (V14 replaced rounds/startRound with value/units),Burst/Line/Gate placement runs on a PIXI preview on V14 (Measured Templates were removed from core); the committed area flashes instead of persisting,Status conditions register in V14's keyed form; Quest Log scene button uses the current onChange callback,VERIFY-V14.md added - the in-Foundry checklist to run before playing a real session on V14
+
+## 0.5.8 - 2026-07-07
+
+- Foundry V14 compatibility (verified 14.364, V13 still supported): effect durations read/write both duration schemas (V14's value/units replaced rounds/startRound), status conditions register in V14's keyed form, Burst/Line/Gate placement runs on a PIXI preview where V14 removed Measured Templates (the committed area flashes instead of persisting), and the Quest Log scene button uses the current onChange callback
+- See VERIFY-V14.md for the in-Foundry checklist before playing a real session on V14
+
 ## 0.5.7 - 2026-07-07
 
 - Chain Techniques post their combined attack card again - resolveChain referenced an undefined variable at the card step, so the rolls and damage applied but the chat card never appeared,Manifest lock follows the carrier: the bound Passive's energy lock now lifts only while the carrier Technique is running and RETURNS when its duration ends (dormant bound Passives lock their boxes and read 'Locks N' again)

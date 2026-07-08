@@ -122,6 +122,38 @@ export const DURATION_UNITS = {
   minutes: "PROJECTANIME.Effect.dur.minutes"
 };
 
+/* -------------------------------------------- */
+/*  Effect duration (Foundry v13 ↔ v14)         */
+/* -------------------------------------------- */
+
+/** True on Foundry v14+, whose Active Effect duration schema is `{value, units, expiry}` —
+ *  v13's `rounds`/`turns`/`seconds` and `start*` anchor fields no longer exist there. */
+export const durationV14 = () => Number(game?.release?.generation ?? 0) >= 14;
+
+/** A round-counted effect duration in the running generation's schema, anchored to now
+ *  (v13 needs the `start*` anchors for core's displayed `remaining`; v14 tracks `value`). */
+export function makeRoundsDuration(rounds) {
+  if (durationV14()) return { value: rounds, units: "rounds" };
+  const d = { rounds, startTime: game.time?.worldTime ?? 0 };
+  if (game.combat) { d.startRound = game.combat.round ?? 0; d.startTurn = game.combat.turn ?? 0; }
+  return d;
+}
+
+/** The rounds left on an effect's round-counted duration, or null when it carries none. */
+export function durationRounds(effect) {
+  const d = effect?.duration;
+  if (!d) return null;
+  if (durationV14()) return d.units === "rounds" && Number.isFinite(d.value) ? d.value : null;
+  return Number.isFinite(d.rounds) ? d.rounds : null;
+}
+
+/** Update payload writing a new round count onto an effect (v13 also re-anchors `startRound`
+ *  so core's displayed `remaining` follows the caster-keyed countdown). */
+export function durationRoundsUpdate(rounds, combat = null) {
+  if (durationV14()) return { "duration.value": rounds };
+  return { "duration.rounds": rounds, "duration.startRound": combat?.round ?? game.combat?.round ?? 0, "duration.startTurn": 0 };
+}
+
 /** Step Up (step the die up) / Step Down (step it down) — the no-code builder's Attribute rule;
  *  stored values stay `bolster`/`hinder`. "Empower / Weaken" are Skill-Effect names
  *  (kept distinct on Skill.effect.*), so the no-code die-step reads neutrally. */
@@ -496,8 +528,10 @@ export function effectCopyData(effect, sourceImg = null) {
   // deliberately-chosen custom icon (anything else) is preserved untouched.
   const src = sourceImg || effect.parent?.img || "";
   if (src && GENERIC_EFFECT_ICONS.has(obj.img ?? "")) obj.img = src;
+  // v13 only: restart the countdown's anchors. v14 durations are `{value, units}` with no
+  // start fields — a fresh copy anchors itself at creation.
   const d = obj.duration;
-  if (d && (d.rounds || d.turns || d.seconds)) {
+  if (!durationV14() && d && (d.rounds || d.turns || d.seconds)) {
     d.startTime = game.time?.worldTime ?? 0;
     if (game.combat) { d.startRound = game.combat.round ?? 0; d.startTurn = game.combat.turn ?? 0; }
   }

@@ -1,6 +1,6 @@
 import { PROJECTANIME, modifierValue, modifierTakes, techniqueDie, contestTarget, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
 import { skillRulesHTML } from "./skill-description.mjs";
-import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes } from "./effects.mjs";
+import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
 import { resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
@@ -1260,12 +1260,7 @@ async function resolveAura(actor, item) {
     // cleared at end of combat. Legacy auras with a blank count read as Scene, exactly as before.
     const scene = skillDuration(sys) !== "standard";
     const dur = sys.effectDuration ?? PROJECTANIME.standardDurationTurns;
-    const duration = {};
-    if (!scene) {
-      duration.rounds = dur;
-      duration.startTime = game.time?.worldTime ?? 0;
-      if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-    }
+    const duration = scene ? {} : makeRoundsDuration(dur);
     // Refresh: drop any existing marker for this aura, then stamp a fresh one on the caster. The
     // marker tells the reconcile the aura is running (and for how long); its create/expire nudges the
     // field engine via the createActiveEffect/deleteActiveEffect hooks.
@@ -1725,6 +1720,9 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   let stoppedName = null;
   const killed = [];
   const hits = [];
+  // The card's dice box shows the PRIMARY attack roll (V2 damage is a fixed number — rendering
+  // it read as a meaningless "1"); each leap's own roll renders under its target row instead.
+  let primaryRollHTML = "";
 
   for (let i = 0; i < maxTargets && current; i++) {
     const ta = current.actor;
@@ -1748,6 +1746,8 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     const leapTag = i === 0 ? "" : `${i18n("PROJECTANIME.Roll.chainLeap", { n: i })} · `;
     const evText = ev != null ? ` vs ${ev}` : "";
     lines.push(`<span class="card-target-row">${leapTag}<strong>${ta.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")} <span class="muted">(${aroll.total}${evText})</span></span>`);
+    if (i === 0) primaryRollHTML = await aroll.render();
+    else lines.push(await aroll.render());
 
     if (!didHit) { stoppedName = ta.name; break; }   // must hit before the leap continues
 
@@ -1793,7 +1793,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   await postCard(actor, cardHTML({
     title: item.name, subtitle: i18n("PROJECTANIME.Roll.attack"),
     icon: item.img, meta: skillMeta(sys),
-    rollHTML: await dmg.roll.render(),
+    rollHTML: primaryRollHTML,
     description: await enrichDescription(item), rows, lines
   }), rolls, rows.length ? { flags: { "project-anime": { damageCard: { rows } } } } : {});
   // Passive Devour: a chain that drops creatures to 0 HP lets a passive Devour Skill learn from each.
@@ -2251,12 +2251,7 @@ async function resolveConjure(actor, item) {
   // so the channel's end deletes the marker (whose own deletion evaporates the item).
   const mode = skillDuration(sys);
   const scene = mode === "scene" || mode === "channeled";
-  const duration = {};
-  if (!scene) {
-    duration.rounds = mode === "instant" ? 1 : (sys.effectDuration ?? PROJECTANIME.standardDurationTurns);
-    duration.startTime = game.time?.worldTime ?? 0;
-    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-  }
+  const duration = scene ? {} : makeRoundsDuration(mode === "instant" ? 1 : (sys.effectDuration ?? PROJECTANIME.standardDurationTurns));
   const markerFlags = { conjureMarker: conjureKey, scene, creatorSide: actorSide(actor) };
   const channelKey = activeChannelKey(actor, item);
   if (mode === "channeled" && channelKey) markerFlags.channelKey = channelKey;
@@ -2332,12 +2327,7 @@ async function resolveGate(actor, item) {
 
   const mode = skillDuration(sys);
   const scene = mode === "scene" || mode === "channeled";
-  const duration = {};
-  if (!scene) {
-    duration.rounds = mode === "instant" ? 1 : (sys.effectDuration ?? PROJECTANIME.standardDurationTurns);
-    duration.startTime = game.time?.worldTime ?? 0;
-    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-  }
+  const duration = scene ? {} : makeRoundsDuration(mode === "instant" ? 1 : (sys.effectDuration ?? PROJECTANIME.standardDurationTurns));
   const markerFlags = { gateMarker: gateKey, scene, creatorSide: actorSide(actor) };
   const channelKey = activeChannelKey(actor, item);
   if (mode === "channeled" && channelKey) markerFlags.channelKey = channelKey;
@@ -2479,12 +2469,7 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
   }
   const mode = skillDuration(item.system);
   const scene = mode === "scene" || mode === "channeled";
-  const duration = {};
-  if (!scene) {
-    duration.rounds = mode === "instant" ? 1 : (item.system?.effectDuration ?? PROJECTANIME.standardDurationTurns);
-    duration.startTime = game.time?.worldTime ?? 0;
-    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-  }
+  const duration = scene ? {} : makeRoundsDuration(mode === "instant" ? 1 : (item.system?.effectDuration ?? PROJECTANIME.standardDurationTurns));
   const flags = {
     ensnare: effectKey,
     ensnareSource: item.uuid,
@@ -2575,8 +2560,7 @@ export async function performOvercome(actor, effect) {
     else await effect.delete();
     // Overcome success wards against re-application for 2 ROUNDS (v0.03), counted down by the
     // OVERCOMING creature's own phase (creatorSide) on the duration engine.
-    const duration = { rounds: 2, startTime: game.time?.worldTime ?? 0 };
-    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
+    const duration = makeRoundsDuration(2);
     await actor.createEmbeddedDocuments("ActiveEffect", [{
       name: game.i18n.format("PROJECTANIME.Roll.overcomeMarker", { name: effect.name }),
       img: "icons/svg/angel.svg",
@@ -3353,12 +3337,7 @@ function skillEffectTargets(actor, item, recipients = null) {
 function skillAppliedDuration(item) {
   const mode = skillDuration(item.system);
   const scene = mode === "scene" || mode === "channeled";
-  const duration = {};
-  if (!scene) {
-    duration.rounds = mode === "instant" ? 1 : (item.system?.effectDuration ?? PROJECTANIME.standardDurationTurns);
-    duration.startTime = game.time?.worldTime ?? 0;
-    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-  }
+  const duration = scene ? {} : makeRoundsDuration(mode === "instant" ? 1 : (item.system?.effectDuration ?? PROJECTANIME.standardDurationTurns));
   return { duration, scene };
 }
 
@@ -3507,12 +3486,7 @@ async function ensureManifestMarker(actor, item) {
   if (!passive) return;
   const durKey = skillDuration(item.system);
   const scene = durKey === "scene" || durKey === "channeled";
-  const duration = {};
-  if (!scene) {
-    duration.rounds = item.system.effectDuration ?? PROJECTANIME.standardDurationTurns;
-    duration.startTime = game.time?.worldTime ?? 0;
-    if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
-  }
+  const duration = scene ? {} : makeRoundsDuration(item.system.effectDuration ?? PROJECTANIME.standardDurationTurns);
   const old = (actor.effects ?? []).filter((e) => e.flags?.["project-anime"]?.manifestSkillId === passive.id).map((e) => e.id);
   if (old.length) await actor.deleteEmbeddedDocuments("ActiveEffect", old);
   await actor.createEmbeddedDocuments("ActiveEffect", [{

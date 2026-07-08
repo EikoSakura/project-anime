@@ -57,6 +57,7 @@ function auraIsLive(token, skill) {
   if (!actor) return false;
   return (actor.effects ?? []).some((e) => {
     if (e.flags?.[FLAG_SCOPE]?.auraMarker !== skill.id) return false;
+    if (e.duration?.expired === true) return false;   // v14 flags a run-out duration directly
     const rem = e.duration?.remaining;
     return !(Number.isFinite(rem) && rem <= 0);   // a marker that's run out isn't live yet-deleted
   });

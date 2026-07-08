@@ -8,7 +8,7 @@
  * config-menu form pattern (working copy survives interactive re-renders).
  */
 import {
-  blankRule, normalizeRule, effectRules, ruleChoices
+  blankRule, normalizeRule, effectRules, ruleChoices, durationV14
 } from "../helpers/effects.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 
@@ -28,17 +28,31 @@ function seedRule(r) {
   return { ...r };
 }
 
-/** Derive {unit, value} from a core ActiveEffect duration object (for the builder). */
+/** Derive {unit, value} from a core ActiveEffect duration object (for the builder).
+ *  v14 stores `{value, units}`; v13 stores discrete `rounds`/`turns`/`seconds` fields. */
 function readDuration(dur) {
+  if (durationV14()) {
+    const v = Number(dur?.value) || 0;
+    if (!v) return { unit: "none", value: 0 };
+    if (dur.units === "rounds" || dur.units === "turns") return { unit: dur.units, value: v };
+    if (dur.units === "minutes") return { unit: "minutes", value: v };
+    if (dur.units === "seconds") return { unit: "minutes", value: Math.round(v / 60) };
+    return { unit: "none", value: 0 };
+  }
   if (dur?.rounds) return { unit: "rounds", value: dur.rounds };
   if (dur?.turns) return { unit: "turns", value: dur.turns };
   if (dur?.seconds) return { unit: "minutes", value: Math.round(dur.seconds / 60) };
   return { unit: "none", value: 0 };
 }
 
-/** Build a core duration object (rounds/turns/seconds) from {unit, value}. */
+/** Build a core duration object from {unit, value} — `{value, units}` on v14,
+ *  discrete rounds/turns/seconds fields on v13. */
 function toDuration(unit, value) {
   const v = Math.max(0, Math.round(Number(value) || 0));
+  if (durationV14()) {
+    if (!v || unit === "none") return { value: null };
+    return { value: v, units: unit };
+  }
   const dur = { rounds: null, turns: null, seconds: null };
   if (unit === "rounds") dur.rounds = v;
   else if (unit === "turns") dur.turns = v;
@@ -269,8 +283,9 @@ export class EffectBuilder extends HandlebarsApplicationMixin(ApplicationV2) {
       for (const it of rule.items ?? []) if (!it.data && this.#grantSnapshots.has(it.uuid)) it.data = this.#grantSnapshots.get(it.uuid);
     }
     const duration = toDuration(data.durUnit, data.durValue);
-    // Stamp start markers so duration.remaining counts down from now (combat + world time).
-    if (data.durUnit && data.durUnit !== "none") {
+    // v13 only: stamp start markers so duration.remaining counts down from now (combat + world
+    // time). v14's {value, units} schema has no start fields — it anchors on its own.
+    if (!durationV14() && data.durUnit && data.durUnit !== "none") {
       duration.startTime = game.time?.worldTime ?? 0;
       if (game.combat) { duration.startRound = game.combat.round ?? 0; duration.startTurn = game.combat.turn ?? 0; }
     }
