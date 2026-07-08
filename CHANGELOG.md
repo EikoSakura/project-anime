@@ -1,10 +1,15 @@
 # Changelog
 
+## 0.5.10 - 2026-07-08
+
+- Technique Builder: 'None' is now a selectable Effect - build a Technique entirely from its Modifiers.
+
 ## 0.5.9 - 2026-07-08
 
 - Luck Die now starts at d6 (down from a flat d12).
 - New 'Raise the Luck Die' advancement: steps your Luck Die up one size (d6 -> d8 -> d10 -> d12), up to 3 times; refundable from the Advancement Log.
 - Existing characters keep their current Luck Dice until their next rest, which rerolls them at the new size.
+- Technique Builder: 'None' is now a selectable Effect - build a Technique entirely from its Modifiers.
 
 ## 0.5.8 - 2026-07-07
 

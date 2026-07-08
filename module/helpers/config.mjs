@@ -185,10 +185,10 @@ export function effectCost(effect) {
   return PROJECTANIME.effectCost[effect] ?? 0;
 }
 
-/** Effects retired from NEW authoring: Animate (pre-V2) and the bare "None" carrier (Custom
- *  covers it). Stored Techniques keep working; the Builder only lists these while one is
- *  already the current selection. */
-PROJECTANIME.retiredEffects = ["animate", "passive"];
+/** Effects retired from NEW authoring: Animate (pre-V2). Stored Techniques keep working; the
+ *  Builder only lists these while one is already the current selection. The bare "None" carrier
+ *  (`passive`) stays selectable — a Technique can be built entirely from its Modifiers. */
+PROJECTANIME.retiredEffects = ["animate"];
 
 /**
  * A Technique's derived Energy cost (rules: Total Energy Cost) — the Effect's cost plus every
