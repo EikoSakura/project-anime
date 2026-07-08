@@ -2652,17 +2652,17 @@ function maybeGrantComboTurn(actor) {
 
 /**
  * A Combo rolled during a Combo-granted turn can't chain another extra turn — instead (rules:
- * Fumble and Combo): adjust ONE held Luck Die up or down by 1 (bounds 1–12), or, with no Luck
- * Dice remaining, roll a d12 and record the result as a restored Luck Die. Characters only
- * (NPCs hold no Luck Dice). Fire-and-forget from the sync combo path.
+ * Fumble and Combo): adjust ONE held Luck Die up or down by 1 (bounds 1…the Luck Die size), or,
+ * with no Luck Dice remaining, roll the actor's Luck Die and record the result as a restored Luck
+ * Die. Characters only (NPCs hold no Luck Dice). Fire-and-forget from the sync combo path.
  */
 async function restoreLuckDieOnGoAgain(actor) {
   if (actor?.type !== "character" || !actor.isOwner) return;
   const dice = actor.system.luckDice ?? [];
 
-  // No held dice → restore one spent Luck Die (roll a d12, record the result).
+  // No held dice → restore one spent Luck Die (roll the actor's Luck Die, record the result).
   if (!dice.length) {
-    const roll = await new Roll(`1d${PROJECTANIME.luckDie}`).evaluate();
+    const roll = await new Roll(`1d${actor.system.luckDie ?? PROJECTANIME.luckDie}`).evaluate();
     await actor.update({ "system.luckDice": [roll.total] });
     await roll.toMessage({
       speaker: ChatMessage.getSpeaker({ actor }),
@@ -2681,7 +2681,7 @@ async function restoreLuckDieOnGoAgain(actor) {
 }
 
 /**
- * Pick one held Luck Die and nudge it ±1 (bounds 1 … 12) — the shared dialog behind the
+ * Pick one held Luck Die and nudge it ±1 (bounds 1 … the Luck Die size) — the shared dialog behind the
  * Go-Again Combo reward (rules: Fumble and Combo) and the Lucky Pendant's restore rider
  * (rules: Accessories). Quietly no-ops when the actor holds no Luck Dice, isn't the user's
  * to edit, or the dialog is dismissed.
@@ -2690,7 +2690,7 @@ export async function tuneLuckDie(actor, { title, message } = {}) {
   if (actor?.type !== "character" || !actor.isOwner) return;
   const dice = [...(actor.system.luckDice ?? [])];
   if (!dice.length) return;
-  const die = PROJECTANIME.luckDie;
+  const die = actor.system.luckDie ?? PROJECTANIME.luckDie;
 
   const options = dice.map((v, i) =>
     `<label class="ms-row"><input type="radio" name="luckIndex" value="${i}" ${i === 0 ? "checked" : ""} /><span>${i18n("PROJECTANIME.Stat.luck")} ${i + 1}</span><b>${v}</b></label>`).join("");

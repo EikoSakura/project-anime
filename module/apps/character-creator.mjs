@@ -283,7 +283,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     // 7 · Roll Luck Dice.
     ctx.luckDice = sys.luckDice ?? [];
     ctx.luckRolled = !!this.actor.getFlag("project-anime", "luckRolled");
-    ctx.luckFormula = `${cfg.luckDiceCount}d${cfg.luckDie}`;
+    ctx.luckFormula = `${cfg.luckDiceCount}d${this.actor.system.luckDie ?? cfg.luckDie}`;
 
     // 8 · Name Everything — name, portrait, pronouns + the GM-configurable dossier fields.
     ctx.name = this.actor.name;
@@ -587,7 +587,7 @@ export class CharacterCreatorApp extends HandlebarsApplicationMixin(ApplicationV
     // clear the `luckRolled` flag to allow another roll.)
     if (this.actor.getFlag("project-anime", "luckRolled")) return;
     const cfg = CONFIG.PROJECTANIME;
-    const roll = await new Roll(`${cfg.luckDiceCount}d${cfg.luckDie}`).evaluate();
+    const roll = await new Roll(`${cfg.luckDiceCount}d${this.actor.system.luckDie ?? cfg.luckDie}`).evaluate();
     const values = roll.dice[0].results.map((r) => r.result);
     await this.actor.update({ "system.luckDice": values });
     await this.actor.setFlag("project-anime", "luckRolled", true);

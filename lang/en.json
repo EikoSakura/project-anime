@@ -1748,6 +1748,7 @@
       "rebuild": "Rebuild a Technique",
       "attribute": "Step Up an Attribute",
       "talentStep": "Step Up a Talent",
+      "luckDie": "Raise the Luck Die",
       "advancements": "Advancements"
     },
     "AdvLog": {
@@ -1763,7 +1764,8 @@
         "hitBox": "+1 Hit Box",
         "talent": "New Talent — {name}",
         "rebuild": "Rebuilt — {name}",
-        "talentStep": "Step Up {name} ({from} → {to})"
+        "talentStep": "Step Up {name} ({from} → {to})",
+        "luckDie": "Raise the Luck Die"
       }
     },
     "Threshold": {

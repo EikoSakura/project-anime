@@ -207,6 +207,7 @@ export class ProjectAnimeActor extends Actor {
    *  • energy / hitBox    — take back the bought box.
    *  • attribute          — step the base attribute back down, cascading to higher steps.
    *  • talentStep         — step the Talent's die back down, cascading likewise.
+   *  • luckDie            — drop one step; the derived Luck Die size recomputes from the count.
    * "rebuild" replaced a Technique that no longer exists and "legacy" carries nothing to
    * reverse — neither is refundable.
    */
@@ -262,6 +263,16 @@ export class ProjectAnimeActor extends Actor {
         [`system.attributes.${entry.ref}.base`]: base,
         "system.advancement.value": value + refund,
         "system.advancement.log": log.filter((e) => !ids.has(e.id))
+      });
+    }
+
+    if (entry.kind === "luckDie") {
+      // The Luck Die size is derived from the COUNT of these entries, so dropping any one just
+      // steps it back down (d12→d10→d8→d6). No stored state to reverse and no cascade needed —
+      // the remaining entries fully describe the die.
+      return this.update({
+        "system.advancement.value": value + amount,
+        "system.advancement.log": without
       });
     }
 

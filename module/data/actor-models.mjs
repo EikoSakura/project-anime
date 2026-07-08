@@ -251,7 +251,8 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
       { initial: [] }
     );
 
-    // Luck Dice are recorded numbers (three d12s rolled at creation) that get spent in play.
+    // Luck Dice are recorded numbers (three dice rolled at creation, base d6 — raised by
+    // advancement, see the derived `luckDie` in prepareDerivedData) that get spent in play.
     schema.luckDice = new fields.ArrayField(
       new fields.NumberField({ ...requiredInteger, min: 1 }),
       { initial: [] }
@@ -284,6 +285,13 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
   prepareDerivedData() {
     this.woundCount = (this.wounds ?? []).length;
     super.prepareDerivedData();
+
+    // Luck Die size (rules: Luck) — base d6, stepped d6→d8→d10→d12 by each "Raise the Luck Die"
+    // advancement (a "luckDie" ledger entry). Its 3-slot cap hard-limits this to d12. Held Luck
+    // Dice keep their rolled faces; they reroll at this size on the next rest.
+    const luckSteps = (this.advancement?.log ?? []).filter((e) => e.kind === "luckDie").length;
+    this.luckDie = Math.min(PROJECTANIME.luckDieMax, PROJECTANIME.luckDie + 2 * luckSteps);
+
     if (this.woundCount > 0) {
       this.hp.max = Math.max(1, this.hp.max - this.woundCount);
       this.hp.value = Math.clamp(this.hp.value, 0, this.hp.max);

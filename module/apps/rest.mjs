@@ -131,9 +131,9 @@ export class RestApp extends HandlebarsApplicationMixin(ApplicationV2) {
       update["system.hp.value"] = hp;
       update["system.energy.value"] = sys.energy.max;
       update["flags.project-anime.lastCampAt"] = game.time.worldTime;
-      // Restore ONE spent Luck Die: roll a d12 and record it (only if any are spent).
+      // Restore ONE spent Luck Die: roll the actor's Luck Die and record it (only if any are spent).
       if ((sys.luckDice?.length ?? 0) < PROJECTANIME.luckDiceCount) {
-        const roll = await new Roll(`1d${PROJECTANIME.luckDie}`).evaluate();
+        const roll = await new Roll(`1d${sys.luckDie ?? PROJECTANIME.luckDie}`).evaluate();
         rolls.push(roll);
         update["system.luckDice"] = [...(sys.luckDice ?? []), roll.total];
         lines.push(game.i18n.format("PROJECTANIME.Rest.luckRestored", { value: roll.total }));
@@ -153,8 +153,8 @@ export class RestApp extends HandlebarsApplicationMixin(ApplicationV2) {
       enGain = sys.energy.max - sys.energy.value;
       update["system.hp.value"] = hpMax;
       update["system.energy.value"] = sys.energy.max;
-      // Restore ALL Luck Dice: roll 3d12 fresh and record each value.
-      const roll = await new Roll(`${PROJECTANIME.luckDiceCount}d${PROJECTANIME.luckDie}`).evaluate();
+      // Restore ALL Luck Dice: reroll the full set fresh at the actor's Luck Die and record each.
+      const roll = await new Roll(`${PROJECTANIME.luckDiceCount}d${sys.luckDie ?? PROJECTANIME.luckDie}`).evaluate();
       rolls.push(roll);
       const values = roll.dice[0].results.map((r) => r.result);
       update["system.luckDice"] = values;

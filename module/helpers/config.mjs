@@ -109,9 +109,13 @@ PROJECTANIME.baseEnergyRegen = 1;
 /** Critical (rules: Combat) — in Critical when 75% of hit boxes are marked. */
 PROJECTANIME.criticalMarkedFraction = 0.75;
 
-/** Luck Dice: three d12s, recorded at creation, restored by resting. */
+/** Luck Dice: three dice, recorded at creation, restored by resting. The die STARTS at d6 and
+ *  steps up d6→d8→d10→d12 as the character buys the "Raise the Luck Die" advancement (capped at
+ *  3 steps by its slot cap). The effective size per actor is derived in the Character data model
+ *  (`system.luckDie`); `luckDie` here is only the base, `luckDieMax` the ceiling. */
 PROJECTANIME.luckDiceCount = 3;
-PROJECTANIME.luckDie = 12;
+PROJECTANIME.luckDie = 6;
+PROJECTANIME.luckDieMax = 12;
 
 /* -------------------------------------------- */
 /*  Techniques                                  */
@@ -776,9 +780,12 @@ PROJECTANIME.advancementOptions = {
   talent:     { label: "PROJECTANIME.Advance.talent",     slots: 2 },
   rebuild:    { label: "PROJECTANIME.Advance.rebuild",    slots: 2 },
   attribute:  { label: "PROJECTANIME.Advance.attribute",  slots: 4 },
-  talentStep: { label: "PROJECTANIME.Advance.talentStep", slots: 8 }
+  talentStep: { label: "PROJECTANIME.Advance.talentStep", slots: 8 },
+  // Raise the Luck Die one size (d6→d8→d10→d12); 3 slots = the d12 ceiling. Characters only —
+  // Companions hold no Luck Dice, so their cap is 0.
+  luckDie:    { label: "PROJECTANIME.Advance.luckDie",    slots: 3, companionSlots: 0 }
 };
-PROJECTANIME.advancementOptionKeys = ["technique", "energy", "hitBox", "talent", "rebuild", "attribute", "talentStep"];
+PROJECTANIME.advancementOptionKeys = ["technique", "energy", "hitBox", "talent", "rebuild", "attribute", "talentStep", "luckDie"];
 
 /* -------------------------------------------- */
 /*  Side Initiative (Fire-Emblem phases)        */

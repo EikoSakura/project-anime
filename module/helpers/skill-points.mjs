@@ -16,6 +16,7 @@ const KIND_ICONS = {
   rebuild: "fa-rotate",
   attribute: "fa-dumbbell",
   talentStep: "fa-arrow-up-right-dots",
+  luckDie: "fa-clover",
   legacy: "fa-clock-rotate-left"
 };
 

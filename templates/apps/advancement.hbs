@@ -43,6 +43,18 @@
     </span>
   </div>
 
+  {{!-- Raise the Luck Die --}}
+  {{#if luckDie}}
+  <div class="lv-row">
+    <span class="lv-nm2"><i class="fa-solid fa-clover"></i><span>{{luckDie.label}}<span class="lv-hint">{{luckDie.slots}}</span></span></span>
+    <span class="lv-val lv-fill">{{luckDie.value}}{{#if luckDie.stagedAmount}} <span class="lv-staged">{{luckDie.stagedAmount}}</span>{{/if}}</span>
+    <span class="lv-stp">
+      <button type="button" data-action="stage" data-kind="luckDie" data-delta="-1" {{#unless luckDie.canMinus}}disabled{{/unless}}>&minus;</button>
+      <span class="lv-cost">1</span>
+      <button type="button" data-action="stage" data-kind="luckDie" data-delta="1" {{#unless luckDie.canPlus}}disabled{{/unless}}>+</button>
+    </span>
+  </div>
+
   {{!-- Learn a New Talent --}}
   <div class="lv-row">
     <span class="lv-nm2"><i class="fa-solid fa-graduation-cap"></i><span>{{talent.label}}<span class="lv-hint">{{talent.slots}}</span></span></span>

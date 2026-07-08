@@ -58,7 +58,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Pending (unconfirmed) purchases. `talents` rows are {name, attr}; `attrs` /
    *  `talentSteps` map a key / talent id to staged step counts. */
-  #staged = { technique: false, energy: 0, hitBox: 0, talents: [], rebuildId: "", attrs: {}, talentSteps: {} };
+  #staged = { technique: false, energy: 0, hitBox: 0, luckDie: 0, talents: [], rebuildId: "", attrs: {}, talentSteps: {} };
 
   static DEFAULT_OPTIONS = {
     classes: ["project-anime", "advancement-app"],
@@ -85,13 +85,13 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /* -------------------------------------------- */
 
   #resetStaged() {
-    this.#staged = { technique: false, energy: 0, hitBox: 0, talents: [], rebuildId: "", attrs: {}, talentSteps: {} };
+    this.#staged = { technique: false, energy: 0, hitBox: 0, luckDie: 0, talents: [], rebuildId: "", attrs: {}, talentSteps: {} };
   }
 
   /** Advancements the current staging would spend (every option costs exactly 1). */
   #stagedCount() {
     const s = this.#staged;
-    return (s.technique ? 1 : 0) + s.energy + s.hitBox + s.talents.length + (s.rebuildId ? 1 : 0)
+    return (s.technique ? 1 : 0) + s.energy + s.hitBox + s.luckDie + s.talents.length + (s.rebuildId ? 1 : 0)
       + Object.values(s.attrs).reduce((n, v) => n + v, 0)
       + Object.values(s.talentSteps).reduce((n, v) => n + v, 0);
   }
@@ -102,6 +102,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       technique: this.#staged.technique ? 1 : 0,
       energy: this.#staged.energy,
       hitBox: this.#staged.hitBox,
+      luckDie: this.#staged.luckDie,
       talent: this.#staged.talents.length,
       rebuild: this.#staged.rebuildId ? 1 : 0,
       attribute: Object.values(this.#staged.attrs).reduce((n, v) => n + v, 0),
@@ -200,6 +201,19 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const hpBase = Number(src.hp?.max) || 0;
     const attrChoices = Object.fromEntries(cfg.attributeKeys.map((k) => [k, game.i18n.localize(cfg.attributes[k])]));
 
+    // Luck Die — a single count-based step track (d6→d8→d10→d12). Characters only; Companions
+    // hold no Luck Dice. `luckUsed` = committed steps, `luckAt` = the projected die with staging.
+    const luckUsed = slots.luckDie?.used ?? 0;
+    const luckAt = cfg.luckDie + 2 * (luckUsed + s.luckDie);
+    const luckDie = this.actor.type === "character" ? {
+      label: label("luckDie"),
+      slots: slotLine("luckDie"),
+      value: `d${Math.min(cfg.luckDieMax, luckAt)}`,
+      stagedAmount: s.luckDie ? `+${s.luckDie}` : "",
+      canPlus: left > 0 && this.#slotsLeft(slots, "luckDie") > 0 && luckAt < cfg.luckDieMax,
+      canMinus: s.luckDie > 0
+    } : null;
+
     return {
       available: advInfo.available,
       left,
@@ -228,6 +242,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         canPlus: left > 0 && this.#slotsLeft(slots, "hitBox") > 0 && hpBase + s.hitBox < cfg.maxBoxes,
         canMinus: s.hitBox > 0
       },
+      luckDie,
       talent: {
         label: label("talent"),
         slots: slotLine("talent"),
@@ -321,6 +336,11 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const base = Number(src.hp?.max) || 0;
       if (delta > 0 && canBuy("hitBox") && base + s.hitBox < cfg.maxBoxes) s.hitBox += 1;
       else if (delta < 0 && s.hitBox > 0) s.hitBox -= 1;
+    } else if (kind === "luckDie") {
+      const used = advInfo.slots.luckDie?.used ?? 0;
+      const at = cfg.luckDie + 2 * (used + s.luckDie);
+      if (delta > 0 && canBuy("luckDie") && at < cfg.luckDieMax) s.luckDie += 1;
+      else if (delta < 0 && s.luckDie > 0) s.luckDie -= 1;
     } else if (kind === "attr") {
       const base = Number(src.attributes?.[key]?.base) || 4;
       const staged = s.attrs[key] ?? 0;
@@ -432,6 +452,12 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       changes["system.hp.max"] = max;
       changes["system.hp.value"] = Math.min((Number(src.hp?.value) || 0) + s.hitBox, max);
       for (let i = 0; i < s.hitBox; i++) entries.push({ kind: "hitBox", ref: "", label: game.i18n.localize("PROJECTANIME.AdvLog.entry.hitBox") });
+    }
+
+    // Luck Die — fungible count-based steps (d6→d8→d10→d12). The derived Luck Die size reads the
+    // count of these entries, so no actor `changes` are needed — one refundable entry per step.
+    for (let i = 0; i < s.luckDie; i++) {
+      entries.push({ kind: "luckDie", ref: "", label: game.i18n.localize("PROJECTANIME.AdvLog.entry.luckDie") });
     }
 
     // Attributes — one refundable entry per die step (the Log's cascade-refund reads from/to).

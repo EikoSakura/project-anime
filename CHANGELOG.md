@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.9 - 2026-07-08
+
+- Luck Die now starts at d6 (down from a flat d12).
+- New 'Raise the Luck Die' advancement: steps your Luck Die up one size (d6 -> d8 -> d10 -> d12), up to 3 times; refundable from the Advancement Log.
+- Existing characters keep their current Luck Dice until their next rest, which rerolls them at the new size.
+
 ## 0.5.8 - 2026-07-07
 
 - Foundry V14 compatibility (verified 14.364) - V13 still supported,Effect durations read and write both duration schemas (V14 replaced rounds/startRound with value/units),Burst/Line/Gate placement runs on a PIXI preview on V14 (Measured Templates were removed from core); the committed area flashes instead of persisting,Status conditions register in V14's keyed form; Quest Log scene button uses the current onChange callback,VERIFY-V14.md added - the in-Foundry checklist to run before playing a real session on V14
