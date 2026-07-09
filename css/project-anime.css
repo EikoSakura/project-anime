@@ -5014,7 +5014,31 @@
   font-style: italic;
   color: var(--pa-ink-soft);
 }
-/* The optional override textarea on the skill Edit tab. */
+/* The optional override toolbar + textarea on the skill Edit tab. */
+.project-anime .rules-override-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+.project-anime .rules-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.82em;
+  line-height: 1.4;
+  width: auto;
+  color: var(--pa-ink-soft);
+  background: var(--pa-glass-2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--pa-line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.project-anime .rules-tool:hover { color: var(--pa-ink); border-color: var(--pa-accent); }
+.project-anime .rules-tool i { color: var(--pa-accent); }
+.project-anime .rules-tool-gold i { color: var(--pa-gold); }
+.project-anime .rules-tool-seed { margin-left: auto; }
 .project-anime .rules-override-input {
   width: 100%;
   min-height: 4rem;

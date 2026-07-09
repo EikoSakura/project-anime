@@ -74,9 +74,24 @@
     </div>
   </div>
 
-  {{!-- Optional override: when non-blank, replaces the auto-written rules on the View tab + card. --}}
+  {{!-- Optional override: when non-blank, replaces the auto-written rules on the View tab + card.
+        Numbers auto-color blue; Highlight/Gold wrap the selection; Start From Auto seeds the box. --}}
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Skill.auto.rulesOverride"}}</h4>
+    <div class="rules-override-tools">
+      <button type="button" class="rules-tool" data-action="rulesMark" data-mark="blue"
+        title="{{localize 'PROJECTANIME.Skill.auto.markBlueHint'}}">
+        <i class="fa-solid fa-highlighter"></i> {{localize "PROJECTANIME.Skill.auto.markBlue"}}
+      </button>
+      <button type="button" class="rules-tool rules-tool-gold" data-action="rulesMark" data-mark="gold"
+        title="{{localize 'PROJECTANIME.Skill.auto.markGoldHint'}}">
+        <i class="fa-solid fa-star"></i> {{localize "PROJECTANIME.Skill.auto.markGold"}}
+      </button>
+      <button type="button" class="rules-tool rules-tool-seed" data-action="rulesFromAuto"
+        title="{{localize 'PROJECTANIME.Skill.auto.fromAutoHint'}}">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "PROJECTANIME.Skill.auto.fromAuto"}}
+      </button>
+    </div>
     <textarea name="system.rulesOverride" class="rules-override-input" rows="3">{{system.rulesOverride}}</textarea>
   </div>
 </section>

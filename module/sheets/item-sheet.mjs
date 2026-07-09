@@ -1,6 +1,6 @@
 import { enhanceSelects } from "../helpers/select.mjs";
 import { PROJECTANIME, physicalRangeLabel, rangeHasTiles, skillEffectKeys, isHeavyModifier, actorTalents, styleTooltipHTML } from "../helpers/config.mjs";
-import { skillRulesHTML } from "../helpers/skill-description.mjs";
+import { skillRulesHTML, manualRulesHTML, autoRulesToMarkup } from "../helpers/skill-description.mjs";
 import { summarizeRules, grantRefs } from "../helpers/effects.mjs";
 import { weaponRow, shieldRow, armorRow } from "../helpers/pack-audit.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
@@ -31,7 +31,9 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
       editEffect: ProjectAnimeItemSheet.#onEditEffect,
       deleteEffect: ProjectAnimeItemSheet.#onDeleteEffect,
       toggleEffectEnabled: ProjectAnimeItemSheet.#onToggleEffectEnabled,
-      openSkillBuilder: ProjectAnimeItemSheet.#onOpenSkillBuilder
+      openSkillBuilder: ProjectAnimeItemSheet.#onOpenSkillBuilder,
+      rulesMark: ProjectAnimeItemSheet.#onRulesMark,
+      rulesFromAuto: ProjectAnimeItemSheet.#onRulesFromAuto
     }
   };
 
@@ -123,10 +125,8 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     // Skills carry an auto-written, colored rules summary (the View tab + chat card). A non-blank
     // `rulesOverride` replaces it with the player's own text (enriched); blank = the live auto rules.
     if (this.item.type === "skill") {
-      const override = (this.item.system.rulesOverride ?? "").trim();
-      context.skillRules = override
-        ? await TE.enrichHTML(this.item.system.rulesOverride, { relativeTo: this.item, secrets: this.item.isOwner })
-        : skillRulesHTML(this.item);
+      const manual = await manualRulesHTML(this.item, { secrets: this.item.isOwner });
+      context.skillRules = manual || skillRulesHTML(this.item);
     }
     this.#prepareTypeContext(context);
     const vm = this.#buildViewModel(context);
@@ -435,6 +435,28 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     if (this.item.type !== "skill" || !this.isEditable) return;
     if (this.item.actor) return SkillBuilderApp.open(this.item.actor, { skillId: this.item.id });
     return SkillBuilderApp.openForItem(this.item);
+  }
+
+  /** Rules Override — wrap the current textarea selection in a highlight marker (blue `…` /
+   *  gold ~…~) and save. Empty selection drops an empty pair the GM can type into. Reads the
+   *  live textarea so unsaved typing isn't lost, then persists (submitOnChange re-renders). */
+  static async #onRulesMark(event, target) {
+    if (!this.isEditable) return;
+    const ta = this.element.querySelector('textarea[name="system.rulesOverride"]');
+    if (!ta) return;
+    const mark = target.dataset.mark === "gold" ? "~" : "`";
+    const s = ta.selectionStart ?? ta.value.length;
+    const e = ta.selectionEnd ?? ta.value.length;
+    const val = ta.value.slice(0, s) + mark + ta.value.slice(s, e) + mark + ta.value.slice(e);
+    await this.item.update({ "system.rulesOverride": val });
+  }
+
+  /** Rules Override — seed the box with the auto description as editable markup, so the GM tidies
+   *  the generated wording instead of starting from blank. Overwrites the current text. */
+  static async #onRulesFromAuto() {
+    if (!this.isEditable || this.item.type !== "skill") return;
+    const markup = autoRulesToMarkup(this.item);
+    if (markup) await this.item.update({ "system.rulesOverride": markup });
   }
 
   /** Segmented handedness toggle (weapon Edit) — set whether the weapon is inherently Two-Handed.

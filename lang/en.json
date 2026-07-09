@@ -856,7 +856,13 @@
       },
       "auto": {
         "rulesOverride": "Rules Override",
-        "energyLowered": "Energy lowered"
+        "energyLowered": "Energy lowered",
+        "markBlue": "Highlight",
+        "markBlueHint": "Color the selected text blue (numbers turn blue on their own).",
+        "markGold": "Gold",
+        "markGoldHint": "Color the selected text gold.",
+        "fromAuto": "Start From Auto",
+        "fromAutoHint": "Fill the box with the auto description so you can edit it."
       },
       "narr": {
         "subjAttack": "This attack",

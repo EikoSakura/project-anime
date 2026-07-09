@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.17 - 2026-07-09
+
+- Technique rules can now be written by hand in the same blue-inline house style: numbers turn blue automatically as you type, and Highlight / Gold buttons color any word you select.
+- New 'Start From Auto' button drops the generated description into the Rules Override box so you can tidy the wording instead of starting from a blank box.
+- Hand-written rules now render with the same neat prose layout as the auto version everywhere they appear — the item sheet, the chat card, and the on-sheet hover panel.
+
 ## 0.5.16 - 2026-07-09
 
 - Party rail (bottom-left HUD) now shows only the members of your Party folder, not every player-owned character in the world.

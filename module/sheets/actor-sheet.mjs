@@ -7,7 +7,7 @@ import { summarizeRules, applyEffectCopy } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 import { AdvancementApp } from "../apps/advancement.mjs";
 import { RestApp } from "../apps/rest.mjs";
-import { skillRulesHTML } from "../helpers/skill-description.mjs";
+import { skillRulesHTML, manualRulesBlock } from "../helpers/skill-description.mjs";
 import { SkillBuilderApp } from "../apps/skill-builder.mjs";
 import { CharacterCreatorApp } from "../apps/character-creator.mjs";
 import { MonsterCreatorApp } from "../apps/monster-creator.mjs";
@@ -476,7 +476,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       // single malformed skill can never abort the whole sheet render.
       const ov = i.system?.rulesOverride;
       let descHTML = "";
-      try { descHTML = (ov && String(ov).trim()) ? ov : skillRulesHTML(i); } catch (_e) { descHTML = ""; }
+      try { descHTML = (ov && String(ov).trim()) ? manualRulesBlock(ov) : skillRulesHTML(i); } catch (_e) { descHTML = ""; }
       const actionType = i.system?.actionType || "action";
       const passive = actionType === "passive" || i.system?.effect === "companion";
       return {

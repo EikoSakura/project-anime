@@ -252,3 +252,77 @@ export function skillRulesHTML(item) {
 
   return `<div class="skill-rules"><p>${sentences.join(" ")}</p></div>`;
 }
+
+/* --------------------------------------------------------------------------
+ * Hand-written rules (the `rulesOverride` box). The GM writes the rules in
+ * plain text and gets the same house styling as the auto write-up: bare
+ * numbers auto-blue, `backticks` → blue highlight, ~tildes~ → gold. The skill
+ * sheet's Highlight / Gold buttons insert the markers, and "Start From Auto"
+ * seeds the box from `autoRulesToMarkup`. Foundry enricher tokens ([[rolls]],
+ * @links) are preserved for a later enrich pass.
+ * ------------------------------------------------------------------------ */
+
+const impSpan = (v) => `<span class="pa-rules-improve">${v}</span>`;
+
+/** Inline-style a hand-written rules string (markers + bare numbers → highlight spans). Sync;
+ *  enrich the result afterwards to resolve any preserved [[rolls]] / @links. */
+export function styleManualRules(raw) {
+  let s = String(raw ?? "");
+  if (!s.trim()) return "";
+  // Stashed fragments hide behind a fake `<pakeep N>` tag: the number-colorize pass skips it as
+  // an HTML tag, so its index digits are never mistaken for a rules number.
+  const stash = [];
+  const keep = (html) => `<pakeep ${stash.push(html) - 1}>`;
+  // Preserve Foundry enricher tokens so their inner numbers aren't colorized/split.
+  s = s.replace(/\[\[[^\]]*\]\](?:\{[^}]*\})?/g, (m) => keep(m));
+  s = s.replace(/@\w+\[[^\]]*\](?:\{[^}]*\})?/g, (m) => keep(m));
+  // Manual highlights: `blue` and ~gold~ (button-inserted or typed).
+  s = s.replace(/~([^~\n]+)~/g, (_m, t) => keep(impSpan(t)));
+  s = s.replace(/`([^`\n]+)`/g, (_m, t) => keep(numSpan(t)));
+  // Auto-blue the bare numbers that remain; an HTML tag (incl. the sentinel) passes through.
+  s = s.replace(/<[^>]+>|(\bd\d+\b|[+\-\u2212]?\d+%?)/g, (m, num) => (num ? numSpan(num) : m));
+  // Restore stashed fragments; loop so a token nested inside a highlight also resolves.
+  for (let pass = 0; pass <= stash.length && s.includes("<pakeep "); pass++) {
+    s = s.replace(/<pakeep (\d+)>/g, (_m, i) => stash[Number(i)] ?? "");
+  }
+  return s;
+}
+
+/** Wrap inline-styled rules HTML in the `.skill-rules` prose block (blank lines → paragraphs). */
+function wrapRules(inlineHTML) {
+  const blocks = String(inlineHTML ?? "").split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  const inner = blocks.map((b) => `<p>${b.replace(/\n/g, "<br>")}</p>`).join("");
+  return inner ? `<div class="skill-rules">${inner}</div>` : "";
+}
+
+/** Sync styled block for the hand-written override, no enrichment (hover drawers). "" when blank. */
+export function manualRulesBlock(raw) {
+  return wrapRules(styleManualRules(raw));
+}
+
+/** Async styled + enriched block for the override (resolves @links / [[rolls]]). "" when blank. */
+export async function manualRulesHTML(item, { secrets = false } = {}) {
+  const raw = (item?.system?.rulesOverride ?? "").trim();
+  if (!raw) return "";
+  const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
+  const enriched = await TE.enrichHTML(styleManualRules(raw), {
+    relativeTo: item, secrets, rollData: item.getRollData?.() ?? {}
+  });
+  return wrapRules(enriched);
+}
+
+/** The auto rules rendered as editable markup for the "Start From Auto" seed button: highlight
+ *  spans become `…`/~…~ markers, everything else drops to plain text. "" when nothing to seed. */
+export function autoRulesToMarkup(item) {
+  const html = skillRulesHTML(item);
+  if (!html) return "";
+  return html
+    .replace(/<\/p>\s*<p>/gi, "\n\n")
+    .replace(/<span class="pa-rules-improve">([\s\S]*?)<\/span>/gi, (_m, t) => `~${t}~`)
+    .replace(/<span class="pa-rules-num">([\s\S]*?)<\/span>/gi, (_m, t) => "`" + t + "`")
+    .replace(/<strong>([\s\S]*?)<\/strong>/gi, (_m, t) => "`" + t + "`")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

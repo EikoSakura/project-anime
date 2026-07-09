@@ -1,5 +1,5 @@
 import { PROJECTANIME, modifierValue, modifierTakes, techniqueDie, contestTarget, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
-import { skillRulesHTML } from "./skill-description.mjs";
+import { skillRulesHTML, manualRulesHTML } from "./skill-description.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
 import { resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
@@ -528,8 +528,8 @@ export async function enrichDescription(item) {
     : "";
   const flavor = await enrich(item?.system?.description);
   if (item?.type !== "skill") return flavor;
-  const override = (item.system?.rulesOverride ?? "").trim();
-  const rules = override ? await enrich(item.system.rulesOverride) : skillRulesHTML(item);
+  // A hand-written override wins (styled: numbers auto-blue, `…`/~…~ highlights); else the auto rules.
+  const rules = (await manualRulesHTML(item)) || skillRulesHTML(item);
   if (!rules) return flavor;
   return flavor ? `${rules}<div class="skill-card-flavor">${flavor}</div>` : rules;
 }
