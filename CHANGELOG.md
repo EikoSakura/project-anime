@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.11 - 2026-07-08
+
+- New Post to Discord button in the Quest Log: posts a player-facing card of a quest to a Discord channel via webhook - hidden objectives, hidden rewards, and the GM-only complication are stripped out.,Players sign up straight from Discord with a reaction; nothing needs to sync back to Foundry.,Set your channel webhook under Settings > Discord (GM only; the URL stays hidden from players).
+
 ## 0.5.10 - 2026-07-08
 
 - Technique Builder: 'None' is now a selectable Effect - build a Technique entirely from its Modifiers.

@@ -27,6 +27,7 @@ import {
 import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 import { cardHTML } from "../helpers/dice.mjs";
+import { postQuestToDiscord } from "../helpers/discord.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -112,7 +113,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       distribute: Codex.#onDistribute,
       reopen: Codex.#onReopen,
       abandon: Codex.#onAbandon,
-      track: Codex.#onTrack
+      track: Codex.#onTrack,
+      postDiscord: Codex.#onPostDiscord
     }
   };
 
@@ -846,6 +848,22 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       await game.settings.set("project-anime", TRACKER_VISIBLE_SETTING, true);
     }
     this.render(false);
+  }
+
+  /** GM: post the selected quest's player-facing view to the configured Discord channel webhook. */
+  static async #onPostDiscord() {
+    if (!this.isGM) return;
+    const quest = getQuests().find((x) => x.id === this._selId);
+    if (!quest) return;
+    const res = await postQuestToDiscord(quest);
+    if (res.ok) {
+      ui.notifications.info(game.i18n.format("PROJECTANIME.Chronicle.discordPosted",
+        { name: quest.title || game.i18n.localize("PROJECTANIME.Chronicle.untitled") }));
+    } else if (res.reason === "no-url") {
+      ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.discordNoWebhook"));
+    } else {
+      ui.notifications.error(game.i18n.localize("PROJECTANIME.Chronicle.discordFailed"));
+    }
   }
 
   /** Post a chat card summarizing what the party received (heading varies: completed vs distributed). */

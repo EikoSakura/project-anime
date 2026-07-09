@@ -127,7 +127,12 @@
       "choosePartyTitle": "Which Party?",
       "chooseParty": "Choose which party receives these rewards:",
       "choose": "Reward This Party",
-      "noParty": "No Party actor found — create one (with members in its folder) to receive Skill Points, Gold, and items."
+      "noParty": "No Party actor found — create one (with members in its folder) to receive Skill Points, Gold, and items.",
+      "postDiscord": "Post to Discord",
+      "discordSignUp": "React ✅ to sign up!",
+      "discordPosted": "Posted \"{name}\" to Discord.",
+      "discordNoWebhook": "No Discord webhook set yet — add one in Settings → Discord.",
+      "discordFailed": "Discord post failed — check the webhook URL (details in the console)."
     },
     "Codex": {
       "title": "Quest Log",
@@ -1170,6 +1175,16 @@
         "tokenInfoName": "Token Info Panel",
         "save": "Save",
         "saved": "Token settings updated."
+      },
+      "discord": {
+        "name": "Discord",
+        "label": "Configure Discord",
+        "hint": "The channel webhook URL that quests post to when you use Post to Discord.",
+        "title": "Discord Integration",
+        "webhookLabel": "Channel Webhook URL",
+        "webhookPlaceholder": "https://discord.com/api/webhooks/…",
+        "save": "Save",
+        "saved": "Discord settings saved."
       },
       "rangeLine": {
         "name": "Canvas — Range Line",

@@ -12,6 +12,7 @@ import * as dice from "./helpers/dice.mjs";
 import { registerBioFieldSettings } from "./apps/bio-field-config.mjs";
 import { registerTokenFieldSettings } from "./apps/token-field-config.mjs";
 import { registerTokenSettings } from "./apps/token-config.mjs";
+import { registerDiscordSettings } from "./apps/discord-config.mjs";
 import { registerCreationSettings } from "./apps/creation-config.mjs";
 import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain, durationRounds, durationRoundsUpdate } from "./helpers/effects.mjs";
 import { createCompanion, removeServantActor, confirmAndDismiss } from "./helpers/servants.mjs";
@@ -218,6 +219,10 @@ Hooks.once("init", function () {
   // "Token Settings" menu — one System-Settings entry grouping the HP/Energy bar-visibility dropdown
   // (everyone vs. allies; gates paDrawBar below) with the Token Info Panel toggle registered above.
   registerTokenSettings();
+
+  // "Discord" menu — GM-only dialog holding the channel webhook URL that quests post to (Phase 1
+  // outbound; stored config:false so it never shows in the players' Configure Settings list).
+  registerDiscordSettings();
 
   // One-shot guard: switch pre-existing creatures' tokens to always-on resource bars (the new
   // bottom-stacked HP/Energy overlay) exactly once per world, so a GM's later manual change to a
