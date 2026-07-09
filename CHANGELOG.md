@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.13 - 2026-07-08
+
+- Discord: quest sign-ups are now a native Discord poll — a named roster with a live count that auto-closes at the deadline.,The Sign-Up poll posts on the existing channel webhook, right below the quest embed — no bot or hosting needed.,Poll stays open until the quest's scheduled time, or 14 days by default (capped at Discord's 32-day maximum).
+
 ## 0.5.12 - 2026-07-08
 
 - Prettier Discord quest posts: a cleaner card with a category header, a Giver / Location / Difficulty info grid, a 5-star difficulty scale, and the briefing shown as a quote block.,Quests can now carry a scheduled real-world date/time that posts as a Discord dynamic timestamp - every player sees it in their own timezone, with a live 'starts in' countdown.,Set the time in the quest editor next to Deadline; it also shows on the quest in the Codex.,Fix: GM secret blocks written into a briefing no longer leak into the player-facing Discord post.

@@ -130,10 +130,13 @@
       "choose": "Reward This Party",
       "noParty": "No Party actor found — create one (with members in its folder) to receive Skill Points, Gold, and items.",
       "postDiscord": "Post to Discord",
-      "discordSignUp": "React ✅ to sign up!",
+      "discordSignUp": "Sign Up in the Poll Below 👇",
       "discordPosted": "Posted \"{name}\" to Discord.",
       "discordNoWebhook": "No Discord webhook set yet — add one in Settings → Discord.",
-      "discordFailed": "Discord post failed — check the webhook URL (details in the console)."
+      "discordFailed": "Discord post failed — check the webhook URL (details in the console).",
+      "discordPollQuestion": "Sign Up — {name}",
+      "discordPollJoin": "I'm In",
+      "discordPollFailed": "Quest posted, but the sign-up poll didn't attach (details in the console)."
     },
     "Codex": {
       "title": "Quest Log",

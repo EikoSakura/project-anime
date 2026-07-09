@@ -880,6 +880,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     if (res.ok) {
       ui.notifications.info(game.i18n.format("PROJECTANIME.Chronicle.discordPosted",
         { name: quest.title || game.i18n.localize("PROJECTANIME.Chronicle.untitled") }));
+      if (res.pollOk === false) ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.discordPollFailed"));
     } else if (res.reason === "no-url") {
       ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.discordNoWebhook"));
     } else {

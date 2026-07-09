@@ -149,15 +149,41 @@ export function buildQuestEmbed(quest) {
   return { embeds: [embed] };
 }
 
-/**
- * POST a quest's player embed to the configured Discord webhook. Returns { ok, reason?, error? }.
- * `reason: "no-url"` means the webhook hasn't been configured yet (caller points the GM at Settings).
- */
-export async function postQuestToDiscord(quest) {
-  const url = String(game.settings.get("project-anime", DISCORD_WEBHOOK_SETTING) || "").trim();
-  if (!url) return { ok: false, reason: "no-url" };
+/** Discord Polls cap out at 32 days (768h). Sign-up window runs to the scheduled time, else a default. */
+const POLL_MAX_HOURS = 768;
+const POLL_DEFAULT_HOURS = 336; // 14 days when the quest has no scheduled real-world time
 
-  const payload = buildQuestEmbed(quest);
+/** Whole hours the sign-up poll stays open — until `scheduledAt` if set, otherwise the default window. */
+function signupPollHours(quest) {
+  const sms = Number(quest.scheduledAt);
+  if (Number.isFinite(sms) && sms > 0) {
+    const hrs = Math.ceil((sms - Date.now()) / 3_600_000);
+    return Math.min(POLL_MAX_HOURS, Math.max(1, hrs));
+  }
+  return POLL_DEFAULT_HOURS;
+}
+
+/**
+ * Build a native Discord POLL that doubles as a named sign-up roster. A standard incoming webhook can
+ * create polls (unlike buttons, which need a registered app), and poll voters are visible by name — so
+ * a single-answer poll IS the roster: everyone who picks "I'm In" is listed, with a live count and an
+ * auto-close. Posted as its OWN message because a poll suppresses embeds when combined into one message.
+ */
+export function buildSignupPoll(quest) {
+  const L = (k) => game.i18n.localize(k);
+  const title = quest.title || L("PROJECTANIME.Chronicle.untitled");
+  return {
+    poll: {
+      question: { text: clamp(game.i18n.format("PROJECTANIME.Chronicle.discordPollQuestion", { name: title }), 300) },
+      answers: [{ poll_media: { text: clamp(L("PROJECTANIME.Chronicle.discordPollJoin"), 55), emoji: { name: "✋" } } }],
+      duration: signupPollHours(quest),
+      allow_multiselect: false
+    }
+  };
+}
+
+/** POST one JSON payload to the webhook. Returns { ok, reason?, error? }. */
+async function postToWebhook(url, payload) {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -175,4 +201,22 @@ export async function postQuestToDiscord(quest) {
     console.error("Project: Anime | Discord webhook POST failed", err);
     return { ok: false, reason: "network", error: String(err?.message ?? err) };
   }
+}
+
+/**
+ * Post a quest's player view to the configured Discord webhook: first the rich embed, then a native
+ * sign-up POLL as a follow-up message (the poll is the named roster — see buildSignupPoll). Returns
+ * { ok, reason?, error?, pollOk? }. `reason: "no-url"` means the webhook isn't configured yet;
+ * `pollOk: false` means the embed posted but the sign-up poll didn't.
+ */
+export async function postQuestToDiscord(quest) {
+  const url = String(game.settings.get("project-anime", DISCORD_WEBHOOK_SETTING) || "").trim();
+  if (!url) return { ok: false, reason: "no-url" };
+
+  const embedRes = await postToWebhook(url, buildQuestEmbed(quest));
+  if (!embedRes.ok) return embedRes;
+
+  // Best-effort: a failed sign-up poll must not undo the already-posted quest — flag it instead.
+  const pollRes = await postToWebhook(url, buildSignupPoll(quest));
+  return pollRes.ok ? { ok: true } : { ok: true, pollOk: false, error: pollRes.error };
 }
