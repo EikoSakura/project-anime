@@ -1,0 +1,39 @@
+{{!-- Main pane — the stock as command rows; the whole pane is the stock-in / sell drop zone --}}
+<section class="stats-main merchant-shop">
+  <div class="cmd-wrap">
+    <div class="cmd-sechead">
+      <h3>{{localize "PROJECTANIME.Merchant.stock"}}</h3>
+      <span class="cmd-ln"></span>
+      {{#if patron}}
+      <span class="shop-patron" title="{{patron.name}}"><i class="fas fa-coins"></i><span>{{patron.gold}} G</span></span>
+      {{/if}}
+    </div>
+    <div class="cmd-list">
+      {{#each stock as |s|}}
+      <div class="cmd-row shop-row" data-item-id="{{s.id}}">
+        <div class="cmd-head">
+          <span class="cmd-ico"{{#if @root.isGM}} data-action="editItem"{{/if}}><img src="{{s.img}}" alt="{{s.name}}" /></span>
+          <div class="cmd-mid">
+            <span class="cmd-name"{{#if @root.isGM}} data-action="editItem"{{/if}}>{{s.name}}</span>
+            <span class="cmd-tag">{{s.typeLabel}}</span>
+            {{#if s.qty}}<span class="cmd-mini shop-qty">{{s.qty}}</span>{{/if}}
+          </div>
+          <div class="cmd-right">
+            <span class="cmd-cost{{#if s.short}} short{{/if}}"><i class="fas fa-coins"></i>{{s.price}}</span>
+            {{#if @root.canBuy}}<button type="button" class="buy-btn" data-action="buyItem">{{localize "PROJECTANIME.Merchant.buy"}}</button>{{/if}}
+            {{#if @root.isGM}}<a class="shop-del" data-action="deleteItem" title="{{localize 'PROJECTANIME.Action.delete'}}"><i class="fas fa-trash"></i></a>{{/if}}
+            {{#if s.desc}}<span class="cmd-caret">›</span>{{/if}}
+          </div>
+        </div>
+        {{#if s.desc}}
+        <div class="cmd-desc">
+          <div class="cmd-desc-in">{{{s.desc}}}</div>
+        </div>
+        {{/if}}
+      </div>
+      {{else}}
+      <p class="cmd-empty muted">{{localize "PROJECTANIME.Merchant.empty"}}</p>
+      {{/each}}
+    </div>
+  </div>
+</section>

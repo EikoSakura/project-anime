@@ -24,6 +24,7 @@ import { canSeeTokenVitals } from "./token-info.mjs";
 import { PROJECTANIME, combatantSide, activeSide, hasActed, isSkippable, healthStatus, enemyTypeThreat } from "../helpers/config.mjs";
 import { rollCheck } from "../helpers/dice.mjs";
 import { liveEffects } from "../helpers/effects.mjs";
+import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -852,8 +853,9 @@ export class AnimePartyRail extends HandlebarsApplicationMixin(ApplicationV2) {
       if (cur && !hasActed(cur, combat.round) && combatantSide(cur) === aSide) activeActorId = cur.actor?.id ?? null;
     }
 
-    const members = game.actors
-      .filter((a) => a.type === "character" && a.hasPlayerOwner)
+    const party = partyActors()[0] ?? null;
+    const roster = party ? partyMembers(party) : [];
+    const members = roster
       .map((a) => {
         const tok = a.getActiveTokens?.()?.[0] ?? null;
         // Vitals gate: GM / owner always; others per the shared Token-Settings rule (same as the

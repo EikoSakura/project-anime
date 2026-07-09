@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.16 - 2026-07-09
+
+- Party rail (bottom-left HUD) now shows only the members of your Party folder, not every player-owned character in the world.
+- New Merchant actor type: a Status-Window-style shop where players buy with the row button and sell by dragging gear onto it; prices honor each character's Buy/Sell Rate.
+- Merchant GM controls: drag items in to stock the shelf, set Buy/Sell Rates and Infinite Gold/Stock, price each item via its Cost; every trade posts a receipt to chat.
+
+## 0.5.15 - 2026-07-08
+
+- New Merchant actor type: a shop sheet in the same Status Window style as the character sheet — portrait rail with till and trade rates, stock as command rows with live prices.
+- Players can use a Merchant themselves: any player can open the shop (Observer by default), buy with the row button, and sell by dragging gear from their own sheet onto the shop; a GM online settles trades the player can't write directly.
+- Prices honor each character's Buy/Sell Rate, so trade effects like the Trader's Pass now actually change what you pay and get.
+- GM controls: drag items in to stock the shelf, set Buy/Sell Rates, Infinite Gold / Infinite Stock toggles, per-item price via the item's Cost.
+- Every trade posts a receipt card to chat; purchases stack onto existing piles instead of duplicating rows.
+
 ## 0.5.14 - 2026-07-08
 
 - Discord: quest posts can now @-ping a role — set the Role to Ping (role ID) in Settings, or leave it blank to disable.,Discord: the sign-up poll option now reads 'Sign Up'.

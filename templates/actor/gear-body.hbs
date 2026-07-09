@@ -32,10 +32,12 @@
 
 <div class="tab-meta">
   {{#if isCharacter}}
+  {{!-- Nameless on purpose: the rail's gold input (header.hbs) owns the `system.gold` form
+        name — a duplicate name would submit an array. Persisted by #bindGold on change. --}}
   <label class="meta-stat" title="{{localize 'PROJECTANIME.Stat.gold'}}">
     <i class="fas fa-coins"></i>
     <span class="meta-label">{{localize "PROJECTANIME.Stat.gold"}}</span>
-    <input type="number" name="system.gold" value="{{system.gold}}" min="0" />
+    <input type="number" data-gold value="{{system.gold}}" min="0" />
   </label>
   <div class="meta-stat" title="{{localize 'PROJECTANIME.Stat.sellRate'}}">
     <i class="fas fa-tags"></i>

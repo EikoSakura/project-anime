@@ -275,6 +275,17 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       this.#bindEnergyMax();
       this.#bindHpMax();
       this.#bindMarkedInputs();
+      this.#bindGold();
+    }
+  }
+
+  /** The Gear drawer's Gold pill is a nameless input (the rail's `system.gold` input owns the
+   *  form name — a duplicate would submit an array), persisted on change here. */
+  #bindGold() {
+    for (const input of this.element.querySelectorAll("input[data-gold]")) {
+      input.addEventListener("change", (ev) => {
+        this.actor.update({ "system.gold": Math.max(0, Math.floor(Number(ev.currentTarget.value) || 0)) });
+      });
     }
   }
 

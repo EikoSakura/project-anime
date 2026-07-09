@@ -6891,6 +6891,14 @@ body.pa-combat-shown #chat-notifications { display: none; }
   border-bottom: 1px dotted rgba(255, 255, 255, 0.16);
 }
 .project-anime.sheet.actor .vital .v-val { font-size: 0.88rem; font-weight: 600; }
+/* Gold rides the vitals list as a full-width dotted-leader row with an inline editable value. */
+.project-anime.sheet.actor .vital.vital-gold { grid-column: 1 / -1; }
+.project-anime.sheet.actor .vital .gold-input {
+  flex: none; width: 4.4rem; padding: 0.04rem 0.3rem; text-align: right;
+  font-family: var(--pa-font-mono); font-variant-numeric: tabular-nums;
+  font-size: 0.88rem; font-weight: 600; color: var(--pa-accent-2);
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 3px;
+}
 
 /* --- Luck: still DICE — rounded cubes with corner pips + accent trim --- */
 .project-anime.sheet.actor .luck-die {
@@ -8031,3 +8039,147 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .project-anime .wound-block .wound-note { flex: 1; min-width: 0; }
 .project-anime .wound-block .wound-row a { color: var(--color-text-light-6, #999); }
 .project-anime .wound-block .wound-row a:hover { color: #c34155; }
+
+/* ============================================================
+   22. MERCHANT SHEET — the shop window
+   Wears the §19 Status Window skin whole (its root classes are
+   `project-anime sheet actor merchant`, so the frame, rail,
+   vitals, and .cmd-* rows all apply). Everything below is
+   merchant-only trim.
+   ============================================================ */
+
+/* The main pane is a drop zone: GM drops stock in, players drop their own gear to sell. */
+.project-anime.sheet.actor.merchant .merchant-shop.drag-over .cmd-list {
+  outline: 1px dashed color-mix(in srgb, var(--pa-accent) 55%, transparent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+/* Row Buy control — a quiet accent pill matching .cmd-cost. */
+.project-anime.sheet.actor.merchant .buy-btn {
+  flex: none;
+  padding: 0.2rem 0.62rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pa-accent-2);
+  background: color-mix(in srgb, var(--pa-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pa-accent) 34%, var(--pa-line));
+  border-radius: 5px;
+  cursor: pointer;
+}
+.project-anime.sheet.actor.merchant .buy-btn:hover {
+  color: #fff;
+  background: color-mix(in srgb, var(--pa-accent) 28%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pa-accent) 25%, transparent);
+}
+.project-anime.sheet.actor.merchant .buy-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* GM row delete — hover-reveal like .cmd-pin. */
+.project-anime.sheet.actor.merchant .shop-del {
+  display: inline-grid; place-items: center;
+  width: 1.3rem; height: 1.3rem;
+  color: var(--pa-ink-soft); font-size: 0.62rem;
+  opacity: 0; transition: opacity 0.12s, color 0.12s; cursor: pointer;
+}
+.project-anime.sheet.actor.merchant .cmd-row:hover .shop-del { opacity: 0.7; }
+.project-anime.sheet.actor.merchant .shop-del:hover { opacity: 1; color: var(--pa-danger); }
+
+/* Patron purse chip in the section head. */
+.project-anime.sheet.actor.merchant .shop-patron {
+  flex: none; display: inline-flex; align-items: center; gap: 0.3rem;
+  font-family: var(--pa-font-mono); font-size: 0.7rem; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--pa-ink-soft);
+}
+.project-anime.sheet.actor.merchant .shop-patron i { color: var(--pa-accent); font-size: 0.66rem; }
+
+/* Rail — the till: one featured Gold line with a dotted leader to a big mono value. */
+.project-anime.sheet.actor.merchant .shop-till {
+  display: flex; align-items: baseline; gap: 0.45rem; padding: 0.1rem 0.15rem;
+}
+.project-anime.sheet.actor.merchant .shop-till > i {
+  align-self: center; color: var(--pa-accent); font-size: 0.7rem;
+}
+.project-anime.sheet.actor.merchant .till-label {
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--pa-ink-soft); white-space: nowrap;
+}
+.project-anime.sheet.actor.merchant .till-val {
+  margin-left: auto;
+  font-family: var(--pa-font-mono); font-variant-numeric: tabular-nums;
+  font-size: 1.15rem; font-weight: 700; line-height: 1;
+  color: var(--pa-accent-2);
+}
+.project-anime.sheet.actor.merchant input.till-val {
+  width: 5rem; padding: 0.12rem 0.35rem; text-align: right; font-size: 0.95rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 3px;
+}
+
+/* Rail — Buy / Sell Rate as twin cells. */
+.project-anime.sheet.actor.merchant .shop-rates {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin-top: 0.5rem;
+}
+.project-anime.sheet.actor.merchant .rate {
+  display: flex; flex-direction: column; align-items: center; gap: 0.22rem;
+  padding: 0.42rem 0.3rem 0.38rem;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--pa-line); border-radius: 3px;
+}
+.project-anime.sheet.actor.merchant .rate-label {
+  font-size: 0.52rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--pa-ink-soft); white-space: nowrap;
+}
+.project-anime.sheet.actor.merchant .rate-val {
+  display: inline-flex; align-items: baseline; gap: 0.12rem;
+  font-family: var(--pa-font-mono); font-variant-numeric: tabular-nums;
+  font-size: 0.95rem; font-weight: 700; color: var(--pa-ink);
+}
+.project-anime.sheet.actor.merchant .rate-val i {
+  font-style: normal; font-size: 0.6rem; color: var(--pa-ink-soft);
+}
+.project-anime.sheet.actor.merchant .rate-val input {
+  width: 3.1rem; padding: 0.08rem 0.25rem; text-align: center;
+  font-family: var(--pa-font-mono); font-variant-numeric: tabular-nums; font-weight: 700;
+  color: var(--pa-ink); background: var(--pa-field);
+  border: 1px solid var(--pa-line); border-radius: 3px;
+}
+
+/* Rail — GM switches (custom pill toggles; the native checkbox wears core's colors). */
+.project-anime.sheet.actor.merchant .shop-toggles {
+  display: flex; flex-direction: column; gap: 0.4rem; padding: 0 0.15rem;
+}
+.project-anime.sheet.actor.merchant .shop-toggle {
+  position: relative; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;
+}
+.project-anime.sheet.actor.merchant .shop-toggle input[type="checkbox"] {
+  position: absolute; opacity: 0; width: 0; height: 0; margin: 0; pointer-events: none;
+}
+.project-anime.sheet.actor.merchant .tg-track {
+  flex: none; position: relative; width: 1.7rem; height: 0.9rem;
+  border-radius: 999px; background: var(--pa-track);
+  border: 1px solid var(--pa-line);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.project-anime.sheet.actor.merchant .tg-knob {
+  position: absolute; top: 50%; left: 2px; width: 0.58rem; height: 0.58rem;
+  transform: translateY(-50%);
+  border-radius: 50%; background: var(--pa-ink-soft);
+  transition: left 0.15s, background 0.15s;
+}
+.project-anime.sheet.actor.merchant .shop-toggle input:checked + .tg-track {
+  background: color-mix(in srgb, var(--pa-accent) 28%, transparent);
+  border-color: color-mix(in srgb, var(--pa-accent) 55%, var(--pa-line));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 22%, transparent);
+}
+.project-anime.sheet.actor.merchant .shop-toggle input:checked + .tg-track .tg-knob {
+  left: calc(100% - 0.58rem - 2px);
+  background: var(--pa-accent-2);
+}
+.project-anime.sheet.actor.merchant .tg-label {
+  font-size: 0.56rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--pa-ink-soft); transition: color 0.15s;
+}
+.project-anime.sheet.actor.merchant .shop-toggle input:checked ~ .tg-label {
+  color: var(--pa-accent-ink);
+}

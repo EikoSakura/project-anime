@@ -6,6 +6,7 @@ import { ProjectAnimeActor, enforceEquipExclusivity, refundSkillOnDelete, natura
 import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
+import { ProjectAnimeMerchantSheet } from "./sheets/merchant-sheet.mjs";
 import { ProjectAnimeItemSheet } from "./sheets/item-sheet.mjs";
 import { PROJECTANIME, cursedPools, combatantSide, sideInitiative, hasActed, isSkippable, pendingOnSide, activeSide } from "./helpers/config.mjs";
 import * as dice from "./helpers/dice.mjs";
@@ -16,6 +17,7 @@ import { registerDiscordSettings } from "./apps/discord-config.mjs";
 import { registerCreationSettings } from "./apps/creation-config.mjs";
 import { applyEffectCopy, syncGrants, removeGrants, itemHasGrantRule, collectSustain, durationRounds, durationRoundsUpdate } from "./helpers/effects.mjs";
 import { createCompanion, removeServantActor, confirmAndDismiss } from "./helpers/servants.mjs";
+import { merchantBuyTo, merchantSellTo } from "./helpers/merchant.mjs";
 import { auditGearPacks, purgeRetiredPackItems, healBrokenItemIcons, PACK_AUDIT_SETTING, PACK_TARGETS, ACCESSORY_CANON, accessoryEffectData } from "./helpers/pack-audit.mjs";
 import { syncAuras, isAuraEffect } from "./helpers/aura.mjs";
 import { EffectsPanel } from "./apps/effects-panel.mjs";
@@ -415,7 +417,8 @@ Hooks.once("init", function () {
   CONFIG.Actor.dataModels = {
     character: models.ProjectAnimeCharacter,
     npc: models.ProjectAnimeNPC,
-    party: models.ProjectAnimeParty
+    party: models.ProjectAnimeParty,
+    merchant: models.ProjectAnimeMerchant
   };
   CONFIG.Item.dataModels = {
     skill: models.ProjectAnimeSkill,
@@ -443,6 +446,11 @@ Hooks.once("init", function () {
   });
   Actors.registerSheet("project-anime", ProjectAnimePartySheet, {
     types: ["party"],
+    makeDefault: true,
+    label: "PROJECTANIME.SheetLabels.Actor"
+  });
+  Actors.registerSheet("project-anime", ProjectAnimeMerchantSheet, {
+    types: ["merchant"],
     makeDefault: true,
     label: "PROJECTANIME.SheetLabels.Actor"
   });
@@ -1389,6 +1397,21 @@ Hooks.on("preCreateActor", (actor, data) => {
     actor.updateSource({ "ownership.default": CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER });
     return;
   }
+  // A Merchant is a shop, not a combatant — no Natural Attack, no vision, a neutral linked
+  // token (stock lives on the actor, so every placed token sells from the same shelf), and
+  // OBSERVER default so any player can open the shop and buy.
+  if (actor.type === "merchant") {
+    actor.updateSource({
+      "ownership.default": CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,
+      prototypeToken: {
+        actorLink: data?.prototypeToken?.actorLink ?? true,
+        displayName: CONST.TOKEN_DISPLAY_MODES.HOVER,
+        disposition: data?.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.NEUTRAL,
+        lockRotation: data?.prototypeToken?.lockRotation ?? true
+      }
+    });
+    return;
+  }
   const isChar = actor.type === "character";
   const DISP = CONST.TOKEN_DISPOSITIONS;
   const dispMap = { friendly: DISP.FRIENDLY, neutral: DISP.NEUTRAL, hostile: DISP.HOSTILE };
@@ -1467,6 +1490,14 @@ Hooks.on("updateActor", (actor, changes) => {
 });
 Hooks.on("createActor", (actor) => { if (actor.type === "character" || actor.type === "npc") refreshOpenPartySheets(); });
 Hooks.on("deleteActor", (actor) => { if (actor.type === "character" || actor.type === "npc") refreshOpenPartySheets(); });
+
+// A merchant sheet shows the viewer's purse (their character's Gold) and per-patron prices;
+// those live on ANOTHER document, so nudge any open shop when a character's gold changes.
+Hooks.on("updateActor", (actor, changes) => {
+  if (actor.type !== "character" || !foundry.utils.hasProperty(changes, "system.gold")) return;
+  for (const app of foundry.applications.instances.values())
+    if (app instanceof ProjectAnimeMerchantSheet) app.render(false);
+});
 
 // Open the Party sheet most relevant to this user: for a player, the party whose folder holds a
 // character they own; otherwise (and for the GM) the first party they can view. Backs both the
@@ -1825,7 +1856,7 @@ async function backfillAlwaysBars() {
 
   const actorUpdates = [];
   for (const actor of game.actors) {
-    if (actor.type === "party") continue;               // the planner has no token
+    if (actor.type === "party" || actor.type === "merchant") continue;  // no combat stats, no bars
     if (actor.prototypeToken?.displayBars !== ALWAYS)
       actorUpdates.push({ _id: actor.id, "prototypeToken.displayBars": ALWAYS });
   }
@@ -1834,7 +1865,7 @@ async function backfillAlwaysBars() {
   for (const scene of game.scenes) {
     const tokenUpdates = [];
     for (const token of scene.tokens) {
-      if (token.actor?.type === "party") continue;
+      if (token.actor?.type === "party" || token.actor?.type === "merchant") continue;
       if (token.displayBars !== ALWAYS) tokenUpdates.push({ _id: token.id, displayBars: ALWAYS });
     }
     if (tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates);
@@ -1880,6 +1911,7 @@ async function applyTokenRotationDefaults() {
   }
 
   await game.settings.set("project-anime", ROTATION_DEFAULTS_SETTING, true);
+  // (Merchants aren't skipped here on purpose — locked rotation is right for them too.)
 }
 
 /* -------------------------------------------- */
@@ -1990,6 +2022,10 @@ Hooks.once("ready", function () {
     else if (payload?.type === "createItems") dice.createItemsOn(payload.targetUuid, payload.items);
     else if (payload?.type === "createCompanion") createCompanion(payload.casterUuid, payload.itemId, payload.name, payload.userId);
     else if (payload?.type === "dismissServant") removeServantActor(payload.servantUuid);
+    // Merchant trades — the executors re-validate everything GM-side (the sender must own the
+    // buying/selling character; stock, price, and gold are re-read from current world state).
+    else if (payload?.type === "merchantBuy") merchantBuyTo(payload.merchantUuid, payload.itemId, payload.buyerUuid, payload.qty, payload.userId);
+    else if (payload?.type === "merchantSell") merchantSellTo(payload.merchantUuid, payload.sellerUuid, payload.itemId, payload.qty, payload.userId);
     else if (payload?.type === "placeGates") {
       // Portal tiles are GM territory — stamp them onto the caster's scene.
       game.scenes.get(payload.sceneId)?.createEmbeddedDocuments("Tile", payload.tiles ?? []);

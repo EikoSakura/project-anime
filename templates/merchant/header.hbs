@@ -1,0 +1,79 @@
+{{!-- Persistent side panel (Merchant) — the same Status Window rail as the character sheet --}}
+<header class="sheet-header">
+  <div class="portrait portrait-card">
+    <div class="portrait-frame">
+      <img class="profile-img" src="{{actor.img}}" {{#if editable}}data-action="editImage" data-edit="img"{{/if}}
+           title="{{actor.name}}" alt="{{actor.name}}" />
+    </div>
+    <i class="stud stud-n"></i>
+    <i class="stud stud-e"></i>
+    <i class="stud stud-s"></i>
+    <i class="stud stud-w"></i>
+  </div>
+
+  <input class="char-name" type="text" name="name" value="{{actor.name}}" placeholder="{{localize 'Name'}}" {{#unless editable}}disabled{{/unless}} />
+
+  <div class="header-sub">
+    <input class="pronouns" type="text" name="system.tagline" value="{{system.tagline}}"
+           placeholder="{{localize 'PROJECTANIME.Merchant.tagline'}}" {{#unless editable}}disabled{{/unless}} />
+  </div>
+
+  <div class="panel-rule"></div>
+
+  <div class="shop-till">
+    <i class="fas fa-coins"></i>
+    <span class="till-label">{{localize "PROJECTANIME.Stat.gold"}}</span>
+    {{#if system.infiniteGold}}
+    <span class="till-val">∞</span>
+    {{else if editable}}
+    <input class="till-val" type="number" name="system.gold" value="{{system.gold}}" min="0" />
+    {{else}}
+    <span class="till-val">{{system.gold}}</span>
+    {{/if}}
+  </div>
+
+  <div class="shop-rates">
+    <div class="rate">
+      <span class="rate-label">{{localize "PROJECTANIME.Stat.buyRate"}}</span>
+      <span class="rate-val">
+        {{#if editable}}
+        <input type="number" name="system.buyRate" value="{{system.buyRate}}" min="0" max="1000" />
+        {{else}}
+        {{system.buyRate}}
+        {{/if}}
+        <i>%</i>
+      </span>
+    </div>
+    <div class="rate">
+      <span class="rate-label">{{localize "PROJECTANIME.Stat.sellRate"}}</span>
+      <span class="rate-val">
+        {{#if editable}}
+        <input type="number" name="system.sellRate" value="{{system.sellRate}}" min="0" max="100" />
+        {{else}}
+        {{system.sellRate}}
+        {{/if}}
+        <i>%</i>
+      </span>
+    </div>
+  </div>
+
+  {{#if editable}}
+  <div class="panel-rule"></div>
+  <div class="shop-toggles">
+    <label class="shop-toggle">
+      <input type="checkbox" name="system.infiniteGold" {{checked system.infiniteGold}} />
+      <span class="tg-track"><span class="tg-knob"></span></span>
+      <span class="tg-label">{{localize "PROJECTANIME.Merchant.infiniteGold"}}</span>
+    </label>
+    <label class="shop-toggle">
+      <input type="checkbox" name="system.infiniteStock" {{checked system.infiniteStock}} />
+      <span class="tg-track"><span class="tg-knob"></span></span>
+      <span class="tg-label">{{localize "PROJECTANIME.Merchant.infiniteStock"}}</span>
+    </label>
+  </div>
+  {{/if}}
+
+  <div class="panel-foot">
+    <span class="status-label">SHOP</span>
+  </div>
+</header>

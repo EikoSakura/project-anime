@@ -453,3 +453,33 @@ export class ProjectAnimeParty extends foundry.abstract.TypeDataModel {
     return super.migrateData(source);
   }
 }
+
+/**
+ * A Merchant — a shop actor with no combat stats. Its stock is its embedded gear Items
+ * (the GM drags them in); players buy from the sheet and sell by dragging their own gear
+ * onto it, with both sides settled by helpers/merchant.mjs (GM-relayed when needed).
+ */
+export class ProjectAnimeMerchant extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    const schema = {};
+
+    // One-line trade under the name ("Traveling Alchemist").
+    schema.tagline = new fields.StringField({ required: false, blank: true, initial: "" });
+
+    // The till. `infiniteGold` (the default) means it's not tracked: buys don't feed it and
+    // sales always pay out. Turn it off for a shop that can actually run dry.
+    schema.gold = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
+    schema.infiniteGold = new fields.BooleanField({ initial: true });
+
+    // Infinite stock: buying never decrements the shelf.
+    schema.infiniteStock = new fields.BooleanField({ initial: false });
+
+    // The shop's base trade rates as percents of an item's list cost — what a patron pays
+    // when buying / receives when selling. A patron's own `trade` effects (e.g. a Trader's
+    // Pass) shift these as deltas from the world baselines (see tradePrices).
+    schema.buyRate = new fields.NumberField({ ...requiredInteger, initial: 100, min: 0 });
+    schema.sellRate = new fields.NumberField({ ...requiredInteger, initial: 50, min: 0 });
+
+    return schema;
+  }
+}
