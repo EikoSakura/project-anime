@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.12 - 2026-07-08
+
+- Prettier Discord quest posts: a cleaner card with a category header, a Giver / Location / Difficulty info grid, a 5-star difficulty scale, and the briefing shown as a quote block.,Quests can now carry a scheduled real-world date/time that posts as a Discord dynamic timestamp - every player sees it in their own timezone, with a live 'starts in' countdown.,Set the time in the quest editor next to Deadline; it also shows on the quest in the Codex.,Fix: GM secret blocks written into a briefing no longer leak into the player-facing Discord post.
+
 ## 0.5.11 - 2026-07-08
 
 - New Post to Discord button in the Quest Log: posts a player-facing card of a quest to a Discord channel via webhook - hidden objectives, hidden rewards, and the GM-only complication are stripped out.,Players sign up straight from Discord with a reaction; nothing needs to sync back to Foundry.,Set your channel webhook under Settings > Discord (GM only; the URL stays hidden from players).

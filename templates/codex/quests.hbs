@@ -87,6 +87,9 @@
         <label>{{localize 'PROJECTANIME.Chronicle.deadline'}}
           <input class="dl-edit" data-field="deadline" inputmode="numeric" value="{{deadlineNum}}" placeholder="—">
         </label>
+        <label>{{localize 'PROJECTANIME.Chronicle.scheduled'}}
+          <input type="datetime-local" class="sched-edit" data-field="scheduledAt" value="{{scheduledInput}}">
+        </label>
         <label class="grow">{{localize 'PROJECTANIME.Chronicle.consequence'}}
           <input data-field="consequence" value="{{consequence}}" placeholder="{{localize 'PROJECTANIME.Chronicle.consequencePlaceholder'}}">
         </label>
@@ -127,6 +130,12 @@
         <div class="q-deadline-strip{{#if deadlineUrgent}} urgent{{/if}}">
           <i class="fa-solid fa-hourglass-half"></i><b>{{deadlineLabel}}</b>
           {{#if consequence}}<span>{{consequence}}</span>{{/if}}
+        </div>
+        {{/if}}
+
+        {{#if scheduledLabel}}
+        <div class="q-scheduled-strip">
+          <i class="fa-solid fa-calendar-day"></i><b>{{scheduledLabel}}</b>
         </div>
         {{/if}}
 

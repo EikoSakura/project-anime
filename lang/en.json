@@ -90,6 +90,7 @@
       },
       "budget": "Budget {g} G",
       "deadline": "Deadline",
+      "scheduled": "Scheduled",
       "deadlineOne": "1 rest left",
       "deadlineMany": "{n} rests left",
       "deadlineTick": "{title} — {n} left",

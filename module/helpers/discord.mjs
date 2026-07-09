@@ -16,6 +16,26 @@ export const DISCORD_WEBHOOK_SETTING = "discordWebhook";
 /** Category → embed accent (decimal RGB), mirroring the Codex `--q-*` colors. */
 const CATEGORY_COLOR = { main: 0xd8b257, side: 0xb79bf0, personal: 0x6fe0b0 };
 
+/** Category → a plain-text badge glyph for the author eyebrow (emoji render there; markdown does not). */
+const CATEGORY_BADGE = { main: "★", side: "◈", personal: "✦" };
+
+/**
+ * True only for a public http(s) URL Discord's servers can fetch. Local Foundry banners/avatars are
+ * localhost/LAN/relative URLs Discord can't reach (it drops them silently), so every image field is
+ * gated behind this — the embed is designed to be complete with zero images.
+ */
+function isPublicHttp(u) {
+  if (typeof u !== "string" || !u) return false;
+  let url;
+  try { url = new URL(u); } catch { return false; }
+  if (!/^https?:$/i.test(url.protocol)) return false;
+  const h = url.hostname.toLowerCase();
+  if (h === "localhost" || h === "0.0.0.0" || h === "::1" || h.endsWith(".local")) return false;
+  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h)) return false;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;
+  return true;
+}
+
 /** Discord embed length caps (leave headroom; we ellipsize rather than let Discord reject the post). */
 const CAP = { title: 256, desc: 4096, field: 1024 };
 
@@ -31,6 +51,9 @@ function htmlToText(html) {
     .replace(/@\w+\[[^\]]+\]\{([^}]+)\}/g, "$1") // @UUID[…]{Label} → Label
     .replace(/@\w+\[[^\]]+\]/g, "");             // bare @UUID[…] → drop
   const doc = new DOMParser().parseFromString(s, "text/html");
+  // Drop GM-only secret blocks so the post matches the non-GM Codex view (which enriches with
+  // secrets:false). Revealed secrets stay — players see those too. Without this, secret text leaks.
+  doc.body.querySelectorAll("section.secret:not(.revealed)").forEach((el) => el.remove());
   doc.body.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
   doc.body.querySelectorAll("p, div, li, h1, h2, h3, h4, blockquote").forEach((el) => el.append("\n"));
   return (doc.body.textContent ?? "")
@@ -56,43 +79,72 @@ export function buildQuestEmbed(quest) {
   const L = (k) => game.i18n.localize(k);
   const fields = [];
 
-  // Meta line: giver · location · difficulty (only what's set).
-  const meta = [];
-  if (quest.giver?.name) meta.push(`**${L("PROJECTANIME.Chronicle.giver")}:** ${quest.giver.name}`);
-  if (quest.location) meta.push(`**${L("PROJECTANIME.Chronicle.location")}:** ${quest.location}`);
+  // Meta grid — Giver / Location / Difficulty pack into one desktop row (inline, no thumbnail).
+  if (quest.giver?.name) {
+    fields.push({ name: `👤 ${L("PROJECTANIME.Chronicle.giver")}`, value: clamp(quest.giver.name, CAP.field), inline: true });
+  }
+  if (quest.location) {
+    fields.push({ name: `📍 ${L("PROJECTANIME.Chronicle.location")}`, value: clamp(quest.location, CAP.field), inline: true });
+  }
   const lvl = Math.max(0, Math.min(5, Math.round(Number(quest.level) || 0)));
-  if (lvl) meta.push(`**${L("PROJECTANIME.Chronicle.level")}:** ${"★".repeat(lvl)}`);
+  if (lvl >= 1) {
+    fields.push({ name: `⚔️ ${L("PROJECTANIME.Chronicle.level")}`, value: "★".repeat(lvl) + "☆".repeat(5 - lvl), inline: true });
+  }
+
+  // Scheduled real-world time → Discord DYNAMIC TIMESTAMP. Unix SECONDS (floored — not ms), so every
+  // viewer sees it in their own timezone; :F = exact long date/time, :R = live relative countdown.
+  // Full width so the long localized string doesn't wrap. Omitted entirely when unset (never <t::F>).
+  const sms = Number(quest.scheduledAt);
+  if (Number.isFinite(sms) && sms > 0) {
+    const U = Math.floor(sms / 1000);
+    fields.push({ name: `🗓️ ${L("PROJECTANIME.Chronicle.scheduled")}`, value: `<t:${U}:F>\n*<t:${U}:R>*`, inline: false });
+  }
+
+  // In-game rest Deadline (a rest COUNTER, not a real date — kept distinct from the Scheduled time).
   const deadline = Number(quest.deadline);
   if (quest.status === "active" && Number.isFinite(deadline) && deadline > 0) {
-    meta.push(`**${L("PROJECTANIME.Chronicle.deadline")}:** ${game.i18n.format(
-      deadline === 1 ? "PROJECTANIME.Chronicle.deadlineOne" : "PROJECTANIME.Chronicle.deadlineMany", { n: deadline }
-    )}`);
+    fields.push({
+      name: `⏳ ${L("PROJECTANIME.Chronicle.deadline")}`,
+      value: game.i18n.format(deadline === 1 ? "PROJECTANIME.Chronicle.deadlineOne" : "PROJECTANIME.Chronicle.deadlineMany", { n: deadline }),
+      inline: false
+    });
   }
+
   // Objectives — same player filter as the Codex (drop hidden), with an optional tag.
   const objectives = (quest.objectives ?? []).filter((o) => !o.hidden && String(o.text ?? "").trim());
   if (objectives.length) {
     const list = objectives.map((o) =>
       `${o.done ? "☑" : "☐"} ${o.text}${o.optional ? ` *(${L("PROJECTANIME.Chronicle.optionalObj")})*` : ""}`
     ).join("\n");
-    fields.push({ name: L("PROJECTANIME.Chronicle.objectives"), value: clamp(list, CAP.field) });
+    fields.push({ name: `🎯 ${L("PROJECTANIME.Chronicle.objectives")}`, value: clamp(list, CAP.field), inline: false });
   }
 
   // Rewards — same player filter as the Codex (drop hidden); sp rewards are omitted (never paid).
   const rewards = (quest.rewards ?? []).filter((r) => !r.hidden).map(rewardLine).filter(Boolean);
   if (rewards.length) {
-    fields.push({ name: L("PROJECTANIME.Chronicle.rewards"), value: clamp(rewards.join("\n"), CAP.field) });
+    fields.push({ name: `💰 ${L("PROJECTANIME.Chronicle.rewards")}`, value: clamp(rewards.join("\n"), CAP.field), inline: false });
   }
 
-  // Meta (giver/location/difficulty/deadline) leads the description, then the briefing text.
-  const description = [meta.join("\n"), htmlToText(quest.brief)].filter(Boolean).join("\n\n");
+  // Brief only, as a blockquote (the "briefing scroll"). Meta now lives in the fields above.
+  const briefText = htmlToText(quest.brief);
+  const description = briefText ? clamp(`>>> ${briefText}`, CAP.desc) : undefined;
+
+  // Author eyebrow = category badge + the existing category label (Title Case, reused). Giver avatar
+  // attaches only if it's a public URL Discord can fetch (never for a local Foundry).
+  const author = { name: `${CATEGORY_BADGE[quest.category] ?? "◆"} ${L(`PROJECTANIME.Chronicle.cat.${quest.category}`)}` };
+  if (isPublicHttp(quest.giver?.img)) author.icon_url = quest.giver.img;
 
   const embed = {
+    author,
     title: clamp(quest.title || L("PROJECTANIME.Chronicle.untitled"), CAP.title),
-    description: clamp(description, CAP.desc) || undefined,
+    description,
     color: CATEGORY_COLOR[quest.category] ?? CATEGORY_COLOR.main,
     fields,
-    footer: { text: L("PROJECTANIME.Chronicle.discordSignUp") }
+    footer: { text: L("PROJECTANIME.Chronicle.discordSignUp") },
+    timestamp: new Date().toISOString() // static localized "posted at" on the footer line
   };
+  // Banner as the bottom image only if publicly reachable (does not affect the meta grid columns).
+  if (isPublicHttp(quest.banner)) embed.image = { url: quest.banner };
 
   return { embeds: [embed] };
 }

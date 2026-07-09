@@ -215,6 +215,7 @@ export function blankQuest() {
     level: "",
     brief: "",
     deadline: "", // rests remaining ("" = none); ticks down on party rests, expires at 0
+    scheduledAt: "", // optional real-world session date/time, epoch ms ("" = none) — Discord dynamic timestamp
     consequence: "", // printed with the Deadline — what happens when it expires (public)
     complication: "", // the hidden truth — GM eyes only
     objectives: [], // { id, text, done, hidden, optional }

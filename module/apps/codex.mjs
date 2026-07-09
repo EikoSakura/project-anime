@@ -260,6 +260,19 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     const deadline = Number(q.deadline);
     const hasDeadline = q.status === "active" && Number.isFinite(deadline) && deadline > 0;
 
+    // Optional real-world scheduled time (epoch ms). The edit input wants a LOCAL "YYYY-MM-DDTHH:mm"
+    // string (never toISOString, which is UTC and would shift the shown time); the read strip shows
+    // it in the browser's locale.
+    const sms = Number(q.scheduledAt);
+    const sd = Number.isFinite(sms) && sms > 0 ? new Date(sms) : null;
+    const p2 = (x) => String(x).padStart(2, "0");
+    const scheduledInput = sd
+      ? `${sd.getFullYear()}-${p2(sd.getMonth() + 1)}-${p2(sd.getDate())}T${p2(sd.getHours())}:${p2(sd.getMinutes())}`
+      : "";
+    const scheduledLabel = sd
+      ? sd.toLocaleString(game.i18n.lang, { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : "";
+
     const giver = q.giver
       ? { ...q.giver, initial: String(q.giver.name || "?").trim().charAt(0).toUpperCase() }
       : null;
@@ -287,6 +300,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         ? game.i18n.format(deadline === 1 ? "PROJECTANIME.Chronicle.deadlineOne" : "PROJECTANIME.Chronicle.deadlineMany", { n: deadline })
         : "",
       deadlineUrgent: hasDeadline && deadline === 1,
+      scheduledInput,
+      scheduledLabel,
       consequence: q.consequence ?? "",
       complication: q.complication ?? "",
       brief,
@@ -509,6 +524,12 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       if (field === "deadline") {
         const n = Math.max(0, Math.round(Number(val)));
         q.deadline = Number.isFinite(n) && n > 0 ? n : "";
+        return;
+      }
+      if (field === "scheduledAt") {
+        // datetime-local (no timezone) parses as LOCAL time → epoch ms; empty clears it.
+        const t = el.value ? new Date(el.value).getTime() : NaN;
+        q.scheduledAt = Number.isFinite(t) ? t : "";
         return;
       }
       q[field] = val;
