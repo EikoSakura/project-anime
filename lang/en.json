@@ -184,6 +184,8 @@
       "calcEnergy": "Energy Cost",
       "calcLock": "Locked Boxes",
       "calcRange": "Range",
+      "calcTarget": "Target",
+      "calcDuration": "Duration",
       "calcUnlinked": "Unlinked"
     },
     "Item": {

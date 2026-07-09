@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.20 - 2026-07-09
+
+- New inline autocalc tokens: @target renders a Technique target together with its targeting Modifiers (Aura and Burst with their die-scaled radius in tiles, Chain +1, Line, Mass), and @duration renders the effective Duration - Channeled/Scene Modifiers and Scene-by-rule Effects win, Standard shows its turn count.,Technique tab: the Uses Per Conflict row is removed.
+
 ## 0.5.19 - 2026-07-09
 
 - Item sheets reworked PF2e-style: tabs are now Description | Details | Effects, and every item opens on its rendered description with send-to-chat and edit-pencil chips floating top-right. The old stat-tile card is gone; those numbers are editable fields on Details, in compact label-field rows.,Technique sheets get a dedicated Technique tab: the whole build - Action Type, roll, Effect, Range, Target, Duration, Modifiers (same legality rules as the Builder) - edits right on the sheet, with a live Energy cost / lock readout. The Skill Builder remains as the guided flow via the wand button; opening a Technique now shows its own sheet.,Inline autocalc tokens: @contest, @threshold, @damage, @energy, @range, and @talent[Name] in any description render freshly calculated values (blue, with a source tooltip) on item sheets, chat cards, and the command-row dropdown; unknown or unowned tokens render muted instead of breaking.,The editor toolbar Hit / Contest / Threshold buttons now insert live tokens instead of frozen numbers, and a new Talent picker inserts @talent[Name].,Also includes the unpublished v0.5.18: hand-authored locked-prose descriptions with the in-place pencil editor; auto-generated Technique rules text retired (see CHANGELOG).

@@ -14,7 +14,7 @@
  */
 import {
   techniqueDie, contestTarget, skillDieSpecs, actorTalents, rangeLabel, physicalRangeLabel,
-  modifierTakes
+  modifierTakes, skillTarget, skillDuration, modifierValue
 } from "./config.mjs";
 
 /** Outcome labels the system uses (rules doc V2) → the color role their bold label wears.
@@ -156,7 +156,7 @@ export function renderDescriptionBlock(item) {
  *  re-resolves them against the owning item/actor, so descriptions never go stale. The same
  *  pattern backs the registered Foundry enricher (helpers/enrichers.mjs) and the sync resolver
  *  below — keep them identical. */
-export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range)\\b(?:\\[([^\\]]*)\\])?";
+export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration)\\b(?:\\[([^\\]]*)\\])?";
 
 const calcSpan = (value, tooltip) => {
   const esc = foundry.utils.escapeHTML;
@@ -224,6 +224,33 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         if (item?.type === "weapon" || item?.type === "shield")
           return calcSpan(`${physicalRangeLabel(sys.range)} ${L("PROJECTANIME.Skill.tiles")}`, L("PROJECTANIME.Prose.calcRange"));
         break;
+      }
+      case "target": {
+        if (item?.type !== "skill") break;
+        // The Target plus its shaping Modifiers: Aura/Burst carry their die-scaled radius,
+        // Chain its extra target, Line/Mass their printed shape.
+        const cfg = CONFIG.PROJECTANIME;
+        const mods = sys.modifiers ?? [];
+        const parts = [L(cfg.skillTargets[skillTarget(sys)])];
+        for (const key of ["aura", "burst", "line", "mass", "chain"]) {
+          if (!mods.includes(key)) continue;
+          const label = L(cfg.skillModifiers[key] ?? key);
+          if (key === "chain") parts.push(`${label} +${cfg.chainExtraTargets ?? 1}`);
+          else if (key in (cfg.scaledModifiers ?? {})) parts.push(`${label} ${modifierValue(item, key)} ${L("PROJECTANIME.Skill.tiles")}`);
+          else parts.push(label);
+        }
+        return calcSpan(parts.join(" · "), L("PROJECTANIME.Prose.calcTarget"));
+      }
+      case "duration": {
+        if (item?.type !== "skill") break;
+        // The EFFECTIVE Duration — a Channeled/Scene Modifier or a Scene-by-rule Effect wins
+        // over the stored field; Standard carries its turn count (printed default 2).
+        const cfgD = CONFIG.PROJECTANIME;
+        const key = skillDuration(sys);
+        const label = L(cfgD.skillDurations[key] ?? "");
+        return calcSpan(key === "standard"
+          ? `${label} · ${sys.effectDuration ?? cfgD.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`
+          : label, L("PROJECTANIME.Prose.calcDuration"));
       }
     }
   } catch (_e) { /* degrade below — a token must never break a render */ }
