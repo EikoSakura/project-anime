@@ -186,7 +186,29 @@
       "calcRange": "Range",
       "calcTarget": "Target",
       "calcDuration": "Duration",
-      "calcUnlinked": "Unlinked"
+      "calcUnlinked": "Unlinked",
+      "rule": {
+        "attack": "Attack",
+        "check": "Check",
+        "test": "Test",
+        "contest": "Contest",
+        "threshold": "Threshold",
+        "trainedEdge": "Trained Edge",
+        "luck": "Luck",
+        "combo": "Combo",
+        "fumble": "Fumble"
+      },
+      "ruleDesc": {
+        "attack": "Roll two dice — Attribute + Talent (+1 Trained Edge), or two Attributes — against the target's Guard.",
+        "check": "Every Check rolls exactly two dice: Attribute + Talent (+1 Trained Edge) when a Talent applies, otherwise two Attributes.",
+        "test": "A Check against a Challenge Threshold: Easy 7 · Moderate 9 · Hard 11 · Daunting 13 · Extreme 15.",
+        "contest": "Roll against the defender's Contest Target: 6 + die/2, +1 Trained Edge when the defending Technique is built under a Talent.",
+        "threshold": "Meet or beat the weapon's Threshold on the attack roll to deal 1 additional box of damage.",
+        "trainedEdge": "A relevant Talent adds a flat +1 to the roll.",
+        "luck": "Spend a Luck Die to replace one rolled die with its result — it can make or unmake a Fumble or Combo. Camp rest restores 1, Town rest restores 3.",
+        "combo": "Matching dice of 6 or higher — take an extra full turn. Combos do not chain.",
+        "fumble": "A pair of 1s — the roll fails outright."
+      }
     },
     "Item": {
       "refreshFromCompendium": "Refresh from Compendium",

@@ -4978,6 +4978,11 @@
 /* Inline autocalc tokens: resolved values wear the blue number span (+ a source tooltip);
    an unresolvable token renders its literal text muted. */
 .project-anime .pa-inline-calc { cursor: help; }
+/* Rules-term references (@modifier[X] / @effect[X]): dotted underline invites the hover. */
+.project-anime .pa-calc-ref {
+  cursor: help;
+  border-bottom: 1px dotted color-mix(in srgb, var(--pa-accent) 65%, transparent);
+}
 .project-anime .pa-calc-unlinked {
   font-family: var(--pa-font-mono);
   font-size: 0.92em;

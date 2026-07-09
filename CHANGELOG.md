@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.21 - 2026-07-09
+
+- Stat-line tokens now print their own bold white label with only the value in blue: @duration, @target, @range, and @energy render like Duration: Instant - and @range shows just the actual range value (10 Tiles), not the scope label.,New hover references: @modifier[Name] and @effect[Name] render the term with its printed rules text on hover - matched by label or stored key, usable in any description, journal, or chat card.,New @rule[Name] dice glossary with hover text: Attack, Check, Test, Contest, Threshold, Trained Edge, Luck, Combo, Fumble.
+
 ## 0.5.20 - 2026-07-09
 
 - New inline autocalc tokens: @target renders a Technique target together with its targeting Modifiers (Aura and Burst with their die-scaled radius in tiles, Chain +1, Line, Mass), and @duration renders the effective Duration - Channeled/Scene Modifiers and Scene-by-rule Effects win, Standard shows its turn count.,Technique tab: the Uses Per Conflict row is removed.
