@@ -31,6 +31,9 @@ import { ensurePartyFolder, ensureAllPartyFolders, syncPartyFolderName, deletePa
 import { AnimeHud, AnimePartyRail, AnimeCombatTracker, registerHudSettings, applyHudState, HUD_ENABLED_SETTING, HUD_SHOW_PARTY_SETTING } from "./apps/anime-hud.mjs";
 import { Codex, ChronicleTracker } from "./apps/codex.mjs";
 import { QUESTS_SETTING, TRACKED_SETTING, TRACKER_VISIBLE_SETTING, SEASON_COUNT_SETTING, PARTY_TIER_SETTING } from "./helpers/chronicle.mjs";
+import { htmlToMarkup, isLegacyHTML } from "./helpers/prose.mjs";
+import { registerInlineCalcEnrichers } from "./helpers/enrichers.mjs";
+import { autoRulesToMarkup } from "./helpers/skill-description.mjs";
 
 const { Actors, Items } = foundry.documents.collections;
 const { ActorSheet, ItemSheet } = foundry.appv1.sheets;
@@ -70,6 +73,13 @@ const GEAR_REBASE_V2_SETTING = "gearRebaseV2";
 // stale pre-V2 wired effect replaced. The packs themselves were rewritten in place (v0.5.3).
 // See migrateAccessoriesV2.
 const ACCESSORIES_V2_SETTING = "accessoriesV2";
+
+// Hidden world flag — set once after the auto-written Technique rules retired (v0.5.18) and every
+// Technique's display text was folded into the hand-authored `system.description`: a stored Rules
+// Override moves to the top of the description; a Technique with NEITHER is seeded from its last
+// auto write-up so nothing on the table goes blank. Covers world Items, actor-owned Techniques,
+// and the system's Techniques pack. See migrateProseDescriptions.
+const PROSE_DESC_SETTING = "proseDescriptionsV1";
 
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
@@ -114,6 +124,10 @@ Hooks.once("init", function () {
 
   // Configuration constants.
   CONFIG.PROJECTANIME = PROJECTANIME;
+
+  // Inline autocalc tokens (@talent[Name] / @contest / @threshold / @damage / @energy / @range)
+  // render live values wherever descriptions are enriched — sheets, chat cards, journals.
+  registerInlineCalcEnrichers();
 
   // Register shared Handlebars partials included by full path via {{> …}} (Foundry does not auto-load
   // them). The carried-gear body is shared by the actor sheet's Gear drawer and the Monster Creator's
@@ -238,7 +252,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -1777,6 +1791,60 @@ async function migrateAccessoriesV2() {
 }
 
 /* -------------------------------------------- */
+/*  Prose descriptions fold (one-time)          */
+/* -------------------------------------------- */
+
+// The auto-written Technique rules retired (v0.5.18): descriptions are hand-authored Codex prose,
+// locked behind the item sheet's pencil editor. Fold each Technique's old display text into
+// `system.description` exactly once so no table content goes blank:
+//  - a stored Rules Override (hand-written) moves to the top of the description, flavor beneath;
+//  - a Technique with NO override and NO description is seeded from its final auto write-up,
+//    rendered as editable markup (helpers/skill-description.mjs — kept alive only for this);
+//  - a Technique that already has a hand-authored description is left untouched.
+// Covers world Items, actor-owned Techniques, and the system's Techniques pack (unlock → relock),
+// so post-retirement imports don't arrive blank. GM-side, once per world.
+async function migrateProseDescriptions() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", PROSE_DESC_SETTING)) return;
+
+  let count = 0;
+  const fold = async (items) => {
+    for (const item of items) {
+      if (item.type !== "skill") continue;
+      const desc = String(item.system.description ?? "").trim();
+      const override = String(item.system.rulesOverride ?? "").trim();
+      let next = null;
+      if (override) {
+        // A legacy ProseMirror description converts to markup so the two halves render as one
+        // prose block (mixed HTML + markup would pass through raw).
+        const flavor = desc && isLegacyHTML(desc) ? htmlToMarkup(desc) : desc;
+        next = flavor ? `${override}\n\n${flavor}` : override;
+      } else if (!desc) {
+        next = autoRulesToMarkup(item) || null;
+      }
+      if (next == null) continue;
+      await item.update({ "system.description": next, "system.rulesOverride": "" });
+      count++;
+    }
+  };
+
+  await fold(game.items);
+  for (const actor of game.actors) await fold(actor.items);
+  const pack = game.packs.get("project-anime.skills");
+  if (pack) {
+    const wasLocked = pack.locked;
+    try {
+      if (wasLocked) await pack.configure({ locked: false });
+      await fold(await pack.getDocuments());
+    } finally {
+      if (wasLocked) await pack.configure({ locked: true });
+    }
+  }
+  if (count) console.log(`Project: Anime | Prose descriptions — ${count} Technique(s) folded/seeded (auto rules retired).`);
+  await game.settings.set("project-anime", PROSE_DESC_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Natural Attack backfill (one-time)          */
 /* -------------------------------------------- */
 
@@ -1953,9 +2021,10 @@ Hooks.once("ready", function () {
     auditGearPacks()
       .then(() => game.settings.set("project-anime", PACK_AUDIT_SETTING, true))
       .then(() => migrateGearRebaseV2())
-      .then(() => migrateAccessoriesV2());
+      .then(() => migrateAccessoriesV2())
+      .then(() => migrateProseDescriptions());
   } else {
-    migrateGearRebaseV2().then(() => migrateAccessoriesV2());
+    migrateGearRebaseV2().then(() => migrateAccessoriesV2()).then(() => migrateProseDescriptions());
   }
 
   // One-time: switch existing tokens to always-on HP/Energy bars (the bottom-stacked overlay).

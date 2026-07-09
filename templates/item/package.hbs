@@ -1,9 +1,9 @@
 {{!-- Package: an ability bundle. Its granted abilities live on the Effects tab (Grant Item rule). --}}
-<section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+<section class="item-body tab-pane{{#if tabDetails}} active{{/if}}" data-tab-pane="details">
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
-    <div class="form-grid">
-      <div class="form-group"><label>{{localize "PROJECTANIME.Package.category"}}</label>
+    <div class="detail-rows">
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Package.category"}}</label>
         <input type="text" name="system.category" value="{{system.category}}" /></div>
     </div>
   </div>

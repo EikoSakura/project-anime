@@ -7,7 +7,7 @@ import { summarizeRules, applyEffectCopy } from "../helpers/effects.mjs";
 import { EffectBuilder } from "../apps/effect-builder.mjs";
 import { AdvancementApp } from "../apps/advancement.mjs";
 import { RestApp } from "../apps/rest.mjs";
-import { skillRulesHTML, manualRulesBlock } from "../helpers/skill-description.mjs";
+import { renderDescriptionBlock, renderDescriptionHTML } from "../helpers/prose.mjs";
 import { SkillBuilderApp } from "../apps/skill-builder.mjs";
 import { CharacterCreatorApp } from "../apps/character-creator.mjs";
 import { MonsterCreatorApp } from "../apps/monster-creator.mjs";
@@ -471,12 +471,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       const granted = !!i.getFlag("project-anime", "granted");
       const byId = granted ? i.getFlag("project-anime", "grantedBy") : null;
       const source = byId ? this.actor.items.get(byId)?.name : "";
-      // Rules summary for the command-row hover drawer: a manual override wins, else the auto
-      // colour-coded line (helpers/skill-description). Rendered with {{{descHTML}}}. Guarded so a
-      // single malformed skill can never abort the whole sheet render.
-      const ov = i.system?.rulesOverride;
+      // Command-row dropdown: the hand-authored Codex-prose description (helpers/prose) —
+      // mirroring the item View tab. Guarded so a single malformed skill can never abort the
+      // whole sheet render.
       let descHTML = "";
-      try { descHTML = (ov && String(ov).trim()) ? manualRulesBlock(ov) : skillRulesHTML(i); } catch (_e) { descHTML = ""; }
+      try { descHTML = renderDescriptionBlock(i); } catch (_e) { descHTML = ""; }
       const actionType = i.system?.actionType || "action";
       const passive = actionType === "passive" || i.system?.effect === "companion";
       return {
@@ -562,9 +561,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         const dmgLabel = dmg ? String(dmg) : "";
         const rangeText = rangeTiles > 0 ? physicalRangeLabel(sys.range) : "";
         let descHTML = "";
-        if (sys.description && String(sys.description).trim()) {
-          try { descHTML = await TE.enrichHTML(String(sys.description), { relativeTo: i, secrets: false }); } catch (_e) { descHTML = ""; }
-        }
+        try { descHTML = await renderDescriptionHTML(i); } catch (_e) { descHTML = ""; }
         return {
           id: i.id, name: i.name, img: i.img, natural: nat, shield: isSh,
           equipped: !!sys.equipped,
@@ -699,9 +696,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   static async #onEditItem(event, target) {
     const item = ProjectAnimeActorSheet.#getItem.call(this, target);
     if (!item) return;
-    // Editing a Skill opens the full Skill Builder, pre-loaded with its choices; other
-    // item types open their own sheet.
-    if (item.type === "skill") return SkillBuilderApp.open(this.actor, { skillId: item.id });
+    // Every item type opens its own sheet — a Technique's sheet carries the Technique editor
+    // tab (v0.5.19); the guided Skill Builder stays a header control there.
     item.sheet.render(true);
   }
 
@@ -1144,7 +1140,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     add("fa-dice-d20", "PROJECTANIME.Action.use", () => item.roll({ event: ev }));
     if (readied) add("fa-xmark", "PROJECTANIME.Quick.remove", () => item.unsetFlag("project-anime", "readied"));
     else add("fa-thumbtack", "PROJECTANIME.Quick.pin", () => item.setFlag("project-anime", "readied", true));
-    add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => SkillBuilderApp.open(this.actor, { skillId: item.id }));
+    add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
     add("fa-trash", "PROJECTANIME.Action.delete", () => item.deleteDialog(), "danger");
     show();
   }

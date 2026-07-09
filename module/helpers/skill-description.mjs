@@ -1,12 +1,13 @@
 /**
- * Project: Anime — auto-written Technique rules description (rules doc Version 2).
+ * Project: Anime — LEGACY auto-written Technique rules description (rules doc Version 2).
  *
- * Turns a Technique's mechanics + Active Effects into a FLOWING PARAGRAPH that reads like a
- * real game description ("This attack deals the weapon's Damage to an enemy within your
- * weapon's reach. Costs 3 Energy."). Plain numbers (boxes, tiles, Energy, Modifier values)
- * are wrapped in `.pa-rules-num` so they pop out. Shown on the Technique's sheet (View tab)
- * and its chat card; the typed `system.description` stays FLAVOR, and an optional
- * `system.rulesOverride` replaces this auto text. Pure + synchronous — safe during render.
+ * ⚠ Retired as a live render path: descriptions are hand-authored Codex prose (helpers/prose.mjs),
+ * locked behind the PF2e-style pencil editor. This module survives ONLY for the one-time
+ * `proseDescriptionsV1` migration, which seeds a blank Technique's description from the last auto
+ * write-up (as editable markup) so no existing content goes blank. Delete this file — and the
+ * `PROJECTANIME.Skill.narr.*` lang block it reads — in a future dead-code sweep once worlds have
+ * migrated. Do NOT import it anywhere else.
+ *
  * Sentence templates live under `PROJECTANIME.Skill.narr.*`; per-effect-rule clauses come
  * from effects.mjs `narrateRule`.
  */
@@ -253,65 +254,8 @@ export function skillRulesHTML(item) {
   return `<div class="skill-rules"><p>${sentences.join(" ")}</p></div>`;
 }
 
-/* --------------------------------------------------------------------------
- * Hand-written rules (the `rulesOverride` box). The GM writes the rules in
- * plain text and gets the same house styling as the auto write-up: bare
- * numbers auto-blue, `backticks` → blue highlight, ~tildes~ → gold. The skill
- * sheet's Highlight / Gold buttons insert the markers, and "Start From Auto"
- * seeds the box from `autoRulesToMarkup`. Foundry enricher tokens ([[rolls]],
- * @links) are preserved for a later enrich pass.
- * ------------------------------------------------------------------------ */
 
-const impSpan = (v) => `<span class="pa-rules-improve">${v}</span>`;
-
-/** Inline-style a hand-written rules string (markers + bare numbers → highlight spans). Sync;
- *  enrich the result afterwards to resolve any preserved [[rolls]] / @links. */
-export function styleManualRules(raw) {
-  let s = String(raw ?? "");
-  if (!s.trim()) return "";
-  // Stashed fragments hide behind a fake `<pakeep N>` tag: the number-colorize pass skips it as
-  // an HTML tag, so its index digits are never mistaken for a rules number.
-  const stash = [];
-  const keep = (html) => `<pakeep ${stash.push(html) - 1}>`;
-  // Preserve Foundry enricher tokens so their inner numbers aren't colorized/split.
-  s = s.replace(/\[\[[^\]]*\]\](?:\{[^}]*\})?/g, (m) => keep(m));
-  s = s.replace(/@\w+\[[^\]]*\](?:\{[^}]*\})?/g, (m) => keep(m));
-  // Manual highlights: `blue` and ~gold~ (button-inserted or typed).
-  s = s.replace(/~([^~\n]+)~/g, (_m, t) => keep(impSpan(t)));
-  s = s.replace(/`([^`\n]+)`/g, (_m, t) => keep(numSpan(t)));
-  // Auto-blue the bare numbers that remain; an HTML tag (incl. the sentinel) passes through.
-  s = s.replace(/<[^>]+>|(\bd\d+\b|[+\-\u2212]?\d+%?)/g, (m, num) => (num ? numSpan(num) : m));
-  // Restore stashed fragments; loop so a token nested inside a highlight also resolves.
-  for (let pass = 0; pass <= stash.length && s.includes("<pakeep "); pass++) {
-    s = s.replace(/<pakeep (\d+)>/g, (_m, i) => stash[Number(i)] ?? "");
-  }
-  return s;
-}
-
-/** Wrap inline-styled rules HTML in the `.skill-rules` prose block (blank lines → paragraphs). */
-function wrapRules(inlineHTML) {
-  const blocks = String(inlineHTML ?? "").split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
-  const inner = blocks.map((b) => `<p>${b.replace(/\n/g, "<br>")}</p>`).join("");
-  return inner ? `<div class="skill-rules">${inner}</div>` : "";
-}
-
-/** Sync styled block for the hand-written override, no enrichment (hover drawers). "" when blank. */
-export function manualRulesBlock(raw) {
-  return wrapRules(styleManualRules(raw));
-}
-
-/** Async styled + enriched block for the override (resolves @links / [[rolls]]). "" when blank. */
-export async function manualRulesHTML(item, { secrets = false } = {}) {
-  const raw = (item?.system?.rulesOverride ?? "").trim();
-  if (!raw) return "";
-  const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-  const enriched = await TE.enrichHTML(styleManualRules(raw), {
-    relativeTo: item, secrets, rollData: item.getRollData?.() ?? {}
-  });
-  return wrapRules(enriched);
-}
-
-/** The auto rules rendered as editable markup for the "Start From Auto" seed button: highlight
+/** The auto rules rendered as editable Codex-prose markup (the migration seed): highlight
  *  spans become `…`/~…~ markers, everything else drops to plain text. "" when nothing to seed. */
 export function autoRulesToMarkup(item) {
   const html = skillRulesHTML(item);

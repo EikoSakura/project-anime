@@ -1,0 +1,225 @@
+{{!-- Technique tab: the build data, editable in place. Fields submit through the sheet form
+      (submitOnChange) and every save round-trips the shared build brain, so the wizard's
+      legality rules hold here too. Row actions (Modifier toggles, Potent takes, Custom Heavy)
+      route through the same brain. --}}
+<section class="item-body item-technique tab-pane{{#if tabTechnique}} active{{/if}}" data-tab-pane="technique">
+
+  <div class="tech-cost">
+    {{#if tech.isPassiveCost}}
+    <span>{{localize "PROJECTANIME.Skill.field.energyLock"}}</span><strong><i class="fa-solid fa-bolt"></i> {{tech.liveEnergy}}</strong>
+    {{else}}
+    <span>{{localize "PROJECTANIME.Skill.field.energyCost"}}</span><strong><i class="fa-solid fa-bolt"></i> {{tech.liveEnergy}}</strong>
+    {{/if}}
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Section.details"}}</h4>
+    <div class="detail-rows">
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.actionType"}}</label>
+        {{#if tech.actionTypeLocked}}
+        <select disabled><option selected>{{localize "PROJECTANIME.Skill.actionType.passive"}}</option></select>
+        {{else}}
+        <select name="system.actionType">{{selectOptions tech.actionTypeChoices selected=system.actionType localize=true}}</select>
+        {{/if}}
+      </div>
+      {{#if tech.showPassiveMode}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.passiveMode"}}</label>
+        <select name="system.passiveMode">{{selectOptions tech.passiveModeChoices selected=system.passiveMode localize=true}}</select>
+      </div>
+      {{/if}}
+      {{#if tech.isReact}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.trigger"}}</label>
+        <select name="system.trigger">{{selectOptions tech.triggerChoices selected=system.trigger localize=true blank=""}}</select>
+      </div>
+      {{/if}}
+      {{#if tech.hasTalents}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.talent"}}</label>
+        <select name="system.talentId">
+          <option value=""{{#unless tech.hasTalentSelected}} selected{{/unless}}>{{localize "PROJECTANIME.SkillBuilder.noTalent"}}</option>
+          {{selectOptions tech.talentChoices selected=system.talentId}}
+        </select>
+      </div>
+      {{/if}}
+      {{#unless tech.hasTalentSelected}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.SkillBuilder.roll"}}</label>
+        <div class="acc-attrs">
+          <select name="system.attributes.attrA">{{selectOptions tech.attributeChoices selected=system.attributes.attrA localize=true}}</select>
+          <span class="acc-plus">+</span>
+          <select name="system.attributes.attrB">{{selectOptions tech.attributeChoices selected=system.attributes.attrB localize=true}}</select>
+        </div>
+      </div>
+      {{/unless}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.effect"}}</label>
+        <select name="system.effect">
+          {{#each tech.effectChoices}}
+          <option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      {{#if tech.secondaryActive}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.secondaryEffect"}}</label>
+        <select name="system.secondaryEffect">
+          {{#each tech.secondaryEffectChoices}}
+          <option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      {{/if}}
+      {{#if tech.showControlElement}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.controlElement"}}</label>
+        <input type="text" name="system.controlElement" value="{{system.controlElement}}" />
+      </div>
+      {{/if}}
+      {{#if tech.showDamagePool}}
+      <div class="detail-row">
+        <label>{{localize tech.poolLabel}}</label>
+        <select name="system.damagePool">{{selectOptions tech.damagePoolChoices selected=system.damagePool localize=true}}</select>
+      </div>
+      {{/if}}
+      {{#if tech.showSecondaryPool}}
+      <div class="detail-row">
+        <label>{{localize tech.poolLabel}}</label>
+        <select name="system.secondaryDamagePool">{{selectOptions tech.damagePoolChoices selected=system.secondaryDamagePool localize=true}}</select>
+      </div>
+      {{/if}}
+      {{#if tech.isAttrEffect}}
+      <div class="detail-row">
+        <label>{{#if tech.isHinder}}{{localize "PROJECTANIME.SkillBuilder.lowerAttrs"}}{{else}}{{localize "PROJECTANIME.SkillBuilder.raiseAttrs"}}{{/if}}</label>
+        <div class="acc-attrs">
+          {{#each tech.effectAttrPickers as |p|}}
+          <select name="effectAttr{{p.index}}">{{selectOptions ../tech.attributeChoices selected=p.value localize=true blank=""}}</select>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+      {{#if tech.secondaryIsAttrEffect}}
+      <div class="detail-row">
+        <label>{{#if tech.secondaryIsHinder}}{{localize "PROJECTANIME.SkillBuilder.lowerAttrs"}}{{else}}{{localize "PROJECTANIME.SkillBuilder.raiseAttrs"}}{{/if}}</label>
+        <div class="acc-attrs">
+          {{#each tech.secondaryAttrPickers as |p|}}
+          <select name="effectAttr{{p.index}}">{{selectOptions ../tech.attributeChoices selected=p.value localize=true blank=""}}</select>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+      {{#if tech.isCompanion}}
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.companionHome"}}</label>
+        <input type="checkbox" name="system.companionHome" {{checked system.companionHome}} />
+      </div>
+      {{/if}}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.SkillBuilder.step.range"}}</h4>
+    <div class="detail-rows">
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.range"}}</label>
+        <div class="acc-attrs">
+          <select name="system.range.scope">{{selectOptions tech.rangeChoices selected=system.range.scope localize=true}}</select>
+          {{#if tech.rangeHasTiles}}
+          <input type="number" name="system.range.tiles" value="{{system.range.tiles}}" min="0" step="1" />
+          <span class="muted">{{localize "PROJECTANIME.Skill.tiles"}}</span>
+          {{/if}}
+        </div>
+      </div>
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.duration"}}</label>
+        <div class="acc-attrs">
+          {{#if tech.durationLocked}}
+          <select disabled><option selected>{{tech.durationLocked}}</option></select>
+          {{else}}
+          <select name="system.duration">{{selectOptions tech.durationChoices selected=system.duration localize=true}}</select>
+          {{#if tech.showDurationTurns}}
+          <input type="number" name="system.effectDuration" value="{{system.effectDuration}}" min="1" placeholder="2" />
+          <span class="muted">{{localize "PROJECTANIME.Skill.turns"}}</span>
+          {{/if}}
+          {{/if}}
+        </div>
+      </div>
+      <div class="detail-row">
+        <label>{{localize "PROJECTANIME.Skill.field.target"}}</label>
+        {{#if tech.targetLocked}}
+        <select disabled><option selected>{{localize "PROJECTANIME.Skill.target.self"}}</option></select>
+        {{else}}
+        <select name="system.target">{{selectOptions tech.targetChoices selected=system.target localize=true}}</select>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Skill.field.modifiers"}}</h4>
+    {{#each tech.modGroups as |group|}}
+    <span class="tech-mod-tier">{{group.label}}</span>
+    <ul class="tech-mod-list">
+      {{#each group.mods as |mod|}}
+      <li class="tech-mod-row{{#if mod.selected}} selected{{/if}}{{#if mod.blocked}} blocked{{/if}}"
+          data-action="toggleModifier" data-modifier="{{mod.key}}" data-tooltip="{{mod.desc}}">
+        <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
+        <span class="tech-mod-name">{{mod.label}}{{#if mod.canDropTake}} ×{{mod.potentTakes}}{{/if}}</span>
+        {{#if mod.scaled}}<span class="tech-mod-scale">{{mod.scaled}}</span>{{/if}}
+        <span class="tech-mod-cost">+{{mod.cost}}</span>
+        {{#if mod.selected}}
+        {{#if mod.isCustom}}
+        <span class="tech-mod-opts">
+          <span class="tech-mod-opt{{#if mod.customHeavy}} on{{/if}}" data-action="toggleCustomHeavy">{{localize "PROJECTANIME.Skill.heavy"}}</span>
+        </span>
+        {{/if}}
+        {{#if mod.isPotent}}
+        <span class="tech-mod-opts">
+          {{#if mod.canTakeAgain}}<span class="tech-mod-opt" data-action="addModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeAdd'}}"><i class="fas fa-plus"></i></span>{{/if}}
+          {{#if mod.canDropTake}}<span class="tech-mod-opt" data-action="removeModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeRemove'}}"><i class="fas fa-xmark"></i></span>{{/if}}
+        </span>
+        {{/if}}
+        {{/if}}
+        {{#if mod.hasConfig}}
+        <div class="tech-mod-config">
+          {{#if mod.showInflict}}
+          <label>{{localize "PROJECTANIME.Skill.field.inflictStatus"}}
+            <select name="system.inflictStatus">{{selectOptions ../../tech.inflictChoices selected=../../system.inflictStatus blank=""}}</select>
+          </label>
+          {{/if}}
+          {{#if mod.showInflictSevere}}
+          <label>{{localize "PROJECTANIME.Skill.field.inflictSevereStatus"}}
+            <select name="system.inflictSevereStatus">{{selectOptions ../../tech.inflictSevereChoices selected=../../system.inflictSevereStatus blank=""}}</select>
+          </label>
+          {{#if ../../tech.inflictSevereHasPool}}
+          <label>{{localize "PROJECTANIME.Skill.field.inflictPool"}}
+            <select name="system.inflictPool">{{selectOptions ../../config.damagePools selected=../../system.inflictPool localize=true}}</select>
+          </label>
+          {{/if}}
+          {{/if}}
+          {{#if mod.showDrain}}
+          <label>{{localize "PROJECTANIME.Skill.field.drainPool"}}
+            <select name="system.drainPool">{{selectOptions ../../config.damagePools selected=../../system.drainPool localize=true}}</select>
+          </label>
+          {{/if}}
+          {{#if mod.showAnalyze}}
+          <label>{{localize "PROJECTANIME.Skill.field.analyzeCategory"}}
+            <select name="system.analyzeCategory">{{selectOptions ../../tech.analyzeChoices selected=../../system.analyzeCategory}}</select>
+          </label>
+          {{/if}}
+          {{#if mod.showManifest}}
+          <label>{{localize "PROJECTANIME.Skill.field.manifestSkill"}}
+            <select name="system.manifestSkillId">{{selectOptions ../../tech.manifestChoices selected=../../system.manifestSkillId blank=""}}</select>
+          </label>
+          {{/if}}
+        </div>
+        {{/if}}
+      </li>
+      {{/each}}
+    </ul>
+    {{/each}}
+  </div>
+
+</section>

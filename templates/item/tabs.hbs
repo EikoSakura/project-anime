@@ -1,11 +1,18 @@
-{{!-- Item sheet tab navigation: View (display) / Edit (form) --}}
+{{!-- Item sheet tab navigation (PF2e-style): Description | Details | Effects, with the
+      Technique editor replacing Details on Technique sheets. --}}
 <nav class="item-tabs">
-  <button type="button" class="item-tab{{#if tabView}} active{{/if}}" data-action="selectTab" data-tab="view">
-    <i class="fa-solid fa-eye"></i><span>{{localize "PROJECTANIME.Tab.view"}}</span>
+  <button type="button" class="item-tab{{#if tabDescription}} active{{/if}}" data-action="selectTab" data-tab="description">
+    <i class="fa-solid fa-book-open"></i><span>{{localize "PROJECTANIME.Tab.description"}}</span>
   </button>
-  <button type="button" class="item-tab{{#if tabEdit}} active{{/if}}" data-action="selectTab" data-tab="edit">
-    <i class="fa-solid fa-pen-to-square"></i><span>{{localize "PROJECTANIME.Tab.edit"}}</span>
+  {{#if isSkill}}
+  <button type="button" class="item-tab{{#if tabTechnique}} active{{/if}}" data-action="selectTab" data-tab="technique">
+    <i class="fa-solid fa-bolt"></i><span>{{localize "PROJECTANIME.Tab.technique"}}</span>
   </button>
+  {{else}}
+  <button type="button" class="item-tab{{#if tabDetails}} active{{/if}}" data-action="selectTab" data-tab="details">
+    <i class="fa-solid fa-list-ul"></i><span>{{localize "PROJECTANIME.Tab.details"}}</span>
+  </button>
+  {{/if}}
   <button type="button" class="item-tab{{#if tabEffects}} active{{/if}}" data-action="selectTab" data-tab="effects">
     <i class="fa-solid fa-wand-magic-sparkles"></i><span>{{localize "PROJECTANIME.Tab.effects"}}</span>
   </button>

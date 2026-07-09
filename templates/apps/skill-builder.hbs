@@ -78,10 +78,35 @@
         <select name="trigger">{{selectOptions triggerChoices selected=draft.trigger localize=true blank=""}}</select>
       </label>
       {{/if}}
-      <label class="sb-field">
+      <div class="sb-field sb-desc-field">
         <span class="sb-label">{{localize "PROJECTANIME.Section.details"}}</span>
-        <textarea name="description" rows="3">{{draft.description}}</textarea>
-      </label>
+        <div class="desc-edit-tools">
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="heading" title="{{localize 'PROJECTANIME.Prose.heading'}}"><i class="fa-solid fa-heading"></i></button>
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="label" title="{{localize 'PROJECTANIME.Prose.label'}}"><i class="fa-solid fa-tag"></i></button>
+          <span class="desc-tool-sep"></span>
+          <button type="button" class="desc-tool desc-tool-out out-hit" data-action="proseTool" data-tool="hit">{{localize "PROJECTANIME.Prose.hit"}}</button>
+          <button type="button" class="desc-tool desc-tool-out out-miss" data-action="proseTool" data-tool="miss">{{localize "PROJECTANIME.Prose.miss"}}</button>
+          <button type="button" class="desc-tool desc-tool-out out-contest" data-action="proseTool" data-tool="contest">{{localize "PROJECTANIME.Prose.contest"}}</button>
+          <button type="button" class="desc-tool desc-tool-out out-threshold" data-action="proseTool" data-tool="threshold">{{localize "PROJECTANIME.Prose.threshold"}}</button>
+          <span class="desc-tool-sep"></span>
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="list" title="{{localize 'PROJECTANIME.Prose.list'}}"><i class="fa-solid fa-list-ul"></i></button>
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="divider" title="{{localize 'PROJECTANIME.Prose.divider'}}"><i class="fa-solid fa-grip-lines"></i></button>
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="bold" title="{{localize 'PROJECTANIME.Prose.bold'}}"><i class="fa-solid fa-bold"></i></button>
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="highlight" title="{{localize 'PROJECTANIME.Prose.highlight'}}"><i class="fa-solid fa-highlighter"></i></button>
+          <button type="button" class="desc-tool desc-tool-gold" data-action="proseTool" data-tool="gold" title="{{localize 'PROJECTANIME.Prose.gold'}}"><i class="fa-solid fa-star"></i></button>
+          <span class="desc-tool-sep"></span>
+          {{#if insertTalents.length}}
+          <select class="desc-tool desc-tool-talent" data-tooltip="{{localize 'PROJECTANIME.Prose.insertTalent'}}" aria-label="{{localize 'PROJECTANIME.Prose.insertTalent'}}">
+            <option value="">{{localize "PROJECTANIME.Prose.talent"}}</option>
+            {{#each insertTalents as |n|}}<option value="{{n}}">{{n}}</option>{{/each}}
+          </select>
+          {{else}}
+          <button type="button" class="desc-tool" data-action="proseTool" data-tool="talent" title="{{localize 'PROJECTANIME.Prose.insertTalent'}}"><i class="fa-solid fa-at"></i></button>
+          {{/if}}
+        </div>
+        <textarea name="description" class="desc-markup-input sb-desc-input" rows="4">{{draft.description}}</textarea>
+        <div class="sb-desc-preview">{{{descriptionPreview}}}</div>
+      </div>
     </section>
     {{/if}}
 

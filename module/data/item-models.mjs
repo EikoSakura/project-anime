@@ -139,8 +139,9 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // unlimited. Tracked per-combat on the actor's flags; reset at combat start/end.
     schema.usesPerConflict = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
-    // Optional player-authored rules text that REPLACES the auto-generated rules write-up
-    // (helpers/skill-description.mjs). Blank = show the live auto rules.
+    // LEGACY (retired with the auto-written rules): the old hand-typed override. Kept in the
+    // schema ONLY so the one-time `proseDescriptionsV1` migration can fold stored values into
+    // `system.description`; it is blanked there and read nowhere else. Drop in a future sweep.
     schema.rulesOverride = new fields.HTMLField({ required: false, blank: true, initial: "" });
 
     return schema;

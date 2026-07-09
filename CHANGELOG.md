@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.19 - 2026-07-09
+
+- Item sheets reworked PF2e-style: tabs are now Description | Details | Effects, and every item opens on its rendered description with send-to-chat and edit-pencil chips floating top-right. The old stat-tile card is gone; those numbers are editable fields on Details, in compact label-field rows.,Technique sheets get a dedicated Technique tab: the whole build - Action Type, roll, Effect, Range, Target, Duration, Modifiers (same legality rules as the Builder) - edits right on the sheet, with a live Energy cost / lock readout. The Skill Builder remains as the guided flow via the wand button; opening a Technique now shows its own sheet.,Inline autocalc tokens: @contest, @threshold, @damage, @energy, @range, and @talent[Name] in any description render freshly calculated values (blue, with a source tooltip) on item sheets, chat cards, and the command-row dropdown; unknown or unowned tokens render muted instead of breaking.,The editor toolbar Hit / Contest / Threshold buttons now insert live tokens instead of frozen numbers, and a new Talent picker inserts @talent[Name].,Also includes the unpublished v0.5.18: hand-authored locked-prose descriptions with the in-place pencil editor; auto-generated Technique rules text retired (see CHANGELOG).
+
+## 0.5.18 - 2026-07-09
+
+- Descriptions are now locked prose, PF2e-style: the View tab shows the rendered description with a small pencil chip — click it to edit in place, click the check to save and re-lock.
+- Auto-written Technique descriptions are retired: what an item says is exactly what you wrote. Existing Techniques keep their text — a saved Rules Override folds into the description, and a Technique with no text at all is seeded once from its last auto write-up (world, actors, and the Techniques compendium).
+- The Hit / Contest / Threshold editor buttons now insert their calculated values: a weapon's Damage and Threshold, a Technique's Contest Target (6 + die/2, +1 Trained Edge) — in the item sheet editor and the Technique Builder.
+- Techniques get a JRPG status card on the View tab: Energy cost (or Passive lock), roll dice, Contest Target, and Range tiles, with Action / Target / Duration / Uses chips.
+- The Rules Override box is gone from the Technique sheet; the description is the single text.
+
 ## 0.5.17 - 2026-07-09
 
 - Technique rules can now be written by hand in the same blue-inline house style: numbers turn blue automatically as you type, and Highlight / Gold buttons color any word you select.

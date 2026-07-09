@@ -2315,13 +2315,6 @@
 .project-anime .psd-meta { color: var(--pa-gold); font-size: 0.8rem; letter-spacing: -1px; }
 
 
-/* Build-summary rank stars. */
-.project-anime .build-summary .stars {
-  color: var(--pa-gold);
-  letter-spacing: -1px;
-  white-space: nowrap;
-}
-
 /* Carrying-capacity indicator. */
 .project-anime .carry-indicator {
   display: flex;
@@ -2666,7 +2659,7 @@
 /* Type icon beside the header type badge. */
 .project-anime .item-header .type-badge i { color: var(--pa-gold); margin-right: 0.1rem; }
 
-/* ---- Item sheet tabs: View (display) / Edit (form) ---- */
+/* ---- Item sheet tabs: Description | Technique (skill) / Details | Effects ---- */
 .project-anime .item-tabs {
   position: sticky;
   top: 0;
@@ -2711,96 +2704,149 @@
 /* Only the active tab pane(s) show. !important beats the .item-body{display:flex} rule. */
 .project-anime .tab-pane:not(.active) { display: none !important; }
 
-/* View tab — JRPG status card: icon stat tiles + meta chips + description card. */
-.project-anime .item-details {
-  flex: 0 0 auto;
+/* Details tab — PF2e-style compact label—field rows, grouped in the dark-glass form
+   sections. Number inputs stay short; text inputs and selects fill the field zone. */
+.project-anime .detail-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0.3rem;
 }
-
-/* Primary stat tiles — the item's key numbers, each a gem-framed icon + label + value. */
-.project-anime .stat-grid {
+.project-anime .detail-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 9.5rem 1fr;
+  align-items: center;
   gap: 0.5rem;
+  min-height: 1.7rem;
 }
-.project-anime .stat-tile {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.65rem 0.55rem 0.8rem;
-  background: var(--pa-surface-2);
-  border: 1px solid var(--pa-line);
-  border-radius: 6px;
-  overflow: hidden;
-}
-/* Left accent tick — accent by default, crimson for a damage / penalty tile. */
-.project-anime .stat-tile::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, var(--pa-accent), color-mix(in srgb, var(--pa-accent) 30%, transparent));
-}
-.project-anime .stat-tile.dmg::before {
-  background: linear-gradient(180deg, var(--pa-hp-b), var(--pa-hp-a));
-}
-.project-anime .stat-tile .st-ic {
-  position: relative;
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  color: var(--pa-accent);
-  font-size: 0.85rem;
-  border: 1px solid color-mix(in srgb, var(--pa-accent) 30%, var(--pa-line));
-  border-radius: 7px;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--pa-accent) 16%, transparent), color-mix(in srgb, var(--pa-accent) 5%, transparent));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -3px 5px rgba(0, 0, 0, 0.32);
-}
-/* Glossy top sheen on the icon gem. */
-.project-anime .stat-tile .st-ic::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.24), transparent 52%);
-  pointer-events: none;
-}
-.project-anime .stat-tile .st-ic i { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
-.project-anime .stat-tile.dmg .st-ic {
-  color: var(--pa-hp-b);
-  border-color: color-mix(in srgb, var(--pa-hp-b) 32%, var(--pa-line));
-  background: linear-gradient(160deg, color-mix(in srgb, var(--pa-hp-b) 16%, transparent), color-mix(in srgb, var(--pa-hp-b) 5%, transparent));
-}
-.project-anime .stat-tile .st-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.project-anime .stat-tile .st-lab {
-  font-size: 0.6rem;
+.project-anime .detail-row > label {
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--pa-ink-soft);
 }
-.project-anime .stat-tile .st-val {
-  font-family: var(--pa-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 1.05rem;
-  line-height: 1.05;
-  color: var(--pa-ink);
-  white-space: nowrap;
+.project-anime .detail-row input[type="number"] { width: 5.5rem; justify-self: start; }
+.project-anime .detail-row input[type="checkbox"] { justify-self: start; }
+.project-anime .detail-row .acc-attrs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
-.project-anime .stat-tile .st-val small { font-family: var(--pa-font); font-size: 0.72rem; font-weight: 700; color: var(--pa-gold); }
-.project-anime .stat-tile .st-val em { font-style: normal; font-family: var(--pa-font); font-size: 0.7rem; font-weight: 600; color: var(--pa-ink-soft); }
+.project-anime .detail-row .acc-attrs input[type="number"] { width: 4.5rem; }
+/* The Style tile picker keeps its own row with the tiles wrapping in the field zone. */
+.project-anime .detail-row.detail-row-tiles { align-items: start; }
+.project-anime .detail-row.detail-row-tiles > label { padding-top: 0.35rem; }
 
-/* Secondary meta pill chips (bulk, equipped, quantity…). */
-.project-anime .meta-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+/* Technique tab — the build data edited in place. Cost readout bar + the Modifier grid
+   (wizard-style rows: checkbox glyph, name, scaled value, cost badge, config pickers). */
+.project-anime .item-technique .tech-cost {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+  background: linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
+  border: 1px solid var(--pa-line);
+  border-radius: var(--pa-radius);
+}
+.project-anime .item-technique .tech-cost span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+.project-anime .item-technique .tech-cost strong { font-family: var(--pa-font-mono); color: var(--pa-ink); }
+.project-anime .item-technique .tech-cost i { color: var(--pa-energy-b); }
+.project-anime .tech-mod-tier {
+  display: block;
+  margin: 0.45rem 0 0.2rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--pa-gold);
+}
+.project-anime .tech-mod-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.project-anime .tech-mod-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.22rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.project-anime .tech-mod-row:hover { background: color-mix(in srgb, var(--pa-accent) 8%, transparent); }
+.project-anime .tech-mod-row.selected {
+  background: color-mix(in srgb, var(--pa-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--pa-accent) 40%, var(--pa-line));
+}
+.project-anime .tech-mod-row.blocked { opacity: 0.45; }
+.project-anime .tech-mod-row > i { color: var(--pa-accent); }
+.project-anime .tech-mod-row .tech-mod-name { font-weight: 600; color: var(--pa-ink); }
+.project-anime .tech-mod-row .tech-mod-scale {
+  font-family: var(--pa-font-mono);
+  font-size: 0.72rem;
+  color: var(--pa-ink-soft);
+}
+.project-anime .tech-mod-row .tech-mod-cost {
+  margin-left: auto;
+  font-family: var(--pa-font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--pa-energy-b);
+}
+.project-anime .tech-mod-opts { display: inline-flex; gap: 0.25rem; }
+.project-anime .tech-mod-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.08rem 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--pa-ink-soft);
+  border: 1px solid var(--pa-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.project-anime .tech-mod-opt:hover { border-color: var(--pa-accent); color: var(--pa-ink); }
+.project-anime .tech-mod-opt.on {
+  color: var(--pa-gold);
+  border-color: color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line));
+  background: color-mix(in srgb, var(--pa-gold) 10%, transparent);
+}
+.project-anime .tech-mod-config {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.1rem 1.4rem;
+  cursor: default;
+}
+.project-anime .tech-mod-config label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+
+/* Meta pill chips — worn by CHAT CARDS (helpers/dice.mjs card meta row + the .chat-card
+   overrides further below); the item sheet's old View card no longer uses them. */
 .project-anime .meta-chip {
   display: inline-flex;
   align-items: center;
@@ -2826,40 +2872,58 @@
 }
 .project-anime .meta-chip.on b { color: var(--pa-accent); }
 
-/* Description "codex card" — a titled panel, like the status screen's skill cards. */
-.project-anime .desc-card {
-  border: 1px solid var(--pa-line);
-  border-radius: 7px;
-  overflow: hidden;
-  background: var(--pa-panel);
-}
-.project-anime .desc-card-h {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.7rem;
-  background: rgba(0, 0, 0, 0.22);
-  border-bottom: 1px solid color-mix(in srgb, var(--pa-accent) 22%, var(--pa-line));
-  font-family: var(--pa-font-display);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--pa-accent-ink);
-}
-.project-anime .desc-card-h .chev { width: 7px; height: 7px; transform: rotate(45deg); border-radius: 1px; background: var(--pa-accent); }
-.project-anime .desc-card-b {
-  padding: 0.6rem 0.75rem;
+/* Description pane — frameless, PF2e-style: the rendered prose fills the tab, with the chip
+   pair (send-to-chat + pencil, or the gold check while editing) floating at the top-right. */
+.project-anime .desc-pane {
+  position: relative;
+  padding: 0.35rem 0.2rem 0.2rem;
   font-size: 0.86rem;
   line-height: 1.5;
   color: var(--pa-ink);
 }
-.project-anime .desc-card-b > :first-child { margin-top: 0; }
-.project-anime .desc-card-b > :last-child { margin-bottom: 0; }
-
-/* Skill-flavor prose (skill View tab still uses .detail-desc). */
-.project-anime .detail-desc { line-height: 1.5; color: var(--pa-ink); white-space: pre-wrap; }
-.project-anime .detail-desc > :first-child { margin-top: 0; }
+.project-anime .desc-pane-body { padding-right: 3.4rem; }
+.project-anime .desc-pane-body > :first-child { margin-top: 0; }
+.project-anime .desc-pane-body > :last-child { margin-bottom: 0; }
+.project-anime .desc-chips {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.3rem;
+}
+/* Floating chips — the PF2e-style send-to-chat / pencil (edit) / check (save) squares. */
+.project-anime .desc-chips .desc-lock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.68rem;
+  color: var(--pa-ink-soft);
+  background: var(--pa-glass-2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.project-anime .desc-chips .desc-lock-btn:hover {
+  color: var(--pa-accent-ink);
+  border-color: var(--pa-accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--pa-accent) 45%, transparent);
+}
+.project-anime .desc-chips .desc-save-btn { color: var(--pa-gold); border-color: color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line)); }
+.project-anime .desc-chips .desc-save-btn:hover {
+  color: var(--pa-gold);
+  border-color: var(--pa-gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--pa-gold) 45%, transparent);
+}
+/* The open editor in the pane (the unlocked state) — toolbar clears the floating check chip. */
+.project-anime .desc-pane-edit { display: flex; flex-direction: column; min-height: 0; }
+.project-anime .desc-pane-edit .desc-edit-tools { padding-right: 2rem; }
+.project-anime .desc-pane-edit .desc-markup-input { flex: 1 1 auto; min-height: 9rem; }
 
 .project-anime .item-description {
   flex: 0 0 auto;
@@ -2868,82 +2932,8 @@
   gap: 0.25rem;
   margin-top: 0.4rem;
 }
-.project-anime .item-description label {
-  font-weight: 700;
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--pa-ink-soft);
-}
-/* Derived formula / rules callouts. */
-.project-anime .effect-desc {
-  margin: 0;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.88rem;
-  line-height: 1.4;
-  background: color-mix(in srgb, var(--pa-accent) 8%, transparent);
-  border-left: 3px solid var(--pa-accent);
-  border-radius: 3px;
-}
-
-/* Skill builder summary. */
-.project-anime .build-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.45rem 0.7rem;
-  font-size: 0.85rem;
-  background: linear-gradient(180deg, var(--pa-panel), var(--pa-surface-2));
-  border: 1px solid var(--pa-line);
-  border-radius: var(--pa-radius);
-}
-.project-anime .build-summary.over .mod-budget { color: var(--pa-danger); font-weight: 700; }
-
-.project-anime .effect-block { display: flex; flex-direction: column; gap: 0.3rem; }
-.project-anime .needs-trigger select { border-color: var(--pa-danger); }
 .project-anime .hint { font-size: 0.85rem; }
 .project-anime .hint.warn { color: var(--pa-danger); font-size: 0.75rem; }
-
-.project-anime .modifiers-block .group-header h3 { margin: 0; }
-.project-anime .modifier-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-.project-anime .modifier-row {
-  display: grid;
-  grid-template-columns: 1.2rem 8.5rem 1fr;
-  align-items: baseline;
-  gap: 0.4rem;
-  padding: 0.3rem 0.4rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
-}
-.project-anime .modifier-row:hover { background: color-mix(in srgb, var(--pa-accent) 7%, transparent); }
-.project-anime .modifier-row.selected {
-  background: color-mix(in srgb, var(--pa-accent) 13%, transparent);
-  border-color: var(--pa-accent);
-}
-.project-anime .modifier-row i { color: var(--pa-accent); }
-.project-anime .modifier-row .mod-name { font-weight: 600; }
-.project-anime .modifier-row .mod-desc { font-size: 0.75rem; line-height: 1.25; color: var(--pa-ink-soft); }
-.project-anime .heavy-badge {
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  white-space: nowrap;
-  background: var(--pa-gold);
-  color: #1d1602;
-}
 
 /* ------------------------------------------------------------
    10. Chat cards
@@ -4975,53 +4965,89 @@
 }
 
 /* ------------------------------------------------------------
-   18. Auto-written Skill rules (helpers/skill-description.mjs)
-   A generated, colored rules write-up shown on the Skill sheet's
-   View tab and its chat card. Plain numbers (dice/range/Energy/
-   values) use the accent color; SP-bought improvements use gold —
-   so both stand out of the prose. Renders inside .project-anime
-   (sheet body + the chat-card root), so the tokens resolve.
+   18. Prose highlight roles (helpers/prose.mjs styleManualRules)
+   Inline spans the Codex-prose styler emits: plain numbers
+   (dice/range/Energy/values) use the accent color; ~gold~
+   highlights use gold — so both stand out of the prose. Renders
+   inside .project-anime (sheet body + the chat-card root).
    ------------------------------------------------------------ */
-/* The rules read as flowing prose paragraphs. */
-.project-anime .skill-rules { line-height: 1.5; }
-.project-anime .skill-rules p { margin: 0 0 0.4rem; }
-.project-anime .skill-rules p:last-child { margin-bottom: 0; }
-.project-anime .pa-rules-improve-line { font-size: 0.92em; color: var(--pa-ink-soft); }
-.project-anime .pa-rules-h {
-  font-family: var(--pa-font-display);
-  font-weight: 700;
-  font-size: 0.8em;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--pa-gold);
-  border-bottom: 1px solid var(--pa-line);
-  padding-bottom: 0.08rem;
-  margin-bottom: 0.12rem;
-}
-/* The two highlight roles. */
 .project-anime .pa-rules-num { font-family: var(--pa-font-mono); font-weight: 600; color: var(--pa-accent); }
 .project-anime.theme-dark .pa-rules-num,
 .theme-dark .project-anime .pa-rules-num { color: var(--pa-accent-2); }
 .project-anime .pa-rules-improve { font-family: var(--pa-font-mono); font-weight: 700; color: var(--pa-gold); }
-/* View-tab layout: rules block, then the flavor description beneath. */
-.project-anime .skill-flavor { margin-top: 0.6rem; }
-.project-anime .skill-flavor .detail-desc { margin-top: 0.2rem; }
-/* Chat-card flavor sits below the auto rules, set apart. */
-.project-anime .skill-card-flavor {
-  margin-top: 0.4rem;
-  padding-top: 0.3rem;
-  border-top: 1px solid var(--pa-line);
-  font-style: italic;
+/* Inline autocalc tokens: resolved values wear the blue number span (+ a source tooltip);
+   an unresolvable token renders its literal text muted. */
+.project-anime .pa-inline-calc { cursor: help; }
+.project-anime .pa-calc-unlinked {
+  font-family: var(--pa-font-mono);
+  font-size: 0.92em;
   color: var(--pa-ink-soft);
+  opacity: 0.7;
+  cursor: help;
 }
-/* The optional override toolbar + textarea on the skill Edit tab. */
-.project-anime .rules-override-tools {
+
+/* ============================================================
+   Codex prose — hand-authored rich item descriptions (helpers/prose.mjs). Fills the View tab and
+   the chat card; the block vocabulary (headings, dividers, lists, bold Label / outcome lines) maps
+   to Project: Anime's V2 rules — NOT copied from any other system. Inline number/highlight colors
+   reuse the .pa-rules-* roles above.
+   ============================================================ */
+.project-anime .pa-desc-prose { line-height: 1.55; color: var(--pa-ink); }
+.project-anime .pa-desc-prose > :first-child { margin-top: 0; }
+.project-anime .pa-desc-prose > :last-child { margin-bottom: 0; }
+.project-anime .pa-desc-prose p { margin: 0 0 0.5rem; }
+.project-anime .pa-desc-h {
+  font-family: var(--pa-font-display);
+  font-weight: 700;
+  font-size: 0.82em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--pa-gold);
+  border-bottom: 1px solid var(--pa-line);
+  padding-bottom: 0.15rem;
+  margin: 0.7rem 0 0.35rem;
+}
+.project-anime .pa-desc-hr {
+  border: 0;
+  height: 1px;
+  margin: 0.6rem 0;
+  background: linear-gradient(90deg, transparent, var(--pa-line) 20%, var(--pa-line) 80%, transparent);
+}
+.project-anime .pa-desc-list { margin: 0 0 0.5rem; padding-left: 1.15rem; }
+.project-anime .pa-desc-list li { margin: 0.12rem 0; }
+.project-anime .pa-desc-line { margin: 0 0 0.4rem; }
+/* Bold label leading a stat row (Range / Target / …) or an outcome block. */
+.project-anime .pa-desc-label { font-weight: 700; color: var(--pa-ink); }
+/* The system's outcome roles — colored so a Hit / Miss reads at a glance. */
+.project-anime .pa-out-hit { font-weight: 700; color: #4caf72; }
+.project-anime .pa-out-miss { font-weight: 700; color: var(--pa-danger); }
+.project-anime .pa-out-contest { font-weight: 700; color: var(--pa-accent); }
+.project-anime.theme-dark .pa-out-contest,
+.theme-dark .project-anime .pa-out-contest { color: var(--pa-accent-2); }
+.project-anime .pa-out-threshold { font-weight: 700; color: var(--pa-gold); }
+.project-anime .pa-out-wound { font-weight: 700; color: var(--pa-hp-a); }
+.project-anime .pa-out-neutral { font-weight: 700; color: var(--pa-ink-soft); }
+
+/* Fill-the-view: on the Description tab, the header + tabs stay put and the locked prose
+   pane grows to fill the panel, scrolling its body on its own (PF2e-style), instead of a
+   short fixed stub. The Technique / Details / Effects tabs keep the sheet's natural one-page
+   scroll. Item PARTs are direct window-content children (no form wrapper), so these
+   direct-child selectors hold. */
+.project-anime.sheet.item .window-content { display: flex; flex-direction: column; min-height: 0; }
+.project-anime.sheet.item .window-content > .tab-pane.active { flex: 0 0 auto; }
+.project-anime.sheet.item .window-content > .item-description.tab-pane.active { flex: 1 1 auto; min-height: 0; }
+.project-anime .item-description .desc-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.project-anime .item-description .desc-pane-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.project-anime .pa-desc-prose { white-space: normal; }
+
+/* Description editor: markup textarea + insert toolbar (replaces the ProseMirror editor). */
+.project-anime .desc-edit-tools {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
   margin-bottom: 0.35rem;
 }
-.project-anime .rules-tool {
+.project-anime .desc-tool {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -5035,15 +5061,36 @@
   border-radius: 4px;
   cursor: pointer;
 }
-.project-anime .rules-tool:hover { color: var(--pa-ink); border-color: var(--pa-accent); }
-.project-anime .rules-tool i { color: var(--pa-accent); }
-.project-anime .rules-tool-gold i { color: var(--pa-gold); }
-.project-anime .rules-tool-seed { margin-left: auto; }
-.project-anime .rules-override-input {
+.project-anime .desc-tool:hover { color: var(--pa-ink); border-color: var(--pa-accent); }
+.project-anime .desc-tool i { color: var(--pa-accent); }
+.project-anime .desc-tool-gold i { color: var(--pa-gold); }
+.project-anime .desc-tool-sep { width: 1px; align-self: stretch; margin: 0.1rem 0.15rem; background: var(--pa-line); }
+/* Outcome insert chips preview their render color. */
+.project-anime .desc-tool-out { font-weight: 700; font-size: 0.78em; }
+.project-anime .desc-tool-out.out-hit { color: #4caf72; }
+.project-anime .desc-tool-out.out-miss { color: var(--pa-danger); }
+.project-anime .desc-tool-out.out-contest { color: var(--pa-accent); }
+.project-anime .desc-tool-out.out-threshold { color: var(--pa-gold); }
+/* The Talent insert picker (a themed select riding in the toolbar). */
+.project-anime .desc-edit-tools .pa-select { flex: 0 0 auto; min-width: 6.5rem; }
+/* Skill Builder: live rich preview under the description editor. */
+.project-anime.skill-builder-app .sb-desc-preview {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--pa-track, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+.project-anime.skill-builder-app .sb-desc-preview:empty { display: none; }
+.project-anime .item-description { display: flex; flex-direction: column; min-height: 0; }
+.project-anime .desc-markup-input {
   width: 100%;
-  min-height: 4rem;
+  flex: 1 1 auto;
+  min-height: 12rem;
   resize: vertical;
   font-family: var(--pa-font);
+  line-height: 1.5;
 }
 
 /* ============================================================

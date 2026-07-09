@@ -1,9 +1,9 @@
-{{!-- Armor details --}}
-<section class="item-body tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
+{{!-- Armor details — compact label—field rows (PF2e Details idiom, dark-glass skin). --}}
+<section class="item-body tab-pane{{#if tabDetails}} active{{/if}}" data-tab-pane="details">
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.defense"}}</h4>
-    <div class="form-grid">
-      <div class="form-group span-2 style-picker"><label>{{localize "PROJECTANIME.Field.style"}}</label>
+    <div class="detail-rows">
+      <div class="detail-row detail-row-tiles"><label>{{localize "PROJECTANIME.Field.style"}}</label>
         <div class="style-tiles">
           {{#each styleTiles as |s|}}
           <button type="button" class="style-tile{{#if s.selected}} on{{/if}}" data-action="setStyle" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip" aria-label="{{s.label}}">
@@ -12,21 +12,21 @@
           {{/each}}
         </div>
       </div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Stat.guard"}}</label>
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Stat.guard"}}</label>
         <input type="number" name="system.guardBonus" value="{{system.guardBonus}}" min="0" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Stat.movement"}}</label>
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Stat.movement"}}</label>
         <input type="number" name="system.movement" value="{{system.movement}}" min="0" /></div>
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.energyRegen"}}</label>
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Field.energyRegen"}}</label>
         <input type="number" name="system.energyRegen" value="{{system.energyRegen}}" min="0" /></div>
     </div>
   </div>
 
   <div class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Section.equipment"}}</h4>
-    <div class="form-grid">
-      <div class="form-group"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
+    <div class="detail-rows">
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Field.cost"}}</label>
         <input type="number" name="system.cost" value="{{system.cost}}" min="0" /></div>
-      <div class="form-group checkbox"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Field.equipped"}}</label>
         <input type="checkbox" name="system.equipped" {{#if system.equipped}}checked{{/if}} /></div>
     </div>
   </div>

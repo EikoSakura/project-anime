@@ -1,10 +1,59 @@
-{{!-- Description (Edit tab): toggled ProseMirror editor (the PF2e click-to-edit pattern,
-      same as the actor biography). It shows the enriched description with a pencil button;
-      clicking activates the editor, and saving collapses it back to the rendered display
-      (instead of staying live). The element's inner HTML is the enriched content shown
-      while inactive; `value` is the raw HTML loaded for editing; `data-document-uuid`
-      lets content links enrich; `disabled` keeps it read-only when the doc isn't editable. --}}
-<section class="item-description tab-pane{{#if tabEdit}} active{{/if}}" data-tab-pane="edit">
-  <label>{{localize "PROJECTANIME.Field.description"}}</label>
-  <prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{itemUuid}}" toggled="true" {{#unless editable}}disabled{{/unless}}>{{{enrichedDescription}}}</prose-mirror>
+{{!-- Description tab (default): the hand-authored Codex prose, rendered rich and LOCKED —
+      a frameless pane with the PF2e chip pair floating top-right: send-to-chat, and the
+      pencil (editable sheets only) that swaps the body for the markup editor in place. The
+      gold check persists and re-locks. `descriptionMarkup` is the editable source (legacy
+      HTML auto-converted on open); it saves back to `system.description`. --}}
+<section class="item-description tab-pane{{#if tabDescription}} active{{/if}}" data-tab-pane="description">
+  <div class="desc-pane{{#if editingDesc}} editing{{/if}}">
+    <div class="desc-chips">
+      {{#if editingDesc}}
+      <button type="button" class="desc-lock-btn desc-save-btn" data-action="saveDescription"
+        data-tooltip="{{localize 'PROJECTANIME.Prose.save'}}" aria-label="{{localize 'PROJECTANIME.Prose.save'}}">
+        <i class="fa-solid fa-check"></i>
+      </button>
+      {{else}}
+      <button type="button" class="desc-lock-btn desc-chat-btn" data-action="chatDescription"
+        data-tooltip="{{localize 'PROJECTANIME.Action.toChat'}}" aria-label="{{localize 'PROJECTANIME.Action.toChat'}}">
+        <i class="fa-solid fa-message"></i>
+      </button>
+      {{#if editable}}
+      <button type="button" class="desc-lock-btn desc-edit-btn" data-action="editDescription"
+        data-tooltip="{{localize 'PROJECTANIME.Prose.edit'}}" aria-label="{{localize 'PROJECTANIME.Prose.edit'}}">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+      {{/if}}
+      {{/if}}
+    </div>
+    {{#if editingDesc}}
+    <div class="desc-pane-edit">
+      <div class="desc-edit-tools">
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="heading" title="{{localize 'PROJECTANIME.Prose.heading'}}"><i class="fa-solid fa-heading"></i></button>
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="label" title="{{localize 'PROJECTANIME.Prose.label'}}"><i class="fa-solid fa-tag"></i></button>
+        <span class="desc-tool-sep"></span>
+        <button type="button" class="desc-tool desc-tool-out out-hit" data-action="proseTool" data-target="system.description" data-tool="hit">{{localize "PROJECTANIME.Prose.hit"}}</button>
+        <button type="button" class="desc-tool desc-tool-out out-miss" data-action="proseTool" data-target="system.description" data-tool="miss">{{localize "PROJECTANIME.Prose.miss"}}</button>
+        <button type="button" class="desc-tool desc-tool-out out-contest" data-action="proseTool" data-target="system.description" data-tool="contest">{{localize "PROJECTANIME.Prose.contest"}}</button>
+        <button type="button" class="desc-tool desc-tool-out out-threshold" data-action="proseTool" data-target="system.description" data-tool="threshold">{{localize "PROJECTANIME.Prose.threshold"}}</button>
+        <span class="desc-tool-sep"></span>
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="list" title="{{localize 'PROJECTANIME.Prose.list'}}"><i class="fa-solid fa-list-ul"></i></button>
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="divider" title="{{localize 'PROJECTANIME.Prose.divider'}}"><i class="fa-solid fa-grip-lines"></i></button>
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="bold" title="{{localize 'PROJECTANIME.Prose.bold'}}"><i class="fa-solid fa-bold"></i></button>
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="highlight" title="{{localize 'PROJECTANIME.Prose.highlight'}}"><i class="fa-solid fa-highlighter"></i></button>
+        <button type="button" class="desc-tool desc-tool-gold" data-action="proseTool" data-target="system.description" data-tool="gold" title="{{localize 'PROJECTANIME.Prose.gold'}}"><i class="fa-solid fa-star"></i></button>
+        <span class="desc-tool-sep"></span>
+        {{#if insertTalents.length}}
+        <select class="desc-tool desc-tool-talent" data-tooltip="{{localize 'PROJECTANIME.Prose.insertTalent'}}" aria-label="{{localize 'PROJECTANIME.Prose.insertTalent'}}">
+          <option value="">{{localize "PROJECTANIME.Prose.talent"}}</option>
+          {{#each insertTalents as |n|}}<option value="{{n}}">{{n}}</option>{{/each}}
+        </select>
+        {{else}}
+        <button type="button" class="desc-tool" data-action="proseTool" data-target="system.description" data-tool="talent" title="{{localize 'PROJECTANIME.Prose.insertTalent'}}"><i class="fa-solid fa-at"></i></button>
+        {{/if}}
+      </div>
+      <textarea name="system.description" class="desc-markup-input" rows="10">{{descriptionMarkup}}</textarea>
+    </div>
+    {{else}}
+    <div class="desc-pane-body">{{{enrichedDescription}}}</div>
+    {{/if}}
+  </div>
 </section>

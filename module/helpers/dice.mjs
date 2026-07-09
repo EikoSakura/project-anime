@@ -1,5 +1,5 @@
 import { PROJECTANIME, modifierValue, modifierTakes, techniqueDie, contestTarget, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
-import { skillRulesHTML, manualRulesHTML } from "./skill-description.mjs";
+import { renderDescriptionHTML } from "./prose.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
 import { resolveCompanion, confirmAndDismiss } from "./servants.mjs";
 import {
@@ -517,21 +517,11 @@ export function cardHTML({ title, subtitle = "", icon = "", glyph = "", meta = [
 }
 
 /**
- * The card body for an item. Non-Skills → just the enriched flavor description (unchanged). Skills
- * → the player's rules OVERRIDE if set, else the auto-written colored rules summary, with the typed
- * flavor description shown beneath it. (Single chokepoint — every skill card site calls this.)
+ * The card body for an item: the hand-authored Codex-prose description, rendered rich (legacy
+ * ProseMirror HTML still renders as-is). (Single chokepoint — every card site calls this.)
  */
 export async function enrichDescription(item) {
-  const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-  const enrich = (raw) => (raw && String(raw).trim())
-    ? TE.enrichHTML(String(raw), { secrets: false, rollData: item.getRollData?.() ?? {} })
-    : "";
-  const flavor = await enrich(item?.system?.description);
-  if (item?.type !== "skill") return flavor;
-  // A hand-written override wins (styled: numbers auto-blue, `…`/~…~ highlights); else the auto rules.
-  const rules = (await manualRulesHTML(item)) || skillRulesHTML(item);
-  if (!rules) return flavor;
-  return flavor ? `${rules}<div class="skill-card-flavor">${flavor}</div>` : rules;
+  return renderDescriptionHTML(item);
 }
 
 /** Compact stat chips for a Technique card: effect type(s) · target · duration · Energy cost

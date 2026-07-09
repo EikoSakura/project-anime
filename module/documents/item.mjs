@@ -1,4 +1,5 @@
 import { rollAttack, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
+import { renderDescriptionHTML } from "../helpers/prose.mjs";
 
 /**
  * Extends the base Item with Project: Anime behaviour: roll data and a
@@ -37,11 +38,8 @@ export class ProjectAnimeItem extends Item {
   async #postDescriptionCard() {
     const speaker = ChatMessage.getSpeaker({ actor: this.actor });
     const typeLabel = game.i18n.localize(`TYPES.Item.${this.type}`);
-    const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-    const raw = this.system.description ?? "";
-    const enriched = raw && String(raw).trim()
-      ? await TE.enrichHTML(String(raw), { secrets: false, rollData: this.getRollData() })
-      : "";
+    // Render the Codex-prose description (legacy HTML passes through) — helpers/prose.
+    const enriched = await renderDescriptionHTML(this);
     const iconHTML = this.img ? `<img class="card-icon" src="${this.img}" alt="" />` : "";
     const descHTML = enriched ? `<div class="card-desc">${enriched}</div>` : "";
     const content = `<div class="project-anime chat-card">
