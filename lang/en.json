@@ -135,7 +135,7 @@
       "discordNoWebhook": "No Discord webhook set yet — add one in Settings → Discord.",
       "discordFailed": "Discord post failed — check the webhook URL (details in the console).",
       "discordPollQuestion": "Sign Up — {name}",
-      "discordPollJoin": "I'm In",
+      "discordPollJoin": "Sign Up",
       "discordPollFailed": "Quest posted, but the sign-up poll didn't attach (details in the console)."
     },
     "Codex": {
@@ -1187,6 +1187,8 @@
         "title": "Discord Integration",
         "webhookLabel": "Channel Webhook URL",
         "webhookPlaceholder": "https://discord.com/api/webhooks/…",
+        "roleLabel": "Role to Ping",
+        "rolePlaceholder": "Role ID (optional)",
         "save": "Save",
         "saved": "Discord settings saved."
       },

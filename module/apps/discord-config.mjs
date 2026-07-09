@@ -6,7 +6,7 @@
  * shows up in the shared Configure Settings list for players. Mirrors apps/token-config.mjs and
  * reuses the shared .ec-* config chrome.
  */
-import { DISCORD_WEBHOOK_SETTING } from "../helpers/discord.mjs";
+import { DISCORD_WEBHOOK_SETTING, DISCORD_ROLE_SETTING } from "../helpers/discord.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -26,24 +26,30 @@ export class DiscordSettingsConfig extends HandlebarsApplicationMixin(Applicatio
 
   /** @override */
   async _prepareContext() {
-    return { webhook: game.settings.get("project-anime", DISCORD_WEBHOOK_SETTING) ?? "" };
+    return {
+      webhook: game.settings.get("project-anime", DISCORD_WEBHOOK_SETTING) ?? "",
+      role: game.settings.get("project-anime", DISCORD_ROLE_SETTING) ?? ""
+    };
   }
 
   static async #onSubmit(event, form, formData) {
-    const url = String(formData.object.webhook ?? "").trim();
-    await game.settings.set("project-anime", DISCORD_WEBHOOK_SETTING, url);
+    const o = formData.object;
+    await game.settings.set("project-anime", DISCORD_WEBHOOK_SETTING, String(o.webhook ?? "").trim());
+    await game.settings.set("project-anime", DISCORD_ROLE_SETTING, String(o.role ?? "").trim());
     ui.notifications.info(game.i18n.localize("PROJECTANIME.Settings.discord.saved"));
   }
 }
 
 /** Register the Discord webhook world setting + the GM-only menu. Call from `init`. */
 export function registerDiscordSettings() {
-  game.settings.register("project-anime", DISCORD_WEBHOOK_SETTING, {
-    scope: "world",
-    config: false,
-    type: String,
-    default: ""
-  });
+  for (const key of [DISCORD_WEBHOOK_SETTING, DISCORD_ROLE_SETTING]) {
+    game.settings.register("project-anime", key, {
+      scope: "world",
+      config: false,
+      type: String,
+      default: ""
+    });
+  }
 
   game.settings.registerMenu("project-anime", "discordSettingsMenu", {
     name: "PROJECTANIME.Settings.discord.name",

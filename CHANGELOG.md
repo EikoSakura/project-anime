@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.14 - 2026-07-08
+
+- Discord: quest posts can now @-ping a role — set the Role to Ping (role ID) in Settings, or leave it blank to disable.,Discord: the sign-up poll option now reads 'Sign Up'.
+
 ## 0.5.13 - 2026-07-08
 
 - Discord: quest sign-ups are now a native Discord poll — a named roster with a live count that auto-closes at the deadline.,The Sign-Up poll posts on the existing channel webhook, right below the quest embed — no bot or hosting needed.,Poll stays open until the quest's scheduled time, or 14 days by default (capped at Discord's 32-day maximum).

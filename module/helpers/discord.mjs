@@ -13,6 +13,16 @@
 /** World setting (config:false; edited through the GM-only Discord menu) holding the channel webhook URL. */
 export const DISCORD_WEBHOOK_SETTING = "discordWebhook";
 
+/** World setting (config:false) holding a role id to @-ping when a quest posts ("" = no ping). */
+export const DISCORD_ROLE_SETTING = "discordRoleId";
+
+/** The role id to @-ping on a quest post (accepts a raw id or a pasted `<@&id>` mention); "" = no ping. */
+function pingRoleId() {
+  const raw = String(game.settings.get("project-anime", DISCORD_ROLE_SETTING) || "");
+  const m = raw.match(/\d{5,}/);
+  return m ? m[0] : "";
+}
+
 /** Category → embed accent (decimal RGB), mirroring the Codex `--q-*` colors. */
 const CATEGORY_COLOR = { main: 0xd8b257, side: 0xb79bf0, personal: 0x6fe0b0 };
 
@@ -146,7 +156,15 @@ export function buildQuestEmbed(quest) {
   // Banner as the bottom image only if publicly reachable (does not affect the meta grid columns).
   if (isPublicHttp(quest.banner)) embed.image = { url: quest.banner };
 
-  return { embeds: [embed] };
+  const payload = { embeds: [embed] };
+  // Optional role @-ping. Only a message `content` mention notifies (a mention inside an embed never
+  // does); allowed_mentions whitelists just this role so nothing else in the post can accidentally ping.
+  const roleId = pingRoleId();
+  if (roleId) {
+    payload.content = `<@&${roleId}>`;
+    payload.allowed_mentions = { roles: [roleId] };
+  }
+  return payload;
 }
 
 /** Discord Polls cap out at 32 days (768h). Sign-up window runs to the scheduled time, else a default. */
