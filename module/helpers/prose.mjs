@@ -156,7 +156,7 @@ export function renderDescriptionBlock(item) {
  *  re-resolves them against the owning item/actor, so descriptions never go stale. The same
  *  pattern backs the registered Foundry enricher (helpers/enrichers.mjs) and the sync resolver
  *  below — keep them identical. */
-export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|trigger|status)\\b(?:\\[([^\\]]*)\\])?";
+export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|trigger|status|scale)\\b(?:\\[([^\\]]*)\\])?";
 
 /** A resolved token: just the blue value span — the token says exactly what it computes;
  *  authors write their own labels around it. */
@@ -199,6 +199,13 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         if (item?.type !== "skill") break;
         const { die, hasTalent } = techniqueDie(item);
         return calcSpan(contestTarget(die, hasTalent), L("PROJECTANIME.Prose.calcContest"));
+      }
+      case "scale": {
+        // The Technique's die/2 scaling value (rules: "When a Modifier uses die/2"):
+        // Talent die/2 + 1 Trained Edge when Talent-built, else primary Attribute die/2. Min 1.
+        if (item?.type !== "skill") break;
+        const { die, hasTalent } = techniqueDie(item);
+        return calcSpan(Math.max(1, Math.floor(die / 2) + (hasTalent ? 1 : 0)), L("PROJECTANIME.Prose.calcScale"));
       }
       case "threshold": {
         if (item?.type !== "weapon" && item?.type !== "shield") break;

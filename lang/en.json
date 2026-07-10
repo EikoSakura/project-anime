@@ -188,6 +188,7 @@
       "calcDuration": "Duration",
       "calcAttack": "Attack Roll",
       "calcTrigger": "Trigger",
+      "calcScale": "Die/2, +1 Trained Edge",
       "calcUnlinked": "Unlinked",
       "rule": {
         "attack": "Attack",

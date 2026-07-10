@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.25 - 2026-07-10
+
+- New @scale token: renders the Technique die/2 scaling value (Talent die/2 + 1 Trained Edge when Talent-built, minimum 1) - the same number Aura, Burst, Chain, Move, and Reposition distances use.
+
 ## 0.5.24 - 2026-07-10
 
 - Chat cards rebuilt as self-contained Status Window dark glass - gold hairline frame, accent edge-light, dog-ear corner, identical in light and dark chat themes,Owner accents: player cards glow in their accent color, hostile NPCs in crimson, quest/rest/milestone cards in gold,HIT / MISS / FUMBLE render as colored outcome words on a versus row; a Combo becomes a full-width gold ribbon with a shine sweep, and the next click wears a pulsing gold cue diamond,Damage rows restyled as glass strips with diamond portraits and pool-colored amount pills; long descriptions collapse behind a fade - click to expand,One-line notices (effect expiries, turn ticks, Luck tunes, boss bar breaks, whispers) now post as slim ticker strips; every card routes through the one shared builder with escaped names
