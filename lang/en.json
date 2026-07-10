@@ -187,6 +187,7 @@
       "calcTarget": "Target",
       "calcDuration": "Duration",
       "calcAttack": "Attack Roll",
+      "calcTrigger": "Trigger",
       "calcUnlinked": "Unlinked",
       "rule": {
         "attack": "Attack",
@@ -1782,7 +1783,22 @@
       "vanished": "Vanished",
       "reflect": "Reflect",
       "exposed": "Exposed",
-      "weakened": "Weakened"
+      "weakened": "Weakened",
+      "desc": {
+        "barrier": "Temporary boxes that absorb damage before your own; the Barrier drops when they are spent.",
+        "blinded": "Step Down both dice on your attack rolls.",
+        "bound": "Your Movement is 0.",
+        "curse": "You cannot clear boxes of the cursed pool — hit, energy, or both, chosen when inflicted.",
+        "decay": "Mark 1 hit box at the end of each of your turns.",
+        "exhausted": "You cannot use Techniques.",
+        "exposed": "Your Guard is reduced by 2.",
+        "prone": "Attacks against you reduce their Threshold by 2. Stand by spending half your Movement.",
+        "regen": "Clear 1 hit box at the start of each of your turns.",
+        "reflect": "The next Technique that targets you redirects back at its user.",
+        "slowed": "Your Movement is halved.",
+        "vanished": "You cannot be seen; making an attack reveals you.",
+        "weakened": "Your attacks increase their Threshold by 2."
+      }
     },
     "Hand": {
       "main": "Main Hand",

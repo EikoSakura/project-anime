@@ -156,15 +156,13 @@ export function renderDescriptionBlock(item) {
  *  re-resolves them against the owning item/actor, so descriptions never go stale. The same
  *  pattern backs the registered Foundry enricher (helpers/enrichers.mjs) and the sync resolver
  *  below — keep them identical. */
-export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack)\\b(?:\\[([^\\]]*)\\])?";
+export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|trigger|status)\\b(?:\\[([^\\]]*)\\])?";
 
-/** A resolved token: the blue value span, optionally led by its own bold white label
- *  ("Duration: Instant") — the stat-line tokens carry one so authors don't hand-type it.
- *  One outer span, so the enricher's element replacement keeps label + value together. */
-const calcSpan = (value, tooltip, label = null) => {
+/** A resolved token: just the blue value span — the token says exactly what it computes;
+ *  authors write their own labels around it. */
+const calcSpan = (value, tooltip) => {
   const esc = foundry.utils.escapeHTML;
-  const val = `<span class="pa-rules-num pa-inline-calc" data-tooltip="${esc(tooltip)}">${esc(String(value))}</span>`;
-  return label ? `<span class="pa-calc-line"><strong>${esc(label)}:</strong> ${val}</span>` : val;
+  return `<span class="pa-rules-num pa-inline-calc" data-tooltip="${esc(tooltip)}">${esc(String(value))}</span>`;
 };
 /** A rules-term reference (@modifier[X] / @effect[X]): the canonical label, dotted-underlined,
  *  with the printed rules text riding as its hover tooltip. */
@@ -225,19 +223,26 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         if (item?.type !== "skill") break;
         const passive = sys.actionType === "passive" || sys.effect === "companion";
         return passive
-          ? calcSpan(Number(sys.passiveEnergyTax) || 0, L("PROJECTANIME.Prose.calcLock"), L("PROJECTANIME.Skill.field.energyLock"))
-          : calcSpan(Number(sys.energyCost) || 0, L("PROJECTANIME.Prose.calcEnergy"), L("PROJECTANIME.Skill.field.energyCost"));
+          ? calcSpan(Number(sys.passiveEnergyTax) || 0, L("PROJECTANIME.Prose.calcLock"))
+          : calcSpan(Number(sys.energyCost) || 0, L("PROJECTANIME.Prose.calcEnergy"));
       }
       case "range": {
-        // Labelled stat line ("Range: 10 Tiles") — the value alone stays blue.
-        const lab = L("PROJECTANIME.Skill.field.range");
         if (item?.type === "skill") {
+          // A Weapon-range Technique reaches as far as the EQUIPPED weapon (main-hand
+          // preferred — mirrors dice.mjs skillWeapon); no weapon equipped → the scope word.
+          if (sys.range?.scope === "weapon") {
+            const weapons = (actor?.items ?? []).filter((i) => i.type === "weapon" && i.system?.equipped);
+            const w = weapons.find((x) => x.system.hand === "main") ?? weapons[0] ?? null;
+            return calcSpan(w
+              ? `${physicalRangeLabel(w.system.range)} ${L("PROJECTANIME.Skill.tiles")}`
+              : rangeLabel(sys.range), L("PROJECTANIME.Prose.calcRange"));
+          }
           return calcSpan(rangeHasTiles(sys.range?.scope)
             ? `${sys.range?.tiles ?? 0} ${L("PROJECTANIME.Skill.tiles")}`
-            : rangeLabel(sys.range), L("PROJECTANIME.Prose.calcRange"), lab);
+            : rangeLabel(sys.range), L("PROJECTANIME.Prose.calcRange"));
         }
         if (item?.type === "weapon" || item?.type === "shield")
-          return calcSpan(`${physicalRangeLabel(sys.range)} ${L("PROJECTANIME.Skill.tiles")}`, L("PROJECTANIME.Prose.calcRange"), lab);
+          return calcSpan(`${physicalRangeLabel(sys.range)} ${L("PROJECTANIME.Skill.tiles")}`, L("PROJECTANIME.Prose.calcRange"));
         break;
       }
       case "target": {
@@ -254,7 +259,7 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
           else if (key in (cfg.scaledModifiers ?? {})) parts.push(`${label} ${modifierValue(item, key)} ${L("PROJECTANIME.Skill.tiles")}`);
           else parts.push(label);
         }
-        return calcSpan(parts.join(" · "), L("PROJECTANIME.Prose.calcTarget"), L("PROJECTANIME.Skill.field.target"));
+        return calcSpan(parts.join(" · "), L("PROJECTANIME.Prose.calcTarget"));
       }
       case "modifier":
       case "effect": {
@@ -271,6 +276,13 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         const descKey = kind === "modifier"
           ? `PROJECTANIME.Skill.modifierDesc.${hit[0]}` : `PROJECTANIME.Skill.effectDesc.${hit[0]}`;
         return refSpan(L(hit[1]), L(descKey));
+      }
+      case "trigger": {
+        // A React Technique's Trigger ("Enters").
+        if (item?.type !== "skill" || sys.actionType !== "react") break;
+        const trig = CONFIG.PROJECTANIME.triggers?.[sys.trigger];
+        if (!trig) break;
+        return calcSpan(L(trig), L("PROJECTANIME.Prose.calcTrigger"));
       }
       case "attack": {
         // The item's ACTUAL roll dice — "Charm (d8) + Army Training (d6)": the Paired
@@ -301,6 +313,18 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         if (!parts) break;
         return calcSpan(parts.join(" + "), L("PROJECTANIME.Prose.calcAttack"));
       }
+      case "status": {
+        // A Status condition reference — hover shows what it does. Needs no item; matched by
+        // stored id or display name ("Lingering"/"decay", "Sealed"/"exhausted"), plus the
+        // printed adjective "Cursed".
+        const q = String(arg ?? "").trim().toLowerCase();
+        if (!q) break;
+        const want = q === "cursed" ? "curse" : q;
+        const c = (CONFIG.PROJECTANIME.statusConditions ?? []).find((x) =>
+          x.id.toLowerCase() === want || L(x.name).trim().toLowerCase() === want);
+        if (!c) break;
+        return refSpan(L(c.name), L(`PROJECTANIME.Status.desc.${c.id}`));
+      }
       case "rule": {
         // A DICE-mechanic reference (Attack / Check / Test / Contest / Threshold / Trained
         // Edge / Luck / Combo / Fumble) — hover shows the V2 rule. Needs no item; matched by
@@ -322,7 +346,7 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         const label = L(cfgD.skillDurations[key] ?? "");
         return calcSpan(key === "standard"
           ? `${label} · ${sys.effectDuration ?? cfgD.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`
-          : label, L("PROJECTANIME.Prose.calcDuration"), L("PROJECTANIME.Skill.field.duration"));
+          : label, L("PROJECTANIME.Prose.calcDuration"));
       }
     }
   } catch (_e) { /* degrade below — a token must never break a render */ }

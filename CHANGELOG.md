@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.23 - 2026-07-10
+
+- New @trigger token: a React Technique renders its Trigger (Alerted / Attacked / Critical / Damaged / Enters).,New @status[Name] hover reference for all conditions, matched by display name or id (Lingering/decay, Sealed/exhausted, Cursed) - hover shows exactly what the status does, sourced from the wired mechanics.,Tokens no longer print their own white labels - every token renders just the value; write your own labels around them.,@range on a Weapon-scope Technique now resolves the equipped weapons actual range in tiles (main-hand first), falling back to the word Weapon when nothing is equipped.
+
 ## 0.5.22 - 2026-07-09
 
 - New @attack token: renders the actual roll dice for the item - a Talent-built Technique shows its Paired Attribute + Talent like Charm (d8) + Army Training (d6), a plain one shows its two Attributes, and weapons/shields show their Accuracy pair or bound Talent. Dice sizes resolve live from the owning character.
