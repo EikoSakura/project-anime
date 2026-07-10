@@ -1,6 +1,6 @@
 import { cleanItemForTransfer } from "./gear.mjs";
 import { BASE_SELL_PCT, BASE_BUY_PCT } from "./effects.mjs";
-import { postCard, cardHTML } from "./dice.mjs";
+import { postCard, cardHTML, tickerHTML } from "./dice.mjs";
 
 /** Item types a Merchant trades — gear only, never Skills / Packages (the party Stash's list). */
 export const MERCHANT_STOCK = new Set(["weapon", "armor", "shield", "accessory", "consumable", "container", "gear"]);
@@ -34,7 +34,7 @@ function tellUser(userId, text) {
   const user = game.users.get(userId);
   if (!user) return;
   if (user.isSelf) return void ui.notifications.warn(text);
-  ChatMessage.create({ content: `<p>${text}</p>`, whisper: [userId] });
+  ChatMessage.create({ content: tickerHTML(text, { icon: "fa-coins" }), whisper: [userId] });
 }
 
 /** One-line trade receipt card, spoken by the trading character. */

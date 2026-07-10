@@ -1,7 +1,7 @@
 import { PROJECTANIME, modifierValue, modifierTakes, techniqueDie, contestTarget, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
 import { renderDescriptionHTML } from "./prose.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
-import { resolveCompanion, confirmAndDismiss } from "./servants.mjs";
+import { resolveCompanion } from "./servants.mjs";
 import {
   aoeKind, casterToken, placeTemplate, tokensInRange, pickTargetsDialog, setUserTargets, emanateBurst
 } from "./templates.mjs";
@@ -464,50 +464,111 @@ async function promptRoll({ title, actor, attrA, attrB, selector = "check", show
 /*  Chat card helpers                           */
 /* -------------------------------------------- */
 
+/** HTML-escape a text value interpolated into card markup (actor/item names can carry anything). */
+function escHTML(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** A CSS color safe to inline as the card's `--acc` (hex from the accent flag, or an internal var()). */
+function safeAccent(css) {
+  const s = String(css ?? "").trim();
+  return /^#[0-9a-fA-F]{3,8}$/.test(s) || /^var\(--[\w-]+\)$/.test(s) ? s : "";
+}
+
 /**
- * Build a Project: Anime chat card.
- * @param {object}   o
- * @param {string}   o.title         Card heading (item / actor name).
- * @param {string}   [o.subtitle]    Small uppercase kicker (ATTACK / SKILL / …).
- * @param {string}   [o.icon]        Image path for the identity icon (item.img); omitted if blank.
- * @param {string[]} [o.meta]        Compact stat-chip HTML fragments (rank / energy / …).
- * @param {object[]} [o.badges]      Outcome pills `{cls, text}` (hit / combo / fumble / …).
- * @param {string}   [o.rollHTML]    Rendered dice roll.
- * @param {string}   [o.description] Enriched prose (the item's own description) — shown, not boilerplate.
- * @param {string[]} [o.lines]       Mechanical breakdown lines (vs Evasion, mods, target rows…).
- * @param {object[]} [o.buttons]     Action buttons `{data, label}` (data carries the data-action attrs).
+ * The per-card accent — Log Horizon rule: a card wears its OWNER's color. Characters use their
+ * owning player's accent (mirrored to a user flag — see syncPlayerAccentFlag); hostile NPCs wear
+ * crimson; everything else stays the neutral brand purple (the CSS default, returned as "").
  */
-export function cardHTML({ title, subtitle = "", icon = "", glyph = "", meta = [], badges = [], rollHTML = "", description = "", lines = [], buttons = [], rows = [] }) {
+export function cardAccent(actor) {
+  if (!actor) return "";
+  try {
+    if (actor.type === "character") {
+      const owner = game.users?.find?.((u) => !u.isGM && u.character?.id === actor.id)
+        ?? game.users?.find?.((u) => !u.isGM && actor.testUserPermission(u, "OWNER"));
+      return safeAccent(owner?.getFlag?.("project-anime", "accent"));
+    }
+    if (actor.type === "npc") {
+      const disp = actor.token?.disposition ?? actor.prototypeToken?.disposition;
+      if (disp === CONST.TOKEN_DISPOSITIONS.HOSTILE) return "var(--pac-hostile)";
+    }
+  } catch (_) { /* neutral */ }
+  return "";
+}
+
+/** A slim one-line chat notice (effect expiry, turn ticks, boss beats, Luck tunes) — the ticker
+ *  strip, deliberately NOT a full card. Variants: "boss" (crimson), "gold" (Luck / reward). */
+export function tickerHTML(text, { variant = "", icon = "", sub = "" } = {}) {
+  const ic = icon ? `<i class="fas ${icon}"></i> ` : "";
+  // Ticker text is plain localized prose (often carrying actor/skill names) — escaped here.
+  const subHTML = sub ? `<span class="pa-tick-sub">${escHTML(sub)}</span>` : "";
+  return `<div class="project-anime pa-tick${variant ? ` is-${variant}` : ""}"><span class="pa-tick-dm"></span><span class="pa-tick-text">${ic}${escHTML(text)}${subHTML}</span></div>`;
+}
+
+/**
+ * Build a Project: Anime chat card — self-contained dark glass, one fixed anatomy:
+ * identity → ribbon → chips → outcome → dice → rows → description → lines → buttons.
+ * @param {object}   o
+ * @param {string}   o.title         Card heading (item / actor name) — escaped here.
+ * @param {string}   [o.subtitle]    Small uppercase kicker (ATTACK / SKILL / …) — escaped here.
+ * @param {string}   [o.icon]        Image path for the identity icon (item.img); omitted if blank.
+ * @param {string}   [o.accent]      Per-card accent color for `--acc` (see cardAccent); "" = brand.
+ * @param {string[]} [o.meta]        Compact stat-chip HTML fragments (effect / energy / …).
+ * @param {object[]} [o.badges]      Outcomes `{cls, text}` — combo becomes the gold RIBBON, the
+ *                                   rest render as colored outcome words on the versus row.
+ * @param {string}   [o.vs]          Left side of the outcome row ("vs Guard <b>14</b>", HTML).
+ * @param {string}   [o.rollHTML]    Rendered dice roll.
+ * @param {string}   [o.description] Enriched prose (the item's own description) — long prose
+ *                                   collapses behind a fade (click the block to expand).
+ * @param {Array}    [o.lines]       Breakdown lines: strings render as-is; `{k, v, cls}` objects
+ *                                   render as dotted-leader stat rows.
+ * @param {object[]} [o.buttons]     Action buttons `{data, label, primary}` — a primary button is
+ *                                   filled in the accent and wears the gold cue diamond.
+ */
+export function cardHTML({ title, subtitle = "", icon = "", glyph = "", accent = "", meta = [], badges = [], vs = "", rollHTML = "", description = "", lines = [], buttons = [], rows = [] }) {
   // An image `icon` wins; otherwise a FontAwesome `glyph` fills the icon box (the .is-glyph variant).
   const iconHTML = icon
-    ? `<img class="card-icon" src="${icon}" alt="" />`
+    ? `<img class="card-icon" src="${escHTML(icon)}" alt="" />`
     : (glyph ? `<span class="card-icon is-glyph"><i class="fas ${glyph}"></i></span>` : "");
   const metaHTML = meta.length
     ? `<div class="card-meta">${meta.map((m) => `<span class="meta-chip">${m}</span>`).join("")}</div>`
     : "";
-  const badgeHTML = badges.length
-    ? `<div class="card-badges">${badges.map((b) => `<span class="badge ${b.cls}">${b.text}</span>`).join("")}</div>`
+  // A Combo outcome is the anime moment — it leaves the badge row and becomes the gold ribbon.
+  const ribbonHTML = badges.filter((b) => b.cls === "combo")
+    .map((b) => `<div class="card-ribbon">${b.text}</div>`).join("");
+  const words = badges.filter((b) => b.cls !== "combo")
+    .map((b) => `<span class="badge ${b.cls}">${b.text}</span>`).join("");
+  // The versus/outcome row: defense number left, outcome word(s) right. Either half may be empty.
+  const vsHTML = (vs || words)
+    ? `<div class="card-vs"><span class="vs-label">${vs}</span><div class="card-badges">${words}</div></div>`
     : "";
-  const descHTML = description ? `<div class="card-desc">${description}</div>` : "";
+  // Long prose collapses behind a gradient fade (length heuristic — no layout measuring races).
+  const clp = description && description.replace(/<[^>]+>/g, "").length > 300 ? " is-clp" : "";
+  const descHTML = description ? `<div class="card-desc${clp}">${description}</div>` : "";
   const lineHTML = lines.length
-    ? `<div class="card-lines">${lines.map((l) => `<div class="card-line">${l}</div>`).join("")}</div>`
+    ? `<div class="card-lines">${lines.map((l) => (l && typeof l === "object")
+        ? `<div class="card-kv"><span class="kv-k">${l.icon ? `<i class="fa-solid ${l.icon}"></i> ` : ""}${escHTML(l.k)}</span><span class="kv-lead"></span><span class="kv-v${l.cls ? ` ${l.cls}` : ""}">${escHTML(l.v)}</span></div>`
+        : `<div class="card-line">${l}</div>`).join("")}</div>`
     : "";
   const btnHTML = buttons.length
-    ? `<div class="card-buttons">${buttons.map((b) => `<button type="button" class="card-btn" ${b.data}>${b.label}</button>`).join("")}</div>`
+    ? `<div class="card-buttons">${buttons.map((b) =>
+        `<button type="button" class="card-btn${b.primary ? " is-primary" : ""}" ${b.data}>${b.label}${b.primary ? '<span class="card-cue"></span>' : ""}</button>`).join("")}</div>`
     : "";
   // Per-target damage rows (auto-applied, each with an undo arrow). Re-rendered from the message flag
   // on every draw — see onRenderChatMessage — so this initial fill is just the first paint / fallback.
   const rowsHTML = rows.length ? `<div class="dmg-rows">${damageRowsHTML(rows)}</div>` : "";
-  return `<div class="project-anime chat-card">
+  const acc = safeAccent(accent);
+  return `<div class="project-anime chat-card"${acc ? ` style="--acc:${acc}"` : ""}>
     <header class="card-header">
       ${iconHTML}
       <div class="card-titles">
-        <h3 class="card-title">${title}</h3>
-        ${subtitle ? `<span class="card-type">${subtitle}</span>` : ""}
+        <h3 class="card-title">${escHTML(title)}</h3>
+        ${subtitle ? `<span class="card-type">${escHTML(subtitle)}</span>` : ""}
       </div>
     </header>
+    ${ribbonHTML}
     ${metaHTML}
-    ${badgeHTML}
+    ${vsHTML}
     ${rollHTML}
     ${rowsHTML}
     ${descHTML}
@@ -533,7 +594,10 @@ export function skillMeta(sys) {
   if (effectLabel) chips.push(effectLabel);
   chips.push(i18n(PROJECTANIME.skillTargets[skillTarget(sys)] ?? ""));
   if (sys.actionType !== "passive") {
-    chips.push(i18n(PROJECTANIME.skillDurations[skillDuration(sys)] ?? ""));
+    const dur = skillDuration(sys);
+    chips.push(dur === "standard"
+      ? `${sys.effectDuration ?? PROJECTANIME.standardDurationTurns} ${i18n("PROJECTANIME.Skill.turns")}`
+      : i18n(PROJECTANIME.skillDurations[dur] ?? ""));
   }
   if (sys.actionType === "passive" || sys.effect === "companion") {
     if (Number(sys.passiveEnergyTax) > 0) chips.push(`<i class="fas fa-lock"></i> ${sys.passiveEnergyTax}`);
@@ -545,6 +609,12 @@ export function skillMeta(sys) {
 
 export async function postCard(actor, content, rolls, { combo = false, flags = null } = {}) {
   const arr = Array.isArray(rolls) ? rolls.filter(Boolean) : (rolls ? [rolls] : []);
+  // Stamp the speaker's accent onto the card (owner color / hostile crimson) unless the builder
+  // already set one — the one chokepoint, so every posted card wears its color automatically.
+  if (actor && typeof content === "string" && !content.includes("--acc:")) {
+    const acc = cardAccent(actor);
+    if (acc) content = content.replace('<div class="project-anime chat-card"', `<div class="project-anime chat-card" style="--acc:${acc}"`);
+  }
   const data = {
     speaker: ChatMessage.getSpeaker({ actor }),
     content,
@@ -686,13 +756,18 @@ export async function performCheck(actor, { attrA = "might", attrB = "might", mo
   const badges = [];
   if (fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
   else if (combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
-  const lines = [`<strong>${labelA} + ${labelB}</strong>`, ...stepNotes(reasons)];
+  const lines = [`<strong>${escHTML(labelA)} + ${escHTML(labelB)}</strong>`, ...stepNotes(reasons)];
   const checkModLine = rollModLine(rmods); if (checkModLine) lines.push(checkModLine);
   if (ncc.sources.length) lines.push(`<em class="muted">${ncc.sources.map((s) => `${s.name}: ${s.label}`).join(", ")}</em>`);
+  let vs = "";
   if (ct != null) {
-    const success = roll.total >= ct;
-    badges.push({ cls: success ? "success" : "failure", text: success ? i18n("PROJECTANIME.Roll.success") : i18n("PROJECTANIME.Roll.failure") });
-    lines.push(`${i18n("PROJECTANIME.Roll.ct")}: ${ct}`);
+    // Fumble and Combo already decide (and announce) the outcome — matching evalPair, a Combo is an
+    // auto-success and a Fumble an auto-failure, so only a plain roll adds the Success/Failure word.
+    if (!fumble && !combo) {
+      const success = roll.total >= ct;
+      badges.push({ cls: success ? "success" : "failure", text: success ? i18n("PROJECTANIME.Roll.success") : i18n("PROJECTANIME.Roll.failure") });
+    }
+    vs = `${i18n("PROJECTANIME.Roll.ct")} <b>${ct}</b>`;
   }
   if (combo) { lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`); maybeGrantComboTurn(actor); }
 
@@ -704,6 +779,7 @@ export async function performCheck(actor, { attrA = "might", attrB = "might", mo
     title: ct != null ? i18n("PROJECTANIME.Roll.test") : i18n("PROJECTANIME.Roll.check"),
     subtitle: `${labelA} + ${labelB}`,
     badges,
+    vs,
     rollHTML: await roll.render(),
     lines,
     buttons
@@ -781,10 +857,12 @@ export async function rollAttack(actor, item, { event, target = null } = {}) {
   const threshold = thresholdVs(actor, item, targetActor);
   const thresholdMet = threshold != null && !fumble && roll.total >= threshold;
 
-  const lines = [`<strong>${spec.labelA} + ${spec.labelB}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`, ...stepNotes(reasons)];
+  const lines = [`<strong>${escHTML(spec.labelA)} + ${escHTML(spec.labelB)}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`, ...stepNotes(reasons)];
   const atkModLine = rollModLine(rmods); if (atkModLine) lines.push(atkModLine);
-  if (guard != null) lines.push(`${i18n("PROJECTANIME.Roll.vsGuard")} <strong>${targetActor.name}</strong>: ${guard}${cover ? ` <em class="muted">(${i18n("PROJECTANIME.Roll.coverBonus", { n: cover })})</em>` : ""}`);
-  else lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.noTarget")}</em>`);
+  // The defense sits on the outcome row: "vs Guard Name 14 — HIT".
+  const vs = guard != null
+    ? `${i18n("PROJECTANIME.Roll.vsGuard")} <strong>${escHTML(targetActor.name)}</strong> <b>${guard}</b>${cover ? ` <em class="muted">(${i18n("PROJECTANIME.Roll.coverBonus", { n: cover })})</em>` : ""}`
+    : `<em class="muted">${i18n("PROJECTANIME.Roll.noTarget")}</em>`;
   if (threshold != null && hit !== false) {
     lines.push(`<em class="muted">${i18n(thresholdMet ? "PROJECTANIME.Roll.thresholdMet" : "PROJECTANIME.Roll.thresholdMissed", { n: threshold })}</em>`);
   }
@@ -801,7 +879,8 @@ export async function rollAttack(actor, item, { event, target = null } = {}) {
     const tgt = targetActor ? ` data-target-uuid="${targetActor.uuid}"` : "";
     buttons.push({
       data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${thresholdMet ? ' data-threshold-met="true"' : ""}`,
-      label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
+      label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`,
+      primary: true
     });
   }
 
@@ -810,6 +889,7 @@ export async function rollAttack(actor, item, { event, target = null } = {}) {
     subtitle: i18n("PROJECTANIME.Roll.attack"),
     icon: item.img,
     badges,
+    vs,
     rollHTML: await roll.render(),
     description: await enrichDescription(item),
     lines,
@@ -924,8 +1004,10 @@ function damageAppliedRow(row, i) {
   const unit = energy ? "EN" : "HP";
   const cls = row.heal ? "heal" : (energy ? "energy" : "dmg");
   const sign = row.heal ? "+" : "−";
+  // The portrait sits inside a diamond-clipped gold ring (the wrapper carries the ring gradient;
+  // the inner img is clipped to a slightly smaller diamond).
   const portrait = row.img
-    ? `<img class="dmg-portrait" src="${row.img}" alt="" />`
+    ? `<span class="dmg-portrait"><img src="${escHTML(row.img)}" alt="" /></span>`
     : `<span class="dmg-portrait"><i class="fas fa-user"></i></span>`;
   const calc = row.calc ? `<div class="dmg-calc">${row.calc}</div>` : "";
   // Cover (the Skill Modifier): redirect a damage row to whoever throws themselves in front of it.
@@ -940,7 +1022,7 @@ function damageAppliedRow(row, i) {
   return `<div class="dmg-row${row.undone ? " is-undone" : ""}">
     ${portrait}
     <div class="dmg-body">
-      <div class="dmg-head"><span class="dmg-name">${row.name}</span><span class="dmg-amount ${cls}">${sign}${row.amount} ${unit}</span></div>
+      <div class="dmg-head"><span class="dmg-name">${escHTML(row.name)}</span><span class="dmg-amount ${cls}">${sign}${row.amount} ${unit}</span></div>
       ${calc}
     </div>
     ${action}
@@ -1065,7 +1147,7 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
       through = bc.amount;
     } else {
       // Nothing dealt (e.g. immune) — note it, but there's nothing to apply or undo.
-      lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> <span class="muted">${adj.line}</span></span>`);
+      lines.push(`<span class="card-target-row"><strong>${escHTML(ta.name)}</strong> <span class="muted">${adj.line}</span></span>`);
     }
     // House rule: an area Strike visits its on-hit riders on each target ONLY where the blow dealt
     // >0 net damage (a fully mitigated target takes none).
@@ -1405,6 +1487,7 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
   let thresholdMet = false;
 
   const badges = [];
+  let vs = "";
   let roll = null, r1 = null, r2 = null, fumble = false, combo = false, hit = null;
 
   if (needsAccuracy && chargeLockedHit) {
@@ -1431,10 +1514,10 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
     else if (hit === false && !fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.miss") });
     thresholdMet = threshold != null && !fumble && roll.total >= threshold;
 
-    lines.push(`<strong>${spec.labelA} + ${spec.labelB}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`);
+    lines.push(`<strong>${escHTML(spec.labelA)} + ${escHTML(spec.labelB)}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`);
     lines.push(...stepNotes(reasons));
     const skillModLine = rollModLine(rmods); if (skillModLine) lines.push(skillModLine);
-    if (evasion != null) lines.push(`${vsEvasionText(contest)} <strong>${targetActor.name}</strong>: ${evasion}`);
+    if (evasion != null) vs = `${vsEvasionText(contest)} <strong>${escHTML(targetActor.name)}</strong> <b>${evasion}</b>`;
     if (threshold != null && hit !== false) {
       lines.push(`<em class="muted">${i18n(thresholdMet ? "PROJECTANIME.Roll.thresholdMet" : "PROJECTANIME.Roll.thresholdMissed", { n: threshold })}</em>`);
     }
@@ -1501,7 +1584,8 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
       : ` data-effect="${ds.effect}" data-damage-pool="${ds.damagePool ?? ""}"`;
     buttons.push({
       data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}${chg}${heal ? "" : thr}${sp}`,
-      label: `<i class="fas fa-${heal ? "heart" : "burst"}"></i> ${i18n(heal ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`
+      label: `<i class="fas fa-${heal ? "heart" : "burst"}"></i> ${i18n(heal ? "PROJECTANIME.Roll.rollHealing" : "PROJECTANIME.Roll.rollDamage")}`,
+      primary: true
     });
   }
   // Steal (rules v0.01): a landed hit opens the loot — pick / contest / transfer from the card.
@@ -1525,6 +1609,7 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
     icon: item.img,
     meta: skillMeta(sys),
     badges,
+    vs,
     rollHTML: roll ? await roll.render() : "",
     description: await enrichDescription(item),
     lines,
@@ -1566,7 +1651,7 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   if (fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
   else if (combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
 
-  const lines = [`<strong>${spec.labelA} + ${spec.labelB}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`, ...stepNotes(reasons)];
+  const lines = [`<strong>${escHTML(spec.labelA)} + ${escHTML(spec.labelB)}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`, ...stepNotes(reasons)];
   const modLine = rollModLine(rmods); if (modLine) lines.push(modLine);
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetTokens.length })}</em>`);
 
@@ -1579,8 +1664,8 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
     const { value: ev, contest } = evasionVs(ta, item);
     const didHit = combo || (!fumble && (ev == null || roll.total >= ev));
     luckTargets.push({ uuid: ta.uuid, ev, name: ta.name });
-    const evText = ev != null ? ` <span class="muted">(${evasionLabel(contest)} ${ev})</span>` : "";
-    lines.push(`<span class="card-target-row"><strong>${ta.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evText}</span>`);
+    const evNum = ev != null ? `<span class="ctr-num">${evasionLabel(contest)} ${ev}</span>` : "";
+    lines.push(`<span class="card-target-row"><strong>${escHTML(ta.name)}</strong><span class="ctr-res ${didHit ? "is-hit" : "is-miss"}">${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evNum}</span></span>`);
     if (didHit) {
       hitUuids.push(ta.uuid);
       hitActors.push(ta);
@@ -1623,7 +1708,8 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   }));
   if (hasStrike && hitUuids.length) buttons.push({
     data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${hitUuids.join(",")}"${charged ? ' data-charged="true"' : ''}${thresholdMet ? ' data-threshold-met="true"' : ''}`,
-    label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
+    label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`,
+    primary: true
   });
 
   await postCard(actor, cardHTML({
@@ -1648,7 +1734,7 @@ async function resolveAreaEffect(actor, item, targetTokens, { charged = false } 
   for (const tok of targetTokens) {
     const ta = tok.actor; if (!ta) continue;
     uuids.push(ta.uuid);
-    lines.push(`<span class="card-target-row"><strong>${ta.name}</strong></span>`);
+    lines.push(`<span class="card-target-row"><strong>${escHTML(ta.name)}</strong></span>`);
     for (const c of collectInflictedConditions(item, ta)) {
       await applyConditionFromItem(actor, item, ta, c, lines);
     }
@@ -1673,7 +1759,8 @@ async function resolveAreaEffect(actor, item, targetTokens, { charged = false } 
   const buttons = [];
   if (isMend && uuids.length) buttons.push({
     data: `data-action="rollDamage" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuids="${uuids.join(",")}"${charged ? ' data-charged="true"' : ''}`,
-    label: `<i class="fas fa-heart"></i> ${i18n("PROJECTANIME.Roll.rollHealing")}`
+    label: `<i class="fas fa-heart"></i> ${i18n("PROJECTANIME.Roll.rollHealing")}`,
+    primary: true
   });
 
   await postCard(actor, cardHTML({
@@ -1702,7 +1789,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
   const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor, charged });
   const threshold = spec.weapon ? thresholdVs(actor, spec.weapon, null) : null;
 
-  const lines = [`<strong>${spec.labelA} + ${spec.labelB}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`];
+  const lines = [`<strong>${escHTML(spec.labelA)} + ${escHTML(spec.labelB)}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`];
   const rows = [];
   const rolls = [dmg.roll];
   const hitSet = new Set();
@@ -1735,7 +1822,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
 
     const leapTag = i === 0 ? "" : `${i18n("PROJECTANIME.Roll.chainLeap", { n: i })} · `;
     const evText = ev != null ? ` vs ${ev}` : "";
-    lines.push(`<span class="card-target-row">${leapTag}<strong>${ta.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")} <span class="muted">(${aroll.total}${evText})</span></span>`);
+    lines.push(`<span class="card-target-row">${leapTag}<strong>${escHTML(ta.name)}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")} <span class="muted">(${aroll.total}${evText})</span></span>`);
     if (i === 0) primaryRollHTML = await aroll.render();
     else lines.push(await aroll.render());
 
@@ -1828,7 +1915,7 @@ async function startCharge(actor, item) {
     badges.push(hit ? { cls: "success", text: i18n("PROJECTANIME.Roll.hit") } : { cls: "failure", text: i18n("PROJECTANIME.Roll.miss") });
     const lines = [...stepNotes(reasons)];
     const ml = rollModLine(rmods); if (ml) lines.push(ml);
-    if (evasion != null) lines.push(`${vsEvasionText(contest)} <strong>${targetActor.name}</strong>: ${evasion}`);
+    if (evasion != null) lines.push(`${vsEvasionText(contest)} <strong>${escHTML(targetActor.name)}</strong>: ${evasion}`);
     if (combo) { lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`); maybeGrantComboTurn(actor); }
     await revealVanished(actor, lines);
     if (!hit) {
@@ -1846,7 +1933,8 @@ async function startCharge(actor, item) {
       badges, rollHTML: await roll.render(), description: await enrichDescription(item), lines,
       buttons: [{
         data: `data-action="releaseCharge" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
-        label: `<i class="fas fa-bolt"></i> ${i18n("PROJECTANIME.Roll.release")}`
+        label: `<i class="fas fa-bolt"></i> ${i18n("PROJECTANIME.Roll.release")}`,
+        primary: true
       }]
     }), roll, { combo });
   }
@@ -1860,7 +1948,8 @@ async function startCharge(actor, item) {
     lines: [`<em class="muted">${i18n("PROJECTANIME.Roll.chargeReleases")}</em>`],
     buttons: [{
       data: `data-action="releaseCharge" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
-      label: `<i class="fas fa-bolt"></i> ${i18n("PROJECTANIME.Roll.release")}`
+      label: `<i class="fas fa-bolt"></i> ${i18n("PROJECTANIME.Roll.release")}`,
+      primary: true
     }]
   }));
 }
@@ -1975,8 +2064,8 @@ async function pickDevourSkill(target, skills) {
  */
 export async function contestedRoll({ actor, attrs, mod = 0, defender, defAttrs, defMod = 0, title, subtitle = "", icon = "" }) {
   const lines = [
-    `<strong>${actor.name}</strong>: ${i18n(PROJECTANIME.attributes[attrs[0]])} + ${i18n(PROJECTANIME.attributes[attrs[1]])}`,
-    `<strong>${defender.name}</strong>: ${i18n(PROJECTANIME.attributes[defAttrs[0]])} + ${i18n(PROJECTANIME.attributes[defAttrs[1]])}`
+    `<strong>${escHTML(actor.name)}</strong>: ${i18n(PROJECTANIME.attributes[attrs[0]])} + ${i18n(PROJECTANIME.attributes[attrs[1]])}`,
+    `<strong>${escHTML(defender.name)}</strong>: ${i18n(PROJECTANIME.attributes[defAttrs[0]])} + ${i18n(PROJECTANIME.attributes[defAttrs[1]])}`
   ];
   const rolls = [];
   let total = 0, defTotal = 0;
@@ -1990,7 +2079,7 @@ export async function contestedRoll({ actor, attrs, mod = 0, defender, defAttrs,
     rolls.push(aRoll, dRoll);
     total = aRoll.total;
     defTotal = dRoll.total;
-    lines.push(`<span class="card-target-row"><strong>${actor.name}</strong> ${total} · <strong>${defender.name}</strong> ${defTotal}${total === defTotal ? ` — ${i18n("PROJECTANIME.Roll.contestedTie")}` : ""}</span>`);
+    lines.push(`<span class="card-target-row"><strong>${escHTML(actor.name)}</strong> ${total} · <strong>${escHTML(defender.name)}</strong> ${defTotal}${total === defTotal ? ` — ${i18n("PROJECTANIME.Roll.contestedTie")}` : ""}</span>`);
     if (total !== defTotal) break;
   }
   const won = total > defTotal;
@@ -2075,7 +2164,7 @@ async function resolveSteal(actor, item, target) {
         ? { cls: "success", text: i18n("PROJECTANIME.Roll.contestedWon") }
         : { cls: "failure", text: i18n("PROJECTANIME.Roll.contestedLost") }],
       rollHTML: await roll.render(),
-      lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${target.name}</strong>: ${ct}`]
+      lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${escHTML(target.name)}</strong>: ${ct}`]
     }), roll);
     if (!won) return null;
   }
@@ -2408,7 +2497,7 @@ async function onStayHiddenButton(event) {
       ? { cls: "success", text: i18n("PROJECTANIME.Roll.staysHidden") }
       : { cls: "failure", text: i18n("PROJECTANIME.Roll.detected") }],
     rollHTML: await roll.render(),
-    lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${seeker.name}</strong>: ${ct}`]
+    lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${escHTML(seeker.name)}</strong>: ${ct}`]
   }), roll);
 }
 
@@ -2434,7 +2523,7 @@ async function resolveSenseDetect(actor, item, targetActor) {
       : { cls: "failure", text: i18n("PROJECTANIME.Roll.notDetected") }],
     rollHTML: await roll.render(),
     description: await enrichDescription(item),
-    lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${targetActor.name}</strong>: ${ct}`]
+    lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${escHTML(targetActor.name)}</strong>: ${ct}`]
   }), roll);
 }
 
@@ -2531,8 +2620,7 @@ export async function performOvercome(actor, effect) {
 
   const lines = [
     `<strong>${i18n(PROJECTANIME.attributes[choice.attrA])} + ${talent ? talent.name : i18n(PROJECTANIME.attributes[choice.attrB])}</strong>`,
-    ...stepNotes(reasons),
-    `${i18n("PROJECTANIME.Roll.ct")}: ${ct}`
+    ...stepNotes(reasons)
   ];
   const modLine = rollModLine(rmods); if (modLine) lines.push(modLine);
   const badges = [];
@@ -2566,6 +2654,7 @@ export async function performOvercome(actor, effect) {
     subtitle: effect.name,
     icon: effect.img,
     badges,
+    vs: `${i18n("PROJECTANIME.Roll.ct")} <b>${ct}</b>`,
     rollHTML: await roll.render(),
     lines
   }), roll, { combo });
@@ -2654,9 +2743,11 @@ async function restoreLuckDieOnGoAgain(actor) {
   if (!dice.length) {
     const roll = await new Roll(`1d${actor.system.luckDie ?? PROJECTANIME.luckDie}`).evaluate();
     await actor.update({ "system.luckDice": [roll.total] });
-    await roll.toMessage({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      flavor: game.i18n.format("PROJECTANIME.Roll.goAgainLuck", { name: actor.name, value: roll.total })
+    await postRollCard(actor, {
+      title: i18n("PROJECTANIME.Roll.goAgainLuckTitle"),
+      subtitle: i18n("PROJECTANIME.Stat.luck"),
+      lines: [game.i18n.format("PROJECTANIME.Roll.goAgainLuck", { name: actor.name, value: roll.total })],
+      roll
     });
     // Lucky Pendant (rules: Accessories) — restoring a Luck Die lets the wearer tune one ±1.
     if (collectLuckTunes(actor) > 0) await tuneLuckDie(actor);
@@ -2704,7 +2795,7 @@ export async function tuneLuckDie(actor, { title, message } = {}) {
   await actor.update({ "system.luckDice": dice });
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: game.i18n.format(message ?? "PROJECTANIME.Roll.luckTuned", { name: actor.name, from, to })
+    content: tickerHTML(game.i18n.format(message ?? "PROJECTANIME.Roll.luckTuned", { name: actor.name, from, to }), { variant: "gold", icon: "fa-clover" })
   });
 }
 
@@ -2774,7 +2865,8 @@ export async function postConsumableCard(actor, item) {
   // Out of stock → no button (nothing to use); the card still posts as a record.
   const buttons = qty > 0 ? [{
     data: `data-action="useConsumable" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
-    label: `<i class="fas fa-play"></i> ${i18n("PROJECTANIME.Action.use")}`
+    label: `<i class="fas fa-play"></i> ${i18n("PROJECTANIME.Action.use")}`,
+    primary: true
   }] : [];
 
   return postCard(actor, cardHTML({
@@ -2801,6 +2893,8 @@ export function onRenderChatMessage(message, html) {
     const container = html.querySelector(".dmg-rows");
     if (container) container.innerHTML = damageRowsHTML(card.rows);
   }
+  // Long prose collapses behind a gradient fade — click the block to read all of it.
+  html.querySelectorAll(".card-desc.is-clp").forEach((d) => { d.onclick = () => d.classList.remove("is-clp"); });
   // Assign via `.onclick` (not addEventListener) so re-rendering the same card
   // can't stack duplicate handlers — a stacked button would fire twice.
   html.querySelectorAll("[data-action='rollDamage']").forEach((btn) => { btn.onclick = onRollDamageButton; });
@@ -2813,16 +2907,6 @@ export function onRenderChatMessage(message, html) {
   html.querySelectorAll("[data-action='spendLuckAoe']").forEach((btn) => { btn.onclick = onSpendLuckAoeButton; });
   html.querySelectorAll("[data-action='stealItem']").forEach((btn) => { btn.onclick = onStealItemButton; });
   html.querySelectorAll("[data-action='stayHidden']").forEach((btn) => { btn.onclick = onStayHiddenButton; });
-  html.querySelectorAll("[data-action='dismissServant']").forEach((btn) => { btn.onclick = onDismissServantButton; });
-}
-
-/** "Dismiss" on a servant's raise card → release (delete) the servant; the deleteActor hook in
- *  project-anime.mjs prunes the master's ledger and restores the locked Energy. */
-async function onDismissServantButton(event) {
-  event.preventDefault();
-  const servant = await fromUuid(event.currentTarget.dataset.servantUuid);
-  if (!servant) return ui.notifications.warn(i18n("PROJECTANIME.Roll.targetGone"));
-  return confirmAndDismiss(servant);
 }
 
 /* -------------------------------------------- */
@@ -3008,7 +3092,7 @@ function isDetrimentalStatus(id) {
 async function postBossNote(actor, key, data) {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="pa-boss-note"><i class="fas fa-crown"></i> ${i18n(key, data)}</div>`
+    content: tickerHTML(i18n(key, data), { variant: "boss", icon: "fa-crown" })
   });
 }
 
@@ -3824,7 +3908,8 @@ async function onSpendLuckButton(event) {
       const thr = res.thresholdMet ? ` data-threshold-met="true"` : "";
       buttons.push({
         data: `data-action="rollDamage" data-actor-uuid="${el.dataset.actorUuid}" data-item-id="${el.dataset.itemId}"${tgt}${thr}`,
-        label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
+        label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`,
+        primary: true
       });
     }
     // A flipped-to-hit Steal opens the loot like the original hit card would have.
@@ -3885,8 +3970,8 @@ async function onSpendLuckAoeButton(event) {
   const hitUuids = [];
   for (const t of targets) {
     const didHit = res.combo || (!res.fumble && (t.ev == null || res.total >= t.ev));
-    const evText = t.ev != null ? ` <span class="muted">(${i18n("PROJECTANIME.Stat.guard")} ${t.ev})</span>` : "";
-    lines.push(`<span class="card-target-row"><strong>${t.name}</strong> — ${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evText}</span>`);
+    const evNum = t.ev != null ? `<span class="ctr-num">${i18n("PROJECTANIME.Stat.guard")} ${t.ev}</span>` : "";
+    lines.push(`<span class="card-target-row"><strong>${escHTML(t.name)}</strong><span class="ctr-res ${didHit ? "is-hit" : "is-miss"}">${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evNum}</span></span>`);
     if (!didHit) continue;
     hitUuids.push(t.uuid);
     // A non-Strike Skill's on-hit payload (conditions / Decay / Hinder) lands on each creature the
@@ -3903,7 +3988,8 @@ async function onSpendLuckAoeButton(event) {
   // Roll Damage only when the Skill actually Strikes (a Mass Hinder already applied its Effect above).
   if (hasStrike && hitUuids.length && itemId && actorUuid) buttons.push({
     data: `data-action="rollDamage" data-actor-uuid="${actorUuid}" data-item-id="${itemId}" data-target-uuids="${hitUuids.join(",")}"`,
-    label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`
+    label: `<i class="fas fa-burst"></i> ${i18n("PROJECTANIME.Roll.rollDamage")}`,
+    primary: true
   });
 
   return postCard(actor, cardHTML({

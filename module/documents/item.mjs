@@ -1,4 +1,4 @@
-import { rollAttack, rollSkill, postConsumableCard } from "../helpers/dice.mjs";
+import { rollAttack, rollSkill, postConsumableCard, cardHTML, cardAccent } from "../helpers/dice.mjs";
 import { renderDescriptionHTML } from "../helpers/prose.mjs";
 
 /**
@@ -34,24 +34,17 @@ export class ProjectAnimeItem extends Item {
     return this.#postDescriptionCard();
   }
 
-  /** Post a simple identity + description card to chat. */
+  /** Post a simple identity + description card to chat (via the shared card builder). */
   async #postDescriptionCard() {
     const speaker = ChatMessage.getSpeaker({ actor: this.actor });
-    const typeLabel = game.i18n.localize(`TYPES.Item.${this.type}`);
     // Render the Codex-prose description (legacy HTML passes through) — helpers/prose.
-    const enriched = await renderDescriptionHTML(this);
-    const iconHTML = this.img ? `<img class="card-icon" src="${this.img}" alt="" />` : "";
-    const descHTML = enriched ? `<div class="card-desc">${enriched}</div>` : "";
-    const content = `<div class="project-anime chat-card">
-      <header class="card-header">
-        ${iconHTML}
-        <div class="card-titles">
-          <h3 class="card-title">${this.name}</h3>
-          <span class="card-type">${typeLabel}</span>
-        </div>
-      </header>
-      ${descHTML}
-    </div>`;
+    const content = cardHTML({
+      title: this.name,
+      subtitle: game.i18n.localize(`TYPES.Item.${this.type}`),
+      icon: this.img ?? "",
+      accent: cardAccent(this.actor),
+      description: await renderDescriptionHTML(this)
+    });
     return ChatMessage.create({ speaker, content });
   }
 }

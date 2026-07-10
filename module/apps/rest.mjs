@@ -11,7 +11,7 @@
  */
 import { PROJECTANIME } from "../helpers/config.mjs";
 import { collectLuckTunes } from "../helpers/effects.mjs";
-import { tuneLuckDie } from "../helpers/dice.mjs";
+import { tuneLuckDie, cardHTML } from "../helpers/dice.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -178,21 +178,18 @@ export class RestApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const restLabel = i18n(`PROJECTANIME.Rest.${this.#restType}`);
     const icon = this.#restType === "camp" ? "fa-campground" : "fa-house-chimney";
-    const blocks = results.map((r) => {
-      const recover = `+${r.hpGain} ${i18n("PROJECTANIME.Stat.hp")} · +${r.enGain} ${i18n("PROJECTANIME.Stat.energy")}`;
-      const head = results.length > 1 ? `<div class="card-line"><strong>${r.actor.name}</strong></div>` : "";
-      return head + [recover, ...r.lines].map((l) => `<div class="card-line">${l}</div>`).join("");
+    // One dotted-leader row per actor's recovery, then their notes — through the shared builder.
+    const lines = results.flatMap((r) => [
+      { k: r.actor.name, v: `+${r.hpGain} ${i18n("PROJECTANIME.Stat.hp")} · +${r.enGain} ${i18n("PROJECTANIME.Stat.energy")}`, cls: "good" },
+      ...r.lines
+    ]);
+    const content = cardHTML({
+      title: restLabel,
+      subtitle: i18n("PROJECTANIME.Rest.title"),
+      glyph: icon,
+      accent: "var(--pac-gold)",
+      lines
     });
-    const content = `<div class="project-anime chat-card">
-      <header class="card-header">
-        <span class="card-icon is-glyph"><i class="fas ${icon}"></i></span>
-        <div class="card-titles">
-          <h3 class="card-title">${restLabel}</h3>
-          <span class="card-type">${i18n("PROJECTANIME.Rest.title")}</span>
-        </div>
-      </header>
-      <div class="card-lines">${blocks.join("")}</div>
-    </div>`;
     const speaker = this.party
       ? ChatMessage.getSpeaker({ alias: this.party.name })
       : ChatMessage.getSpeaker({ actor: this.actors[0] });

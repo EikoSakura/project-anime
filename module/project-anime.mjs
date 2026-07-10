@@ -533,6 +533,7 @@ Hooks.on("preCreateChatMessage", (message) => {
     title: name,
     subtitle: game.i18n.localize("PROJECTANIME.Roll.initiative"),
     icon: actor?.img ?? "",
+    accent: dice.cardAccent(actor),
     lines: [`<span class="init-result">${Math.floor(Number(roll.total) || 0)}</span>`]
   });
   message.updateSource({ content, rolls: [], flavor: "", sound: CONFIG.sounds.dice });
@@ -551,7 +552,7 @@ Hooks.on("preCreateChatMessage", (message) => {
 function announceEffectExpired(actor, effect) {
   return ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.expired", { name: effect.name, actor: actor.name })}</em></div></div>`
+    content: dice.tickerHTML(game.i18n.format("PROJECTANIME.Effect.expired", { name: effect.name, actor: actor.name }))
   });
 }
 
@@ -559,11 +560,11 @@ function announceEffectExpired(actor, effect) {
 /*  Combat turn-tick (Sustain / Channeled / Decay / Stunned) */
 /* -------------------------------------------- */
 
-/** A small themed chat line (no roll) announcing a turn-tick event. */
+/** A small themed chat line (no roll) announcing a turn-tick event — the ticker strip. */
 function tickCard(actor, text) {
   return ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${text}</em></div></div>`
+    content: dice.tickerHTML(text)
   });
 }
 
@@ -879,7 +880,7 @@ async function endActivation(combat, id = combat.combatant?.id) {
       });
       if (c.actor) ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: c.actor }),
-        content: `<div class="project-anime chat-card"><div class="card-line"><em class="muted">${game.i18n.format("PROJECTANIME.Effect.comboTurn", { name: c.actor.name })}</em></div></div>`
+        content: dice.tickerHTML(game.i18n.format("PROJECTANIME.Effect.comboTurn", { name: c.actor.name }), { variant: "gold", icon: "fa-forward" })
       });
       return;                                            // stays the acting unit for a 2nd action
     }
@@ -1056,8 +1057,11 @@ function noteCriticalFromHP(actor, changes, options) {
   const reacts = actor.items
     .filter((i) => i.type === "skill" && i.system?.actionType === "react" && i.system?.trigger === "critical")
     .map((i) => i.name);
-  let content = `<p>${game.i18n.format("PROJECTANIME.Effect.criticalEntered", { name: actor.name })}</p>`;
-  if (reacts.length) content += `<p class="muted">${game.i18n.format("PROJECTANIME.Effect.criticalReacts", { skills: reacts.join(", ") })}</p>`;
+  const content = dice.tickerHTML(game.i18n.format("PROJECTANIME.Effect.criticalEntered", { name: actor.name }), {
+    variant: "boss",
+    icon: "fa-heart-crack",
+    sub: reacts.length ? game.i18n.format("PROJECTANIME.Effect.criticalReacts", { skills: reacts.join(", ") }) : ""
+  });
   ChatMessage.create({
     content,
     speaker: ChatMessage.getSpeaker({ actor }),

@@ -340,13 +340,12 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
       case "duration": {
         if (item?.type !== "skill") break;
         // The EFFECTIVE Duration — a Channeled/Scene Modifier or a Scene-by-rule Effect wins
-        // over the stored field; Standard carries its turn count (printed default 2).
+        // over the stored field; Standard shows only its turn count (printed default 2).
         const cfgD = CONFIG.PROJECTANIME;
         const key = skillDuration(sys);
-        const label = L(cfgD.skillDurations[key] ?? "");
         return calcSpan(key === "standard"
-          ? `${label} · ${sys.effectDuration ?? cfgD.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`
-          : label, L("PROJECTANIME.Prose.calcDuration"));
+          ? `${sys.effectDuration ?? cfgD.standardDurationTurns} ${L("PROJECTANIME.Skill.turns")}`
+          : L(cfgD.skillDurations[key] ?? ""), L("PROJECTANIME.Prose.calcDuration"));
       }
     }
   } catch (_e) { /* degrade below — a token must never break a render */ }

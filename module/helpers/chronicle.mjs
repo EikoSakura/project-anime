@@ -15,6 +15,7 @@
  */
 import { partyMembers, partyActors, partyCompanions, resolveParty } from "./party-folder.mjs";
 import { stampCompendiumSource } from "./gear.mjs";
+import { cardHTML } from "./dice.mjs";
 
 export const QUESTS_SETTING = "quests";
 export const TRACKED_SETTING = "chronicleTracked";
@@ -111,18 +112,23 @@ export async function promptMilestoneAward() {
   if (res.season) {
     const n = (Number(game.settings.get("project-anime", SEASON_COUNT_SETTING)) || 0) + 1;
     await game.settings.set("project-anime", SEASON_COUNT_SETTING, n);
-    seasonLine = `<p class="muted">${game.i18n.format("PROJECTANIME.Chronicle.seasonAdvanced", { n })}</p>`;
+    seasonLine = `<em class="muted">${game.i18n.format("PROJECTANIME.Chronicle.seasonAdvanced", { n })}</em>`;
   }
   const breakdown = parts.map((p) => `${L(`PROJECTANIME.Chronicle.milestones.${p.key}`)} +${p.n}`).join(" · ");
+  const lines = [
+    '<span class="card-rule"></span>',
+    ...members.map((m) => ({ k: m.name, v: `+${total} ${L("PROJECTANIME.Advance.advancements")}`, cls: "good" })),
+    ...companions.map((c) => ({ icon: "fa-paw", k: c.name, v: `+${total} ${L("PROJECTANIME.Advance.advancements")}`, cls: "good" }))
+  ];
+  if (seasonLine) lines.push(seasonLine);
   await ChatMessage.create({
-    content: `
-      <div class="project-anime chat-card">
-        <header class="card-title"><i class="fa-solid fa-flag-checkered"></i> ${L("PROJECTANIME.Chronicle.milestone")}</header>
-        <p><strong>+${total} ${L("PROJECTANIME.Advance.advancements")}</strong> — ${breakdown}</p>
-        <p class="muted">${members.map((m) => m.name).join(", ")}</p>
-        ${companions.length ? `<p class="muted"><i class="fa-solid fa-paw"></i> ${companions.map((c) => c.name).join(", ")}</p>` : ""}
-        ${seasonLine}
-      </div>`
+    content: cardHTML({
+      title: L("PROJECTANIME.Chronicle.milestone"),
+      subtitle: breakdown,
+      glyph: "fa-flag-checkered",
+      accent: "var(--pac-gold)",
+      lines
+    })
   });
 }
 
@@ -168,17 +174,13 @@ export async function tickQuestDeadlines() {
     q.status = "failed";
     lines.push(game.i18n.format("PROJECTANIME.Chronicle.deadlineExpired", { title: q.title }));
     await ChatMessage.create({
-      content: `
-        <div class="project-anime chat-card">
-          <header class="card-header">
-            <span class="card-icon is-glyph"><i class="fas fa-hourglass-end"></i></span>
-            <div class="card-titles">
-              <h3 class="card-title">${esc(q.title)}</h3>
-              <span class="card-type">${game.i18n.localize("PROJECTANIME.Chronicle.expired")}</span>
-            </div>
-          </header>
-          ${q.consequence ? `<div class="card-lines"><div class="card-line">${esc(q.consequence)}</div></div>` : ""}
-        </div>`
+      content: cardHTML({
+        title: q.title,
+        subtitle: game.i18n.localize("PROJECTANIME.Chronicle.expired"),
+        glyph: "fa-hourglass-end",
+        accent: "var(--pac-gold)",
+        lines: q.consequence ? [esc(q.consequence)] : []
+      })
     });
   }
   if (changed) await saveQuests(quests);

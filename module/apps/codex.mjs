@@ -902,6 +902,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
         glyph: qIcon ? "" : "fa-scroll",
         title: quest.title || game.i18n.localize("PROJECTANIME.Chronicle.untitled"),
         subtitle: game.i18n.localize(headingKey),
+        accent: "var(--pac-gold)",
         lines: bits
       })
     });

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.24 - 2026-07-10
+
+- Chat cards rebuilt as self-contained Status Window dark glass - gold hairline frame, accent edge-light, dog-ear corner, identical in light and dark chat themes,Owner accents: player cards glow in their accent color, hostile NPCs in crimson, quest/rest/milestone cards in gold,HIT / MISS / FUMBLE render as colored outcome words on a versus row; a Combo becomes a full-width gold ribbon with a shine sweep, and the next click wears a pulsing gold cue diamond,Damage rows restyled as glass strips with diamond portraits and pool-colored amount pills; long descriptions collapse behind a fade - click to expand,One-line notices (effect expiries, turn ticks, Luck tunes, boss bar breaks, whispers) now post as slim ticker strips; every card routes through the one shared builder with escaped names
+
+## 0.5.24 - 2026-07-10
+
+- Chat cards rebuilt as self-contained "Status Window" dark glass: every card wears the dark panel with a gold hairline frame, accent edge-light, and dog-ear corner in BOTH Foundry chat themes.
+- Owner accents: a character's cards glow in their player's accent color, hostile NPCs in crimson, quest/rest/milestone cards in gold - whose card it is reads at a glance.
+- One anatomy everywhere (identity, chips, outcome, dice, targets, description, lines, buttons) via the shared builder; the rest, milestone, deadline, and item-description cards now route through it too (the milestone card's broken markup is fixed).
+- Outcome words replace the badge pills: HIT / MISS / FUMBLE render as colored Marcellus caps on a versus row ("vs Guard Name 14 - HIT"); a Combo becomes a full-width gold ribbon with a one-time shine sweep.
+- The next click wears a pulsing gold cue diamond: Roll Damage / Roll Healing / Release / Use are now filled primary buttons.
+- Damage rows restyled as raised glass strips: diamond-clipped portraits, pool-colored gradient amount pills, mono calc line; area-strike target rows get colored per-target verdicts with the defense number underneath.
+- Long descriptions collapse behind a gradient fade - click the block to expand.
+- New slim ticker strips replace full card chrome on one-liners: effect expiries, Lingering/turn ticks, Combo holds, Luck tunes (gold), boss bar breaks (crimson), Critical warnings, and merchant whispers - the Go-Again Luck restore and Luck-tuned messages are finally themed too.
+- Card titles/subtitles are now HTML-escaped, and the dead chat-card Dismiss-servant wiring is removed.
+
 ## 0.5.23 - 2026-07-10
 
 - New @trigger token: a React Technique renders its Trigger (Alerted / Attacked / Critical / Damaged / Enters).,New @status[Name] hover reference for all conditions, matched by display name or id (Lingering/decay, Sealed/exhausted, Cursed) - hover shows exactly what the status does, sourced from the wired mechanics.,Tokens no longer print their own white labels - every token renders just the value; write your own labels around them.,@range on a Weapon-scope Technique now resolves the equipped weapons actual range in tiles (main-hand first), falling back to the word Weapon when nothing is equipped.

@@ -2936,166 +2936,332 @@
 .project-anime .hint.warn { color: var(--pa-danger); font-size: 0.75rem; }
 
 /* ------------------------------------------------------------
-   10. Chat cards
+   10. Chat cards — self-contained "Status Window" dark glass
    ------------------------------------------------------------ */
+/* The card ALWAYS wears the dark glass — Foundry's chat theme never re-skins it. The local
+   --pa-* re-declarations pin every inherited sub-style (meta chips, dice retheme, Codex prose
+   roles) to the dark palette. --acc is the per-card accent — the owner's player color, hostile
+   crimson, or story gold — stamped inline by the builder; brand purple when unset. */
 .project-anime.chat-card {
+  --acc: #9a78e0;
+  --pac-hostile: #e0645f;
+  --pac-gold: #d8b257;
+  --pa-accent: var(--acc);
+  --pa-accent-2: color-mix(in srgb, var(--acc) 70%, #ffffff);
+  --pa-accent-ink: color-mix(in srgb, var(--acc) 60%, #e6e2f2);
+  --pa-gold: #d8b257;
+  --pa-gold-soft: #ecca77;
+  --pa-ink: #ece9f5;
+  --pa-ink-soft: #a39db8;
+  --pa-line: rgba(220, 215, 240, 0.16);
+  --pa-field: rgba(255, 255, 255, 0.06);
+  --pa-panel: #232130;
+  --pa-surface: #1f1e28;
+  --pa-surface-2: #181722;
+  --pa-track: rgba(0, 0, 0, 0.38);
+  --pa-danger: #ff7a6b;
+  --pa-hp-a: #c34155; --pa-hp-b: #ef8a6e; --pa-hp-c: #ffc36b;
+  --pa-energy-a: #4f6ad0; --pa-energy-b: #97a6f2; --pa-energy-c: #c58cff;
+  color-scheme: dark;
+
+  position: relative;
+  overflow: hidden;
   color: var(--pa-ink);
-  background: var(--pa-panel);
-  border: 1px solid var(--pa-line);
-  border-left: 3px solid var(--pa-accent);
+  background: linear-gradient(180deg, #232130, #191825);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 42%, transparent);
   border-radius: 6px;
-  padding: 0.6rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  padding: 0 0.6rem 0.55rem 0.85rem;
   font-family: var(--pa-font);
+}
+/* Accent edge-light + dog-ear corner — the Status Window signature, at chat scale. */
+.project-anime.chat-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  z-index: 1;
+  background: linear-gradient(180deg, var(--acc), color-mix(in srgb, var(--acc) 40%, transparent) 65%, transparent);
+}
+.project-anime.chat-card::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 11px; height: 11px;
+  z-index: 2;
+  background: color-mix(in srgb, var(--acc) 60%, #8a8f9a);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
 }
 .project-anime.chat-card .muted { color: var(--pa-ink-soft); }
 
-/* Header: identity icon + serif title + gold uppercase kicker, on a faint accent wash bar. */
+/* Header: identity icon + Marcellus title + gold uppercase kicker, on an accent wash bar
+   closed by a gold hairline (full bleed over the card's own padding). */
 .project-anime.chat-card .card-header {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  margin: -0.6rem -0.6rem 0;
-  padding: 0.5rem 0.6rem 0.45rem;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 16%, var(--pa-panel)), var(--pa-panel));
-  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 38%, var(--pa-line));
-  border-radius: 5px 5px 0 0;
+  margin: 0 -0.6rem 0 -0.85rem;
+  padding: 0.5rem 0.6rem 0.45rem 0.95rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 18%, transparent), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 40%, transparent);
 }
 .project-anime.chat-card .card-icon {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   object-fit: cover;
-  border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line));
-  background: var(--pa-field);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pa-accent) 22%, transparent),
-              0 1px 4px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
+  background: linear-gradient(145deg, #2b2938, #1b1a26);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent),
+              inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 /* FA-glyph variant of the icon box (e.g. the Rest card's campground / house). */
 .project-anime.chat-card .card-icon.is-glyph {
   display: grid;
   place-items: center;
-  color: var(--pa-gold);
-  font-size: 1.15rem;
+  color: var(--pa-gold-soft);
+  font-size: 1.05rem;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--pa-gold) 45%, transparent);
 }
 .project-anime.chat-card .card-titles {
   display: flex;
   flex-direction: column;
-  gap: 0.05rem;
+  gap: 0.08rem;
   min-width: 0;
   flex: 1 1 auto;
 }
 .project-anime.chat-card .card-title {
   margin: 0;
   border: none;
-  font-family: var(--pa-font-display);
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-family: "Marcellus", var(--pa-font-display);
+  font-size: 1.02rem;
+  font-weight: 400;
   line-height: 1.15;
-  color: var(--pa-ink);
+  letter-spacing: 0.02em;
+  color: #f0edf7;
 }
 .project-anime.chat-card .card-type {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   color: var(--pa-gold);
 }
 
-/* Compact stat chips (rank · effect · Energy). */
+/* Combo ribbon — a full-bleed gold band with a one-time anime shine sweep. */
+.project-anime.chat-card .card-ribbon {
+  position: relative;
+  overflow: hidden;
+  margin: 0.55rem -0.6rem 0 -0.85rem;
+  padding: 0.22rem 0;
+  text-align: center;
+  font-family: "Marcellus", var(--pa-font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: #ffd97a;
+  text-shadow: 0 0 14px rgba(216, 178, 87, 0.6);
+  border-top: 1px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(216, 178, 87, 0.2) 16%, rgba(216, 178, 87, 0.26) 84%, transparent);
+}
+.project-anime.chat-card .card-ribbon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+  transform: translateX(-110%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .project-anime.chat-card .card-ribbon::after { animation: pa-card-sweep 1s ease-out 0.3s forwards; }
+}
+@keyframes pa-card-sweep { to { transform: translateX(110%); } }
+
+/* Compact stat chips (effect · target · duration · Energy). */
 .project-anime.chat-card .card-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.28rem;
   margin-top: 0.5rem;
 }
 .project-anime.chat-card .meta-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.08rem 0.45rem;
-  font-size: 0.7rem;
-  font-weight: 600;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--pa-ink-soft);
-  background: var(--pa-field);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--pa-line);
   border-radius: 999px;
 }
-.project-anime.chat-card .meta-chip .meta-stars { color: var(--pa-gold); letter-spacing: 0.04em; }
 .project-anime.chat-card .meta-chip i { color: var(--pa-accent-2); }
 
-/* Outcome badges. */
+/* Versus / outcome row: the defense number left, the outcome word(s) right. */
+.project-anime.chat-card .card-vs {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+.project-anime.chat-card .card-vs .vs-label {
+  min-width: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+.project-anime.chat-card .card-vs .vs-label strong { color: var(--pa-ink); }
+.project-anime.chat-card .card-vs .vs-label b {
+  font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  letter-spacing: 0;
+  color: var(--pa-ink);
+}
+.project-anime.chat-card .card-vs .vs-label .muted { text-transform: none; letter-spacing: 0.02em; }
+
+/* Outcome words — Marcellus caps, color is the meaning (PF2e's degree colors, our voice). */
 .project-anime.chat-card .card-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 0.5rem 0 0.1rem;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.55rem;
 }
 .project-anime.chat-card .badge {
-  padding: 0.14rem 0.55rem;
-  border-radius: 3px;
-  font-weight: 700;
-  font-size: 0.72rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: "Marcellus", var(--pa-font-display);
+  font-size: 0.92rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #fff;
-  border: 1px solid transparent;
 }
-.project-anime.chat-card .badge.success { background: linear-gradient(180deg, #3a9a40, #2e7d32); }
-.project-anime.chat-card .badge.failure {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-danger) 85%, white), var(--pa-danger));
-}
-.project-anime.chat-card .badge.combo {
-  background: linear-gradient(180deg, var(--pa-gold), color-mix(in srgb, var(--pa-gold) 68%, #8a6d00));
-  color: #241c00;
-  border-color: color-mix(in srgb, var(--pa-gold) 55%, white);
-}
+.project-anime.chat-card .badge.success { color: #5fd08a; text-shadow: 0 0 12px rgba(76, 175, 114, 0.5); }
+.project-anime.chat-card .badge.failure { color: #ff8a7c; text-shadow: 0 0 10px rgba(255, 122, 107, 0.35); }
+.project-anime.chat-card .badge.combo { color: #ffd97a; text-shadow: 0 0 12px rgba(216, 178, 87, 0.55); }
 
-/* Standard Foundry dice-roll, retheme-d to the card palette. */
-.project-anime.chat-card .dice-roll { margin: 0.5rem 0 0.1rem; }
+/* Standard Foundry dice-roll, rethemed into the dark dice well. */
+.project-anime.chat-card .dice-roll { margin: 0.55rem 0 0.1rem; }
 .project-anime.chat-card .dice-roll .dice-formula {
   margin: 0 0 0.25rem;
-  background: var(--pa-field);
+  background: #14161d;
   border: 1px solid var(--pa-line);
   border-radius: 4px;
   font-family: var(--pa-font-mono);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--pa-ink-soft);
 }
 .project-anime.chat-card .dice-roll .dice-total {
   font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
-  color: var(--pa-ink);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pa-accent) 24%, var(--pa-field)), var(--pa-field));
-  border: 1px solid color-mix(in srgb, var(--pa-accent) 45%, var(--pa-line));
+  font-size: 1.3rem;
+  color: #ffffff;
+  background: #14161d;
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, var(--pa-line));
   border-radius: 4px;
-  box-shadow: inset 0 0 8px color-mix(in srgb, var(--pa-accent) 18%, transparent);
+  box-shadow: inset 0 0 10px color-mix(in srgb, var(--acc) 14%, transparent);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--acc) 60%, transparent);
 }
 .project-anime.chat-card .dice-tooltip .dice-rolls .roll {
-  background-color: color-mix(in srgb, var(--pa-accent) 8%, var(--pa-field));
-  border-color: var(--pa-line);
+  background-color: color-mix(in srgb, var(--acc) 10%, #1d2126);
+  border-color: color-mix(in srgb, var(--acc) 40%, var(--pa-line));
+  color: var(--pa-ink);
 }
 
-/* The item's own description prose (replaces the old generic effect blurb). */
+/* The item's own description prose — a frameless quote block behind a gold hairline. Long
+   prose collapses behind a gradient fade (.is-clp, set by the builder); click to expand. */
 .project-anime.chat-card .card-desc {
-  margin: 0.5rem 0 0.1rem;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.86rem;
-  line-height: 1.42;
-  color: var(--pa-ink-soft);
-  background: color-mix(in srgb, var(--pa-accent) 6%, var(--pa-surface));
+  margin: 0.55rem 0 0.1rem;
+  padding: 0.1rem 0 0.1rem 0.55rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #c9c4d8;
   border-left: 2px solid color-mix(in srgb, var(--pa-gold) 55%, transparent);
-  border-radius: 0 4px 4px 0;
 }
 .project-anime.chat-card .card-desc :is(p, ul, ol):first-child { margin-top: 0; }
 .project-anime.chat-card .card-desc :is(p, ul, ol):last-child { margin-bottom: 0; }
+.project-anime.chat-card .card-desc.is-clp {
+  max-height: 4.2rem;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-mask-image: linear-gradient(180deg, #000 40%, transparent);
+          mask-image: linear-gradient(180deg, #000 40%, transparent);
+}
 
-/* Mechanical breakdown lines. */
+/* Mechanical breakdown lines; {k, v} entries render as dotted-leader stat rows. */
 .project-anime.chat-card .card-lines {
   margin-top: 0.5rem;
-  font-size: 0.86rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  font-size: 0.8rem;
 }
-.project-anime.chat-card .card-line { margin: 0.15rem 0; }
+.project-anime.chat-card .card-line { margin: 0; line-height: 1.35; }
+.project-anime.chat-card .card-kv {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.66rem;
+}
+.project-anime.chat-card .card-kv .kv-k {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+  white-space: nowrap;
+}
+.project-anime.chat-card .card-kv .kv-lead {
+  flex: 1 1 auto;
+  min-width: 0.5rem;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+.project-anime.chat-card .card-kv .kv-v {
+  font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--pa-ink);
+  text-align: right;
+}
+.project-anime.chat-card .card-kv .kv-v.good { color: #5fd08a; }
+
+/* Gold hairline with diamond terminals — the .panel-rule motif for story cards. */
+.project-anime.chat-card .card-rule {
+  position: relative;
+  display: block;
+  margin: 0.7rem 0.8rem 0.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--pa-gold) 55%, var(--pa-line));
+}
+.project-anime.chat-card .card-rule::before,
+.project-anime.chat-card .card-rule::after {
+  content: "";
+  position: absolute;
+  top: -3.5px;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold));
+  box-shadow: 0 0 6px rgba(216, 178, 87, 0.7);
+}
+.project-anime.chat-card .card-rule::before { left: -9px; }
+.project-anime.chat-card .card-rule::after { right: -9px; }
 
 /* Initiative card — just the rolled total, big and centered (no formula, no decimals). */
 .project-anime.chat-card .init-result {
@@ -3105,77 +3271,146 @@
   font-variant-numeric: tabular-nums;
   font-size: 1.9rem;
   font-weight: 700;
-  color: var(--pa-gold);
+  color: #ffd97a;
+  text-shadow: 0 0 14px rgba(216, 178, 87, 0.45);
   margin: 0.1rem 0;
 }
 
-/* Action buttons. */
+/* Action buttons — stacked full width in play order; the primary wears the gold cue diamond. */
 .project-anime.chat-card .card-buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.3rem;
-  margin-top: 0.55rem;
+  margin-top: 0.6rem;
 }
 .project-anime.chat-card .card-btn {
-  flex: 1 1 auto;
+  position: relative;
   cursor: pointer;
-  padding: 0.32rem 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
   font-family: var(--pa-font);
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
   color: var(--pa-accent-ink);
-  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line));
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
   border-radius: 4px;
   transition: background 0.1s, box-shadow 0.1s;
 }
 .project-anime.chat-card .card-btn:hover {
-  background: color-mix(in srgb, var(--pa-accent) 26%, transparent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--acc) 32%, transparent);
 }
-/* Multi-target (area / chain) per-target rows. */
+.project-anime.chat-card .card-btn.is-primary {
+  color: #ffffff;
+  border-color: color-mix(in srgb, var(--acc) 70%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 55%, #10131a), color-mix(in srgb, var(--acc) 32%, #10131a));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 28%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.project-anime.chat-card .card-btn .card-cue {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateY(-50%) rotate(45deg);
+  background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold));
+  box-shadow: 0 0 7px rgba(216, 178, 87, 0.8);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .project-anime.chat-card .card-btn .card-cue { animation: pa-cue-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes pa-cue-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* Multi-target (area / chain) per-target verdict rows — raised glass strips. */
 .project-anime.chat-card .card-target-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.14rem 0;
+  padding: 0.24rem 0.45rem;
+  font-size: 0.78rem;
+  background: linear-gradient(145deg, #242833, #1a1d24);
+  border: 1px solid color-mix(in srgb, var(--acc) 28%, var(--pa-line));
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.project-anime.chat-card .card-target-row > strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-anime.chat-card .ctr-res {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.project-anime.chat-card .ctr-res.is-hit { color: #5fd08a; }
+.project-anime.chat-card .ctr-res.is-miss { color: #ff8a7c; }
+.project-anime.chat-card .ctr-res .ctr-num {
   display: block;
-  margin: 0.1rem 0;
-  padding: 0.06rem 0 0.06rem 0.5rem;
-  border-left: 2px solid color-mix(in srgb, var(--pa-accent) 30%, transparent);
+  font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--pa-ink-soft);
 }
 
-/* "Damage Applied" card — one row per creature that took damage / healing, each with an undo arrow
-   (↻) that reverts just that creature's HP/EN. Undone rows are struck through with an "undone" tag. */
+/* "Damage Applied" card — one glass row per creature, diamond portrait, pool-colored amount
+   pill, the calc in micro-mono, an undo arrow + Cover bullseye. Undone rows strike through. */
 .project-anime.chat-card .dmg-rows {
-  margin-top: 0.6rem;
+  margin-top: 0.55rem;
   display: flex;
   flex-direction: column;
-  gap: 0.28rem;
+  gap: 0.26rem;
 }
 .project-anime.chat-card .dmg-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.22rem 0.3rem;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--pa-accent) 7%, transparent);
-  border: 1px solid var(--pa-line);
-}
-.project-anime.chat-card .dmg-portrait {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
+  gap: 0.45rem;
+  padding: 0.22rem 0.35rem;
   border-radius: 4px;
-  object-fit: cover;
-  border: 1px solid color-mix(in srgb, var(--pa-gold) 45%, var(--pa-line));
-  background: var(--pa-field);
+  background: linear-gradient(145deg, #242833, #1a1d24);
+  border: 1px solid color-mix(in srgb, var(--acc) 28%, var(--pa-line));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+/* Diamond-clipped portrait in a gold ring — the party-rail motif at chat scale. */
+.project-anime.chat-card .dmg-portrait {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: linear-gradient(135deg, var(--pa-gold-soft), var(--pa-gold));
   display: grid;
   place-items: center;
-  color: var(--pa-ink-soft);
+  color: #241c00;
 }
+.project-anime.chat-card .dmg-portrait img {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border: none;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.project-anime.chat-card .dmg-portrait i { font-size: 0.66rem; }
 .project-anime.chat-card .dmg-body {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.08rem;
+  gap: 0.06rem;
 }
 .project-anime.chat-card .dmg-head {
   display: flex;
@@ -3185,13 +3420,15 @@
 .project-anime.chat-card .dmg-name {
   flex: 1 1 auto;
   min-width: 0;
+  font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .project-anime.chat-card .dmg-calc {
-  font-size: 0.78rem;
+  font-family: var(--pa-font-mono);
+  font-size: 0.64rem;
   line-height: 1.3;
   color: var(--pa-ink-soft);
 }
@@ -3199,56 +3436,61 @@
 .project-anime.chat-card .dmg-amount {
   flex: 0 0 auto;
   font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 0.82rem;
-  padding: 0.06rem 0.45rem;
-  border-radius: 999px;
-  color: #fff;
+  font-size: 0.78rem;
+  padding: 0.08rem 0.5rem;
+  border-radius: 3px;
 }
-.project-anime.chat-card .dmg-amount.dmg { background: color-mix(in srgb, var(--pa-hp-a) 88%, #000); }
-.project-anime.chat-card .dmg-amount.heal { background: #2e7d32; }
-.project-anime.chat-card .dmg-amount.energy { background: color-mix(in srgb, var(--pa-energy-a) 90%, #000); }
-.project-anime.chat-card .dmg-undo {
-  flex: 0 0 auto;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  width: 27px;
-  height: 27px;
-  border-radius: 5px;
-  color: var(--pa-gold);
-  background: color-mix(in srgb, var(--pa-gold) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pa-gold) 50%, var(--pa-line));
-  font-size: 0.8rem;
-  transition: background 0.1s, box-shadow 0.1s;
+.project-anime.chat-card .dmg-amount.dmg {
+  color: #ffd8c9;
+  border: 1px solid rgba(224, 100, 95, 0.55);
+  background: linear-gradient(135deg, rgba(195, 65, 85, 0.32), rgba(255, 195, 107, 0.16));
 }
-.project-anime.chat-card .dmg-undo:hover {
-  background: color-mix(in srgb, var(--pa-gold) 32%, transparent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 38%, transparent);
+.project-anime.chat-card .dmg-amount.heal {
+  color: #cff2d8;
+  border: 1px solid rgba(76, 175, 114, 0.55);
+  background: rgba(58, 154, 64, 0.22);
+}
+.project-anime.chat-card .dmg-amount.energy {
+  color: #e2d6ff;
+  border: 1px solid rgba(151, 166, 242, 0.5);
+  background: linear-gradient(135deg, rgba(79, 106, 208, 0.3), rgba(197, 140, 255, 0.16));
 }
 .project-anime.chat-card .dmg-actions {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 0.26rem;
 }
+.project-anime.chat-card .dmg-undo,
 .project-anime.chat-card .dmg-cover {
   flex: 0 0 auto;
   cursor: pointer;
   display: grid;
   place-items: center;
-  width: 27px;
-  height: 27px;
-  border-radius: 5px;
-  color: var(--pa-accent);
-  background: color-mix(in srgb, var(--pa-accent) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pa-accent) 50%, var(--pa-line));
-  font-size: 0.8rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 0.72rem;
   transition: background 0.1s, box-shadow 0.1s;
 }
+.project-anime.chat-card .dmg-undo {
+  color: var(--pa-gold-soft);
+  border: 1px solid color-mix(in srgb, var(--pa-gold) 50%, transparent);
+}
+.project-anime.chat-card .dmg-undo:hover {
+  background: color-mix(in srgb, var(--pa-gold) 22%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-gold) 38%, transparent);
+}
+.project-anime.chat-card .dmg-cover {
+  color: var(--pa-accent-2);
+  border: 1px solid color-mix(in srgb, var(--acc) 50%, transparent);
+}
 .project-anime.chat-card .dmg-cover:hover {
-  background: color-mix(in srgb, var(--pa-accent) 32%, transparent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--pa-accent) 38%, transparent);
+  background: color-mix(in srgb, var(--acc) 22%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--acc) 38%, transparent);
 }
 .project-anime.chat-card .dmg-row.is-undone { opacity: 0.5; }
 .project-anime.chat-card .dmg-row.is-undone .dmg-name,
@@ -3257,13 +3499,59 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  height: 27px;
-  padding: 0 0.45rem;
-  font-size: 0.6rem;
+  height: 24px;
+  padding: 0 0.4rem;
+  font-size: 0.56rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--pa-ink-soft);
+  border: 1px solid var(--pa-line);
+  border-radius: 3px;
 }
+
+/* Ticker — slim one-line notices (effect expiry, turn ticks, boss beats, Luck tunes, whispers)
+   that trade the full card chrome for a hairline strip with a diamond bullet. */
+.project-anime.pa-tick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0.55rem;
+  /* Opaque — like the cards, the ticker never lets Foundry's light chat theme bleed through. */
+  background: #1b1a24;
+  border: 1px solid rgba(220, 215, 240, 0.14);
+  border-left: 2px solid color-mix(in srgb, #d8b257 55%, transparent);
+  border-radius: 4px;
+  font-family: var(--pa-font);
+  font-size: 0.76rem;
+  font-style: italic;
+  color: #a39db8;
+  line-height: 1.35;
+  color-scheme: dark;
+}
+.project-anime.pa-tick .pa-tick-dm {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #ecca77, #d8b257);
+  box-shadow: 0 0 5px rgba(216, 178, 87, 0.6);
+}
+.project-anime.pa-tick .pa-tick-text { min-width: 0; }
+.project-anime.pa-tick b,
+.project-anime.pa-tick strong { color: #ece9f5; font-style: normal; font-weight: 600; }
+.project-anime.pa-tick i[class*="fa-"] { font-style: normal; color: #ecca77; }
+.project-anime.pa-tick .pa-tick-sub { display: block; font-size: 0.68rem; }
+.project-anime.pa-tick.is-boss { color: #e58aa0; border-left-color: #c34155; }
+.project-anime.pa-tick.is-boss .pa-tick-dm {
+  background: linear-gradient(135deg, #ef8a6e, #c34155);
+  box-shadow: 0 0 5px rgba(195, 65, 85, 0.7);
+}
+.project-anime.pa-tick.is-boss b,
+.project-anime.pa-tick.is-boss strong { color: #f5b8c6; }
+.project-anime.pa-tick.is-boss i[class*="fa-"] { color: #e58aa0; }
+.project-anime.pa-tick.is-gold b,
+.project-anime.pa-tick.is-gold strong { color: #ffd97a; }
 /* Mass "Choose Targets" dialog. */
 .project-anime.roll-dialog.mass-pick {
   display: flex;
@@ -8064,7 +8352,8 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .monster-creator .cc-tier-badge.rival { color: #d9a441; }
 .monster-creator .cc-tier-badge.boss { color: #d16a86; }
 
-/* Boss-bar chat announcements. */
+/* LEGACY (pre-0.5.24): boss-bar announcements now post as .pa-tick.is-boss tickers — this rule
+   only styles old boss notes still sitting in chat history. */
 .pa-boss-note { color: #d16a86; font-weight: 500; }
 
 /* Skill Browser — the "skill bag": folder rail + MMO-inventory grid of skill slots. */
