@@ -730,6 +730,7 @@
       "turns": "rounds",
       "growUnit": {
         "tiles": "tiles",
+        "leaps": "leaps",
         "targets": "targets",
         "defense": "Defense",
         "damage": "damage"
@@ -872,7 +873,7 @@
         "aura": "All targets within Talent die/2 tiles of you.",
         "banish": "Send the target to its native plane at Storyteller's discretion. Targets Spirit.",
         "burst": "All targets within Talent die/2 tiles of a chosen point within range.",
-        "chain": "On a hit, leap to 1 additional target within Talent die/2 tiles. Roll to hit the new target.",
+        "chain": "On a hit, leap to an additional target within range. The maximum number of leaps is equal to Talent die/2 tiles. Apply Trained Edge if applicable. Roll to hit the new target.",
         "channeled": "Replace the Technique's Duration. It lasts as long as you pay 1 energy at the start of each of your turns.",
         "charge": "Spend a turn focusing. Next turn, the Technique marks or clears double the hit boxes or healing. Miss means the charge fades.",
         "cleanse": "Remove one detrimental status from the target.",

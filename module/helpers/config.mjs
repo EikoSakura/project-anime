@@ -432,21 +432,20 @@ export function auraAudience(sys) {
  *  Modifier uses die/2 … a technique built under a talent uses Talent die/2 + 1"):
  *    • Aura       — field radius in tiles around you.
  *    • Burst      — circle radius in tiles at a chosen point.
- *    • Chain      — leap distance in tiles to 1 additional target.
+ *    • Chain      — maximum number of LEAPS to additional targets (each leap within Range).
  *    • Move       — tiles YOU move.
  *    • Reposition — tiles you move ANOTHER creature.
  */
 PROJECTANIME.scaledModifiers = {
   aura: { unit: "PROJECTANIME.Skill.growUnit.tiles" },
   burst: { unit: "PROJECTANIME.Skill.growUnit.tiles" },
-  chain: { unit: "PROJECTANIME.Skill.growUnit.tiles" },
+  chain: { unit: "PROJECTANIME.Skill.growUnit.leaps" },
   move: { unit: "PROJECTANIME.Skill.growUnit.tiles" },
   reposition: { unit: "PROJECTANIME.Skill.growUnit.tiles" }
 };
 
-/** Fixed Modifier numbers (V2): Chain leaps to 1 extra target; Potent = +1 box per take;
- *  Protection grants +1 Guard; Retaliation deals 1 box back; Regen clears 1 box per turn. */
-PROJECTANIME.chainExtraTargets = 1;
+/** Fixed Modifier numbers (V2): Potent = +1 box per take; Protection grants +1 Guard;
+ *  Retaliation deals 1 box back; Regen clears 1 box per turn. */
 PROJECTANIME.potentBonus = 1;
 PROJECTANIME.protectionGuard = 1;
 PROJECTANIME.retaliationDamage = 1;

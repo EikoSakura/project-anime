@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.5.26 - 2026-07-10
+
+- Chain fixed to the printed rule: the maximum number of leaps is now Talent die/2 (+1 Trained Edge) - no longer a single leap,Each Chain leap reaches within the Technique's Range; a Weapon-range Chain uses the equipped weapon's reach,Builder chip and @target token now show Chain's live leap count (in leaps, not tiles); modifier description updated to the printed text
+
 ## 0.5.25 - 2026-07-10
 
 - New @scale token: renders the Technique die/2 scaling value (Talent die/2 + 1 Trained Edge when Talent-built, minimum 1) - the same number Aura, Burst, Chain, Move, and Reposition distances use.
+- Chain fixed to the printed rule: Talent die/2 (+1 Trained Edge) is now the maximum NUMBER of leaps (was a single leap), and each leap reaches within the Technique's Range (a Weapon-range chain uses the equipped weapon's reach). Builder/@target readouts show the leap count.
 
 ## 0.5.24 - 2026-07-10
 

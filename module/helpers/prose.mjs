@@ -255,15 +255,14 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
       case "target": {
         if (item?.type !== "skill") break;
         // The Target plus its shaping Modifiers: Aura/Burst carry their die-scaled radius,
-        // Chain its extra target, Line/Mass their printed shape.
+        // Chain its die-scaled leap count, Line/Mass their printed shape.
         const cfg = CONFIG.PROJECTANIME;
         const mods = sys.modifiers ?? [];
         const parts = [L(cfg.skillTargets[skillTarget(sys)])];
         for (const key of ["aura", "burst", "line", "mass", "chain"]) {
           if (!mods.includes(key)) continue;
           const label = L(cfg.skillModifiers[key] ?? key);
-          if (key === "chain") parts.push(`${label} +${cfg.chainExtraTargets ?? 1}`);
-          else if (key in (cfg.scaledModifiers ?? {})) parts.push(`${label} ${modifierValue(item, key)} ${L("PROJECTANIME.Skill.tiles")}`);
+          if (key in (cfg.scaledModifiers ?? {})) parts.push(`${label} ${modifierValue(item, key)} ${L(cfg.scaledModifiers[key].unit)}`);
           else parts.push(label);
         }
         return calcSpan(parts.join(" · "), L("PROJECTANIME.Prose.calcTarget"));

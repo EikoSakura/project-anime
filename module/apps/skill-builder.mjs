@@ -357,9 +357,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const isPotent = key === "potent";
       const takes = isPotent ? Math.clamp(Math.round(Number(d.potentCount) || 1), 1, 2) : 1;
       const blocked = !selected && (noMods || modifierBarredByType(key, { actionType: sysShape.actionType, effect: d.effect }));
-      // Scaled Modifiers (Aura/Burst/Chain/Move/Reposition) show their live die/2 value.
+      // Scaled Modifiers (Aura/Burst/Chain/Move/Reposition) show their live die/2 value in
+      // their own unit (tiles; Chain counts leaps).
       const scaled = key in (cfg.scaledModifiers ?? {})
-        ? `${modifierValue(proxy, key)} ${game.i18n.localize("PROJECTANIME.Skill.tiles")}` : "";
+        ? `${modifierValue(proxy, key)} ${game.i18n.localize(cfg.scaledModifiers[key].unit)}` : "";
       return {
         key,
         label: game.i18n.localize(cfg.skillModifiers[key] ?? key),

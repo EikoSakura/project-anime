@@ -1772,16 +1772,20 @@ async function resolveAreaEffect(actor, item, targetTokens, { charged = false } 
 }
 
 /**
- * Chain: hit the primary (the player's first target), then leap to 1 additional target within
- * Talent die/2 tiles that the player ALSO targeted — so the chain only travels through chosen
- * creatures, never the caster. Each leap rolls to hit; the chain stops the moment a leap misses.
- * One combined attack+damage card.
+ * Chain: hit the primary (the player's first target), then on each hit leap to an additional
+ * target within Range that the player ALSO targeted — so the chain only travels through chosen
+ * creatures, never the caster. The maximum number of leaps is Talent die/2 (+1 Trained Edge).
+ * Each leap rolls to hit; the chain stops the moment a leap misses. One combined card.
  */
 async function resolveChain(actor, item, chainTokens, { charged = false } = {}) {
   const sys = item.system;
   const spec = skillRollSpec(actor, item);
-  const nearTiles = modifierValue(item, "chain");                       // leap distance: die/2 tiles (+1 Edge)
-  const maxTargets = 1 + (PROJECTANIME.chainExtraTargets ?? 1);         // primary + 1 leap
+  // "Within range": each leap reaches as far as the Technique itself — its Range stat (a
+  // Weapon-range chain reads the equipped weapon's reach).
+  const leapTiles = sys.range?.scope === "weapon"
+    ? Math.max(1, Number(spec.weapon?.system?.range?.tiles) || 0)
+    : Math.max(1, Number(sys.range?.tiles) || PROJECTANIME.rangeTiles[sys.range?.scope] || 0);
+  const maxTargets = 1 + modifierValue(item, "chain");   // primary + Talent die/2 leaps (+1 Edge)
   const chosen = new Set(chainTokens);   // the chain may only travel through targeted creatures
   const primaryToken = chainTokens[0];
 
@@ -1854,7 +1858,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
       await inflictDecay(item, ta, lines);
     }
     if (!adj.heal && through > 0) hits.push({ actor: ta, amount: through });
-    current = tokensInRange(current, nearTiles).find((t) => chosen.has(t) && !hitSet.has(t)) ?? null;
+    current = tokensInRange(current, leapTiles).find((t) => chosen.has(t) && !hitSet.has(t)) ?? null;
   }
 
   if (stoppedName) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.chainStopped", { name: stoppedName })}</em>`);
