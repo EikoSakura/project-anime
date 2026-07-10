@@ -14,7 +14,7 @@
  */
 import {
   techniqueDie, contestTarget, skillDieSpecs, actorTalents, rangeLabel, physicalRangeLabel,
-  modifierTakes, skillTarget, skillDuration, modifierValue, rangeHasTiles
+  modifierTakes, skillTarget, skillDuration, modifierValue, rangeHasTiles, getTalent
 } from "./config.mjs";
 
 /** Outcome labels the system uses (rules doc V2) → the color role their bold label wears.
@@ -156,7 +156,7 @@ export function renderDescriptionBlock(item) {
  *  re-resolves them against the owning item/actor, so descriptions never go stale. The same
  *  pattern backs the registered Foundry enricher (helpers/enrichers.mjs) and the sync resolver
  *  below — keep them identical. */
-export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule)\\b(?:\\[([^\\]]*)\\])?";
+export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack)\\b(?:\\[([^\\]]*)\\])?";
 
 /** A resolved token: the blue value span, optionally led by its own bold white label
  *  ("Duration: Instant") — the stat-line tokens carry one so authors don't hand-type it.
@@ -271,6 +271,35 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         const descKey = kind === "modifier"
           ? `PROJECTANIME.Skill.modifierDesc.${hit[0]}` : `PROJECTANIME.Skill.effectDesc.${hit[0]}`;
         return refSpan(L(hit[1]), L(descKey));
+      }
+      case "attack": {
+        // The item's ACTUAL roll dice — "Charm (d8) + Army Training (d6)": the Paired
+        // Attribute + the bound Talent when one applies, else the two-Attribute pair.
+        // Dice sizes come from the owning actor; unowned items show the names alone.
+        if (!item) break;
+        const cfgA = CONFIG.PROJECTANIME;
+        const aName = (k) => L(cfgA.attributes[k] ?? k);
+        const aDie = (k) => Number(actor?.system?.attributes?.[k]?.value) || 0;
+        const piece = (name, die) => (die ? `${name} (d${die})` : name);
+        let parts = null;
+        if (item.type === "skill") {
+          const t = getTalent(actor, sys.talentId);
+          if (t) parts = [piece(aName(t.attribute), aDie(t.attribute)), piece(t.name, t.die)];
+          else if (sys.attributes?.attrA && sys.attributes?.attrB) {
+            parts = [piece(aName(sys.attributes.attrA), aDie(sys.attributes.attrA)),
+              piece(aName(sys.attributes.attrB), aDie(sys.attributes.attrB))];
+          }
+        } else if (item.type === "weapon" || item.type === "shield") {
+          const acc = sys.accuracy ?? {};
+          const t = getTalent(actor, sys.talentId);
+          if (acc.attrA) {
+            parts = t
+              ? [piece(aName(acc.attrA), aDie(acc.attrA)), piece(t.name, t.die)]
+              : [piece(aName(acc.attrA), aDie(acc.attrA)), ...(acc.attrB ? [piece(aName(acc.attrB), aDie(acc.attrB))] : [])];
+          }
+        }
+        if (!parts) break;
+        return calcSpan(parts.join(" + "), L("PROJECTANIME.Prose.calcAttack"));
       }
       case "rule": {
         // A DICE-mechanic reference (Attack / Check / Test / Contest / Threshold / Trained

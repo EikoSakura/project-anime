@@ -186,6 +186,7 @@
       "calcRange": "Range",
       "calcTarget": "Target",
       "calcDuration": "Duration",
+      "calcAttack": "Attack Roll",
       "calcUnlinked": "Unlinked",
       "rule": {
         "attack": "Attack",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.22 - 2026-07-09
+
+- New @attack token: renders the actual roll dice for the item - a Talent-built Technique shows its Paired Attribute + Talent like Charm (d8) + Army Training (d6), a plain one shows its two Attributes, and weapons/shields show their Accuracy pair or bound Talent. Dice sizes resolve live from the owning character.
+
 ## 0.5.21 - 2026-07-09
 
 - Stat-line tokens now print their own bold white label with only the value in blue: @duration, @target, @range, and @energy render like Duration: Instant - and @range shows just the actual range value (10 Tiles), not the scope label.,New hover references: @modifier[Name] and @effect[Name] render the term with its printed rules text on hover - matched by label or stored key, usable in any description, journal, or chat card.,New @rule[Name] dice glossary with hover text: Attack, Check, Test, Contest, Threshold, Trained Edge, Luck, Combo, Fumble.
