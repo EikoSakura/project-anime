@@ -1,7 +1,7 @@
 /**
  * Project: Anime — inline autocalc text enrichers, registered the PF2e way: one
  * `CONFIG.TextEditor.enrichers` entry whose pattern matches the system's calc tokens
- * (`@talent[Name]`, `@contest`, `@threshold`, `@damage`, `@energy`, `@range`) and whose
+ * (`@talent[Name]`, `@resistance`, `@threshold`, `@damage`, `@energy`, `@range`) and whose
  * enricher swaps each for a freshly-calculated span. Values resolve against
  * `options.relativeTo` — every description render in the system passes the owning item
  * (helpers/prose.mjs renderDescriptionHTML) — so the numbers are live, never frozen text.

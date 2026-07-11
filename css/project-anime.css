@@ -2759,6 +2759,7 @@
 }
 .project-anime .item-technique .tech-cost strong { font-family: var(--pa-font-mono); color: var(--pa-ink); }
 .project-anime .item-technique .tech-cost i { color: var(--pa-energy-b); }
+.project-anime .item-technique .tech-cost .tech-cost-res { margin-left: auto; }
 .project-anime .tech-mod-tier {
   display: block;
   margin: 0.45rem 0 0.2rem;
@@ -5314,9 +5315,9 @@
 /* The system's outcome roles — colored so a Hit / Miss reads at a glance. */
 .project-anime .pa-out-hit { font-weight: 700; color: #4caf72; }
 .project-anime .pa-out-miss { font-weight: 700; color: var(--pa-danger); }
-.project-anime .pa-out-contest { font-weight: 700; color: var(--pa-accent); }
-.project-anime.theme-dark .pa-out-contest,
-.theme-dark .project-anime .pa-out-contest { color: var(--pa-accent-2); }
+.project-anime .pa-out-resist { font-weight: 700; color: var(--pa-accent); }
+.project-anime.theme-dark .pa-out-resist,
+.theme-dark .project-anime .pa-out-resist { color: var(--pa-accent-2); }
 .project-anime .pa-out-threshold { font-weight: 700; color: var(--pa-gold); }
 .project-anime .pa-out-wound { font-weight: 700; color: var(--pa-hp-a); }
 .project-anime .pa-out-neutral { font-weight: 700; color: var(--pa-ink-soft); }
@@ -5362,7 +5363,7 @@
 .project-anime .desc-tool-out { font-weight: 700; font-size: 0.78em; }
 .project-anime .desc-tool-out.out-hit { color: #4caf72; }
 .project-anime .desc-tool-out.out-miss { color: var(--pa-danger); }
-.project-anime .desc-tool-out.out-contest { color: var(--pa-accent); }
+.project-anime .desc-tool-out.out-resist { color: var(--pa-accent); }
 .project-anime .desc-tool-out.out-threshold { color: var(--pa-gold); }
 /* The Talent insert picker (a themed select riding in the toolbar). */
 .project-anime .desc-edit-tools .pa-select { flex: 0 0 auto; min-width: 6.5rem; }

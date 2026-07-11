@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.27 - 2026-07-11
+
+- Ruleset: Contest Target / Opposing Techniques replaced by Resistance - every Technique derives one (Talent-built: 7 + Talent die/2, Trained Edge included; Attribute-built: 6 + the higher Attribute die/2), shown on the Technique sheet and its chat cards,One-roll resolution: an attacking Technique rolls vs Guard only and a hit applies every effect it carries; a non-attack Technique aimed at a non-willing creature never rolls - the target makes a Check vs the stored Resistance from a Resist chat button (hostile areas get one button per caught enemy),Weaken, Disarm, and Nullify lose their contest text; the Steal-equipped extra roll is gone; Overcome, Stay Hidden, and Sense-vs-Vanish now roll Checks against the holding Technique's Resistance; Fumble/Combo apply to any roll vs Guard or a Resistance,New @resistance inline token replaces @contest outright; the prose toolbar's Contest button is now Resistance,One-time migration resistanceV1 rewrites stored Technique descriptions (tokens, Contest labels, 'Contest Target'/'Opposing Techniques' phrases) across world items, actors, and the Techniques pack; Guard, damage, Threshold, and Trained Edge on attacks are untouched
+
 ## 0.5.26 - 2026-07-10
 
 - Chain fixed to the printed rule: the maximum number of leaps is now Talent die/2 (+1 Trained Edge) - no longer a single leap,Each Chain leap reaches within the Technique's Range; a Weapon-range Chain uses the equipped weapon's reach,Builder chip and @target token now show Chain's live leap count (in leaps, not tiles); modifier description updated to the printed text

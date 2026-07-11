@@ -81,6 +81,13 @@ const ACCESSORIES_V2_SETTING = "accessoriesV2";
 // and the system's Techniques pack. See migrateProseDescriptions.
 const PROSE_DESC_SETTING = "proseDescriptionsV1";
 
+// Hidden world flag — set once after the Contest Target → Resistance rules change (Opposing
+// Techniques retired): every stored Technique description swaps its `@contest` / `@rule[contest]`
+// tokens and "**Contest**" outcome labels for the Resistance vocabulary, plus the literal
+// "Contest Target" / "Opposing Techniques" phrases. Covers world Items, actor-owned Techniques,
+// and the system's Techniques pack. See migrateResistanceText.
+const RESISTANCE_TEXT_SETTING = "resistanceV1";
+
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
 
@@ -125,7 +132,7 @@ Hooks.once("init", function () {
   // Configuration constants.
   CONFIG.PROJECTANIME = PROJECTANIME;
 
-  // Inline autocalc tokens (@talent[Name] / @contest / @threshold / @damage / @energy / @range)
+  // Inline autocalc tokens (@talent[Name] / @resistance / @threshold / @damage / @energy / @range)
   // render live values wherever descriptions are enriched — sheets, chat cards, journals.
   registerInlineCalcEnrichers();
 
@@ -252,7 +259,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -1849,6 +1856,57 @@ async function migrateProseDescriptions() {
 }
 
 /* -------------------------------------------- */
+/*  Resistance text migration (one-time)        */
+/* -------------------------------------------- */
+
+// Contest Target → Resistance (the Opposing-Techniques contest retired): rewrite every stored
+// Technique description to the new vocabulary — `@contest` → `@resistance`, `@rule[contest]` →
+// `@rule[resistance]`, a line-leading "**Contest**" outcome label → "**Resistance**", and the
+// literal "Contest Target" / "Opposing Techniques" phrases → "Resistance". Covers world Items,
+// actor-owned Techniques, and the system's Techniques pack (unlock → relock). `@contest` is fully
+// retired from the inline vocabulary — a pre-0.5.27 JSON import shows the literal token until its
+// text is touched up by hand (the migration has already run by then). GM-side, once per world.
+async function migrateResistanceText() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", RESISTANCE_TEXT_SETTING)) return;
+
+  const swap = (text) => String(text)
+    .replace(/@contest\b/g, "@resistance")
+    .replace(/@rule\[\s*contest\s*\]/gi, "@rule[resistance]")
+    .replace(/^(\s*)\*\*Contest\*\*/gim, "$1**Resistance**")
+    .replace(/Contest Target/g, "Resistance")
+    .replace(/Opposing Techniques/g, "Resistance");
+
+  let count = 0;
+  const sweep = async (items) => {
+    for (const item of items) {
+      if (item.type !== "skill") continue;
+      const desc = String(item.system.description ?? "");
+      if (!desc.trim()) continue;
+      const next = swap(desc);
+      if (next === desc) continue;
+      await item.update({ "system.description": next });
+      count++;
+    }
+  };
+
+  await sweep(game.items);
+  for (const actor of game.actors) await sweep(actor.items);
+  const pack = game.packs.get("project-anime.skills");
+  if (pack) {
+    const wasLocked = pack.locked;
+    try {
+      if (wasLocked) await pack.configure({ locked: false });
+      await sweep(await pack.getDocuments());
+    } finally {
+      if (wasLocked) await pack.configure({ locked: true });
+    }
+  }
+  if (count) console.log(`Project: Anime | Resistance — ${count} Technique description(s) reworded (Contest Target retired).`);
+  await game.settings.set("project-anime", RESISTANCE_TEXT_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Natural Attack backfill (one-time)          */
 /* -------------------------------------------- */
 
@@ -2026,9 +2084,10 @@ Hooks.once("ready", function () {
       .then(() => game.settings.set("project-anime", PACK_AUDIT_SETTING, true))
       .then(() => migrateGearRebaseV2())
       .then(() => migrateAccessoriesV2())
-      .then(() => migrateProseDescriptions());
+      .then(() => migrateProseDescriptions())
+      .then(() => migrateResistanceText());
   } else {
-    migrateGearRebaseV2().then(() => migrateAccessoriesV2()).then(() => migrateProseDescriptions());
+    migrateGearRebaseV2().then(() => migrateAccessoriesV2()).then(() => migrateProseDescriptions()).then(() => migrateResistanceText());
   }
 
   // One-time: switch existing tokens to always-on HP/Energy bars (the bottom-stacked overlay).

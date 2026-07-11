@@ -1,4 +1,4 @@
-import { PROJECTANIME, modifierValue, modifierTakes, techniqueDie, contestTarget, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
+import { PROJECTANIME, modifierValue, modifierTakes, techniqueResistance, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
 import { renderDescriptionHTML } from "./prose.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
 import { resolveCompanion } from "./servants.mjs";
@@ -124,32 +124,6 @@ function thresholdVs(actor, item, targetActor) {
   return Math.max(1, t);
 }
 
-/**
- * The Contest Target an attacker rolls against for an Opposing-Techniques contest (rules:
- * Contest Target = 6 + defender's die/2, +1 Trained Edge when the defense is Talent-built).
- * With no specific defending Technique the defender's best Attribute die stands in ("the
- * relevant Attribute die" — the GM adjusts via the situational modifier when needed).
- */
-function contestTargetFor(defender, defendingItem = null) {
-  if (!defender) return null;
-  if (defendingItem?.type === "skill") {
-    const { die, hasTalent } = techniqueDie(defendingItem);
-    return contestTarget(die, hasTalent);
-  }
-  const best = Math.max(...PROJECTANIME.attributeKeys.map((k) => attrValue(defender, k)));
-  return contestTarget(best, false);
-}
-
-/** True when this Technique resolves as a CONTEST (vs the defender's Contest Target) instead of
- *  an attack vs Guard: the Weaken Effect on a non-willing creature, or a Disarm / Nullify
- *  Modifier (rules: Opposing Techniques). */
-function isContestPiece(item) {
-  if (item?.type !== "skill") return false;
-  const sys = item.system ?? {};
-  if (skillEffectKeys(sys).some((e) => PROJECTANIME.contestEffects.includes(e))) return true;
-  return (sys.modifiers ?? []).some((m) => PROJECTANIME.contestModifiers.includes(m));
-}
-
 /** True when a recovery of `recoveryPool` ("hp" / "energy") is blocked by the target's Curse
  *  (rules v0.01: a Cursed creature cannot regain its cursed pool — chosen at Skill creation,
  *  or both pools for a hand-toggled Curse; see cursedPools). Omit `recoveryPool` to ask "does
@@ -246,25 +220,6 @@ function validateSkillTarget(actor, item) {
   // foe
   if (ttoken && !tokensAreEnemies(casterToken(actor), ttoken)) { ui.notifications.warn(i18n("PROJECTANIME.Roll.foeOnly")); return false; }
   return true;
-}
-
-/** The number this defender pits against this item's roll: its GUARD for an attack, or the
- *  CONTEST TARGET (6 + die/2) for an Opposing-Techniques contest piece (Weaken / Disarm /
- *  Nullify). Returns the value plus whether it was a contest (for the card line). */
-function evasionVs(targetActor, item) {
-  if (!targetActor?.system) return { value: null, contest: false };
-  if (isContestPiece(item)) return { value: contestTargetFor(targetActor), contest: true };
-  return { value: guardOf(targetActor), contest: false };
-}
-
-/** Card label for what the defender used: "Guard" or "Contest Target". `vsEvasionText` is the
- *  "vs …" sentence form of the same. */
-function evasionLabel(contest) {
-  return i18n(contest ? "PROJECTANIME.Roll.contestTarget" : "PROJECTANIME.Stat.guard");
-}
-
-function vsEvasionText(contest) {
-  return i18n(contest ? "PROJECTANIME.Roll.vsContest" : "PROJECTANIME.Roll.vsGuard");
 }
 
 /* -------------------------------------------- */
@@ -603,6 +558,11 @@ export function skillMeta(sys) {
     if (Number(sys.passiveEnergyTax) > 0) chips.push(`<i class="fas fa-lock"></i> ${sys.passiveEnergyTax}`);
   } else if (Number(sys.energyCost) > 0) {
     chips.push(`<i class="fas fa-bolt"></i> ${sys.energyCost}`);
+  }
+  // Resistance (rules: Resistance) — every Technique carries one; the derived getter needs a
+  // real data model (a Builder-draft stand-in has none, so its cards just omit the chip).
+  if (Number.isFinite(sys.resistance)) {
+    chips.push(`<span data-tooltip="${i18n("PROJECTANIME.Roll.resistance")}"><i class="fas fa-shield-halved"></i> ${sys.resistance}</span>`);
   }
   return chips;
 }
@@ -1292,13 +1252,18 @@ export async function rollSkill(actor, item) {
   if (chainTokens) return resolveChain(actor, item, chainTokens, { charged: releasingCharge });
   if (kind) {
     setUserTargets(areaTokens);
-    // Route the area: an offensive area (Mass Strike / Hinder) — or forced movement (Move / Push /
-    // Pull) that caught a hostile creature — rolls Accuracy per caught creature; a supportive area
-    // (Mass Mend / Bolster) affects everyone with no roll.
+    // Route the area (rules: Resistance): an area ATTACK (a Strike) rolls once vs each caught
+    // creature's Guard; a hostile non-attack area (Mass Weaken / debuff) hands each caught
+    // enemy its own Check against the Technique's Resistance; a supportive area (Mass Mend /
+    // Bolster) affects everyone with no roll.
     const ctok = casterToken(actor);
     const enemyInArea = areaTokens.some((t) => tokensAreEnemies(ctok, t));
-    return skillNeedsAccuracy(sys, { enemyTarget: enemyInArea })
-      ? resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge })
+    const hostileArea = skillNeedsAccuracy(sys, { enemyTarget: enemyInArea });
+    if (hostileArea && skillEffectKeys(sys).includes("strike")) {
+      return resolveAreaStrike(actor, item, areaTokens, { charged: releasingCharge });
+    }
+    return hostileArea
+      ? resolveAreaResist(actor, item, areaTokens, { charged: releasingCharge })
       : resolveAreaEffect(actor, item, areaTokens, { charged: releasingCharge });
   }
   return resolveSingleSkill(actor, item, { charged: releasingCharge, chargeLockedHit });
@@ -1454,8 +1419,8 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
   let targetToken = firstTargetToken();
   let targetActor = targetToken?.actor ?? null;
 
-  // Sense vs Vanish (Opposing Techniques): aiming a Sense Technique at a Vanished creature
-  // becomes the dedicated detection contest.
+  // Sense vs Vanish (rules: Resistance): aiming a Sense Technique at a Vanished creature
+  // prompts that creature's Check against the Sense Technique's Resistance.
   if (effects.includes("sense") && targetActor?.statuses?.has?.("vanished")) {
     return resolveSenseDetect(actor, item, targetActor);
   }
@@ -1471,14 +1436,39 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
     targetActor = actor;
   }
 
-  // The defender's number: GUARD for an attack, the CONTEST TARGET for an Opposing-Techniques
-  // piece (Weaken / Disarm / Nullify).
-  const { value: evasion, contest } = evasionVs(targetActor, item);
-  // A roll to hit is made ONLY when the Technique targets an enemy — its explicit Target gates
-  // first (Foe always rolls, Self/Ally never), then for "Any": an offensive Effect or Modifier,
-  // or forced movement (Reposition) aimed at a HOSTILE target. Supportive Techniques just take
-  // effect — you can't dodge a heal or a buff. One shared roll covers every Effect.
-  const needsAccuracy = skillNeedsAccuracy(sys, { enemyTarget: tokensAreEnemies(casterToken(actor), targetToken) });
+  // One-roll resolution (rules: Resistance). A hostile Technique that ATTACKS (carries a
+  // Strike) rolls vs the target's GUARD — the only roll; a hit applies every effect it
+  // carries, no save on top. A hostile Technique WITHOUT an attack never rolls here: the
+  // non-willing target makes a Check against the Technique's Resistance instead (the Resist
+  // button below). Supportive Techniques just take effect — you can't dodge a heal or a buff.
+  const hostile = skillNeedsAccuracy(sys, { enemyTarget: tokensAreEnemies(casterToken(actor), targetToken) });
+  const needsAccuracy = hostile && hasStrike;
+  const evasion = needsAccuracy ? guardOf(targetActor) : null;
+  const needsResist = hostile && !hasStrike
+    && !!targetActor && tokensAreEnemies(casterToken(actor), targetToken);
+
+  // Non-attack vs a non-willing creature: the roll belongs to the TARGET. Post the use card
+  // with a Resist button — the Technique's payload applies only if that Check fails
+  // (onResistCheckButton); meet or beat resists it outright. Never roll both for one Technique.
+  if (needsResist) {
+    const resistance = techniqueResistance(item);
+    if (charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
+    lines.push(`<em class="muted">${game.i18n.format("PROJECTANIME.Roll.resistPrompt", { name: targetActor.name, n: resistance })}</em>`);
+    await postCard(actor, cardHTML({
+      title: item.name,
+      subtitle: i18n("PROJECTANIME.Roll.skill"),
+      icon: item.img,
+      meta: skillMeta(sys),
+      description: await enrichDescription(item),
+      lines,
+      buttons: [{
+        data: `data-action="resistCheck" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuid="${targetActor.uuid}"`,
+        label: `<i class="fas fa-shield-halved"></i> ${i18n("PROJECTANIME.Roll.resistCheck")}`,
+        primary: true
+      }]
+    }));
+    return null;
+  }
 
   // Weapon-range Strikes use the weapon's Threshold (rules: Technique Damage); non-weapon
   // ranges have none.
@@ -1517,7 +1507,7 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
     lines.push(`<strong>${escHTML(spec.labelA)} + ${escHTML(spec.labelB)}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`);
     lines.push(...stepNotes(reasons));
     const skillModLine = rollModLine(rmods); if (skillModLine) lines.push(skillModLine);
-    if (evasion != null) vs = `${vsEvasionText(contest)} <strong>${escHTML(targetActor.name)}</strong> <b>${evasion}</b>`;
+    if (evasion != null) vs = `${i18n("PROJECTANIME.Roll.vsGuard")} <strong>${escHTML(targetActor.name)}</strong> <b>${evasion}</b>`;
     if (threshold != null && hit !== false) {
       lines.push(`<em class="muted">${i18n(thresholdMet ? "PROJECTANIME.Roll.thresholdMet" : "PROJECTANIME.Roll.thresholdMissed", { n: threshold })}</em>`);
     }
@@ -1588,14 +1578,14 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
       primary: true
     });
   }
-  // Steal (rules v0.01): a landed hit opens the loot — pick / contest / transfer from the card.
+  // Steal (rules v0.01): a landed hit opens the loot — pick / transfer from the card.
   if (effects.includes("steal") && landed && targetActor) {
     buttons.push({
       data: `data-action="stealItem" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"${tgt}`,
       label: `<i class="fas fa-hand-sparkles"></i> ${i18n("PROJECTANIME.Roll.steal")}`
     });
   }
-  // Vanish: the shroud's "Stay Hidden" contest vs whoever comes looking (target the seeker first).
+  // Vanish: the shroud's "Stay Hidden" Check vs whoever comes looking (target the seeker first).
   if (effects.includes("vanish") && landed) {
     buttons.push({
       data: `data-action="stayHidden" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}"`,
@@ -1619,16 +1609,14 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
 }
 
 /**
- * Area attack (Burst / Line / Mass) — any area Skill that targets enemies (a Strike, or a Hinder /
- * debuff): roll the Accuracy Check ONCE, then compare that total against each caught creature's own
- * Evasion (Combo hits all, Fumble misses all). Hit targets are inflicted with any on-hit conditions,
- * receive the Skill's Active Effect(s), and — for a Strike — flow into the "Roll Damage" button.
+ * Area attack (Burst / Line / Mass) — an area Strike: roll the attack ONCE, then compare that
+ * total against each caught creature's own Guard (Combo hits all, Fumble misses all). The only
+ * roll — a hit applies every effect the Technique carries (deferred to the Roll Damage step by
+ * the riders-on-damage house rule). Hostile non-attack areas route to resolveAreaResist.
  */
 async function resolveAreaStrike(actor, item, targetTokens, { charged = false } = {}) {
   const sys = item.system;
   const spec = skillRollSpec(actor, item);
-  // A Strike rolls damage; a non-Strike area attack (e.g. Mass Weaken) lands its Effect on the
-  // creatures it hit but offers no damage roll.
   const hasStrike = skillEffectKeys(sys).includes("strike");
   const primary = targetTokens[0]?.actor ?? null;
 
@@ -1660,18 +1648,17 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   const luckTargets = [];
   for (const tok of targetTokens) {
     const ta = tok.actor; if (!ta) continue;
-    // Each caught creature defends with its own number — Guard, or its Contest Target.
-    const { value: ev, contest } = evasionVs(ta, item);
+    // Each caught creature defends with its own Guard.
+    const ev = guardOf(ta);
     const didHit = combo || (!fumble && (ev == null || roll.total >= ev));
     luckTargets.push({ uuid: ta.uuid, ev, name: ta.name });
-    const evNum = ev != null ? `<span class="ctr-num">${evasionLabel(contest)} ${ev}</span>` : "";
+    const evNum = ev != null ? `<span class="ctr-num">${i18n("PROJECTANIME.Stat.guard")} ${ev}</span>` : "";
     lines.push(`<span class="card-target-row"><strong>${escHTML(ta.name)}</strong><span class="ctr-res ${didHit ? "is-hit" : "is-miss"}">${didHit ? i18n("PROJECTANIME.Roll.hit") : i18n("PROJECTANIME.Roll.miss")}${evNum}</span></span>`);
     if (didHit) {
       hitUuids.push(ta.uuid);
       hitActors.push(ta);
       // A Strike defers its riders (conditions / Lingering / ensnare) to the Roll Damage step,
-      // applied per target only where the blow dealt >0 damage (house rule). A non-Strike area
-      // attack (Mass Weaken) has no damage step, so it inflicts on hit here as before.
+      // applied per target only where the blow dealt >0 damage (house rule).
       if (!hasStrike) {
         for (const c of collectInflictedConditions(item, ta)) {
           await applyConditionFromItem(actor, item, ta, c, lines);
@@ -1722,8 +1709,47 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
 }
 
 /**
- * Area non-Strike effect (e.g. Mass Mend): there is no Accuracy Check — the area "affects"
- * every target. Mend offers a "Roll Healing" button for all; on-hit conditions inflict on all.
+ * Hostile non-attack area (Mass Weaken / area debuff) — rules: Resistance. The caster never
+ * rolls: each caught ENEMY resolves through its own Resist button (a Check against the
+ * Technique's Resistance; the payload lands only where that Check fails). Caught non-enemies
+ * count as willing, so the payload applies to them outright, like a supportive area.
+ */
+async function resolveAreaResist(actor, item, targetTokens, { charged = false } = {}) {
+  const sys = item.system;
+  const resistance = techniqueResistance(item);
+  const ctok = casterToken(actor);
+  const lines = [`<em class="muted">${i18n("PROJECTANIME.Roll.aoeAffects", { n: targetTokens.length })}</em>`];
+  if (charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
+
+  const buttons = [];
+  let anyResist = false;
+  for (const tok of targetTokens) {
+    const ta = tok.actor; if (!ta) continue;
+    lines.push(`<span class="card-target-row"><strong>${escHTML(ta.name)}</strong></span>`);
+    if (tokensAreEnemies(ctok, tok)) {
+      anyResist = true;
+      buttons.push({
+        data: `data-action="resistCheck" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuid="${ta.uuid}"`,
+        label: `<i class="fas fa-shield-halved"></i> ${game.i18n.format("PROJECTANIME.Roll.resistFor", { name: ta.name })}`
+      });
+    } else {
+      lines.push(...(await applySkillOnHit(actor, item, ta)));
+    }
+  }
+  if (anyResist) lines.push(`<em class="muted">${game.i18n.format("PROJECTANIME.Roll.resistPromptArea", { n: resistance })}</em>`);
+  if (!targetTokens.length) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.aoeNoTargets")}</em>`);
+
+  await postCard(actor, cardHTML({
+    title: item.name, subtitle: i18n("PROJECTANIME.Roll.skill"),
+    icon: item.img, meta: skillMeta(sys),
+    description: await enrichDescription(item), lines, buttons
+  }));
+  return null;
+}
+
+/**
+ * Area non-Strike effect (e.g. Mass Mend): there is no roll — the area "affects" every target.
+ * Mend offers a "Roll Healing" button for all; on-hit conditions inflict on all.
  */
 async function resolveAreaEffect(actor, item, targetTokens, { charged = false } = {}) {
   const sys = item.system;
@@ -1817,8 +1843,8 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     const [r1, r2] = dieResults(aroll);
     const fum = r1 === 1 && r2 === 1;
     const com = r1 === r2 && r1 >= 6;
-    // Each leap's defender uses its own number — Guard, or its Contest Target.
-    const { value: ev } = evasionVs(ta, item);
+    // Each leap's defender pits its own Guard.
+    const ev = guardOf(ta);
     const didHit = com || (!fum && (ev == null || aroll.total >= ev));
     // Weapon-range chains read the weapon's Threshold per leap (+1 box where met).
     const leapThresholdMet = threshold != null && !fum && aroll.total >= threshold;
@@ -1895,7 +1921,9 @@ async function startCharge(actor, item) {
   const sys = item.system;
   const targetToken = firstTargetToken();
   const targetActor = targetToken?.actor ?? null;
-  const needsAccuracy = !aoeKind(item)
+  // Only an ATTACK charge (a Strike) rolls on the focus turn — a non-attack hostile charge
+  // resolves at release through the target's Resistance Check (rules: Resistance).
+  const needsAccuracy = !aoeKind(item) && skillEffectKeys(sys).includes("strike")
     && skillNeedsAccuracy(sys, { enemyTarget: tokensAreEnemies(casterToken(actor), targetToken) });
   if (needsAccuracy && !targetActor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needTarget"));
   if (!(await spendSkillEnergy(actor, sys, item))) return null;
@@ -1905,7 +1933,7 @@ async function startCharge(actor, item) {
     const rmods = collectRollModifiers(actor, "attack", { target: targetActor });
     const wmods = spec.weapon ? collectWeaponModBonuses(actor, item, { src: spec.weapon, target: targetActor }) : { attack: 0, attackSources: [] };
     if (wmods.attack) rmods.sources.push(...wmods.attackSources);
-    const { value: evasion, contest } = evasionVs(targetActor, item);
+    const evasion = guardOf(targetActor);
     const { dieA, dieB, reasons } = steppedDice(actor, spec.dieA, spec.dieB, { accuracy: true });
     const roll = new Roll(checkFormula(dieA, dieB, rmods.flat + spec.edge + spec.mod + wmods.attack));
     await roll.evaluate();
@@ -1919,7 +1947,7 @@ async function startCharge(actor, item) {
     badges.push(hit ? { cls: "success", text: i18n("PROJECTANIME.Roll.hit") } : { cls: "failure", text: i18n("PROJECTANIME.Roll.miss") });
     const lines = [...stepNotes(reasons)];
     const ml = rollModLine(rmods); if (ml) lines.push(ml);
-    if (evasion != null) lines.push(`${vsEvasionText(contest)} <strong>${escHTML(targetActor.name)}</strong>: ${evasion}`);
+    if (evasion != null) lines.push(`${i18n("PROJECTANIME.Roll.vsGuard")} <strong>${escHTML(targetActor.name)}</strong>: ${evasion}`);
     if (combo) { lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`); maybeGrantComboTurn(actor); }
     await revealVanished(actor, lines);
     if (!hit) {
@@ -2131,10 +2159,10 @@ async function pickStealDialog(target, loose, equipped) {
 }
 
 /**
- * The Steal flow, run from the hit card's button: pick from the target's possessions — loose
- * items always; equipped items only at rank ⭐⭐⭐+ (rules v0.01), and lifting an EQUIPPED item
- * first wins a Contested Check (this Skill's Accuracy vs the target's better of Might+Agility /
- * Might+Spirit). The transfer routes through the owner/GM relay.
+ * The Steal flow, run from the landed card's button: pick from the target's possessions —
+ * loose items always; EQUIPPED items only when the Technique carries the Disarm Modifier.
+ * One-roll resolution (rules: Resistance): the Technique already resolved, so the lift takes
+ * no extra roll. The transfer routes through the owner/GM relay.
  */
 async function resolveSteal(actor, item, target) {
   const lootable = (target.items ?? []).filter((i) =>
@@ -2142,8 +2170,7 @@ async function resolveSteal(actor, item, target) {
     && !i.getFlag("project-anime", "natural")
     && !i.getFlag("project-anime", "granted"));
   const loose = lootable.filter((i) => !i.system?.equipped);
-  // v0.03: base Steal takes from INVENTORY only — equipped items need the Disarm Modifier
-  // (won through the contested roll below).
+  // Base Steal takes from INVENTORY only — equipped items need the Disarm Modifier.
   const canDisarm = (item.system?.modifiers ?? []).includes("disarm");
   const equipped = canDisarm ? lootable.filter((i) => i.system?.equipped) : [];
   if (!loose.length && !equipped.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.stealNothing", { name: target.name }));
@@ -2151,27 +2178,6 @@ async function resolveSteal(actor, item, target) {
   const pickedId = await pickStealDialog(target, loose, equipped);
   const picked = pickedId ? target.items.get(pickedId) : null;
   if (!picked) return null;
-
-  if (picked.system?.equipped) {
-    // Lifting an EQUIPPED item first wins the Disarm contest: roll the Technique's dice against
-    // the target's Contest Target (rules: Opposing Techniques).
-    const spec = skillRollSpec(actor, item);
-    const ct = contestTargetFor(target);
-    const { dieA, dieB } = steppedDice(actor, spec.dieA, spec.dieB);
-    const roll = new Roll(checkFormula(dieA, dieB, spec.edge + spec.mod));
-    await roll.evaluate();
-    const [r1, r2] = dieResults(roll);
-    const won = (r1 === r2 && r1 >= 6) || (!(r1 === 1 && r2 === 1) && roll.total >= ct);
-    await postCard(actor, cardHTML({
-      title: item.name, subtitle: i18n("PROJECTANIME.Roll.contested"), icon: item.img,
-      badges: [won
-        ? { cls: "success", text: i18n("PROJECTANIME.Roll.contestedWon") }
-        : { cls: "failure", text: i18n("PROJECTANIME.Roll.contestedLost") }],
-      rollHTML: await roll.render(),
-      lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${escHTML(target.name)}</strong>: ${ct}`]
-    }), roll);
-    if (!won) return null;
-  }
   return transferStolenItem(actor, target, picked);
 }
 
@@ -2221,7 +2227,7 @@ export async function stealItemTo(stealerUuid, targetUuid, itemId) {
   }));
 }
 
-/** "Steal Item" chat-card button → the pick / contest / transfer flow. */
+/** "Steal Item" chat-card button → the pick / transfer flow. */
 async function onStealItemButton(event) {
   event.preventDefault();
   const el = event.currentTarget;
@@ -2473,9 +2479,9 @@ async function revealVanished(actor, lines) {
   lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.vanishRevealed", { name: actor.name })}</em>`);
 }
 
-/** The Vanish Technique's "Stay Hidden" contest (rules: Opposing Techniques) — a creature is
- *  actively looking for you: the VANISHER rolls its Technique's dice against the seeker's
- *  Contest Target. */
+/** The Vanish Technique's "Stay Hidden" button (rules: Resistance / Overcome) — a creature is
+ *  actively looking for you (target the seeker first): the SEEKER makes a Check against the
+ *  Vanish Technique's Resistance. Meet or beat sees through the shroud. */
 async function onStayHiddenButton(event) {
   event.preventDefault();
   const el = event.currentTarget;
@@ -2485,50 +2491,134 @@ async function onStayHiddenButton(event) {
   const seeker = firstTargetActor();
   if (!seeker) return ui.notifications.warn(i18n("PROJECTANIME.Roll.needTarget"));
 
-  // The seeker's Contest Target — built on its Sense Technique when it has one.
-  const senseSkill = (seeker.items ?? []).find((i) => i.type === "skill" && skillEffectKeys(i.system).includes("sense"));
-  const ct = contestTargetFor(seeker, senseSkill);
-  const spec = skillRollSpec(actor, item);
-  const { dieA, dieB } = steppedDice(actor, spec.dieA, spec.dieB);
-  const roll = new Roll(checkFormula(dieA, dieB, spec.edge + spec.mod));
-  await roll.evaluate();
-  const hidden = roll.total >= ct;
-  return postCard(actor, cardHTML({
+  const resistance = techniqueResistance(item);
+  const res = await rollCheckVsResistance(seeker, resistance, {
+    title: `${i18n("PROJECTANIME.Roll.stayHidden")} — ${item.name}`
+  });
+  if (!res) return null;
+  const badges = [];
+  if (res.fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
+  else if (res.combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
+  badges.push(res.success
+    ? { cls: "success", text: i18n("PROJECTANIME.Roll.detected") }
+    : { cls: "failure", text: i18n("PROJECTANIME.Roll.staysHidden") });
+  return postCard(seeker, cardHTML({
     title: item.name,
     subtitle: i18n("PROJECTANIME.Roll.stayHidden"),
     icon: item.img,
-    badges: [hidden
-      ? { cls: "success", text: i18n("PROJECTANIME.Roll.staysHidden") }
-      : { cls: "failure", text: i18n("PROJECTANIME.Roll.detected") }],
-    rollHTML: await roll.render(),
-    lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${escHTML(seeker.name)}</strong>: ${ct}`]
-  }), roll);
+    badges,
+    vs: `${i18n("PROJECTANIME.Roll.vsResistance")} <b>${resistance}</b>`,
+    rollHTML: await res.roll.render(),
+    lines: res.lines
+  }), res.roll, { combo: res.combo });
 }
 
-/** Sense vs Vanish (rules: Opposing Techniques) — a Sense Technique aimed at a Vanished
- *  creature rolls its own dice (+ Trained Edge) against the vanisher's Contest Target (built
- *  on its Vanish Technique's die). Reports detection; the table adjudicates. */
+/** Sense vs Vanish (rules: Resistance) — a Sense Technique aimed at a Vanished creature: that
+ *  creature makes a Check against the Sense Technique's Resistance (the card's button). Meet
+ *  or beat keeps it hidden; below = Detected. The table adjudicates what detection reveals. */
 async function resolveSenseDetect(actor, item, targetActor) {
-  const spec = skillRollSpec(actor, item);
-  const vanishSkill = (targetActor.items ?? []).find((i) => i.type === "skill" && skillEffectKeys(i.system).includes("vanish"));
-  const ct = contestTargetFor(targetActor, vanishSkill);
-
-  const { dieA, dieB } = steppedDice(actor, spec.dieA, spec.dieB);
-  const roll = new Roll(checkFormula(dieA, dieB, spec.edge + spec.mod));
-  await roll.evaluate();
-  const detected = roll.total >= ct;
+  const resistance = techniqueResistance(item);
   return postCard(actor, cardHTML({
     title: item.name,
     subtitle: i18n("PROJECTANIME.Roll.senseDetect"),
     icon: item.img,
     meta: skillMeta(item.system),
-    badges: [detected
-      ? { cls: "success", text: i18n("PROJECTANIME.Roll.detected") }
-      : { cls: "failure", text: i18n("PROJECTANIME.Roll.notDetected") }],
-    rollHTML: await roll.render(),
     description: await enrichDescription(item),
-    lines: [`${i18n("PROJECTANIME.Roll.vsContest")} <strong>${escHTML(targetActor.name)}</strong>: ${ct}`]
-  }), roll);
+    lines: [`<em class="muted">${game.i18n.format("PROJECTANIME.Roll.resistPrompt", { name: targetActor.name, n: resistance })}</em>`],
+    buttons: [{
+      data: `data-action="resistCheck" data-actor-uuid="${actor.uuid}" data-item-id="${item.id}" data-target-uuid="${targetActor.uuid}" data-mode="sense"`,
+      label: `<i class="fas fa-shield-halved"></i> ${i18n("PROJECTANIME.Roll.resistCheck")}`,
+      primary: true
+    }]
+  }));
+}
+
+/* -------------------------------------------- */
+/*  Resistance Checks (rules: Resistance)       */
+/* -------------------------------------------- */
+
+/**
+ * Prompt + roll one creature's Check against a fixed Resistance (rules: Resistance — meet or
+ * beat = success). The dialog offers the roller's Attributes / Talent chips like any Check;
+ * Fumble and Combo apply as on any roll against a Resistance (auto-fail / auto-success, the
+ * Combo's extra turn included). Returns { roll, success, fumble, combo, lines }, or null when
+ * the dialog is cancelled.
+ */
+async function rollCheckVsResistance(actor, resistance, { title }) {
+  const choice = await promptRoll({ title, actor, attrA: "might", attrB: "spirit", showCT: false });
+  if (!choice) return null;
+  const rmods = collectRollModifiers(actor, "check");
+  // A Talent in the second slot rolls Attribute + Talent (+1 Trained Edge), like any Check.
+  const talent = typeof choice.attrB === "string" && choice.attrB.startsWith("talent:")
+    ? getTalent(actor, choice.attrB.slice(7)) : null;
+  const rawB = talent ? talent.die : attrValue(actor, choice.attrB);
+  const edge = talent ? PROJECTANIME.trainedEdge : 0;
+  const { dieA, dieB, reasons } = steppedDice(actor, attrValue(actor, choice.attrA), rawB);
+  const roll = new Roll(checkFormula(dieA, dieB, choice.mod + rmods.flat + edge));
+  await roll.evaluate();
+  const [r1, r2] = dieResults(roll);
+  const fumble = r1 === 1 && r2 === 1;
+  const combo = r1 === r2 && r1 >= 6;
+  const success = combo || (!fumble && roll.total >= resistance);
+  const lines = [
+    `<strong>${i18n(PROJECTANIME.attributes[choice.attrA])} + ${talent ? talent.name : i18n(PROJECTANIME.attributes[choice.attrB])}</strong>`,
+    ...stepNotes(reasons)
+  ];
+  const modLine = rollModLine(rmods); if (modLine) lines.push(modLine);
+  if (combo) { lines.push(`<em>${i18n("PROJECTANIME.Roll.extraTurn")}</em>`); maybeGrantComboTurn(actor); }
+  return { roll, success, fumble, combo, lines };
+}
+
+/**
+ * "Resist" chat-card button (rules: Resistance): the affected non-willing creature makes a
+ * Check against the Technique's stored Resistance. Meet or beat = resisted, nothing applies;
+ * below = the Technique's full payload lands (conditions, Lingering, effects, ensnare — and a
+ * Steal opens its loot). `data-mode="sense"` reskins the outcome for the Vanish detection
+ * Check (Stays Hidden / Detected, no payload).
+ */
+async function onResistCheckButton(event) {
+  event.preventDefault();
+  const el = event.currentTarget;
+  const caster = await fromUuid(el.dataset.actorUuid);
+  const item = caster?.items.get(el.dataset.itemId);
+  if (!item) return ui.notifications.warn(i18n("PROJECTANIME.Roll.itemGone"));
+  const target = el.dataset.targetUuid ? await fromUuid(el.dataset.targetUuid) : null;
+  if (!target) return ui.notifications.warn(i18n("PROJECTANIME.Roll.targetGone"));
+  const sense = el.dataset.mode === "sense";
+  const resistance = techniqueResistance(item);
+  const res = await rollCheckVsResistance(target, resistance, {
+    title: `${i18n("PROJECTANIME.Roll.resistCheck")} — ${item.name}`
+  });
+  if (!res) return null;
+
+  const badges = [];
+  if (res.fumble) badges.push({ cls: "failure", text: i18n("PROJECTANIME.Roll.fumble") });
+  else if (res.combo) badges.push({ cls: "combo", text: i18n("PROJECTANIME.Roll.combo") });
+  badges.push(res.success
+    ? { cls: "success", text: i18n(sense ? "PROJECTANIME.Roll.staysHidden" : "PROJECTANIME.Roll.resisted") }
+    : { cls: "failure", text: i18n(sense ? "PROJECTANIME.Roll.detected" : "PROJECTANIME.Roll.resistFailed") });
+
+  const lines = [...res.lines];
+  const buttons = [];
+  if (!res.success && !sense) {
+    lines.push(...(await applySkillOnHit(caster, item, target)));
+    if (skillEffectKeys(item.system).includes("steal")) buttons.push({
+      data: `data-action="stealItem" data-actor-uuid="${caster.uuid}" data-item-id="${item.id}" data-target-uuid="${target.uuid}"`,
+      label: `<i class="fas fa-hand-sparkles"></i> ${i18n("PROJECTANIME.Roll.steal")}`
+    });
+  }
+
+  await postCard(target, cardHTML({
+    title: item.name,
+    subtitle: i18n("PROJECTANIME.Roll.resistCheck"),
+    icon: item.img,
+    badges,
+    vs: `${i18n("PROJECTANIME.Roll.vsResistance")} <b>${resistance}</b>`,
+    rollHTML: await res.roll.render(),
+    lines,
+    buttons
+  }), res.roll, { combo: res.combo });
+  return res.roll;
 }
 
 /* -------------------------------------------- */
@@ -2541,8 +2631,8 @@ const ENSNARE_EFFECTS = ["disguise", "illusion", "telepathy"];
 
 /**
  * Stamp an ensnare marker on the affected creature: the Skill's name + icon, its Duration as
- * the lifetime (Scene/Channeled ride the usual flags), 7 + the Skill's SP cost (max 16) as the
- * Overcome CT (v0.03), and an autoKey so a re-cast refreshes rather than stacks. `self` marks
+ * the lifetime (Scene/Channeled ride the usual flags), the Technique's Resistance as the
+ * Overcome target, and an autoKey so a re-cast refreshes rather than stacks. `self` marks
  * the caster's own Disguise shroud. Skipped while the target is Overcome-immune to this Skill.
  */
 async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = false } = {}) {
@@ -2587,10 +2677,10 @@ async function applyEnsnareMarker(actor, item, targetActor, effectKey, { self = 
 /**
  * The Overcome action: shrug off a Status Effect or an ensnaring Skill (Disguise / Illusion /
  * Telepathy). The bearer describes the attempt and rolls a Check of their chosen two Attributes
- * against a Challenge Threshold — prefilled with 7 + the inflicting Skill's SP cost, max 16
- * (v0.03), when one was stamped; otherwise the table sets it. Success ends
- * the effect and grants immunity to re-application from the same source for the next 2 rounds.
- * Opened from the Effects Panel's right-click. Returns the roll, or null if cancelled/invalid.
+ * against the holding Technique's Resistance (stamped when the effect landed); an effect not
+ * caused by a Technique uses the Challenge Threshold table instead — the table sets it. Success
+ * ends the effect and grants immunity to re-application from the same source for the next 2
+ * rounds. Opened from the Effects Panel's right-click. Returns the roll, or null if cancelled.
  */
 export async function performOvercome(actor, effect) {
   const flags = effect?.flags?.["project-anime"] ?? {};
@@ -2911,6 +3001,7 @@ export function onRenderChatMessage(message, html) {
   html.querySelectorAll("[data-action='spendLuckAoe']").forEach((btn) => { btn.onclick = onSpendLuckAoeButton; });
   html.querySelectorAll("[data-action='stealItem']").forEach((btn) => { btn.onclick = onStealItemButton; });
   html.querySelectorAll("[data-action='stayHidden']").forEach((btn) => { btn.onclick = onStayHiddenButton; });
+  html.querySelectorAll("[data-action='resistCheck']").forEach((btn) => { btn.onclick = onResistCheckButton; });
 }
 
 /* -------------------------------------------- */
@@ -3183,8 +3274,8 @@ export async function applyStatusTo(targetUuid, statusId, active = true, duratio
     if (active && (pool === "hp" || pool === "energy")) await target.setFlag("project-anime", "curse", { pool });
     else if (!active && target.getFlag("project-anime", "curse")) await target.update({ "flags.project-anime.-=curse": null });
   }
-  // The Overcome action's Difficulty is 7 + the Skill's SP cost, max 16 (v0.03) — a
-  // Skill-inflicted status stamps it so the Overcome dialog can prefill the CT. Cleared with the status.
+  // The Overcome action rolls against the holding Technique's Resistance — a Skill-inflicted
+  // status stamps it so the Overcome dialog can prefill the number. Cleared with the status.
   if (active && overcomeCT > 0) await target.setFlag("project-anime", "overcomeCT", { [statusId]: Math.round(overcomeCT) });
   else if (!active && statusId in (target.getFlag("project-anime", "overcomeCT") ?? {})) {
     await target.update({ [`flags.project-anime.overcomeCT.-=${statusId}`]: null });
@@ -3234,13 +3325,11 @@ function overcomeImmune(target, sourceKey) {
   return (target.effects ?? []).some((e) => e.flags?.["project-anime"]?.overcomeImmunity === sourceKey);
 }
 
-/** The Overcome action's target against a Technique-inflicted effect (rules: Overcoming
- *  Effects — "you contest against the user"): the inflicting Technique's Contest Target,
- *  6 + its die/2 (+1 Trained Edge when Talent-built). */
+/** The Overcome action's target against a Technique-inflicted effect (rules: Overcome — roll a
+ *  Check against the holding Technique's Resistance). Non-Techniques stamp nothing — their
+ *  effects use the Challenge Threshold table instead. */
 function overcomeCTFor(item) {
-  if (item?.type !== "skill") return 0;
-  const { die, hasTalent } = techniqueDie(item);
-  return contestTarget(die, hasTalent);
+  return item?.type === "skill" ? techniqueResistance(item) : 0;
 }
 
 /**

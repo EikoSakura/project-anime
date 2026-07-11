@@ -520,6 +520,8 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     // Live cost readout: an Active pays its total per use; a Passive locks that many boxes.
     t.isPassiveCost = passive;
     t.liveEnergy = Number(sys.totalCost) || 0;
+    // Resistance (rules: Resistance) — every Technique carries one, derived from its build.
+    t.resistance = sys.resistance;
 
     // Modifier grid — the wizard's rows: cost tier groups, legality blocks, scaled values,
     // per-Modifier creation-time picks. Descriptions ride as tooltips.
@@ -658,7 +660,7 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
 
   /** Codex-prose toolbar — insert markup into the `data-target` textarea from a `data-tool`:
    *  wrap the selection (highlight / gold / bold), prefix the current line (heading / list /
-   *  Label / outcome block — Hit / Contest / Threshold insert their CALCULATED values), or drop
+   *  Label / outcome block — Hit / Resistance / Threshold insert their CALCULATED values), or drop
    *  a divider. Reads the live textarea, then saves. */
   static async #onProseTool(event, target) {
     if (!this.isEditable) return;

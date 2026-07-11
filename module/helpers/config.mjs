@@ -83,12 +83,19 @@ PROJECTANIME.challengeThresholds = {
 };
 PROJECTANIME.challengeThresholdKeys = ["easy", "moderate", "hard", "daunting", "extreme"];
 
-/** Contest Target (rules: Opposing Techniques) = 6 + defender's die/2. The defending die is the
- *  Talent die when the defending Technique is built under a Talent (and the Trained Edge then
- *  applies: 7 + die/2), else the relevant Attribute die. */
-export function contestTarget(dieSize, hasTalent = false) {
-  const die = Number(dieSize) || 4;
-  return 6 + Math.floor(die / 2) + (hasTalent ? PROJECTANIME.trainedEdge : 0);
+/** Resistance (rules: Resistance) — every Technique carries one. Built under a Talent:
+ *  7 + Talent die/2 (the Trained Edge is already folded into the 7 — never add another +1).
+ *  Built with Attributes: 6 + the HIGHER of the Technique's two Attribute dice/2. A non-willing
+ *  creature the Technique affects without attacking resists with a Check against this number
+ *  (meet or beat = resist); the Overcome action rolls against it too. */
+export function techniqueResistance(item) {
+  const actor = item?.actor ?? item?.parent;
+  const sys = item?.system ?? item;
+  const talent = getTalent(actor, sys?.talentId);
+  if (talent) return 7 + Math.floor((Number(talent.die) || 4) / 2);
+  const dieOf = (k) => Number(actor?.system?.attributes?.[k]?.value) || 4;
+  const die = Math.max(dieOf(sys?.attributes?.attrA), dieOf(sys?.attributes?.attrB));
+  return 6 + Math.floor(die / 2);
 }
 
 /* -------------------------------------------- */
@@ -512,21 +519,14 @@ export function skillDieSpecs(sys) {
   return out;
 }
 
-/** Effects that contest the creature they land on — a Technique carrying one (in either slot)
- *  rolls to hit when aimed at a non-willing target ("Techniques that target an enemy require a
- *  roll to hit"). The Target gates first: Self/Ally never rolls, Foe always does — this list
- *  decides "Any". */
+/** Effects that land something hostile — a Technique carrying one (in either slot) must
+ *  overcome a non-willing target. The Target gates first: Self/Ally never, Foe always — this
+ *  list decides "Any". */
 PROJECTANIME.offensiveEffects = ["strike", "hinder", "steal", "illusion", "telepathy"];
 
-/** Modifiers that on their own land something hostile, so a Technique carrying one rolls even
- *  when its Effect is otherwise neutral. Disarm and Nullify are CONTESTED (see contestModifiers). */
+/** Modifiers that on their own land something hostile, so a Technique carrying one must
+ *  overcome a non-willing target even when its Effect is otherwise neutral. */
 PROJECTANIME.offensiveModifiers = ["inflict", "inflictSevere", "analyze", "disarm", "nullify"];
-
-/** Pieces resolved as an Opposing-Techniques CONTEST (roll vs the defender's Contest Target,
- *  6 + die/2) rather than vs Guard: the Weaken Effect on a non-willing creature, and the
- *  Disarm / Nullify Modifiers ("The target contests this Technique"). */
-PROJECTANIME.contestEffects = ["hinder"];
-PROJECTANIME.contestModifiers = ["disarm", "nullify"];
 
 /** What the Analyze Modifier reveals — chosen at creation (rules: "learn one category about
  *  the target: current hit and energy boxes, Attributes, or Techniques"). */
@@ -541,10 +541,11 @@ PROJECTANIME.analyzeCategories = {
 PROJECTANIME.movementModifiers = ["reposition"];
 
 /**
- * True if a Technique rolls to hit — i.e. it targets an enemy (vs Guard, or a Contest Target
- * for contested pieces). The single source of truth for "is this an attack". The explicit
- * Target gates first: a Self/Ally Technique never rolls, a Foe Technique always does. "Any"
- * falls through to the per-Effect/per-Modifier logic.
+ * True if a Technique must overcome a non-willing target (rules: one-roll resolution). The
+ * single source of truth for "is this hostile" — an attack (a Strike) then rolls vs Guard and
+ * a hit applies every effect it carries; anything else prompts the TARGET'S Check against the
+ * Technique's Resistance. The explicit Target gates first: a Self/Ally Technique never, a Foe
+ * Technique always. "Any" falls through to the per-Effect/per-Modifier logic.
  */
 export function skillNeedsAccuracy(sys, { enemyTarget } = {}) {
   if (!sys) return false;

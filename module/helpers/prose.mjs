@@ -1,8 +1,9 @@
 /**
  * Project: Anime — "Codex prose": rich, hand-authored item descriptions in the system's own
  * voice. The GM writes a description in a plain textarea using light markup (headings, dividers,
- * lists, bold **Labels**, and the outcome blocks the system actually uses — Hit / Miss / Contest /
- * Threshold / Wound) and it renders as a formatted card that fills the View tab and the chat card.
+ * lists, bold **Labels**, and the outcome blocks the system actually uses — Hit / Miss /
+ * Resistance / Threshold / Wound) and it renders as a formatted card that fills the View tab
+ * and the chat card.
  * Inline styling lives in `styleManualRules` (numbers auto-blue, `backtick` blue, ~tilde~ gold,
  * Foundry [[rolls]]/@links preserved). NOT a copy of any other system — the block vocabulary maps
  * to Project: Anime's V2 rules.
@@ -13,7 +14,7 @@
  * outcome inserts. No Foundry globals are touched at module scope.
  */
 import {
-  techniqueDie, contestTarget, skillDieSpecs, actorTalents, rangeLabel, physicalRangeLabel,
+  techniqueDie, techniqueResistance, skillDieSpecs, actorTalents, rangeLabel, physicalRangeLabel,
   modifierTakes, skillTarget, skillDuration, modifierValue, rangeHasTiles, getTalent
 } from "./config.mjs";
 
@@ -21,7 +22,8 @@ import {
  *  Anything not listed renders as a neutral stat label (Range / Target / Energy / …). */
 const OUTCOME_CLASS = {
   hit: "pa-out-hit", miss: "pa-out-miss",
-  contest: "pa-out-contest", contested: "pa-out-contest", won: "pa-out-hit", win: "pa-out-hit",
+  resistance: "pa-out-resist", resist: "pa-out-resist", resisted: "pa-out-resist",
+  won: "pa-out-hit", win: "pa-out-hit",
   lost: "pa-out-miss", lose: "pa-out-miss", fail: "pa-out-miss", failure: "pa-out-miss",
   tie: "pa-out-neutral",
   threshold: "pa-out-threshold",
@@ -106,7 +108,7 @@ export function renderProse(raw) {
     m = /^\d+\.\s+(.*)$/.exec(line);
     if (m) { flushPara(); if (!list || list.tag !== "ol") { flushList(); list = { tag: "ol", items: [] }; } list.items.push(inline(m[1])); continue; }
 
-    // Outcome line: only a leading **Hit** / **Miss** / **Contest** / **Threshold** / **Wound**
+    // Outcome line: only a leading **Hit** / **Miss** / **Resistance** / **Threshold** / **Wound**
     // (letters compared, so "**Hit:**" still matches) starts a colored outcome block. Any OTHER
     // leading bold — a stat label, or a sentence that merely opens with emphasis — falls through to
     // a normal paragraph where inline() bolds it, so ordinary prose isn't hijacked into a label row.
@@ -156,7 +158,7 @@ export function renderDescriptionBlock(item) {
  *  re-resolves them against the owning item/actor, so descriptions never go stale. The same
  *  pattern backs the registered Foundry enricher (helpers/enrichers.mjs) and the sync resolver
  *  below — keep them identical. */
-export const INLINE_CALC_SOURCE = "@(talent|contest|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|trigger|status|scale)\\b(?:\\[([^\\]]*)\\])?";
+export const INLINE_CALC_SOURCE = "@(talent|resistance|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|trigger|status|scale)\\b(?:\\[([^\\]]*)\\])?";
 
 /** A resolved token: just the blue value span — the token says exactly what it computes;
  *  authors write their own labels around it. */
@@ -195,10 +197,9 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         if (t) return calcSpan(`${t.name} d${t.die}`, L("PROJECTANIME.Prose.calcTalent"));
         break;
       }
-      case "contest": {
+      case "resistance": {
         if (item?.type !== "skill") break;
-        const { die, hasTalent } = techniqueDie(item);
-        return calcSpan(contestTarget(die, hasTalent), L("PROJECTANIME.Prose.calcContest"));
+        return calcSpan(techniqueResistance(item), L("PROJECTANIME.Prose.calcResistance"));
       }
       case "scale": {
         // The Technique's die/2 scaling value (rules: "When a Modifier uses die/2"):
@@ -332,12 +333,12 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         return refSpan(L(c.name), L(`PROJECTANIME.Status.desc.${c.id}`));
       }
       case "rule": {
-        // A DICE-mechanic reference (Attack / Check / Test / Contest / Threshold / Trained
+        // A DICE-mechanic reference (Attack / Check / Test / Resistance / Threshold / Trained
         // Edge / Luck / Combo / Fumble) — hover shows the V2 rule. Needs no item; matched by
         // key or printed label, case-insensitively.
         const q = String(arg ?? "").trim().toLowerCase();
         if (!q) break;
-        const keys = ["attack", "check", "test", "contest", "threshold", "trainedEdge", "luck", "combo", "fumble"];
+        const keys = ["attack", "check", "test", "resistance", "threshold", "trainedEdge", "luck", "combo", "fumble"];
         const key = keys.find((k) =>
           k.toLowerCase() === q || L(`PROJECTANIME.Prose.rule.${k}`).trim().toLowerCase() === q);
         if (!key) break;
@@ -375,9 +376,9 @@ export function resolveInlineCalcs(html, item) {
     (kind ? inlineCalcHTML(kind, arg == null ? arg : decodeEntities(arg), item, decodeEntities(m)) : m));
 }
 
-/** The outcome insert for a Hit / Contest / Threshold button, or null when the item gives the
- *  tool nothing to calculate (the plain prefix is used instead). Since v0.5.19 these insert
- *  LIVE TOKENS (`@threshold`, `@contest`, `@damage`) instead of frozen numbers — the values
+/** The outcome insert for a Hit / Resistance / Threshold button, or null when the item gives
+ *  the tool nothing to calculate (the plain prefix is used instead). Since v0.5.19 these insert
+ *  LIVE TOKENS (`@threshold`, `@resistance`, `@damage`) instead of frozen numbers — the values
  *  re-resolve on every render. `item` may be a real Item or a lightweight { type, system,
  *  actor } stand-in (the Skill Builder's draft). */
 function outcomeInsert(tool, item) {
@@ -385,7 +386,7 @@ function outcomeInsert(tool, item) {
   if (!sys) return null;
   const type = item.type;
   if (tool === "threshold" && (type === "weapon" || type === "shield")) return "**Threshold** @threshold ";
-  if (tool === "contest" && type === "skill") return "**Contest** @contest ";
+  if (tool === "resistance" && type === "skill") return "**Resistance** @resistance ";
   if (tool === "hit") {
     if (type === "weapon" || type === "shield") {
       return `**Hit** ${game.i18n.format("PROJECTANIME.Prose.insDealDamage", { n: "@damage" })} `;
@@ -403,11 +404,11 @@ function outcomeInsert(tool, item) {
 
 /** Toolbar insert: given a textarea value + selection and a tool, return the new value. Shared by
  *  every authoring surface (item sheet, Skill Builder). Pass the item (or a { type, system, actor }
- *  stand-in) so the Hit / Contest / Threshold buttons insert their live tokens only where they can
- *  resolve. The Talent tool takes `arg` (a Talent name from the toolbar picker) and drops
+ *  stand-in) so the Hit / Resistance / Threshold buttons insert their live tokens only where they
+ *  can resolve. The Talent tool takes `arg` (a Talent name from the toolbar picker) and drops
  *  `@talent[Name]` at the caret. Unknown tool → no-op. */
 const PROSE_WRAP = { highlight: "`", gold: "~", bold: "**" };
-const PROSE_PREFIX = { heading: "# ", list: "- ", label: "**Label** ", hit: "**Hit** ", miss: "**Miss** ", contest: "**Contest** ", threshold: "**Threshold** " };
+const PROSE_PREFIX = { heading: "# ", list: "- ", label: "**Label** ", hit: "**Hit** ", miss: "**Miss** ", resistance: "**Resistance** ", threshold: "**Threshold** " };
 export function applyProseTool(value, selStart, selEnd, tool, item = null, arg = null) {
   const v = String(value ?? "");
   const s = Number.isFinite(selStart) ? selStart : v.length;

@@ -1,4 +1,4 @@
-import { PROJECTANIME, techniqueEnergyCost, modifiersEnergy } from "../helpers/config.mjs";
+import { PROJECTANIME, techniqueEnergyCost, modifiersEnergy, techniqueResistance } from "../helpers/config.mjs";
 
 const fields = foundry.data.fields;
 const requiredInteger = { required: true, nullable: false, integer: true };
@@ -289,6 +289,12 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     // design); `usesLimit` is that cap (0 = unlimited).
     this.perConflict = this.usesPerConflict > 0;
     this.usesLimit = this.perConflict ? this.usesPerConflict : 0;
+  }
+
+  /** Resistance (rules: Resistance) — derived live so it tracks Talent/Attribute growth:
+   *  Talent-built 7 + Talent die/2 (Trained Edge folded in), else 6 + higher Attribute die/2. */
+  get resistance() {
+    return techniqueResistance(this.parent ?? this);
   }
 }
 

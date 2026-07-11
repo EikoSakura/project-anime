@@ -717,7 +717,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Codex-prose toolbar (Concept step) — insert markup into the description textarea, sync it into
    *  the draft, and re-render (which refreshes the preview). Shares applyProseTool with the sheets;
-   *  the assembled draft stands in for the item so Hit / Contest / Threshold insert the values the
+   *  the assembled draft stands in for the item so Hit / Resistance / Threshold insert the values the
    *  Technique-under-construction actually calculates to. */
   static #onProseTool(event, target) {
     const ta = this.element?.querySelector('textarea[name="description"]');

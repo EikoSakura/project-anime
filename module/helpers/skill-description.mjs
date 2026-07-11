@@ -134,7 +134,7 @@ export function skillRulesHTML(item) {
         sentences.push(N("vanish"));
         break;
       case "hinder":
-        // Weaken is contested by a non-willing creature (rules: Opposing Techniques).
+        // Weaken on a non-willing creature: it resists with a Check (rules: Resistance).
         sentences.push(N("contests"));
         break;
     }
