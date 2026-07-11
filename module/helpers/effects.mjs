@@ -24,7 +24,7 @@
  * PURE in-memory transform — never call update()/setFlag() from here (infinite loop).
  */
 
-import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue } from "./config.mjs";
+import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue, modifierTakes } from "./config.mjs";
 import { stampCompendiumSource } from "./gear.mjs";
 
 const FLAG_SCOPE = "project-anime";
@@ -415,8 +415,17 @@ export function skillModifierRules(item) {
   const out = [];
   // Protection (V2): the target gains +1 Guard; Duration follows the technique.
   if (mods.includes("protection")) out.push({ type: "stat", key: "guard", value: PROJECTANIME.protectionGuard ?? 1 });
-  // Retaliation (V2): an enemy that marks hit boxes on the target marks 1 hit box.
-  if (mods.includes("retaliation")) out.push({ type: "retaliation", value: PROJECTANIME.retaliationDamage ?? 1 });
+  // Retaliation (V2): an enemy that marks hit boxes on the target marks 1 hit box. Sibling
+  // Modifiers on the same Technique shape the ward: Potent fattens the bounce (+1 per take)
+  // and Drain rides along (the rule carries its pool) so a fired ward clears a box on its
+  // bearer — paid out in dice.mjs applyRetaliation.
+  if (mods.includes("retaliation")) {
+    let value = PROJECTANIME.retaliationDamage ?? 1;
+    if (mods.includes("potent")) value += (PROJECTANIME.potentBonus ?? 1) * modifierTakes("potent", sys);
+    const rule = { type: "retaliation", value };
+    if (mods.includes("drain")) rule.drain = sys.drainPool === "energy" ? "energy" : "hp";
+    out.push(rule);
+  }
   return out;
 }
 
@@ -898,13 +907,14 @@ export function collectSustain(actor) {
  * `skillModifierRules` bundle), while a PASSIVE Retaliation Skill protects its bearer always-on
  * (no copy is made — the in-memory engine ignores the rule, so its ward is read straight off the
  * bearer's own passive Skill here). Equip-/toggle-/predicate-gated like the other collectors.
- * @returns {{value:number}[]} one entry per live ward (they stack).
+ * @returns {{value:number, drain:string|null}[]} one entry per live ward (they stack); `drain`
+ *   is the pool a Drain on the warding Technique clears on the bearer when the ward stings.
  */
 export function collectRetaliation(actor) {
   const out = [];
   const add = (rule) => {
     const value = Math.max(0, Math.round(Number(rule.value) || 0));
-    if (value > 0) out.push({ value });
+    if (value > 0) out.push({ value, drain: rule.drain === "energy" || rule.drain === "hp" ? rule.drain : null });
   };
   let effects;
   try { effects = actor?.appliedEffects ?? []; } catch (_) { effects = []; }

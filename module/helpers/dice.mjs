@@ -3585,9 +3585,12 @@ async function applyDrain(actor, item, count, lines) {
  *  tick). Fired from every damage path after the hit lands, mirroring applyDrain but keyed off
  *  the TARGET's ward, not the attacker's Skill — so a basic weapon blow triggers it too. Only
  *  enemies retaliate (tokensAreEnemies), so a creature hurting itself or an ally never sets it
- *  off; multiple wards on one target stack. The bounce routes through the owner/GM relay and is
- *  clamped to the attacker's max. `hits` = [{actor, amount}] of the creatures this attack
- *  actually damaged (amount > 0; non-healing only). Mutates `lines` with a chat note per ward fired. */
+ *  off; multiple wards on one target stack. Sibling Modifiers on the warding Technique ride the
+ *  ward (effects.mjs skillModifierRules): Potent is already folded into `value`, and a Drain
+ *  pays its bearer 1 box of the chosen pool whenever the ward actually stings (Curse voids it).
+ *  The bounce routes through the owner/GM relay and is clamped to the attacker's max. `hits` =
+ *  [{actor, amount}] of the creatures this attack actually damaged (amount > 0; non-healing
+ *  only). Mutates `lines` with a chat note per ward fired. */
 async function applyRetaliation(attacker, hits, lines) {
   if (!attacker || !hits?.length) return;
   const aToken = casterToken(attacker);
@@ -3600,6 +3603,11 @@ async function applyRetaliation(attacker, hits, lines) {
       const adj = adjustForTarget(w.value, attacker);
       if (adj.amount > 0) await routeApply(attacker, attacker.uuid, adj.amount, false, "hp");
       lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.retaliation", { name: warded.name })}: ${adj.line}</em>`);
+      if (w.drain && adj.amount > 0) {
+        if (curseBlocks(warded, w.drain)) { lines.push(curseNote(warded.name, w.drain)); continue; }
+        await routeApply(warded, warded.uuid, 1, true, w.drain);
+        lines.push(`<em class="muted">${game.i18n.format(w.drain === "energy" ? "PROJECTANIME.Roll.retaliationDrainEnergy" : "PROJECTANIME.Roll.retaliationDrainHP", { name: warded.name })}</em>`);
+      }
     }
   }
 }

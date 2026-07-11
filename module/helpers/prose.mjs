@@ -158,7 +158,7 @@ export function renderDescriptionBlock(item) {
  *  re-resolves them against the owning item/actor, so descriptions never go stale. The same
  *  pattern backs the registered Foundry enricher (helpers/enrichers.mjs) and the sync resolver
  *  below — keep them identical. */
-export const INLINE_CALC_SOURCE = "@(talent|resistance|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|trigger|status|scale)\\b(?:\\[([^\\]]*)\\])?";
+export const INLINE_CALC_SOURCE = "@(talent|resistance|threshold|damage|energy|range|target|duration|modifier|effect|rule|attack|action|trigger|status|scale)\\b(?:\\[([^\\]]*)\\])?";
 
 /** A resolved token: just the blue value span — the token says exactly what it computes;
  *  authors write their own labels around it. */
@@ -290,6 +290,20 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         const trig = CONFIG.PROJECTANIME.triggers?.[sys.trigger];
         if (!trig) break;
         return calcSpan(L(trig), L("PROJECTANIME.Prose.calcTrigger"));
+      }
+      case "action": {
+        // The Technique's Action Type — Action / Passive / React; a Passive appends its mode
+        // (Sustained / Standing).
+        if (item?.type !== "skill") break;
+        const cfgAct = CONFIG.PROJECTANIME;
+        const at = cfgAct.actionTypes?.[sys.actionType];
+        if (!at) break;
+        let label = L(at);
+        if (sys.actionType === "passive") {
+          const pm = cfgAct.passiveModes?.[sys.passiveMode];
+          if (pm) label += ` · ${L(pm)}`;
+        }
+        return calcSpan(label, L("PROJECTANIME.Prose.calcAction"));
       }
       case "attack": {
         // The item's ACTUAL roll dice — "Charm (d8) + Army Training (d6)": the Paired

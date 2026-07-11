@@ -188,6 +188,7 @@
       "calcDuration": "Duration",
       "calcAttack": "Attack Roll",
       "calcTrigger": "Trigger",
+      "calcAction": "Action Type",
       "calcScale": "Die/2, +1 Trained Edge",
       "calcUnlinked": "Unlinked",
       "rule": {
@@ -326,6 +327,8 @@
       "drainsEnergy": "Drain: Clears {n} Energy Box",
       "drainsEnergyPlural": "Drain: Clears {n} Energy Boxes",
       "retaliation": "Retaliation ({name})",
+      "retaliationDrainHP": "{name} Drains: Clears 1 Hit Box",
+      "retaliationDrainEnergy": "{name} Drains: Clears 1 Energy Box",
       "charge": "Charge",
       "chargeReleases": "Releases at double power on your next turn.",
       "release": "Release",

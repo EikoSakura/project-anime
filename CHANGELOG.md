@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.28 - 2026-07-11
+
+- Modifiers now shape Retaliation on the same Technique: Potent fattens the bounce (+1 box per take, so up to 3), reflected live on the ward's effect chip,Drain rides Retaliation: when the ward's bounce deals damage, the warded creature clears 1 box of the Drain's chosen pool (Curse voids the recovery); noted on the attacker's damage card,New @action inline token: renders the Technique's Action Type (Action / React / Passive; a Passive appends its Sustained or Standing mode), resolving live in descriptions, chat cards, and the builder preview
+
 ## 0.5.27 - 2026-07-11
 
 - Ruleset: Contest Target / Opposing Techniques replaced by Resistance - every Technique derives one (Talent-built: 7 + Talent die/2, Trained Edge included; Attribute-built: 6 + the higher Attribute die/2), shown on the Technique sheet and its chat cards,One-roll resolution: an attacking Technique rolls vs Guard only and a hit applies every effect it carries; a non-attack Technique aimed at a non-willing creature never rolls - the target makes a Check vs the stored Resistance from a Resist chat button (hostile areas get one button per caught enemy),Weaken, Disarm, and Nullify lose their contest text; the Steal-equipped extra roll is gone; Overcome, Stay Hidden, and Sense-vs-Vanish now roll Checks against the holding Technique's Resistance; Fumble/Combo apply to any roll vs Guard or a Resistance,New @resistance inline token replaces @contest outright; the prose toolbar's Contest button is now Resistance,One-time migration resistanceV1 rewrites stored Technique descriptions (tokens, Contest labels, 'Contest Target'/'Opposing Techniques' phrases) across world items, actors, and the Techniques pack; Guard, damage, Threshold, and Trained Edge on attacks are untouched
