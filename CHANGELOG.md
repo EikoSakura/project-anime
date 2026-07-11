@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.29 - 2026-07-11
+
+- Shield sheet: the Talent picker now appears on shields (they attack as weapons and could always link a Talent - the dropdown was simply missing from the sheet)
+
 ## 0.5.28 - 2026-07-11
 
 - Modifiers now shape Retaliation on the same Technique: Potent fattens the bounce (+1 box per take, so up to 3), reflected live on the ward's effect chip,Drain rides Retaliation: when the ward's bounce deals damage, the warded creature clears 1 box of the Drain's chosen pool (Curse voids the recovery); noted on the attacker's damage card,New @action inline token: renders the Technique's Action Type (Action / React / Passive; a Passive appends its Sustained or Standing mode), resolving live in descriptions, chat cards, and the builder preview

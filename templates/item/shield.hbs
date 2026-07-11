@@ -21,6 +21,15 @@
           <select name="system.accuracy.attrB">{{selectOptions config.attributes selected=system.accuracy.attrB localize=true}}</select>
         </div>
       </div>
+      {{#if talentChoices}}
+      <div class="detail-row"><label>{{localize "PROJECTANIME.Field.talent"}}</label>
+        <select name="system.talentId">
+          <option value=""></option>
+          {{#each talentChoices as |t|}}
+          <option value="{{t.id}}" {{#if t.selected}}selected{{/if}}>{{t.name}} (d{{t.die}})</option>
+          {{/each}}
+        </select></div>
+      {{/if}}
       <div class="detail-row"><label>{{localize "PROJECTANIME.Field.weaponDmg"}}</label>
         <input type="number" name="system.damage.value" value="{{system.damage.value}}" min="0" /></div>
       <div class="detail-row"><label>{{localize "PROJECTANIME.Field.threshold"}}</label>
