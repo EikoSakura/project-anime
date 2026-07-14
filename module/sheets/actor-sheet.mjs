@@ -1,6 +1,6 @@
 import { rollCheck, useConsumable, contextRemoveEffect, postCard, cardHTML } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion } from "../helpers/config.mjs";
+import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion, healthStatus } from "../helpers/config.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, applyEffectCopy } from "../helpers/effects.mjs";
@@ -65,6 +65,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       deleteActorEffect: ProjectAnimeActorSheet.#onDeleteActorEffect,
       openDrawer: ProjectAnimeActorSheet.#onOpenDrawer,
       closeDrawer: ProjectAnimeActorSheet.#onCloseDrawer,
+      toggleReveal: ProjectAnimeActorSheet.#onToggleReveal,
       addTalent: ProjectAnimeActorSheet.#onAddTalent,
       editTalent: ProjectAnimeActorSheet.#onEditTalent,
       postTalent: ProjectAnimeActorSheet.#onPostTalent,
@@ -173,9 +174,29 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       relativeTo: this.actor,
       secrets: this.actor.isOwner
     });
+    // Player-controlled disclosure — what a Limited viewer gets. The owner flips per-block
+    // eye toggles (stored on the actor, so every open copy re-renders live). Mechanics
+    // default private; the Profile dossier and Biography default shared. Portrait, name,
+    // pronouns, and the health word ladder always show.
+    const revealFlag = this.actor.getFlag("project-anime", "reveal") ?? {};
+    context.reveal = {
+      attributes: !!revealFlag.attributes,
+      resources: !!revealFlag.resources,
+      vitals: !!revealFlag.vitals,
+      luck: !!revealFlag.luck,
+      talents: !!revealFlag.talents,
+      biography: revealFlag.biography !== false
+    };
+    context.showBiography = !context.limited || context.reveal.biography;
+    if (context.limited) {
+      const h = healthStatus(this.actor);
+      context.healthWord = h ? { label: game.i18n.localize(h.key), tint: h.tint } : null;
+      context.sealedBand = !(context.reveal.vitals && context.reveal.luck && context.reveal.talents);
+    }
     // GM-configurable Bio "dossier" fields (label/icon/type from the world setting)
     // paired with this actor's stored value. The list is shared; values live in
     // details.<key>. `long` fields render as a full-width textarea, else an input.
+    // Limited viewers only get fields the owner shares (and that have a value).
     const details = this.actor.system.details ?? {};
     context.bioFields = getBioFields().map((f) => ({
       key: f.key,
@@ -183,8 +204,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       value: details[f.key] ?? "",
       icon: f.icon,
       iconImg: isImageIcon(f.icon),
-      long: f.type === "long"
+      long: f.type === "long",
+      shared: revealFlag.fields?.[f.key] !== false,
+      revealKey: `fields.${f.key}`
     }));
+    if (context.limited) context.bioFields = context.bioFields.filter((f) => f.shared && f.value);
     // Which section drawer is open — drives `{{#if open.<section>}}` in the templates.
     context.open = Object.fromEntries(DRAWER_SECTIONS.map((s) => [s, this.#openSection === s]));
 
@@ -1385,6 +1409,23 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         event.currentTarget.value = entered;
       });
     }
+  }
+
+  /** Flip one disclosure eye (owner only). `data-key` is a path inside the reveal flag —
+   *  a block ("attributes", "resources", …) or a dossier field ("fields.age"). Blocks
+   *  default private, biography/fields default shared, so an unset flag toggles to the
+   *  opposite of its default. setFlag re-renders every open copy of the sheet. */
+  static async #onToggleReveal(event, target) {
+    // The dossier eyes live inside <label>s — stop the label from forwarding the click.
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.actor.isOwner) return;
+    const key = target.dataset.key;
+    if (!key) return;
+    const current = foundry.utils.getProperty(this.actor.getFlag("project-anime", "reveal") ?? {}, key);
+    const defaultShared = key === "biography" || key.startsWith("fields.");
+    const value = current === undefined ? !defaultShared : !current;
+    await this.actor.setFlag("project-anime", `reveal.${key}`, value);
   }
 
   /* -------------------------------------------- */

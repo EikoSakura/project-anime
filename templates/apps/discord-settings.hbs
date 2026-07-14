@@ -6,10 +6,31 @@
   </div>
 
   <div class="ts-field">
+    <label class="ts-label" for="pa-discord-rewards">{{localize "PROJECTANIME.Settings.discord.rewardsLabel"}}</label>
+    <input type="text" id="pa-discord-rewards" name="rewardsWebhook" value="{{rewards}}"
+      placeholder="{{localize 'PROJECTANIME.Settings.discord.webhookPlaceholder'}}" />
+  </div>
+
+  <div class="ts-field">
     <label class="ts-label" for="pa-discord-role">{{localize "PROJECTANIME.Settings.discord.roleLabel"}}</label>
     <input type="text" id="pa-discord-role" name="role" value="{{role}}"
       placeholder="{{localize 'PROJECTANIME.Settings.discord.rolePlaceholder'}}" />
   </div>
+
+  {{#if characters.length}}
+  <fieldset class="dm-map">
+    <legend>{{localize "PROJECTANIME.Settings.discord.mentions"}}</legend>
+    {{#each characters}}
+    <div class="dm-row">
+      <span class="dm-dot" style="background: {{this.color}}"></span>
+      <span class="dm-name">{{this.name}}</span>
+      <span class="dm-player">{{this.player}}</span>
+      <input type="text" name="discord.{{this.id}}" value="{{this.discordId}}"
+        placeholder="{{localize 'PROJECTANIME.Settings.discord.idPlaceholder'}}" />
+    </div>
+    {{/each}}
+  </fieldset>
+  {{/if}}
 
   <footer class="ec-footer">
     <button type="submit" class="ec-save"><i class="fa-solid fa-floppy-disk"></i> {{localize "PROJECTANIME.Settings.discord.save"}}</button>

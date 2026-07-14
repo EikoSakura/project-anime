@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.30 - 2026-07-14
+
+- Discord rewards channel: a second webhook (Settings -> Configure Discord -> Rewards Webhook URL) posts a gold payout receipt to #rewards when a quest completes - per-participant loot fields, a totals strip, party-wide Unlocks, and pings,Character Mentions: link any player-owned character to a Discord user id (paste the id or a copied <@...> mention); the link lives on the character - linked participants get pinged, unlinked are credited by name only,Distribute Rewards reworked: a Participants chip strip (party roster all checked, untick absentees, add outside guests) and a destination select on every gold/item reward - Party Stash, Split Among Participants, or a specific person; gold splits count checked participants only,Post To #Rewards toggle with a one-shot double-post guard; Mark Complete auto-posts the stash receipt; a failed post never rolls back loot - right-click the quest -> Post Rewards retries from the frozen receipt
+
 ## 0.5.29 - 2026-07-11
 
 - Shield sheet: the Talent picker now appears on shields (they attack as weapons and could always link a Talent - the dropdown was simply missing from the sheet)

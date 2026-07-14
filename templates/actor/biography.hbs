@@ -1,10 +1,17 @@
 {{!-- Biography: a "dossier" of GM-configurable identity fields + a rich-text
       biography. A drawer in the normal view; rendered inline for the limited
-      (observer) view. The dossier is shared between both via an inline partial.
-      The Profile field list comes from the Bio Fields world setting (context.bioFields). --}}
+      view. The dossier is shared between both via an inline partial.
+      The Profile field list comes from the Bio Fields world setting (context.bioFields).
+      Owners flip per-field .reveal-eye chips (flags.project-anime.reveal.fields.<key>);
+      a Limited viewer's list arrives pre-filtered to shared, non-empty fields and the
+      values render as static text. --}}
+{{#*inline "revealEye"}}
+{{#if @root.owner}}<a class="reveal-eye{{#unless on}} off{{/unless}}" data-action="toggleReveal" data-key="{{key}}" title="{{#if on}}{{localize 'PROJECTANIME.Reveal.shared'}}{{else}}{{localize 'PROJECTANIME.Reveal.hidden'}}{{/if}}"><i class="fa-solid {{#if on}}fa-eye{{else}}fa-eye-slash{{/if}}"></i></a>{{/if}}
+{{/inline}}
 {{#*inline "bioProfile"}}
 <div class="bio-details">
   {{#unless hideProfile}}
+  {{#if bioFields.length}}
   <section class="form-section">
     <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.profile"}}</h4>
     <div class="form-grid">
@@ -13,8 +20,11 @@
         <label>
           {{#if field.icon}}{{#if field.iconImg}}<img class="bio-field-icon" src="{{field.icon}}" alt="" />{{else}}<i class="bio-field-icon {{field.icon}}"></i>{{/if}}{{/if}}
           {{field.label}}
+          {{> revealEye key=field.revealKey on=field.shared}}
         </label>
-        {{#if field.long}}
+        {{#if @root.limited}}
+        <div class="bio-ro{{#if field.long}} long{{/if}}">{{field.value}}</div>
+        {{else if field.long}}
         <textarea name="system.details.{{field.key}}" rows="3">{{field.value}}</textarea>
         {{else}}
         <input type="text" name="system.details.{{field.key}}" value="{{field.value}}" />
@@ -23,12 +33,19 @@
       {{/each}}
     </div>
   </section>
+  {{/if}}
   {{/unless}}
 
+  {{#if showBiography}}
   <section class="form-section bio-prose-section">
-    <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.biography"}}</h4>
+    <h4 class="form-section-title">{{localize "PROJECTANIME.Bio.biography"}}{{> revealEye key="biography" on=reveal.biography}}</h4>
+    {{#if @root.limited}}
+    <div class="bio-prose-ro">{{{enrichedBiography}}}</div>
+    {{else}}
     <prose-mirror name="system.biography" value="{{system.biography}}" data-document-uuid="{{actorUuid}}" toggled="true" {{#unless @root.editable}}disabled{{/unless}}>{{{enrichedBiography}}}</prose-mirror>
+    {{/if}}
   </section>
+  {{/if}}
 </div>
 {{/inline}}
 

@@ -16,11 +16,34 @@ export const DISCORD_WEBHOOK_SETTING = "discordWebhook";
 /** World setting (config:false) holding a role id to @-ping when a quest posts ("" = no ping). */
 export const DISCORD_ROLE_SETTING = "discordRoleId";
 
+/** World setting (config:false) holding the #rewards channel webhook URL ("" = rewards posting off). */
+export const DISCORD_REWARDS_WEBHOOK_SETTING = "discordRewardsWebhook";
+
 /** The role id to @-ping on a quest post (accepts a raw id or a pasted `<@&id>` mention); "" = no ping. */
 function pingRoleId() {
   const raw = String(game.settings.get("project-anime", DISCORD_ROLE_SETTING) || "");
   const m = raw.match(/\d{5,}/);
   return m ? m[0] : "";
+}
+
+/** Extract a Discord user-id snowflake from pasted text (a raw id or a copied `<@id>` mention); "" = none. */
+export function extractSnowflake(raw) {
+  const m = String(raw ?? "").match(/\d{15,}/);
+  return m ? m[0] : "";
+}
+
+/** The player who "is" this character: the user whose assigned character it is, else its first
+ *  non-GM owner. Null for GM-run or orphaned actors. */
+export function characterOwner(actor) {
+  if (!actor) return null;
+  return game.users.find((u) => !u.isGM && u.character?.id === actor.id)
+    ?? game.users.find((u) => !u.isGM && actor.testUserPermission(u, "OWNER"))
+    ?? null;
+}
+
+/** The Discord user id linked to a character (`flags.project-anime.discordId`); "" = unlinked. */
+export function actorDiscordId(actor) {
+  return extractSnowflake(actor?.getFlag?.("project-anime", "discordId"));
 }
 
 /** Category → embed accent (decimal RGB), mirroring the Codex `--q-*` colors. */
@@ -206,7 +229,10 @@ async function postToWebhook(url, payload) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      // A hung webhook host must never stall the calling flow (payout guards save before this,
+      // but an unbounded await still freezes the GM's click for minutes).
+      signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -237,4 +263,125 @@ export async function postQuestToDiscord(quest) {
   // Best-effort: a failed sign-up poll must not undo the already-posted quest — flag it instead.
   const pollRes = await postToWebhook(url, buildSignupPoll(quest));
   return pollRes.ok ? { ok: true } : { ok: true, pollOk: false, error: pollRes.error };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Rewards channel                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Every rewards post wears gold — #rewards scrolls as one trophy wall; category stays in the eyebrow. */
+const REWARDS_COLOR = 0xd8b257;
+
+/** Discord caps an embed at 25 fields; participants keep 23 so Stash/Unlocks always fit. */
+const MAX_PARTICIPANT_FIELDS = 23;
+
+/** True when a receipt has anything worth posting (loot, stash, or unlocks — not just credit). */
+export function receiptHasLoot(receipt) {
+  if (!receipt) return false;
+  return (receipt.stash?.gold ?? 0) > 0 || (receipt.stash?.items?.length ?? 0) > 0
+    || (receipt.unlocks?.length ?? 0) > 0
+    || (receipt.participants ?? []).some((p) => (p.gold ?? 0) > 0 || (p.items?.length ?? 0) > 0);
+}
+
+/** One participant's field value: mention line (embed mentions render but never ping) + their exact
+ *  loot lines. Discord rejects empty field values, so pure credit with no link renders an em dash. */
+function participantValue(p, mention) {
+  const lines = [];
+  if (mention) lines.push(mention);
+  if ((p.gold ?? 0) > 0) lines.push(`⦿ ${p.gold} ${game.i18n.localize("PROJECTANIME.Chronicle.reward.gold")}`);
+  for (const name of p.items ?? []) lines.push(`❖ ${name}`);
+  return clamp(lines.join("\n") || "—", CAP.field);
+}
+
+/**
+ * Build the #rewards webhook payload from a payout receipt — the numbers grantRewards actually
+ * paid, never recomputed. Mentions resolve LIVE from each character's `discordId` flag (so a
+ * delayed retry picks up links fixed in between); unlinked characters show name-only and are
+ * omitted from the ping line. Only the message `content` notifies, whitelisted to exactly the
+ * linked participants via allowed_mentions.
+ */
+export function buildRewardsEmbed(quest, receipt) {
+  const L = (k) => game.i18n.localize(k);
+  const stash = receipt?.stash ?? { gold: 0, items: [] };
+  const unlocks = receipt?.unlocks ?? [];
+  const participants = (receipt?.participants ?? []).map((p) => {
+    const discordId = actorDiscordId(game.actors.get(p.id));
+    return { ...p, discordId, mention: discordId ? `<@${discordId}>` : "" };
+  });
+
+  // Description totals strip — the whole payout scannable in a notification preview.
+  const totalGold = (stash.gold ?? 0) + participants.reduce((n, p) => n + (p.gold ?? 0), 0);
+  const totalItems = (stash.items?.length ?? 0) + participants.reduce((n, p) => n + (p.items?.length ?? 0), 0);
+  const totals = [];
+  if (totalGold > 0) totals.push(`⦿ ${totalGold}`);
+  if (totalItems > 0) totals.push(`❖ ${totalItems}`);
+  if (unlocks.length) totals.push(`⚿ ${unlocks.length}`);
+
+  // Scalar embed parts first — their lengths feed the 6000-char total-embed budget below.
+  const author = { name: `${CATEGORY_BADGE[quest.category] ?? "◆"} ${L(`PROJECTANIME.Chronicle.cat.${quest.category}`)}` };
+  if (isPublicHttp(quest.giver?.img)) author.icon_url = quest.giver.img;
+  const title = clamp(quest.title || L("PROJECTANIME.Chronicle.untitled"), CAP.title);
+  const footer = { text: clamp([L("PROJECTANIME.Chronicle.completed"), receipt?.party].filter(Boolean).join(" · "), 2048) };
+  const description = totals.length ? totals.join(" · ") : "";
+
+  let stashField = null;
+  if ((stash.gold ?? 0) > 0 || stash.items?.length) {
+    const lines = [];
+    if (stash.gold > 0) lines.push(`⦿ ${stash.gold} ${L("PROJECTANIME.Chronicle.reward.gold")}`);
+    for (const name of stash.items ?? []) lines.push(`❖ ${name}`);
+    stashField = { name: `💰 ${L("PROJECTANIME.Chronicle.discordStash")}`, value: clamp(lines.join("\n"), CAP.field), inline: false };
+  }
+  const unlocksField = unlocks.length
+    ? { name: `⚿ ${L("PROJECTANIME.Chronicle.discordUnlocks")}`, value: clamp(unlocks.join("\n"), CAP.field), inline: false }
+    : null;
+
+  // Per-field caps alone don't bound the AGGREGATE — Discord rejects an embed whose combined
+  // title/description/author/footer/field text tops 6000 chars. Measure the participant grid
+  // against the real remaining budget and demote to the one-line roster when it doesn't fit
+  // (the roster layout is bounded well under the cap by its own clamps).
+  const fieldLen = (f) => (f ? f.name.length + String(f.value).length : 0);
+  const baseLen = title.length + description.length + author.name.length + footer.text.length
+    + fieldLen(stashField) + fieldLen(unlocksField);
+  const fields = [];
+  let perPlayer = participants.length > 0 && participants.length <= MAX_PARTICIPANT_FIELDS;
+  if (perPlayer) {
+    const grid = participants.map((p) => ({ name: clamp(`◆ ${p.name}`, 256), value: participantValue(p, p.mention), inline: true }));
+    if (baseLen + grid.reduce((n, f) => n + fieldLen(f), 0) > 5800) perPlayer = false;
+    else fields.push(...grid);
+  }
+  if (stashField) fields.push(stashField);
+  // A demoted/oversized roster collapses to one line — credit survives every layout.
+  if (!perPlayer && participants.length) {
+    const roster = participants.map((p) => p.mention || `**${p.name}**`).join(" · ");
+    fields.push({ name: `👥 ${L("PROJECTANIME.Chronicle.participants")}`, value: clamp(roster, CAP.field), inline: false });
+  }
+  if (unlocksField) fields.push(unlocksField);
+
+  const embed = { author, title, color: REWARDS_COLOR, fields, footer, timestamp: new Date().toISOString() };
+  if (description) embed.description = description;
+
+  const payload = { embeds: [embed] };
+  const ids = [...new Set(participants.map((p) => p.discordId).filter(Boolean))];
+  if (ids.length) {
+    // Message content caps at 2000 chars and allowed_mentions.users at 100 ids — ping as many
+    // as fit; the embed still names everyone.
+    const pinged = [];
+    let len = 0;
+    for (const id of ids.slice(0, 100)) {
+      const add = id.length + 3 + (pinged.length ? 1 : 0); // "<@id>" plus a separator space
+      if (len + add > 2000) break;
+      pinged.push(id);
+      len += add;
+    }
+    payload.content = pinged.map((id) => `<@${id}>`).join(" ");
+    payload.allowed_mentions = { users: pinged };
+  }
+  return payload;
+}
+
+/** Post a payout receipt to the #rewards webhook. `reason: "no-url"` = webhook not configured. */
+export async function postRewardsToDiscord(quest, receipt) {
+  const url = String(game.settings.get("project-anime", DISCORD_REWARDS_WEBHOOK_SETTING) || "").trim();
+  if (!url) return { ok: false, reason: "no-url" };
+  return postToWebhook(url, buildRewardsEmbed(quest, receipt));
 }

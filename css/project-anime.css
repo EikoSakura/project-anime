@@ -3888,8 +3888,28 @@
 .project-anime.token-field-config .ec-path { font-family: var(--pa-font-mono); font-size: 0.78rem; }
 
 /* Token Settings — stacked label/control fields on the shared config-menu chrome. */
-.project-anime.token-settings-config .ts-field { display: flex; flex-direction: column; gap: 0.3rem; }
-.project-anime.token-settings-config .ts-label { font-weight: 700; color: var(--pa-ink); }
+.project-anime.token-settings-config .ts-field,
+.project-anime.discord-settings-config .ts-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.project-anime.token-settings-config .ts-label,
+.project-anime.discord-settings-config .ts-label { font-weight: 700; color: var(--pa-ink); }
+
+/* Discord settings: Character Mentions map (character → Discord user id) */
+.project-anime.discord-settings-config .dm-map {
+  display: flex; flex-direction: column; border: 1px solid var(--pa-line); border-radius: 8px;
+  padding: 0.45rem 0.65rem 0.55rem; margin: 0;
+}
+.project-anime.discord-settings-config .dm-map legend {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pa-ink-soft); padding: 0 5px;
+}
+.project-anime.discord-settings-config .dm-row {
+  display: grid; grid-template-columns: 10px minmax(6rem, 1.2fr) minmax(4rem, 0.8fr) minmax(9rem, 1fr);
+  gap: 8px; align-items: center; padding: 3px 0;
+}
+.project-anime.discord-settings-config .dm-row + .dm-row { border-top: 1px solid color-mix(in srgb, var(--pa-line) 50%, transparent); }
+.project-anime.discord-settings-config .dm-dot { width: 8px; height: 8px; border-radius: 50%; }
+.project-anime.discord-settings-config .dm-name { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-anime.discord-settings-config .dm-player { color: var(--pa-ink-soft); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-anime.discord-settings-config .dm-row input { font-family: var(--pa-font-mono); font-size: 11px; }
 .project-anime.token-settings-config .ts-check .ts-label {
   flex-direction: row;
   align-items: center;
@@ -6921,6 +6941,46 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .project-anime .pa-distribute .dr-target legend { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--pa-ink-soft); padding: 0 5px; }
 .project-anime .pa-distribute .dr-target label { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
 
+/* Distribute: participants chip strip (checkbox chips + guest picker) */
+.project-anime .pa-distribute .pa-participants { display: block; margin-top: 0; }
+.project-anime .pa-distribute .pt-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 2px; }
+.project-anime .pa-distribute .pt-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px;
+  border: 1px solid var(--pa-accent); border-radius: 999px;
+  background: color-mix(in srgb, var(--pa-accent) 16%, transparent);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.project-anime .pa-distribute .pt-chip input { display: none; }
+.project-anime .pa-distribute .pt-chip .ava {
+  display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--pa-surface-2); border: 1px solid var(--pa-line); font-size: 9px; font-weight: 800;
+}
+.project-anime .pa-distribute .pt-chip .dcm { color: #7983f5; font-size: 9px; }
+.project-anime .pa-distribute .pt-chip:has(input:checked)::after { content: "✔"; color: var(--pa-accent-2); font-size: 10px; }
+.project-anime .pa-distribute .pt-chip:not(:has(input:checked)) {
+  border-color: var(--pa-line); background: transparent; color: var(--pa-ink-soft); opacity: 0.75;
+}
+.project-anime .pa-distribute .pt-chip.guest .pt-n::after { content: " ✦"; color: var(--pa-gold-soft); font-size: 9px; }
+.project-anime .pa-distribute .pt-add {
+  width: auto; max-width: 9rem; padding: 2px 8px; border: 1px dashed var(--pa-line); border-radius: 999px;
+  background: transparent; color: var(--pa-ink-soft); font-size: 11px; cursor: pointer;
+}
+
+/* Distribute: per-reward destination select */
+.project-anime .pa-distribute .dr-sel {
+  margin-left: auto; width: auto; max-width: 13rem; flex: 0 0 auto;
+  padding: 2px 7px; border: 1px solid var(--pa-line); border-radius: 5px;
+  background: var(--pa-surface-2); color: var(--pa-ink); font-size: 11px; font-weight: 600; cursor: pointer;
+}
+
+/* Distribute: Post To #Rewards toggle (bottom row, only when the rewards webhook is set) */
+.project-anime .pa-distribute .pa-post-rewards {
+  display: flex; align-items: center; gap: 7px; margin-top: 4px; padding: 6px 9px;
+  border: 1px solid var(--pa-line); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.project-anime .pa-distribute .pa-post-rewards input { cursor: pointer; }
+.project-anime .pa-distribute .pa-post-rewards .fa-discord { color: #5865f2; }
+
 /* icon image (File Picker): rail thumbnail, faint hero watermark, GM preview */
 .chronicle-app .q-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; }
 .chronicle-app .q-hero .glyph img { width: 168px; height: 168px; object-fit: contain; }
@@ -8548,4 +8608,137 @@ body.pa-combat-shown #chat-notifications { display: none; }
 }
 .project-anime.sheet.actor.merchant .shop-toggle input:checked ~ .tg-label {
   color: var(--pa-accent-ink);
+}
+
+/* ============================================================
+   23. LIMITED VIEW — player-controlled disclosure
+   A Limited viewer gets identity (portrait, name, pronouns,
+   dossier, biography) plus the health word ladder; each
+   mechanics block appears only if its owner shares it. Owners
+   flip the .reveal-eye chips (data-action="toggleReveal").
+   ============================================================ */
+
+/* Eye chips — accent eye when shared, dim slash when private. */
+.project-anime.sheet.actor .reveal-eye {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1rem;
+  height: 1rem;
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--pa-accent-ink);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.12s, color 0.12s;
+}
+.project-anime.sheet.actor .reveal-eye:hover { opacity: 1; color: var(--pa-accent-2); }
+.project-anime.sheet.actor .reveal-eye.off { color: var(--pa-ink-soft); opacity: 0.5; }
+.project-anime.sheet.actor .reveal-eye.off:hover { color: var(--pa-ink); opacity: 0.9; }
+/* Placement: attrs corner (the diamond rotation leaves the cell corner empty), inline by the
+   HP label, a slim right-aligned row under the vitals, the Luck label, the Talents title. */
+.project-anime.sheet.actor .panel-attrs { position: relative; }
+.project-anime.sheet.actor .reveal-eye.corner { position: absolute; top: -0.25rem; right: -0.1rem; }
+.project-anime.sheet.actor .resource-top .reveal-eye { margin-left: 0.3rem; margin-right: auto; }
+.project-anime.sheet.actor .panel-vitals .vital-eye-row {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.15rem;
+}
+.project-anime.sheet.actor .panel-luck-label .reveal-eye { vertical-align: -3px; margin-left: 0.2rem; }
+.project-anime .bio-details .form-group label { display: flex; align-items: center; }
+.project-anime .bio-details .form-group label .reveal-eye { margin-left: auto; }
+.project-anime .bio-prose-section .form-section-title { display: flex; align-items: center; }
+.project-anime .bio-prose-section .form-section-title .reveal-eye { margin-left: auto; }
+
+/* Limited rail — static name/pronouns wear the input styling minus the edit affordances. */
+.project-anime.sheet.actor .char-name-ro { cursor: default; }
+.project-anime.sheet.actor .char-name-ro:hover { border-bottom-color: transparent; }
+.project-anime.sheet.actor .pronouns-ro { border-bottom-style: none; }
+
+/* Masked attribute dice — the slots show, the values don't. */
+.project-anime.sheet.actor .pattr-die > span.masked { color: var(--pa-gold-soft); font-size: 0.9rem; }
+
+/* Read-only resources: static values, boxes without click affordances. */
+.project-anime.sheet.actor .resource-vals.ro {
+  font-family: var(--pa-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  color: var(--pa-ink);
+}
+.project-anime.sheet.actor .limited-header .mark-box { cursor: default; }
+.project-anime.sheet.actor .limited-header .mark-box:hover {
+  border-color: color-mix(in srgb, var(--pa-accent) 25%, var(--pa-line));
+  box-shadow: none;
+}
+
+/* Condition — the health word ladder in place of exact boxes (same source as the HUD). */
+.project-anime.sheet.actor .panel-condition {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+.project-anime.sheet.actor .panel-condition .cond-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+.project-anime.sheet.actor .panel-condition .cond-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--pa-font-display);
+  font-size: 1.02rem;
+  color: var(--pa-ink);
+}
+.project-anime.sheet.actor .panel-condition .cond-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cond-tint, var(--pa-ink-soft));
+  box-shadow: 0 0 7px var(--cond-tint, transparent);
+}
+
+/* Sealed band — everything the owner keeps private folds into one fixed strip (leaks no counts). */
+.project-anime.sheet.actor .sealed-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+  padding: 0.85rem 0.6rem;
+  border: 1px solid var(--pa-line);
+  border-radius: 5px;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.028) 0 7px, transparent 7px 14px),
+    rgba(0, 0, 0, 0.28);
+}
+.project-anime.sheet.actor .sealed-band i { color: #d8b257; font-size: 0.85rem; }
+.project-anime.sheet.actor .sealed-band span {
+  font-family: var(--pa-font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--pa-ink-soft);
+}
+
+/* Read-only talent rows in the limited rail. */
+.project-anime.sheet.actor .talent-row .tr-main.ro { cursor: default; }
+
+/* Limited bio — static dossier values + enriched biography prose. */
+.project-anime .bio-details .bio-ro {
+  font-size: 0.82rem;
+  color: var(--pa-ink);
+  padding: 0.15rem 0;
+  min-height: 1.2rem;
+  white-space: pre-wrap;
+}
+.project-anime .bio-details .bio-prose-ro {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--pa-ink);
 }

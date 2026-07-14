@@ -222,7 +222,10 @@ export function blankQuest() {
     complication: "", // the hidden truth — GM eyes only
     objectives: [], // { id, text, done, hidden, optional }
     rewards: [], // { type, value?, uuid?, name?, img?, label? }
-    granted: false
+    granted: false,
+    rewardsPosted: false, // #rewards receipt already posted to Discord (set only on a 2xx)
+    participants: [], // actor ids frozen at distribution — the Discord credit roster
+    receipt: null // exact payout snapshot { party, participants, stash, unlocks } for (re)posts
   };
 }
 
@@ -238,69 +241,104 @@ export function questProgress(quest) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Grant a quest's rewards to the party (GM only). Idempotent-ish: callers should flag the quest
- * `granted` so it isn't paid out twice. Returns a summary object for the chat/notification, or
- * null if it needed a party and none could be resolved.
+ * Grant a quest's rewards (GM only). Destinations resolve per reward: `assignments[i]` is
+ * "stash" | "split" | an actor id (that person alone). Without `assignments`, the legacy
+ * `goldItemsTo` applies to every gold/item reward ("stash" is the default and what Mark Complete
+ * uses; "players" = split gold / copy items to everyone). `participants` (actor ids, chip order)
+ * narrows splits and the Discord credit roster; omitted = the party folder roster. Pass `party`
+ * to skip re-resolving (the Distribute dialog already prompted). Idempotent-ish: callers flag the
+ * quest `granted` so it isn't paid twice. Returns a summary whose `receipt` is the exact
+ * per-person payout the #rewards post reads, or null if a party was needed and none resolved.
  */
-export async function grantRewards(quest, { goldItemsTo = "stash" } = {}) {
+export async function grantRewards(quest, { goldItemsTo = "stash", participants = null, assignments = null, party = null } = {}) {
   if (!game.user.isGM) return null;
   const rewards = quest.rewards ?? [];
-  const summary = { sp: 0, gold: 0, items: 0, members: 0, party: null, goldItemsTo };
+  const summary = { sp: 0, gold: 0, items: 0, members: 0, party: null, goldItemsTo, receipt: null };
   if (!rewards.length) return summary;
 
   const needsParty = rewards.some((r) => ["sp", "gold", "item"].includes(r.type));
-  const party = needsParty ? await resolveParty() : null;
-  if (needsParty && !party) {
+  if (needsParty && !party) party = await resolveParty();
+
+  const members = Array.isArray(participants)
+    ? participants.map((id) => game.actors.get(id)).filter((a) => a?.type === "character")
+    : (party ? partyMembers(party) : []);
+
+  // Ledger — what each person and the stash actually receive; becomes the frozen receipt.
+  const per = new Map(); // actor id → { actor, gold, itemObjs }
+  const touch = (a) => {
+    if (!per.has(a.id)) per.set(a.id, { actor: a, gold: 0, itemObjs: [] });
+    return per.get(a.id);
+  };
+  members.forEach(touch); // every participant gets a receipt entry, even pure credit
+  const stash = { gold: 0, itemObjs: [] };
+  const unlocks = [];
+
+  for (let i = 0; i < rewards.length; i++) {
+    const r = rewards[i];
+    // Legacy `sp` rewards (pre-v0.03 quests): never paid — SP flows only through Milestones/Train.
+    if (r.type === "sp") { console.log(`Project: Anime | Quest sp reward skipped (v0.03): ${r.value}`); continue; }
+    if (r.type === "unlock") { if (r.label) unlocks.push(r.label); continue; }
+    if (r.type !== "gold" && r.type !== "item") continue;
+
+    let dest = assignments ? (assignments[i] ?? "stash") : (goldItemsTo === "players" ? "split" : "stash");
+    // A named assignee is paid even if their chip was left unticked; a deleted actor or an empty
+    // participant list degrades to the stash so nothing is ever lost.
+    const direct = dest !== "stash" && dest !== "split" ? game.actors.get(dest) : null;
+    if (dest !== "stash" && dest !== "split" && !direct) dest = "stash";
+    if (dest === "split" && !members.length) dest = "stash";
+
+    if (r.type === "gold") {
+      const n = Number(r.value) || 0;
+      if (n <= 0) continue;
+      if (dest === "stash") stash.gold += n;
+      else if (dest === "split") {
+        const base = Math.floor(n / members.length);
+        const rem = n - base * members.length; // leftover coins to the first chips, mirroring the old split
+        members.forEach((m, j) => { touch(m).gold += base + (j < rem ? 1 : 0); });
+      } else touch(direct).gold += n;
+      summary.gold += n;
+      continue;
+    }
+
+    if (!r.uuid) continue;
+    const item = await fromUuid(r.uuid).catch(() => null);
+    if (!item?.toObject) continue;
+    const obj = item.toObject();
+    delete obj._id;
+    stampCompendiumSource(obj, item);
+    if (dest === "stash") stash.itemObjs.push(obj);
+    else if (dest === "split") members.forEach((m) => touch(m).itemObjs.push(foundry.utils.deepClone(obj)));
+    else touch(direct).itemObjs.push(obj);
+    summary.items += 1;
+  }
+
+  // The stash IS the party actor — required only when something actually lands in it. Aborting
+  // here is side-effect-free: the loop above only builds local state (plus read-only fromUuid).
+  if (!party && (stash.gold > 0 || stash.itemObjs.length)) {
     ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.noParty"));
     return null;
   }
 
-  const members = party ? partyMembers(party) : [];
-  let gold = 0;
-  const itemObjs = [];
-  for (const r of rewards) {
-    // Legacy `sp` rewards (pre-v0.03 quests): never paid — SP flows only through Milestones/Train.
-    if (r.type === "sp") { console.log(`Project: Anime | Quest sp reward skipped (v0.03): ${r.value}`); continue; }
-    if (r.type === "gold") gold += Number(r.value) || 0;
-    else if (r.type === "item" && r.uuid) {
-      const item = await fromUuid(r.uuid).catch(() => null);
-      if (item?.toObject) {
-        const obj = item.toObject();
-        delete obj._id;
-        stampCompendiumSource(obj, item);
-        itemObjs.push(obj);
-      }
-    }
+  // Pay out the ledger.
+  const goldUpdates = [...per.values()]
+    .filter((e) => e.gold > 0)
+    .map((e) => ({ _id: e.actor.id, "system.gold": (e.actor.system.gold ?? 0) + e.gold }));
+  if (goldUpdates.length) await Actor.updateDocuments(goldUpdates);
+  for (const e of per.values()) {
+    if (e.itemObjs.length) await e.actor.createEmbeddedDocuments("Item", e.itemObjs);
   }
+  if (stash.gold > 0 && party) await party.update({ "system.gold": (party.system.gold ?? 0) + stash.gold });
+  if (stash.itemObjs.length && party) await party.createEmbeddedDocuments("Item", stash.itemObjs);
 
-  // Gold & Items route by the GM's choice on the Distribute screen: the shared party stash (default,
-  // and what Mark Complete uses) or split/copied to each player. "players" needs members; with none
-  // we fall back to the stash so nothing is lost.
-  const toPlayers = goldItemsTo === "players" && members.length > 0;
-  if (gold > 0) {
-    if (toPlayers) {
-      const base = Math.floor(gold / members.length);
-      const rem = gold - base * members.length; // hand the leftover coins to the first few members
-      await Promise.all(members.map((m, i) => {
-        const share = base + (i < rem ? 1 : 0);
-        return share > 0 ? m.update({ "system.gold": (m.system.gold ?? 0) + share }) : null;
-      }).filter(Boolean));
-    } else if (party) {
-      await party.update({ "system.gold": (party.system.gold ?? 0) + gold });
-    }
-    summary.gold = gold;
-  }
-  if (itemObjs.length) {
-    if (toPlayers) {
-      await Promise.all(members.map((m) =>
-        m.createEmbeddedDocuments("Item", itemObjs.map((o) => foundry.utils.deepClone(o)))
-      ));
-    } else if (party) {
-      await party.createEmbeddedDocuments("Item", itemObjs);
-    }
-    summary.items = itemObjs.length;
-  }
-
+  summary.members = members.length;
   summary.party = party?.name ?? null;
+  summary.receipt = {
+    party: party?.name ?? "",
+    participants: [...per.values()].map((e) => ({
+      id: e.actor.id, name: e.actor.name, gold: e.gold, items: e.itemObjs.map((o) => o.name)
+    })),
+    stash: { gold: stash.gold, items: stash.itemObjs.map((o) => o.name) },
+    unlocks
+  };
   return summary;
 }

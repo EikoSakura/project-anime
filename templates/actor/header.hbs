@@ -1,4 +1,115 @@
-{{!-- Persistent side panel (Character & NPC) — Log Horizon-style status panel --}}
+{{!-- Persistent side panel (Character & NPC) — Log Horizon-style status panel.
+      A Limited viewer gets the mystery rail: portrait, name, pronouns, and the health
+      word ladder always show; every mechanics block appears only if the owner shares it
+      (flags.project-anime.reveal), the rest folds into one sealed band. Owners flip the
+      .reveal-eye chips rendered beside each block in the normal view. --}}
+{{#*inline "revealEye"}}
+{{#if @root.owner}}<a class="reveal-eye{{#if corner}} corner{{/if}}{{#unless on}} off{{/unless}}" data-action="toggleReveal" data-key="{{key}}" title="{{#if on}}{{localize 'PROJECTANIME.Reveal.shared'}}{{else}}{{localize 'PROJECTANIME.Reveal.hidden'}}{{/if}}"><i class="fa-solid {{#if on}}fa-eye{{else}}fa-eye-slash{{/if}}"></i></a>{{/if}}
+{{/inline}}
+{{#if limited}}
+<header class="sheet-header limited-header">
+  <div class="portrait portrait-card">
+    <div class="portrait-frame">
+      <img class="profile-img" src="{{actor.img}}" title="{{actor.name}}" alt="{{actor.name}}" />
+    </div>
+    <i class="stud stud-n"></i>
+    <i class="stud stud-e"></i>
+    <i class="stud stud-s"></i>
+    <i class="stud stud-w"></i>
+  </div>
+
+  <div class="char-name char-name-ro">{{actor.name}}</div>
+  {{#if system.pronouns}}<div class="pronouns pronouns-ro">{{system.pronouns}}</div>{{/if}}
+
+  {{#if isCharacter}}
+  <div class="panel-rule"></div>
+  <div class="panel-attrs">
+    {{#each attributeList as |attr|}}
+    <div class="pattr" data-attribute="{{attr.key}}">
+      <div class="pattr-die">{{#if @root.reveal.attributes}}<span>{{attr.die}}</span>{{else}}<span class="masked">?</span>{{/if}}</div>
+      <span class="pattr-name">{{#if attr.icon}}<i class="attr-icon {{attr.icon}}"></i>{{/if}}<span>{{attr.short}}</span></span>
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <div class="panel-rule"></div>
+
+  {{#if reveal.resources}}
+  <div class="panel-resources">
+    <div class="resource hp">
+      <div class="resource-top">
+        <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
+        <span class="resource-vals ro">{{hpMarked}}<span class="sep">/</span>{{system.hp.max}}</span>
+      </div>
+      <div class="boxes">{{#each hpBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<span class="mark-box{{#if b.marked}} marked{{/if}}"></span>{{/if}}{{/each}}</div>
+    </div>
+    <div class="resource energy">
+      <div class="resource-top">
+        <label>{{localize "PROJECTANIME.Stat.energy"}}</label>
+        <span class="resource-vals ro">{{energyMarked}}<span class="sep">/</span>{{system.energy.max}}</span>
+      </div>
+      <div class="boxes">{{#each energyBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<span class="mark-box{{#if b.marked}} marked{{/if}}"></span>{{/if}}{{/each}}</div>
+    </div>
+  </div>
+  {{else}}{{#if healthWord}}
+  <div class="panel-condition">
+    <span class="cond-label">{{localize "PROJECTANIME.Reveal.condition"}}</span>
+    <span class="cond-value"><i class="cond-dot" style="--cond-tint: {{healthWord.tint}}"></i>{{healthWord.label}}</span>
+  </div>
+  {{/if}}{{/if}}
+
+  {{#if reveal.vitals}}
+  <div class="panel-vitals">
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.guardShort"}}</span><span class="v-val">{{system.guard.value}}</span></div>
+    <div class="vital"><span class="v-label">{{localize "PROJECTANIME.Stat.movShort"}}</span><span class="v-val">{{system.movement.value}}</span></div>
+    {{#if isCharacter}}
+    <div class="vital vital-gold">
+      <span class="v-label">{{localize "PROJECTANIME.Stat.gold"}}</span>
+      <span class="v-val">{{system.gold}}</span>
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if isCharacter}}{{#if reveal.luck}}
+  <div class="panel-luck">
+    <span class="panel-luck-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
+    <div class="luck-dice">
+      {{#each system.luckDice as |d|}}<span class="luck-die">{{d}}</span>{{else}}<em class="muted">—</em>{{/each}}
+    </div>
+  </div>
+  {{/if}}{{/if}}
+
+  {{#if reveal.talents}}{{#if talents.length}}
+  <div class="panel-talents">
+    <div class="panel-talents-title">
+      <span class="pt-line"></span>
+      <span class="panel-talents-label">{{localize "PROJECTANIME.Item.talents"}}</span>
+      <span class="pt-line"></span>
+    </div>
+    <div class="talent-rows">
+      {{#each talents as |t|}}
+      <div class="talent-row">
+        <div class="tr-main ro" title="{{t.attribute}}">
+          <span class="tr-die">{{t.die}}</span>
+          <span class="tr-name">{{t.name}}</span>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}{{/if}}
+
+  {{#if sealedBand}}
+  <div class="sealed-band"><i class="fa-solid fa-lock"></i><span>{{localize "PROJECTANIME.Reveal.undisclosed"}}</span></div>
+  {{/if}}
+
+  <div class="panel-foot">
+    <span class="status-label">STATUS</span>
+  </div>
+</header>
+{{else}}
 <header class="sheet-header">
   <div class="portrait portrait-card">
     <div class="portrait-frame">
@@ -56,6 +167,7 @@
   {{#if isCharacter}}
   <div class="panel-rule"></div>
   <div class="panel-attrs">
+    {{> revealEye key="attributes" on=reveal.attributes corner=true}}
     {{#each attributeList as |attr|}}
     <div class="pattr" data-attribute="{{attr.key}}">
       <div class="pattr-die rollable" data-action="rollCheck" data-attribute="{{attr.key}}" title="{{localize 'PROJECTANIME.Roll.checkHint'}}"><span>{{attr.die}}</span></div>
@@ -80,6 +192,7 @@
     <div class="resource hp">
       <div class="resource-top">
         <label>{{localize "PROJECTANIME.Stat.hp"}}</label>
+        {{> revealEye key="resources" on=reveal.resources}}
         <span class="resource-vals">
           {{!-- Reads in MARKS (0 = untouched), not remaining — no `name`, persisted by #bindMarkedInputs. --}}
           <input type="number" data-marked="hp" value="{{hpMarked}}" min="0" max="{{system.hp.max}}" />
@@ -127,12 +240,15 @@
       <input class="v-val gold-input" type="number" name="system.gold" value="{{system.gold}}" min="0" />
     </div>
     {{/if}}
+    {{#if owner}}
+    <span class="vital-eye-row">{{> revealEye key="vitals" on=reveal.vitals}}</span>
+    {{/if}}
   </div>
 
   {{#if isCharacter}}
   <div class="panel-rule"></div>
   <div class="panel-luck">
-    <span class="panel-luck-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
+    <span class="panel-luck-label">{{localize "PROJECTANIME.Stat.luckDice"}} {{> revealEye key="luck" on=reveal.luck}}</span>
     <div class="luck-dice">
       {{#each system.luckDice as |d|}}<span class="luck-die">{{d}}</span>{{else}}<em class="muted">—</em>{{/each}}
     </div>
@@ -145,6 +261,7 @@
       <span class="pt-line"></span>
       <span class="panel-talents-label">{{localize "PROJECTANIME.Item.talents"}}</span>
       {{#if editable}}<a class="talent-add" data-action="addTalent" title="{{localize 'PROJECTANIME.Talent.add'}}"><i class="fas fa-plus"></i></a>{{/if}}
+      {{> revealEye key="talents" on=reveal.talents}}
       <span class="pt-line"></span>
     </div>
     <div class="talent-rows">
@@ -165,3 +282,4 @@
     <span class="status-label">STATUS</span>
   </div>
 </header>
+{{/if}}

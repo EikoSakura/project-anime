@@ -24,10 +24,16 @@ import {
   TRACKED_SETTING,
   TRACKER_VISIBLE_SETTING
 } from "../helpers/chronicle.mjs";
-import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
+import { partyMembers, partyActors, resolveParty } from "../helpers/party-folder.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 import { cardHTML } from "../helpers/dice.mjs";
-import { postQuestToDiscord } from "../helpers/discord.mjs";
+import {
+  postQuestToDiscord,
+  postRewardsToDiscord,
+  actorDiscordId,
+  receiptHasLoot,
+  DISCORD_REWARDS_WEBHOOK_SETTING
+} from "../helpers/discord.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -64,6 +70,17 @@ function rewardView(r, i) {
     default:
       return { idx: i, type: r.type, icon: "?", v: "", l: r.type, rg: "#9a78e0" };
   }
+}
+
+/** A participant chip for the Distribute dialog: hidden checkbox + initials disc + name, with a
+ *  ◈ mark when the character has a linked Discord id. Shared by the dialog HTML and the guest
+ *  picker's live insert so both render identically. */
+function participantChipHTML(actor, { guest = false } = {}) {
+  const initials = String(actor.name ?? "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const dcm = actorDiscordId(actor) ? `<span class="dcm">◈</span>` : "";
+  return `<label class="pt-chip${guest ? " guest" : ""}">`
+    + `<input type="checkbox" name="pt" value="${actor.id}" checked />`
+    + `<span class="ava">${escHtml(initials)}</span><span class="pt-n">${escHtml(actor.name)}</span>${dcm}</label>`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -662,6 +679,15 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       add("fa-check", "PROJECTANIME.Chronicle.complete", () => this.#completeQuest(id));
       add("fa-ban", "PROJECTANIME.Chronicle.abandon", () => this._mutateQuest(id, (x) => { x.status = "failed"; }));
     }
+    // Post Rewards: only when there is actually something to post — a frozen receipt with loot,
+    // or (legacy pre-receipt quest) a reward list the retry can rebuild a receipt from.
+    const postable = q.receipt
+      ? receiptHasLoot(q.receipt)
+      : (q.rewards ?? []).some((r) =>
+        (r.type === "gold" && (Number(r.value) || 0) > 0) || r.type === "item" || (r.type === "unlock" && r.label));
+    if (q.granted && postable && this.#rewardsWebhook()) {
+      add("fa-gift", "PROJECTANIME.Chronicle.postRewardsAction", () => this.#postRewardsRetry(id));
+    }
     add("fa-trash", "PROJECTANIME.Chronicle.delete", () => this.#deleteQuest(id), "danger");
     show();
   }
@@ -748,28 +774,62 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     return this.#completeQuest(this._selId);
   }
 
+  /** The #rewards channel webhook URL ("" = rewards posting off). */
+  #rewardsWebhook() {
+    return String(game.settings.get("project-anime", DISCORD_REWARDS_WEBHOOK_SETTING) || "").trim();
+  }
+
   /** Grant rewards once (idempotent), then mark a quest done by id. Shared by the action button and
-   *  the rail context menu. Aborts if rewards needed a party and none resolved. */
+   *  the rail context menu. The fast path: everything to the stash, all members credited — and the
+   *  #rewards receipt auto-posts when the rewards webhook is set. Aborts if rewards needed a party
+   *  and none resolved. */
   async #completeQuest(id) {
     if (!this.isGM) return;
     const quests = getQuests();
     const q = quests.find((x) => x.id === id);
     if (!q) return;
 
+    let summary = null;
     if (!q.granted) {
-      const summary = await grantRewards(q);
+      summary = await grantRewards(q);
       if (summary === null) return; // needed a party, none resolved — abort, leave active
       q.granted = true;
-      this.#announce(q, summary);
+      if (summary.receipt) {
+        q.receipt = summary.receipt;
+        q.participants = summary.receipt.participants.map((p) => p.id);
+      }
     }
     q.status = "done";
+    // Persist the double-pay guard BEFORE any network wait — a slow webhook (or a client closed
+    // mid-post) must never leave the stored quest re-payable.
     await saveQuests(quests);
+    if (summary) this.#announce(q, summary);
     this.render(false);
+
+    // Auto-receipt to #rewards (stash layout, all members credited). A failed post leaves
+    // rewardsPosted false for the rail retry.
+    if (summary?.receipt && !q.rewardsPosted && this.#rewardsWebhook() && receiptHasLoot(summary.receipt)) {
+      const res = await postRewardsToDiscord(q, summary.receipt);
+      if (res.ok) await this.#flagRewardsPosted(id);
+      else ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.rewardsPostFailed"));
+    }
   }
 
-  /** GM "Distribute Rewards" → a review screen of the quest's rewards with a Gold/Items destination
-   *  toggle (shared party stash vs split to each player), then pays out via grantRewards. Sets
-   *  `granted` so Mark Complete won't pay again; confirms first if already distributed once. */
+  /** Flip a quest's rewardsPosted on a FRESH read — never write back a stale pre-post snapshot. */
+  async #flagRewardsPosted(id, receipt = null) {
+    const quests = getQuests();
+    const q = quests.find((x) => x.id === id);
+    if (!q) return;
+    q.rewardsPosted = true;
+    if (receipt) q.receipt ??= receipt;
+    await saveQuests(quests);
+  }
+
+  /** GM "Distribute Rewards" → participants chips (party roster + guests), a destination select on
+   *  every gold/item row (Party Stash / Split Among Participants / a specific person), and a
+   *  Post To #Rewards toggle. Pays via grantRewards, freezes the roster + receipt onto the quest,
+   *  then posts the receipt. Sets `granted` so Mark Complete won't pay again; confirms first if
+   *  already distributed once. */
   static async #onDistribute() {
     if (!this.isGM) return;
     const quest = getQuests().find((x) => x.id === this._selId);
@@ -784,16 +844,24 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
       if (!again) return;
     }
 
+    // Party first — the chips and per-reward assignee lists need the roster before the dialog builds.
+    const party = await resolveParty();
+    const members = party ? partyMembers(party) : [];
+
     const choice = await foundry.applications.api.DialogV2.wait({
       window: { title: game.i18n.format("PROJECTANIME.Chronicle.distTitle", { name: quest.title }), icon: "fa-solid fa-gift" },
       classes: ["project-anime", "theme-dark"],
-      content: this.#distributeContent(quest),
+      content: this.#distributeContent(quest, members),
+      render: (event, dialog) => this.#wireDistribute(dialog?.element ?? dialog),
       buttons: [
         {
           action: "distribute", label: game.i18n.localize("PROJECTANIME.Chronicle.distribute"), icon: "fa-solid fa-paper-plane", default: true,
           callback: (event, button, dialog) => {
             const root = dialog?.element ?? button?.form;
-            return { goldItemsTo: root?.querySelector('input[name="goldItemsTo"]:checked')?.value || "stash" };
+            const participants = [...(root?.querySelectorAll('input[name="pt"]:checked') ?? [])].map((el) => el.value);
+            const assignments = {};
+            for (const sel of root?.querySelectorAll("select[data-dest]") ?? []) assignments[Number(sel.dataset.dest)] = sel.value;
+            return { participants, assignments, postRewards: !!root?.querySelector('input[name="postRewards"]')?.checked };
           }
         },
         { action: "cancel", label: game.i18n.localize("Cancel"), icon: "fa-solid fa-xmark" }
@@ -802,42 +870,144 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     if (!choice || typeof choice !== "object") return; // closed or cancelled
 
-    const summary = await grantRewards(quest, { goldItemsTo: choice.goldItemsTo });
+    const summary = await grantRewards(quest, { party, participants: choice.participants, assignments: choice.assignments });
     if (summary === null) return; // needed a party, none resolved — grantRewards already warned
+
     const quests = getQuests();
     const q = quests.find((x) => x.id === quest.id);
-    if (q) { q.granted = true; await saveQuests(quests); }
+    if (q) {
+      q.granted = true;
+      if (summary.receipt) {
+        q.receipt = summary.receipt;
+        q.participants = summary.receipt.participants.map((p) => p.id);
+      }
+      // Persist the double-pay guard BEFORE any network wait — a slow webhook (or a client
+      // closed mid-post) must never leave the stored quest re-payable.
+      await saveQuests(quests);
+    }
     this.#announce(quest, summary, "PROJECTANIME.Chronicle.rewardsDistributed");
     this.render(false);
+
+    // A failed post leaves rewardsPosted false for the rail retry.
+    if (q && summary.receipt && choice.postRewards) {
+      const res = await postRewardsToDiscord(q, summary.receipt);
+      if (res.ok) await this.#flagRewardsPosted(q.id);
+      else if (res.reason === "no-url") ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.discordNoRewardsWebhook"));
+      else ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.rewardsPostFailed"));
+    }
   }
 
-  /** Reward-list HTML for the Distribute screen + the Gold/Items destination toggle (shown only when
-   *  the quest actually has gold or items to route). */
-  #distributeContent(quest) {
+  /** Distribute-screen HTML: participants chips (+ guest picker), one destination select per
+   *  gold/item reward, and the Post To #Rewards toggle (only when the rewards webhook is set). */
+  #distributeContent(quest, members) {
+    const L = (k) => game.i18n.localize(k);
+    const memberOpts = members.map((m) => `<option value="${m.id}">${escHtml(m.name)}</option>`).join("");
+
     const rows = (quest.rewards ?? []).map((r, i) => {
       const v = rewardView(r, i);
-      const ic = v.img ? `<img src="${v.img}" alt="">` : v.icon;
-      const hide = r.hidden ? ` <i class="fa-solid fa-eye-slash dr-hidden" title="${escHtml(game.i18n.localize("PROJECTANIME.Chronicle.hiddenReward"))}"></i>` : "";
+      const ic = v.img ? `<img src="${escHtml(v.img)}" alt="">` : v.icon;
+      const hide = r.hidden ? ` <i class="fa-solid fa-eye-slash dr-hidden" title="${escHtml(L("PROJECTANIME.Chronicle.hiddenReward"))}"></i>` : "";
+      let dest;
+      if (r.type === "gold" || r.type === "item") {
+        dest = `<select class="dr-sel" data-dest="${i}">`
+          + `<option value="split" selected>${L(r.type === "gold" ? "PROJECTANIME.Chronicle.destSplit" : "PROJECTANIME.Chronicle.destAll")}</option>`
+          + `<option value="stash">${L("PROJECTANIME.Chronicle.destStash")}</option>`
+          + memberOpts
+          + `</select>`;
+      } else if (r.type === "unlock") {
+        dest = `<span class="dr-dest">→ ${escHtml(L("PROJECTANIME.Chronicle.destParty"))}</span>`;
+      } else {
+        dest = `<span class="dr-dest">—</span>`;
+      }
       return `<div class="dr-row"><span class="dr-ic" style="--rg:${v.rg}">${ic}</span>`
-        + `<span class="dr-v">${escHtml(String(v.v))}</span><span class="dr-l">${escHtml(v.l)}${hide}</span>`
-        + `<span class="dr-dest">→ ${escHtml(this.#rewardDest(r))}</span></div>`;
+        + `<span class="dr-v">${escHtml(String(v.v))}</span><span class="dr-l">${escHtml(v.l)}${hide}</span>${dest}</div>`;
     }).join("");
-    const hasShareable = (quest.rewards ?? []).some((r) => r.type === "gold" || r.type === "item");
-    const toggle = hasShareable
-      ? `<fieldset class="dr-target"><legend>${game.i18n.localize("PROJECTANIME.Chronicle.distTo")}</legend>`
-        + `<label><input type="radio" name="goldItemsTo" value="stash" checked> ${game.i18n.localize("PROJECTANIME.Chronicle.distStash")}</label>`
-        + `<label><input type="radio" name="goldItemsTo" value="players"> ${game.i18n.localize("PROJECTANIME.Chronicle.distPlayers")}</label></fieldset>`
+
+    // Guests: player-owned Characters outside the party, addable as checked chips.
+    const guests = game.actors.filter((a) => a.type === "character" && a.hasPlayerOwner && !members.some((m) => m.id === a.id));
+    const guestSel = guests.length
+      ? `<select class="pt-add" data-add-guest><option value="">${L("PROJECTANIME.Chronicle.addGuest")}</option>`
+        + guests.map((a) => `<option value="${a.id}">${escHtml(a.name)}</option>`).join("") + `</select>`
       : "";
-    return `<div class="project-anime theme-dark"><div class="pa-distribute">${rows}${toggle}</div></div>`;
+    const partBlock = members.length || guests.length
+      ? `<fieldset class="dr-target pa-participants"><legend>${L("PROJECTANIME.Chronicle.participants")}</legend>`
+        + `<div class="pt-chips">${members.map((m) => participantChipHTML(m)).join("")}${guestSel}</div></fieldset>`
+      : "";
+
+    const post = this.#rewardsWebhook()
+      ? `<label class="pa-post-rewards"><input type="checkbox" name="postRewards" ${quest.rewardsPosted ? "" : "checked"} />`
+        + `<i class="fa-brands fa-discord"></i> ${L("PROJECTANIME.Chronicle.postRewards")}</label>`
+      : "";
+
+    return `<div class="project-anime theme-dark"><div class="pa-distribute">${partBlock}${rows}${post}</div></div>`;
   }
 
-  /** Where a reward will land, for the Distribute screen's "→ …" hint. */
-  #rewardDest(r) {
-    switch (r.type) {
-      case "sp": return game.i18n.localize("PROJECTANIME.Chronicle.destMembers");
-      case "gold": case "item": return game.i18n.localize("PROJECTANIME.Chronicle.destShareable");
-      case "unlock": return game.i18n.localize("PROJECTANIME.Chronicle.destNarrative");
-      default: return "";
+  /** Wire the Distribute dialog's guest picker: choosing a Character appends a checked guest chip
+   *  and adds them to every per-reward assignee select. Idempotent across dialog re-renders. */
+  #wireDistribute(root) {
+    if (!(root instanceof HTMLElement)) return;
+    const sel = root.querySelector("[data-add-guest]");
+    if (!sel || sel.dataset.wired) return;
+    sel.dataset.wired = "1";
+    sel.addEventListener("change", () => {
+      const actor = game.actors.get(sel.value);
+      sel.value = "";
+      if (!actor) return;
+      const box = root.querySelector(".pt-chips");
+      if (!box || box.querySelector(`input[name="pt"][value="${actor.id}"]`)) return;
+      sel.insertAdjacentHTML("beforebegin", participantChipHTML(actor, { guest: true }));
+      sel.querySelector(`option[value="${actor.id}"]`)?.remove();
+      for (const s of root.querySelectorAll("select[data-dest]")) {
+        const o = document.createElement("option");
+        o.value = actor.id;
+        o.textContent = actor.name;
+        s.appendChild(o);
+      }
+    });
+  }
+
+  /** Post (or re-post) a quest's payout receipt to #rewards from the rail context menu — the retry
+   *  path when the webhook was down at distribution time. Pre-receipt quests (granted before this
+   *  existed) rebuild a stash-layout receipt from the reward list, credited to the current roster. */
+  async #postRewardsRetry(id) {
+    if (!this.isGM) return;
+    const quests = getQuests();
+    const q = quests.find((x) => x.id === id);
+    if (!q) return;
+
+    let receipt = q.receipt;
+    if (!receipt) {
+      const party = await resolveParty();
+      const members = party ? partyMembers(party) : [];
+      receipt = {
+        party: party?.name ?? "",
+        participants: members.map((m) => ({ id: m.id, name: m.name, gold: 0, items: [] })),
+        stash: {
+          gold: (q.rewards ?? []).filter((r) => r.type === "gold").reduce((n, r) => n + (Number(r.value) || 0), 0),
+          items: (q.rewards ?? []).filter((r) => r.type === "item").map((r) => r.name).filter(Boolean)
+        },
+        unlocks: (q.rewards ?? []).filter((r) => r.type === "unlock").map((r) => r.label).filter(Boolean)
+      };
+    }
+
+    if (!receiptHasLoot(receipt)) return; // nothing postable — a bare credit embed helps no one
+
+    if (q.rewardsPosted) {
+      const again = await foundry.applications.api.DialogV2.confirm({
+        window: { title: game.i18n.localize("PROJECTANIME.Chronicle.postRewardsAction") },
+        content: `<p>${game.i18n.localize("PROJECTANIME.Chronicle.rewardsRepost")}</p>`
+      }).catch(() => false);
+      if (!again) return;
+    }
+
+    const res = await postRewardsToDiscord(q, receipt);
+    if (res.ok) {
+      await this.#flagRewardsPosted(id, receipt); // fresh read — dialogs sat open since `quests` was read
+      ui.notifications.info(game.i18n.localize("PROJECTANIME.Chronicle.rewardsPosted"));
+    } else if (res.reason === "no-url") {
+      ui.notifications.warn(game.i18n.localize("PROJECTANIME.Chronicle.discordNoRewardsWebhook"));
+    } else {
+      ui.notifications.error(game.i18n.localize("PROJECTANIME.Chronicle.discordFailed"));
     }
   }
 

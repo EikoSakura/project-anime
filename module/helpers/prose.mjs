@@ -206,7 +206,8 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
         // Talent die/2 + 1 Trained Edge when Talent-built, else primary Attribute die/2. Min 1.
         if (item?.type !== "skill") break;
         const { die, hasTalent } = techniqueDie(item);
-        return calcSpan(Math.max(1, Math.floor(die / 2) + (hasTalent ? 1 : 0)), L("PROJECTANIME.Prose.calcScale"));
+        return calcSpan(Math.max(1, Math.floor(die / 2) + (hasTalent ? 1 : 0)),
+          L(hasTalent ? "PROJECTANIME.Prose.calcScaleEdge" : "PROJECTANIME.Prose.calcScale"));
       }
       case "threshold": {
         if (item?.type !== "weapon" && item?.type !== "shield") break;
