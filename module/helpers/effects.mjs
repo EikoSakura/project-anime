@@ -83,8 +83,9 @@ export const SKILLMOD_SCOPES = {
 };
 
 /** The "scope" a `weaponMod` rule keys off — which weapon attacks it boosts. `any` = every
- *  weapon/shield attack; `unarmed` = the Natural-Attack ("fighting with your hands"); `type` =
- *  weapons whose base Type (system.weaponType) matches the rule's `typeName` (case-insensitive). */
+ *  weapon/shield attack; `unarmed` = weapons Typed "Unarmed" ("fighting with your hands");
+ *  `type` = weapons whose base Type (system.weaponType) matches the rule's `typeName`
+ *  (case-insensitive). */
 export const WEAPONMOD_SCOPES = {
   any: "PROJECTANIME.Effect.modScope.weapon",
   unarmed: "PROJECTANIME.Effect.modScope.unarmed",
@@ -748,12 +749,13 @@ function skillModScopeApplies(scope, item) {
 
 /** Does a `weaponMod` rule apply to THIS attack? `src` is the weapon actually rolled (the borrowed
  *  weapon for a Weapon-range Skill, else the item itself). `any` = any weapon/shield attack;
- *  `unarmed` = the Natural-Attack weapon; `type` = a weapon whose base Type matches `typeName`
- *  (case-insensitive, trimmed). */
+ *  `unarmed` = a weapon whose Type is "Unarmed" (the innate Natural Attack is retired — build a
+ *  fist/bite as a Weapon Style and Type it "Unarmed"); `type` = a weapon whose base Type matches
+ *  `typeName` (case-insensitive, trimmed). */
 function weaponModScopeApplies(scope, typeName, src) {
   const isWeapon = src?.type === "weapon" || src?.type === "shield";
-  if (scope === "any") return isWeapon || !!src?.getFlag?.(FLAG_SCOPE, "natural");
-  if (scope === "unarmed") return !!src?.getFlag?.(FLAG_SCOPE, "natural");
+  if (scope === "any") return isWeapon;
+  if (scope === "unarmed") return isWeapon && String(src.system?.weaponType ?? "").trim().toLowerCase() === "unarmed";
   if (scope === "type") {
     const want = String(typeName ?? "").trim().toLowerCase();
     if (!want || !isWeapon) return false;

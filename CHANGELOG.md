@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.2 - 2026-07-15
+
+- Unarmed Strikes REMOVED: the innate Natural Attack is retired - attacks are built from Weapon Styles now; a one-time migration deletes every Natural Attack from world items, actors, and unlocked packs, and imports from older compendiums are scrubbed on creation,The Weapon Adjustment Unarmed scope now matches weapons whose Type is Unarmed (build a fist or bite as a Weapon Style and Type it Unarmed),Monster Creator: picking Unarmored now stamps a real equipped Unarmored item (Guard +0, Movement 6, Energy Regen 2) instead of leaving the sheet bare,Monster Creator: the Party XP and Party Size fields are compact inline pills matching the From Roster button - label and a small gold number in one row
+
+## 0.6.2 - 2026-07-15
+
+- Monster Creator: the Party XP and Party Size fields are now compact inline pills matching the From Roster button - label and a small gold number in one row, spinner buttons hidden
+- Monster Creator: picking Unarmored now stamps a real equipped Unarmored item (Guard +0, Movement 6, Energy Regen 2 - the same numbers the no-armor derivation gives) instead of leaving the sheet bare
+- Unarmed Strikes REMOVED: the innate Natural Attack is retired - attacks are built from Weapon Styles now; a one-time migration (naturalAttacksRemovedV1) deletes every Natural Attack from world items, actors, and unlocked packs, new imports from older compendiums are scrubbed on creation, and the Weapon Adjustment "Unarmed" scope now matches weapons whose Type is "Unarmed"
+
 ## 0.6.1 - 2026-07-15
 
 - Monster Creator: Weapon Style cards now ADD attacks - one click per attack carrying that Style's printed line, any number, repeats allowed (cards wear count badges); the Add Basic Attack button and the actor-level Weapon Style pick are gone,Enemy Tier base EXP raised to the printed table: Minion 10, Standard 15, Elite 25, Champion 30, Villain 40,Companions rebuilt on the printed Companion Rules: built like an enemy (shared base line, Weapon/Armor Styles, 8 starting EXP with a live budget pill) plus one free Talent at d6 named at creation,Companion Advancement runs on its own price and slot table (boxes 1 EXP / 5 slots, Techniques and Attributes 2, Luck steps 2 / 3 slots, most caps removed) and Companions now hold Luck Dice like a PC,Advancement dialog charges and shows each option's real price for Companions, uncapped options read a dash, and an unclosed template block that could break the dialog is fixed

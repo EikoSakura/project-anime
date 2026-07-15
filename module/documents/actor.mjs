@@ -66,42 +66,6 @@ export function refundSkillOnDelete(item, userId) {
   });
 }
 
-/** Default icon for the innate Natural Attack (an unarmed strike). */
-export const NATURAL_ATTACK_IMG = "icons/svg/combat.svg";
-
-/**
- * Source data for the innate "Natural Attack" every creature carries — an unarmed strike
- * usable with no weapon equipped. It's an ordinary weapon item flagged `natural`, so the
- * sheet always surfaces it in the quick-attack panel, keeps it out of the carried-gear grid,
- * and protects it from accidental equip/delete. V2 profile: Damage 1, Threshold 10, 1 tile.
- */
-export function naturalAttackData() {
-  return {
-    name: game.i18n.localize("PROJECTANIME.NaturalAttack.name"),
-    type: "weapon",
-    img: NATURAL_ATTACK_IMG,
-    system: {
-      accuracy: { attrA: "might", attrB: "agility", mod: 0 },
-      damage: { value: 1 },
-      threshold: 10,
-      weaponType: "Unarmed",
-      range: { type: "melee", tiles: 1 },
-      size: 0, cost: 0, equipped: false, hand: "main", grip: "one"
-    },
-    flags: { "project-anime": { natural: true } }
-  };
-}
-
-/**
- * Give a creature its innate Natural Attack if it lacks one. Idempotent; Characters and NPCs
- * only — Party actors have no combat stats.
- */
-export async function ensureNaturalAttack(actor) {
-  if (!actor || (actor.type !== "character" && actor.type !== "npc")) return;
-  if (actor.items.some((i) => i.type === "weapon" && i.getFlag("project-anime", "natural"))) return;
-  return actor.createEmbeddedDocuments("Item", [naturalAttackData()]);
-}
-
 /**
  * Extends the base Actor with Project: Anime behaviour. All stat derivation
  * (including equipped gear) lives in the type DataModels; this class exposes roll data

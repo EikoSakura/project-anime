@@ -346,9 +346,9 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     }));
     ctx.talentCount = talents.length;
 
-    // Attacks — weapon items (the Natural Attack included), each carrying its own Weapon
-    // Style's printed line. Each row exposes the two accuracy Attributes (the same Attribute
-    // may be chosen twice) and the Talent link that replaces one die and adds the Trained Edge.
+    // Attacks — weapon items, each carrying its own Weapon Style's printed line. Each row
+    // exposes the two accuracy Attributes (the same Attribute may be chosen twice) and the
+    // Talent link that replaces one die and adds the Trained Edge.
     ctx.attacks = this.actor.items
       .filter((i) => i.type === "weapon")
       .sort(bySort)
@@ -359,7 +359,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
           id: i.id,
           name: i.name,
           img: i.img,
-          natural: !!i.getFlag("project-anime", "natural"),
           styleLabel: st ? L(st.label) : "",
           range: physicalRangeLabel(i.system.range ?? {}),
           damage: Number(i.system.damage?.value) || 0,
@@ -781,19 +780,18 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Pick the Armor Style: store the key and wear it as an equipped armor item (Unarmored
-   *  removes the item — Guard 6, Movement 6, Energy Regen 2 come from the base derivation). */
+  /** Pick the Armor Style: store the key and wear it as an equipped armor item — Unarmored
+   *  included (Guard +0 · Movement 6 · Energy Regen 2, the same numbers the no-armor
+   *  derivation gives), so the sheet always shows what the body wears. */
   static async #onPickArmorStyle(event, target) {
     const key = target.closest("[data-style]")?.dataset.style;
     const st = PROJECTANIME.armorStyles[key];
     if (!st) return;
     await this.actor.update({ "system.armorStyle": key });
     const existing = this.actor.items.find((i) => i.type === "armor" && i.getFlag("project-anime", "creationArmor"));
-    if (key === "unarmored") {
-      if (existing) await existing.delete();
-      return this.render();
-    }
-    const name = `${game.i18n.localize(st.label)} ${game.i18n.localize("TYPES.Item.armor")}`;
+    const name = key === "unarmored"
+      ? game.i18n.localize(st.label)
+      : `${game.i18n.localize(st.label)} ${game.i18n.localize("TYPES.Item.armor")}`;
     const system = {
       style: key,
       guardBonus: st.guard,
@@ -920,11 +918,11 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.actor.items.get(id)?.sheet?.render(true);
   }
 
-  /** Delete an attack (the innate Natural Attack is protected). */
+  /** Delete an attack. */
   static async #onRemoveAttack(event, target) {
     const id = target.closest("[data-attack-id]")?.dataset.attackId;
     const item = this.actor.items.get(id);
-    if (!item || item.type !== "weapon" || item.getFlag("project-anime", "natural")) return;
+    if (!item || item.type !== "weapon") return;
     await item.delete();
     this.render();
   }

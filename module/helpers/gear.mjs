@@ -79,9 +79,7 @@ export function buildGearContext(actor, { selectedBag = "", bagView = "single" }
     const c = i.system?.container || "";
     return c && containerIds.has(c) ? c : "";
   };
-  // The innate Natural Attack is surfaced in the quick panel, not the carried-gear grid — keep
-  // it out of the bags (and their counts) so it never reads as droppable/loose equipment.
-  const containable = GEAR_GROUPS.flatMap((k) => groups[k]).filter((i) => !i.getFlag("project-anime", "natural"));
+  const containable = GEAR_GROUPS.flatMap((k) => groups[k]);
 
   // One reusable tile mapping: lite item + stack qty badge + equip flags.
   const mapItem = (i) => {
@@ -255,7 +253,7 @@ export function cleanItemForTransfer(item, { container = "" } = {}) {
   if (paFlags) {
     delete paFlags.granted;     // a copy is a normally-owned ability, not a grant…
     delete paFlags.grantedBy;   // …and its source carrier doesn't exist on the new owner
-    delete paFlags.natural;     // the new owner already has its own Natural Attack
+    delete paFlags.natural;     // retired innate-strike flag — scrub it off legacy copies
     delete paFlags.readied;     // don't auto-pin to the new owner's quick panel
   }
   if (obj.system) {

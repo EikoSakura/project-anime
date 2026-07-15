@@ -561,10 +561,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       .sort(bySort)
       .map((p) => ({ id: p.id, name: p.name, img: p.img, category: p.system?.category ?? "" }));
 
-    // Quick-action panel on the Stats main view: equipped weapons + the innate Natural Attack
-    // (always available, in addition to equipment) + Dual-Wield shields + skills the player has
-    // pinned (`readied`). Equipped items lead; the Natural Attack trails as the unarmed fallback.
-    const isNatural = (i) => !!i.getFlag("project-anime", "natural");
+    // Quick-action panel on the Stats main view: equipped weapons + Dual-Wield shields +
+    // skills the player has pinned (`readied`).
     const isReadied = (i) => !!i.getFlag("project-anime", "readied");
     // A Dual-Wield shield bashes as an off-hand weapon (see the shield "Wield As" mode), so it joins
     // the Weapons block when EITHER equipped or pinned — surfaced like a real weapon. Shield-Only
@@ -577,12 +575,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const escW = foundry.utils.escapeHTML;
     const aNameW = (k) => game.i18n.localize(cfgW.attributes[k] ?? k);
     const signedW = (n) => (n ? ` ${n > 0 ? "+" : ""}${n}` : "");
-    context.quickWeapons = await Promise.all([...groups.weapon.filter((i) => i.system?.equipped || isNatural(i)), ...groups.shield.filter(isWeaponShield)]
-      .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || (isNatural(a) - isNatural(b)) || bySort(a, b))
+    context.quickWeapons = await Promise.all([...groups.weapon.filter((i) => i.system?.equipped), ...groups.shield.filter(isWeaponShield)]
+      .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || bySort(a, b))
       .map(async (i) => {
         const sys = i.system ?? {};
         const isSh = i.type === "shield";
-        const nat = isNatural(i);
         const dmg = Number(sys.damage?.value) || 0;
         const threshold = Number(sys.threshold) || 0;
         const rangeTiles = Number(sys.range?.tiles) || 0;
@@ -599,14 +596,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
         let descHTML = "";
         try { descHTML = await renderDescriptionHTML(i); } catch (_e) { descHTML = ""; }
         return {
-          id: i.id, name: i.name, img: i.img, natural: nat, shield: isSh,
+          id: i.id, name: i.name, img: i.img, shield: isSh,
           equipped: !!sys.equipped,
-          typeLabel: nat ? game.i18n.localize("PROJECTANIME.NaturalAttack.tag")
-            : game.i18n.localize(`TYPES.Item.${i.type}`),
+          typeLabel: game.i18n.localize(`TYPES.Item.${i.type}`),
           dmgMod: dmg, rangeTiles, accHTML, dmgLabel, threshold, rangeText, descHTML,
           hand: sys.hand || "",
           // gates the hover dropdown + caret
-          hasMeta: !!(accHTML || dmgLabel || rangeText || descHTML || nat)
+          hasMeta: !!(accHTML || dmgLabel || rangeText || descHTML)
         };
       }));
     const readied = skills.filter((i) => i.getFlag("project-anime", "readied"));
@@ -623,11 +619,11 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     // Pinned NON-skill gear (consumables + other items) → the "Items" quick block on the Stats
     // view. Same `readied` flag as skills, set from the gear context menu; clicking a tile runs the
     // item's roll() (a consumable posts its Use card, a weapon attacks, other gear posts a
-    // description). The innate Natural Attack and pinned Dual-Wield shields live in the Weapons
-    // block (the shield bashes as a weapon), so both are excluded here.
+    // description). Pinned Dual-Wield shields live in the Weapons block (the shield bashes as
+    // a weapon), so they're excluded here.
     context.quickItems = GEAR_GROUPS
       .flatMap((k) => groups[k])
-      .filter((i) => isReadied(i) && !isNatural(i) && !isWeaponShield(i))
+      .filter((i) => isReadied(i) && !isWeaponShield(i))
       .sort(bySort)
       .map((i) => {
         const q = Number(i.system?.quantity);
@@ -1188,12 +1184,6 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     const { add, show } = this.#contextMenu(ev);
     // Consumables get a one-click Use (consume now); the posted card carries its own ▶ Use button.
     if (item.type === "consumable") add("fa-play", "PROJECTANIME.Action.use", () => useConsumable(this.actor, item));
-    // The innate Natural Attack isn't carried gear — offer only tuning (no equip / delete).
-    if (item.getFlag("project-anime", "natural")) {
-      add("fa-pen-to-square", "PROJECTANIME.Action.edit", () => item.sheet.render(true));
-      show();
-      return;
-    }
     if (item.type === "weapon" || item.type === "shield") {
       // One "Equip" drops it into a free hand (weapon→main, shield→off; a two-handed weapon claims both).
       if (equipped) add("fa-xmark", "PROJECTANIME.Action.unequip", () => item.update({ "system.equipped": false }));

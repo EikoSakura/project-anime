@@ -529,12 +529,11 @@ export class AnimeHud extends HandlebarsApplicationMixin(ApplicationV2) {
         return { uuid: i.uuid, name: i.name, img: i.img || FALLBACK_IMG, sub: L(ATLABEL[at] ?? ATLABEL.action), cost, dim: cost > curEN };
       });
     } else if (key === "arms") {
-      const nat = (i) => !!i.getFlag(SYS, "natural");
       items = actor.items.filter((i) => i.type === "weapon" || i.type === "shield")
         .sort((a, b) => (!!b.system?.equipped - !!a.system?.equipped) || bySort(a, b))
         .map((i) => ({
           uuid: i.uuid, name: i.name, img: i.img || FALLBACK_IMG,
-          sub: nat(i) ? L("PROJECTANIME.NaturalAttack.tag") : L(`TYPES.Item.${i.type}`),
+          sub: L(`TYPES.Item.${i.type}`),
           on: !!i.system?.equipped
         }));
     } else {

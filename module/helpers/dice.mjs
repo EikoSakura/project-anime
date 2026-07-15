@@ -2136,8 +2136,7 @@ export async function contestedRoll({ actor, attrs, mod = 0, defender, defAttrs,
 /*  Steal (Effect)                              */
 /* -------------------------------------------- */
 
-/** Item types Steal can lift (never Skills; the innate Natural Attack and package-granted
- *  items aren't loose possessions). */
+/** Item types Steal can lift (never Skills; package-granted items aren't loose possessions). */
 const STEALABLE_TYPES = ["weapon", "shield", "armor", "accessory", "consumable", "gear", "container"];
 
 /** Dialog: choose what to steal — the target's loose items, plus (at rank ⭐⭐⭐+) what it has
@@ -2174,7 +2173,6 @@ async function pickStealDialog(target, loose, equipped) {
 async function resolveSteal(actor, item, target) {
   const lootable = (target.items ?? []).filter((i) =>
     STEALABLE_TYPES.includes(i.type)
-    && !i.getFlag("project-anime", "natural")
     && !i.getFlag("project-anime", "granted"));
   const loose = lootable.filter((i) => !i.system?.equipped);
   // Base Steal takes from INVENTORY only — equipped items need the Disarm Modifier.

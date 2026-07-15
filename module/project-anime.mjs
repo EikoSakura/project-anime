@@ -2,7 +2,7 @@
  * Project: Anime — system entry point for Foundry VTT V13.
  */
 import * as models from "./data/_module.mjs";
-import { ProjectAnimeActor, enforceEquipExclusivity, refundSkillOnDelete, naturalAttackData, ensureNaturalAttack } from "./documents/actor.mjs";
+import { ProjectAnimeActor, enforceEquipExclusivity, refundSkillOnDelete } from "./documents/actor.mjs";
 import { ProjectAnimeItem } from "./documents/item.mjs";
 import { ProjectAnimeActorSheet } from "./sheets/actor-sheet.mjs";
 import { ProjectAnimePartySheet } from "./sheets/party-sheet.mjs";
@@ -92,6 +92,11 @@ const RESISTANCE_TEXT_SETTING = "resistanceV1";
 // V2 Type keys fold into the Tier ladder, Bosses become gated Villains (Bars → Gates), Rivals
 // become Villains, and the retired boss/rival source keys drop. See migrateEnemyTiersV1.
 const ENEMY_TIERS_SETTING = "enemyTiersV1";
+
+// Hidden world flag — set once after the innate "Natural Attack" (Unarmed Strike) retired
+// (attacks come from Weapon Styles now): every natural-flagged weapon is deleted from world
+// actors and unlocked Actor packs. See migrateNaturalAttacksRemoved.
+const NATURAL_REMOVED_SETTING = "naturalAttacksRemovedV1";
 
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
@@ -264,7 +269,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING, ENEMY_TIERS_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING, ENEMY_TIERS_SETTING, NATURAL_REMOVED_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -1437,9 +1442,9 @@ Hooks.on("preCreateActor", (actor, data) => {
     actor.updateSource({ "ownership.default": CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER });
     return;
   }
-  // A Merchant is a shop, not a combatant — no Natural Attack, no vision, a neutral linked
-  // token (stock lives on the actor, so every placed token sells from the same shelf), and
-  // OBSERVER default so any player can open the shop and buy.
+  // A Merchant is a shop, not a combatant — no vision, a neutral linked token (stock lives
+  // on the actor, so every placed token sells from the same shelf), and OBSERVER default so
+  // any player can open the shop and buy.
   if (actor.type === "merchant") {
     actor.updateSource({
       "ownership.default": CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,
@@ -1470,18 +1475,17 @@ Hooks.on("preCreateActor", (actor, data) => {
         ?? (isChar ? DISP.FRIENDLY : (dispMap[data?.system?.disposition] ?? DISP.HOSTILE))
     }
   });
-  // Innate Natural Attack: bake an unarmed strike into every new creature unless it already
-  // carries one (a duplicated or imported actor). Flag it provisioned so the one-time backfill
-  // skips it and a later deletion isn't undone on reload.
+  // Unarmed Strikes are RETIRED (attacks come from Weapon Styles): scrub any Natural Attack
+  // riding in on an import or duplication — e.g. an actor from a pre-0.6.2 compendium.
   const items = actor._source.items ?? [];
-  const hasNatural = items.some((i) => foundry.utils.getProperty(i, "flags.project-anime.natural"));
-  const update = { "flags.project-anime.naturalProvisioned": true };
-  if (!hasNatural) update.items = [...items, naturalAttackData()];
+  const scrubbed = items.filter((i) => !foundry.utils.getProperty(i, "flags.project-anime.natural"));
+  const update = {};
+  if (scrubbed.length !== items.length) update.items = scrubbed;
   // Player Characters default to LIMITED ownership for everyone, so all players can at least see
   // each PC at a glance. (updateSource merges, so the creating user's OWNER entry is preserved;
   // NPCs stay GM-only.) The GM can still raise a specific player to Owner of their own PC.
   if (isChar) update["ownership.default"] = CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;
-  actor.updateSource(update);
+  if (Object.keys(update).length) actor.updateSource(update);
 });
 
 /* -------------------------------------------- */
@@ -1750,7 +1754,7 @@ async function migrateGearRebaseV2() {
   const updatesFor = (items) => {
     const updates = [];
     for (const item of items) {
-      if (item.getFlag("project-anime", "natural")) continue;   // stamped by migrateActorsV2 / born right
+      if (item.getFlag("project-anime", "natural")) continue;   // retired strike — migrateNaturalAttacksRemoved deletes it
       const row = rowFor(item);
       if (row) updates.push({ _id: item.id, ...row });
     }
@@ -1919,28 +1923,35 @@ async function migrateResistanceText() {
 }
 
 /* -------------------------------------------- */
-/*  Natural Attack backfill (one-time)          */
+/*  Natural Attack removal (one-time)           */
 /* -------------------------------------------- */
 
-// Give every existing Character / NPC made before the feature its innate Natural Attack (an
-// unarmed strike, usable alongside equipped weapons). GM-side, once per actor (flagged
-// "naturalProvisioned" so an intentional deletion isn't undone on the next world load). New
-// actors get theirs at creation via preCreateActor.
-async function backfillNaturalAttacks() {
+// The innate "Natural Attack" (Unarmed Strike) is RETIRED (v0.6.2) — attacks come from Weapon
+// Styles now. Delete every natural-flagged weapon from world Items, world actors, and unlocked
+// Actor packs; new imports are scrubbed by preCreateActor. GM-side, once per world. (The old
+// naturalProvisioned actor flags and the unarmedDmgV001 world key may linger, unread — harmless.)
+async function migrateNaturalAttacksRemoved() {
   if (game.users.activeGM?.id !== game.user.id) return;
-  const flagged = [];
-  for (const actor of game.actors) {
-    if (actor.type !== "character" && actor.type !== "npc") continue;
-    if (actor.getFlag("project-anime", "naturalProvisioned")) continue;
-    await ensureNaturalAttack(actor);
-    flagged.push({ _id: actor.id, "flags.project-anime.naturalProvisioned": true });
+  if (game.settings.get("project-anime", NATURAL_REMOVED_SETTING)) return;
+  let count = 0;
+  const isNatural = (i) => i.type === "weapon" && !!i.getFlag("project-anime", "natural");
+  const scrub = async (actor) => {
+    if (actor.type !== "character" && actor.type !== "npc") return;
+    const ids = actor.items.filter(isNatural).map((i) => i.id);
+    if (!ids.length) return;
+    await actor.deleteEmbeddedDocuments("Item", ids);
+    count += ids.length;
+  };
+  const worldIds = game.items.filter(isNatural).map((i) => i.id);
+  if (worldIds.length) { await Item.deleteDocuments(worldIds); count += worldIds.length; }
+  for (const actor of game.actors) await scrub(actor);
+  for (const pack of game.packs) {
+    if (pack.metadata.type !== "Actor" || pack.locked) continue;
+    for (const actor of await pack.getDocuments()) await scrub(actor);
   }
-  if (flagged.length) await Actor.updateDocuments(flagged);
+  if (count) console.log(`Project: Anime | Unarmed Strikes retired — removed ${count} Natural Attack(s).`);
+  await game.settings.set("project-anime", NATURAL_REMOVED_SETTING, true);
 }
-
-// (The v0.01 "Unarmed DMG −2" backfill is retired: v0.03's Unarmed row is DMG 0, new Natural
-// Attacks are born at 0, and migrateGearRebaseV003 lifts the old −2 copies. The unarmedDmgV001
-// world key may linger in old worlds' settings, unregistered and unread — harmless.)
 
 /* -------------------------------------------- */
 /*  Weapon Type from name backfill (one-time)   */
@@ -1948,9 +1959,9 @@ async function backfillNaturalAttacks() {
 
 // Seed each existing weapon/shield's Type — the game's weapons were all named after their type (a
 // "Sword" item IS a Sword) before the Weapon Type field existed, so a "Weapon Adjustment" scoped
-// "By weapon type" can match them out of the box: a normal weapon/shield takes its NAME, the innate
-// Natural Attack takes "Unarmed". Only fills a BLANK weaponType (a deliberately-set one is left
-// alone). Covers world Items and every actor's embedded gear. GM-side, once per world.
+// "By weapon type" can match them out of the box: a weapon/shield takes its NAME. Only fills a
+// BLANK weaponType (a deliberately-set one is left alone). Covers world Items and every actor's
+// embedded gear. GM-side, once per world.
 async function backfillWeaponTypes() {
   if (game.users.activeGM?.id !== game.user.id) return;
   if (game.settings.get("project-anime", WEAPON_TYPE_BACKFILL_SETTING)) return;
@@ -1959,7 +1970,6 @@ async function backfillWeaponTypes() {
   const desiredType = (i) => {
     if (i.type !== "weapon" && i.type !== "shield") return null;
     if (String(i.system?.weaponType ?? "").trim()) return null;          // already set — leave alone
-    if (i.getFlag("project-anime", "natural")) return "Unarmed";          // the innate strike
     const nm = String(i.name ?? "").trim();
     return nm || null;                                                    // named after its type
   };
@@ -1973,7 +1983,7 @@ async function backfillWeaponTypes() {
   const worldUpdates = buildUpdates(game.items);
   if (worldUpdates.length) await Item.updateDocuments(worldUpdates);
 
-  // Embedded gear on every actor (where the Natural Attacks live).
+  // Embedded gear on every actor.
   for (const actor of game.actors) {
     const updates = buildUpdates(actor.items);
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
@@ -2086,8 +2096,9 @@ Hooks.once("ready", function () {
   // ladder; Bosses/Rivals become Villains, Bars carry over as Gates; boss/rival keys drop).
   migrateEnemyTiersV1();
 
-  // One-time: give pre-existing creatures their innate Natural Attack.
-  backfillNaturalAttacks();
+  // One-time: retire the innate Natural Attack (Unarmed Strike) — attacks come from Weapon
+  // Styles now; every natural-flagged weapon is deleted.
+  migrateNaturalAttacksRemoved();
 
   // One-time: seed each weapon/shield's Type from its name (they were named after their type).
   backfillWeaponTypes();

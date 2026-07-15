@@ -32,7 +32,7 @@
       <div class="cmd-sechead"><h3>{{localize "PROJECTANIME.Quick.weapons"}}</h3><span class="cmd-ln"></span></div>
       <div class="cmd-list">
         {{#each quickWeapons as |w|}}
-        <div class="cmd-row eq{{#if w.natural}} natural{{/if}}" data-item-id="{{w.id}}" data-readied-type="weapon">
+        <div class="cmd-row eq" data-item-id="{{w.id}}" data-readied-type="weapon">
           <div class="cmd-head">
             <span class="cmd-ico" data-action="rollItem"><img src="{{w.img}}" alt="{{w.name}}" /></span>
             <div class="cmd-mid">
@@ -55,7 +55,6 @@
                   {{#if w.rangeText}}<div class="eq-row"><span class="k"><i class="fas fa-arrows-left-right-to-line"></i>{{localize "PROJECTANIME.Field.range"}}</span><span class="v">{{w.rangeText}}</span></div>{{/if}}
                 </div>
                 {{#if w.descHTML}}<div class="eq-desc">{{{w.descHTML}}}</div>{{/if}}
-                {{#if w.natural}}<div class="eq-tags"><span class="eq-tag"><i class="fas fa-hand-fist"></i>{{localize "PROJECTANIME.NaturalAttack.tag"}}</span></div>{{/if}}
                 {{#if w.shield}}<div class="eq-tags"><span class="eq-tag"><i class="fas fa-shield-halved"></i>{{localize "PROJECTANIME.Quick.shieldBash"}}</span></div>{{/if}}
               </div>
             </div>

@@ -1856,8 +1856,6 @@
 }
 .project-anime .tile-qty.energy { color: var(--pa-energy-b); }
 .project-anime .tile-qty.energy i { font-size: 0.5rem; margin-right: 1px; }
-.project-anime .tile-qty.natural { color: var(--pa-gold-soft); }
-.project-anime .tile-qty.natural i { font-size: 0.5rem; }
 .project-anime .tile-qty.shield { color: var(--pa-energy-b); }
 .project-anime .tile-qty.shield i { font-size: 0.5rem; }
 .project-anime .tile-name {
@@ -4591,7 +4589,7 @@
 .project-anime.character-creator .cc-skill-sub { font-size: 0.68rem; }
 .project-anime.character-creator .cc-skill-sub i { color: var(--pa-energy-b); }
 
-/* Basic attacks (natural weapons) — inline-editable name, reused skill-row layout */
+/* Attack rows — inline-editable name, reused skill-row layout */
 .project-anime.character-creator .cc-attack-name {
   width: 100%; background: transparent; border: 1px solid transparent; border-radius: 4px;
   color: var(--pa-ink); font-weight: 600; font-family: inherit; font-size: 0.85rem; padding: 0.1rem 0.3rem;
@@ -8357,6 +8355,25 @@ body.pa-combat-shown #chat-notifications { display: none; }
 
 /* Monster Creator — flags + EXP spends. */
 .monster-creator .cc-flag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.4rem 0; }
+/* Inline number pills (Party XP · Party Size) — label + a small mono number share one
+   mini-btn-sized pill instead of a stacked full-width field. */
+.monster-creator .cc-flag-row .cc-field {
+  flex-direction: row; align-items: center; gap: 0.45rem;
+  padding: 0.2rem 0.2rem 0.2rem 0.6rem;
+  background: var(--pa-field); border: 1px solid var(--pa-line); border-radius: 6px;
+}
+.monster-creator .cc-flag-row .cc-field:focus-within { border-color: var(--pa-accent); }
+.monster-creator .cc-flag-row .cc-field .cc-label { white-space: nowrap; }
+.monster-creator .cc-flag-row .cc-field input {
+  width: 2.6rem; padding: 0.1rem 0.25rem; text-align: center;
+  font-family: var(--pa-font-mono); font-size: 0.78rem; color: var(--pa-gold);
+  background: color-mix(in srgb, var(--pa-line) 35%, transparent);
+  border: none; border-radius: 4px; appearance: textfield; -moz-appearance: textfield;
+}
+.monster-creator .cc-flag-row .cc-field input:focus { outline: none; box-shadow: none; }
+.monster-creator .cc-flag-row .cc-field input::-webkit-outer-spin-button,
+.monster-creator .cc-flag-row .cc-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.monster-creator .party-pull-n { font-family: var(--pa-font-mono); color: var(--pa-gold); }
 .monster-creator .cc-flag {
   cursor: pointer; border: 1px solid var(--pa-line); border-radius: 5px;
   padding: 0.3rem 0.55rem; background: rgba(255,255,255,0.03);

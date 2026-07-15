@@ -656,10 +656,6 @@
       "reorder": "Drag to reorder",
       "save": "Save"
     },
-    "NaturalAttack": {
-      "name": "Unarmed Strike",
-      "tag": "Natural"
-    },
     "Section": {
       "attack": "Attack",
       "defense": "Defense",
@@ -1106,7 +1102,7 @@
       "modScope": {
         "skill": "Any Skill",
         "weapon": "Any weapon attack",
-        "unarmed": "Unarmed (Natural Attack)"
+        "unarmed": "Unarmed (Weapon Type)"
       },
       "weaponModScope": {
         "type": "By weapon type"

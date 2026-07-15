@@ -340,12 +340,11 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   /** Equipped-gear snapshot for a member's detail drawer: the four paperdoll slots (Weapon / Off-hand /
-   *  Armor / Accessory), each `{ name, img }` or null. Natural attacks are excluded from the Weapon
-   *  slot; an off-hand weapon takes the Off-hand slot, else an equipped shield fills it. */
+   *  Armor / Accessory), each `{ name, img }` or null. An off-hand weapon takes the Off-hand
+   *  slot, else an equipped shield fills it. */
   #memberGear(actor) {
-    const isNatural = (i) => !!i.getFlag?.("project-anime", "natural");
     const equipped = actor.items.filter((i) => i.system?.equipped);
-    const weapons = equipped.filter((i) => i.type === "weapon" && !isNatural(i));
+    const weapons = equipped.filter((i) => i.type === "weapon");
     const main = weapons.find((i) => i.system?.hand === "main") ?? weapons.find((i) => i.system?.hand !== "off") ?? weapons[0] ?? null;
     const off = weapons.find((i) => i.system?.hand === "off" && i !== main) ?? equipped.find((i) => i.type === "shield") ?? null;
     const slot = (i) => (i ? { name: i.name, img: i.img } : null);
