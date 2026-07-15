@@ -880,71 +880,128 @@ export function activeSide(combat) {
 }
 
 /* -------------------------------------------- */
-/*  Enemies (V2 types)                          */
+/*  Enemies (Tier × EXP)                        */
 /* -------------------------------------------- */
 
 /**
- * The V2 enemy Types — each a complete stat line (rules: Enemies → Building Your Own).
- *   • hb/eb/guard/movement/damage/threshold — the printed stat line.
- *   • threat — its cost in the encounter budget (Minion ½ · Standard 1 · Bruiser 1½ ·
- *     Skirmisher 1 · Support 1 · Elite 2).
- *   • attrs — the Attribute budget as die sizes, largest first (assigned to fit the concept).
- *   • talents — starting Talent die sizes ([8] = one at d8; Elite may swap for two at d6).
- *   • techniques — the suggested Technique count (0 = none printed for Minions).
+ * Enemy Tiers (rules: Enemies → Threat). Enemies build like Player Characters, purchased with
+ * Enemy XP (EXP): every enemy starts from the shared base line (enemyBase) and spends
+ * `baseExp` + the party's earned XP on the purchase list (expOptions).
+ *   • threat — the Tier's cost against the encounter budget. A Villain costs the FULL budget
+ *     (threat null; see villainThreat).
+ *   • baseExp — the EXP the build starts with before party XP is added.
  */
-PROJECTANIME.enemyTypes = {
-  minion:     { label: "PROJECTANIME.EnemyType.minion",     icon: "fa-solid fa-bugs",           color: "#8a8f4f", hb: 1, eb: 0, guard: 7,  movement: 5, damage: 1, threshold: 8,  threat: 0.5, attrs: [6, 6, 4, 4, 4], talents: [],  techniques: 0 },
-  standard:   { label: "PROJECTANIME.EnemyType.standard",   icon: "fa-solid fa-helmet-battle",  color: "#7a8a8f", hb: 4, eb: 3, guard: 7,  movement: 5, damage: 2, threshold: 10, threat: 1,   attrs: [8, 8, 4, 4, 4], talents: [6], techniques: 2 },
-  bruiser:    { label: "PROJECTANIME.EnemyType.bruiser",    icon: "fa-solid fa-hand-fist",      color: "#9c6b4f", hb: 6, eb: 3, guard: 7,  movement: 4, damage: 3, threshold: 12, threat: 1.5, attrs: [8, 8, 6, 4, 4], talents: [8], techniques: 2 },
-  skirmisher: { label: "PROJECTANIME.EnemyType.skirmisher", icon: "fa-solid fa-wind",           color: "#4f9c8f", hb: 3, eb: 3, guard: 10, movement: 6, damage: 1, threshold: 9,  threat: 1,   attrs: [8, 8, 4, 4, 4], talents: [6], techniques: 2 },
-  support:    { label: "PROJECTANIME.EnemyType.support",    icon: "fa-solid fa-staff-snake",    color: "#4f7c9c", hb: 3, eb: 5, guard: 8,  movement: 5, damage: 1, threshold: 10, threat: 1,   attrs: [8, 8, 6, 4, 4], talents: [6], techniques: 2 },
-  elite:      { label: "PROJECTANIME.EnemyType.elite",      icon: "fa-solid fa-shield-halved",  color: "#4f9c6c", hb: 6, eb: 5, guard: 9,  movement: 5, damage: 2, threshold: 10, threat: 2,   attrs: [8, 8, 8, 4, 4], talents: [8], techniques: 2 }
+PROJECTANIME.enemyTiers = {
+  minion:   { label: "PROJECTANIME.EnemyType.minion",   icon: "fa-solid fa-bugs",          color: "#8a8f4f", threat: 1,    baseExp: 5 },
+  standard: { label: "PROJECTANIME.EnemyType.standard", icon: "fa-solid fa-helmet-battle", color: "#7a8a8f", threat: 2,    baseExp: 10 },
+  elite:    { label: "PROJECTANIME.EnemyType.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", threat: 3,    baseExp: 15 },
+  champion: { label: "PROJECTANIME.EnemyType.champion", icon: "fa-solid fa-chess-knight",  color: "#9c6b4f", threat: 4,    baseExp: 20 },
+  villain:  { label: "PROJECTANIME.EnemyType.villain",  icon: "fa-solid fa-crown",         color: "#9c4f6c", threat: null, baseExp: 30 }
 };
 
-/** Iteration order for enemy Types (chaff → elite). */
-PROJECTANIME.enemyTypeKeys = ["minion", "standard", "bruiser", "skirmisher", "support", "elite"];
+/** Iteration order for enemy Tiers (chaff → villain). */
+PROJECTANIME.enemyTierKeys = ["minion", "standard", "elite", "champion", "villain"];
 
-/** A Rival — a recurring villain built as a full player character — counts as Threat 2. */
-PROJECTANIME.rivalThreat = 2;
+/** Every enemy's shared starting line before EXP is spent: 1 hit box, 1 energy box, all
+ *  Attributes at d4, Guard 6 + Armor Style (+ Shield). One Weapon Style sets Damage /
+ *  Threshold / Range and one Armor Style sets the Guard bonus / Movement — the same tables
+ *  players use (weaponStyles / armorStyles / shieldStyles). */
+PROJECTANIME.enemyBase = { hitBoxes: 1, energyBoxes: 1, attrDie: 4 };
 
-/** An enemy Type's Threat cost (unknown → 1). */
-export function enemyTypeThreat(typeKey) {
-  return PROJECTANIME.enemyTypes[typeKey]?.threat ?? 1;
+/** The EXP purchase list (rules: Spending EXP) — cost per take and the cap where one exists.
+ *  `attribute` / `talentStep` / `luckStep` caps are DIE SIZES; `hitBox` / `energy` caps are box
+ *  counts. A Villain built WITH Gates ignores the hit-box cap; `luckStep` is Villain-only. */
+PROJECTANIME.expOptions = {
+  attribute:  { label: "PROJECTANIME.Exp.attribute",  cost: 1, cap: 12 },
+  energy:     { label: "PROJECTANIME.Exp.energy",     cost: 1, cap: 10 },
+  hitBox:     { label: "PROJECTANIME.Exp.hitBox",     cost: 1, cap: 10 },
+  luckStep:   { label: "PROJECTANIME.Exp.luckStep",   cost: 2, cap: 12, villainOnly: true },
+  talentStep: { label: "PROJECTANIME.Exp.talentStep", cost: 1, cap: 12 },
+  talent:     { label: "PROJECTANIME.Exp.talent",     cost: 2 },
+  technique:  { label: "PROJECTANIME.Exp.technique",  cost: 2 }
+};
+
+/** A Tier's Threat cost — null for a Villain (it costs the full budget); an untyped monster
+ *  reads as 1. */
+export function enemyTierThreat(tierKey) {
+  const tier = PROJECTANIME.enemyTiers[tierKey];
+  return tier ? tier.threat : 1;
+}
+
+/** An enemy's total EXP budget: its Tier's base EXP + the XP the party has earned
+ *  (`system.exp.party`, stamped by the Monster Creator). */
+export function npcTotalExp(actor) {
+  const tier = PROJECTANIME.enemyTiers[actor?.system?.npcType];
+  return (tier?.baseExp ?? 0) + (Number(actor?.system?.exp?.party) || 0);
+}
+
+/**
+ * EXP spent, DERIVED from the built statblock (no ledger): Attribute steps over d4, hit /
+ * energy boxes over the base 1 (a gated Villain counts the boxes across ALL its Gates),
+ * Talents (2 for the d6 + 1 per step above it), Techniques (2 each; granted ones are free)
+ * and Villain Luck steps over d6 (2 each). Returns the per-option spends plus their `total`.
+ */
+export function npcSpentExp(actor) {
+  const sys = actor?.system ?? {};
+  const opt = PROJECTANIME.expOptions;
+  const attrSteps = PROJECTANIME.attributeKeys.reduce(
+    (n, k) => n + Math.max(0, ((Number(sys.attributes?.[k]?.base) || 4) - 4) / 2), 0);
+  const hbTotal = sys.gates?.enabled && sys.gates.hb?.length
+    ? sys.gates.hb.reduce((n, v) => n + (Number(v) || 0), 0)
+    : (Number(sys.hp?.max) || 1);
+  const spend = {
+    attribute: attrSteps * opt.attribute.cost,
+    hitBox: Math.max(0, hbTotal - PROJECTANIME.enemyBase.hitBoxes) * opt.hitBox.cost,
+    energy: Math.max(0, (Number(sys.energy?.base ?? sys.energy?.max) || 1) - PROJECTANIME.enemyBase.energyBoxes) * opt.energy.cost,
+    talent: Object.values(sys.talents ?? {}).reduce(
+      (n, t) => n + opt.talent.cost + Math.max(0, ((Number(t.die) || 6) - 6) / 2) * opt.talentStep.cost, 0),
+    technique: (actor?.items ?? []).filter((i) => i.type === "skill" && !i.getFlag?.("project-anime", "granted")).length * opt.technique.cost,
+    luckStep: sys.npcType === "villain"
+      ? Math.max(0, ((Number(sys.luckDie) || 6) - 6) / 2) * opt.luckStep.cost
+      : 0
+  };
+  spend.total = spend.attribute + spend.hitBox + spend.energy + spend.talent + spend.technique + spend.luckStep;
+  return spend;
 }
 
 /* -------------------------------------------- */
-/*  Bosses (V2)                                 */
+/*  Villains                                    */
 /* -------------------------------------------- */
 
-/** A Boss is one enemy built to fight the whole party (start from an Elite):
- *  Attributes three at d10 + two at d6 · Talents one at d10 or two at d8 · Damage 3,
- *  Threshold 11 · Guard 9, Movement 5 · Energy Boxes 6 per Bar · acts TWICE per Enemy Phase ·
- *  two Techniques per Bar (a break unlocks the next Bar's) · a break clears all detrimental
- *  statuses and loses excess damage. */
-PROJECTANIME.boss = {
-  attrs: [10, 10, 10, 6, 6],
-  talents: [10],
-  damage: 3,
-  threshold: 11,
-  guard: 9,
-  movement: 5,
-  energyPerBar: 6,
+/** A Villain is one enemy built to challenge the whole party — same build rules, Threat = the
+ *  full encounter budget. It records Luck Dice like a Player Character (three, base d6,
+ *  stepped up with EXP). A climax-ending Villain is built WITH GATES: its hit boxes divide
+ *  across ⌈party ÷ 2⌉ Gates, energy stays one shared pool, it acts twice per Enemy Phase and
+ *  budgets two Techniques per Gate; breaking a Gate loses excess damage, clears every
+ *  detrimental status, and unlocks the next Gate's Techniques. The same Villain can fight
+ *  without Gates in one scene and with Gates in another. */
+PROJECTANIME.villain = {
+  luckDiceCount: 3,
   actionsPerPhase: 2,
-  techniquesPerBar: 2
+  techniquesPerGate: 2
 };
 
-/** A Boss's Bar count = half the party size, rounded up (min 1). */
-export function bossBarCount(partySize) {
+/** A Villain's Gate count = half the party size, rounded up (min 1). */
+export function gateCount(partySize) {
   return Math.max(1, Math.ceil((Number(partySize) || 1) / 2));
 }
 
-/** Each Bar has hit boxes = party size × 2. */
-export function bossBarHp(partySize) {
-  return Math.max(1, 2 * Math.max(1, Number(partySize) || 1));
+/** True while a gated Villain's Technique is still LOCKED (rules: Gates — breaking a Gate
+ *  unlocks the next Gate's Techniques). Techniques carry a 1-based `gate` flag; unflagged ones
+ *  are always available, and a stale flag past the live Gate count reads as the last Gate. */
+export function gateLockedTechnique(actor, item) {
+  if (actor?.type !== "npc" || !actor.system?.gates?.enabled) return false;
+  const count = actor.system.gates.hb?.length ?? 0;
+  if (!count) return false;
+  const gate = Math.min(Number(item?.getFlag?.("project-anime", "gate")) || 0, count);
+  return gate > (Number(actor.system.gates.broken) || 0) + 1;
 }
 
-/** A Boss's Threat = the party size. */
-export function bossThreat(partySize) {
+/** A Villain's Threat = the full encounter budget. Pass the live budget when one is known
+ *  (the Party planner — fractional Easy budgets pass through as-is); the fallback is the
+ *  Standard budget — the party size. */
+export function villainThreat(partySize, budget = null) {
+  if (budget != null) return Number(budget) || 1;
   return Math.max(1, Number(partySize) || 1);
 }
 
@@ -954,8 +1011,8 @@ export function bossThreat(partySize) {
 
 /** The Companion Effect's stat line (rules: Companion Rules). One Talent at d6, one Technique,
  *  Attributes one at d6 + four at d4; on your turn you act OR the Companion acts. Carries the
- *  same presentation fields as an enemyTypes entry (label/icon/color) so the sheet badge and
- *  the Monster Creator's Companion tile can render it, but it is NOT an enemy Type — it has
+ *  same presentation fields as an enemyTiers entry (label/icon/color) so the sheet badge and
+ *  the Monster Creator's Companion tile can render it, but it is NOT an enemy Tier — it has
  *  no Threat and never enters the encounter budget. */
 PROJECTANIME.companion = {
   label: "PROJECTANIME.EnemyType.companion",
@@ -988,16 +1045,16 @@ export function isCompanion(actor) {
 /* -------------------------------------------- */
 
 /**
- * Encounter difficulty → the THREAT budget (rules: Encounter Budget). The base budget is the
- * number of Player Characters; Easy = party − 1, Standard = party, Hard = party × 1.5,
- * Climax = party × 2. Threat is spent by Type (enemyTypeThreat); Rival = 2; Boss = party size.
+ * Encounter difficulty → the THREAT budget (rules: Encounter Budget → Adjust to Difficulty).
+ * Budget = party size × the multiplier: Easy ½ · Standard 1 · Hard 2 · Climax 3. Threat is
+ * spent by Tier (enemyTierThreat); a Villain costs the full budget and its Retinue is free.
  * Minions may not exceed half the budget.
  */
 PROJECTANIME.encounterDifficulty = {
-  easy:     { label: "PROJECTANIME.Encounter.difficulty.easy",     offset: -1 },
-  standard: { label: "PROJECTANIME.Encounter.difficulty.standard", offset: 0 },
-  hard:     { label: "PROJECTANIME.Encounter.difficulty.hard",     mult: 1.5 },
-  climax:   { label: "PROJECTANIME.Encounter.difficulty.climax",   mult: 2 }
+  easy:     { label: "PROJECTANIME.Encounter.difficulty.easy",     mult: 0.5 },
+  standard: { label: "PROJECTANIME.Encounter.difficulty.standard", mult: 1 },
+  hard:     { label: "PROJECTANIME.Encounter.difficulty.hard",     mult: 2 },
+  climax:   { label: "PROJECTANIME.Encounter.difficulty.climax",   mult: 3 }
 };
 
 /** Iteration order for encounter difficulties (easiest → hardest). */

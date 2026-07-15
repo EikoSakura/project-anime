@@ -24,7 +24,7 @@
  * PURE in-memory transform — never call update()/setFlag() from here (infinite loop).
  */
 
-import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue, modifierTakes } from "./config.mjs";
+import { PROJECTANIME, skillEffectKeys, auraAudience, modifierValue, modifierTakes, gateLockedTechnique } from "./config.mjs";
 import { stampCompendiumSource } from "./gear.mjs";
 
 const FLAG_SCOPE = "project-anime";
@@ -458,6 +458,9 @@ function effectIsLive(effect) {
     // so it isn't re-gated by this branch.
     if (parent.type === "skill") {
       if (parent.system?.actionType !== "passive") return false;
+      // A gated Villain's Technique assigned to a later Gate stays LOCKED until that Gate
+      // opens (rules: Gates) — a locked Passive contributes nothing.
+      if (gateLockedTechnique(parent.actor, parent)) return false;
       // A Manifest-bound Passive (rules: Manifest Modifier) is dormant except while its
       // carrier runs — the carrier's use stamps a duration marker on the actor (dice.mjs
       // ensureManifestMarker); the marker's expiry puts the Passive back to sleep (and its
@@ -631,6 +634,7 @@ export function applyStructuredRules(actor) {
   for (const item of actor.items ?? []) {
     if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
     if (isEnemyAura(item)) continue;                 // an enemy aura never buffs/debuffs its bearer
+    if (gateLockedTechnique(actor, item)) continue;  // a locked Gate's Passive isn't live yet
     for (const rule of skillModifierRules(item)) applyPassiveRule(system, rule);
     if (hasAuthoredAttributeEffect(item)) continue;
     for (const mode of skillEffectKeys(item.system)) {
@@ -929,6 +933,7 @@ export function collectRetaliation(actor) {
   for (const item of actor?.items ?? []) {
     if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
     if (isEnemyAura(item)) continue;             // an enemy aura's ward projects onto enemies, not the bearer
+    if (gateLockedTechnique(actor, item)) continue;
     for (const rule of skillModifierRules(item)) {
       if (rule.type === "retaliation") add(rule);
     }
@@ -1056,6 +1061,7 @@ export function statusImmunities(actor) {
   for (const item of actor?.items ?? []) {
     if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
     if (isEnemyAura(item)) continue;
+    if (gateLockedTechnique(actor, item)) continue;
     for (const rule of skillModifierRules(item)) {
       if (rule?.type === "immunity" && rule.status) out.add(rule.status);
     }
@@ -1080,6 +1086,7 @@ export function statusResists(actor) {
   for (const item of actor?.items ?? []) {
     if (item.type !== "skill" || item.system?.actionType !== "passive") continue;
     if (isEnemyAura(item)) continue;
+    if (gateLockedTechnique(actor, item)) continue;
     for (const rule of skillModifierRules(item)) {
       if (rule?.type === "statusResist" && rule.status) out.add(rule.status);
     }

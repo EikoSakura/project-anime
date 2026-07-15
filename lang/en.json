@@ -1550,61 +1550,40 @@
       "stepOf": "Step {n} of {total}",
       "step": {
         "concept": "Concept",
-        "frame": "Frame",
-        "tune": "Tune",
-        "abilities": "Abilities",
-        "gear": "Gear",
-        "finish": "Review",
-        "type": "Type",
+        "tier": "Tier",
+        "styles": "Styles",
         "attributes": "Attributes",
         "talents": "Talents",
-        "techniques": "Techniques"
+        "techniques": "Techniques",
+        "finish": "Review"
       },
       "pickImage": "Choose portrait",
       "conceptField": "Concept — appearance & behavior",
       "disposition": "Disposition",
-      "pickRoleTierFirst": "Pick a Role and a Tier first.",
-      "recalc": "Recalculate from Role & Tier",
-      "path": {
-        "row": "Take a Row",
-        "reshape": "Role & Twist",
-        "custom": "Build Your Own"
-      },
-      "rails": "Four Rails",
-      "rail": {
-        "damageIn": "Damage In (ATK)",
-        "damageOut": "Damage Out (DEF)",
-        "speed": "Speed (AS)",
-        "evasion": "Evasion (EVA)"
-      },
-      "railExempt": "Skirmisher (exempt)",
       "basicAttacks": "Basic Attacks",
       "addBasicAttack": "Add Basic Attack",
       "basicAttackName": "Strike",
       "editAttack": "Edit on sheet",
       "removeAttack": "Remove",
       "noAttacks": "No basic attacks yet.",
-      "skillsHeading": "Skills",
       "browseSkills": "Browse",
       "openSkillBuilder": "Skill Builder",
       "removeSkill": "Remove",
       "noSkills": "No abilities yet.",
       "reviewAttacks": "Attacks",
-      "reviewAbilities": "Abilities",
       "finish": "Finish",
       "done": "{name} is ready!",
-      "pickTypeFirst": "Pick a Type first.",
+      "pickTierFirst": "Pick a Tier first.",
       "partySize": "Party Size",
-      "attrBudget": "Attribute Budget",
-      "talentBudget": "Talent Budget",
-      "addTalent": "Add Talent",
-      "addTalentDie": "Add Talent (d{die})",
+      "rollLuck": "Roll Luck Dice",
+      "noShield": "No Shield",
+      "boxes": "Hit & Energy Boxes",
+      "addTalentD6": "Add Talent (d6)",
       "talentName": "New Talent",
       "talentAttr": "Primary Attribute",
       "removeTalent": "Remove",
       "noTalents": "No talents yet.",
-      "noTalent": "No Talent",
-      "supportNote": "At Least One Heal or Empower"
+      "noTalent": "No Talent"
     },
     "SkillBrowser": {
       "title": "Skill Compendium",
@@ -1617,73 +1596,28 @@
       "missing": "That skill's source could not be found.",
       "done": "Done"
     },
-    "Twist": {
-      "heading": "Twists",
-      "counter": {
-        "name": "Counter",
-        "desc": "React · Attack from range 1: strike back first."
-      },
-      "drainTouch": {
-        "name": "Drain Touch",
-        "desc": "On hit, recover HP equal to half the damage dealt."
-      },
-      "dreadAura": {
-        "name": "Dread Aura",
-        "desc": "Passive · Foes within 2 tiles Step Down Charm."
-      },
-      "ensnare": {
-        "name": "Ensnare",
-        "desc": "On hit: Bound (Duration 2)."
-      },
-      "fade": {
-        "name": "Fade",
-        "desc": "Unseen until you attack (Duration 2)."
-      },
-      "guard": {
-        "name": "Guard",
-        "desc": "React · An ally within 2 tiles is attacked: take the hit instead."
-      },
-      "mend": {
-        "name": "Mend",
-        "desc": "Restore HP equal to the Strong die value to an ally within range 3."
-      },
-      "piercingShot": {
-        "name": "Piercing Shot",
-        "desc": "Attack ignores DEF and RES."
-      },
-      "reinforce": {
-        "name": "Reinforce",
-        "desc": "One Swarm of the same tier arrives at a board edge."
-      },
-      "stunningBlow": {
-        "name": "Stunning Blow",
-        "desc": "On hit: Stunned."
-      },
-      "sweep": {
-        "name": "Sweep",
-        "desc": "Attack all targets within 2 tiles of a point in range."
-      },
-      "warcry": {
-        "name": "Warcry",
-        "desc": "Allies within 2 tiles Step Up one Attribute (Duration 2)."
-      }
-    },
-    "Tier": {
-      "minion": "Minion",
-      "standard": "Standard",
-      "elite": "Elite",
-      "solo": "Solo"
-    },
     "Threat": {
       "label": "Threat",
       "hint": "Threat — this enemy's cost against the encounter budget.",
-      "swarmHalf": "Swarms may not exceed half the budget.",
-      "minionHalf": "Minions may not exceed half the budget."
+      "minionHalf": "Minions may not exceed half the budget.",
+      "fullBudget": "Full Budget",
+      "retinue": "Retinue — Free"
     },
-    "Rival": {
-      "label": "Rival",
-      "badge": "Rival",
-      "badgeHint": "A recurring named villain built on full PC rules — counts as Elite + 1 Threat and grows with the party."
+    "Exp": {
+      "label": "EXP",
+      "hint": "Enemy XP — spent / total build budget.",
+      "base": "Base EXP",
+      "spent": "Spent",
+      "remaining": "Remaining",
+      "partyXp": "Party XP",
+      "partyXpHint": "An enemy's total EXP is its Tier's base EXP plus the total XP the party has earned.",
+      "attribute": "+1 Attribute Step",
+      "energy": "+1 Energy Box",
+      "hitBox": "+1 Hit Box",
+      "luckStep": "Step Up Luck Dice",
+      "talentStep": "Step Up a Talent",
+      "talent": "Talent at d6",
+      "technique": "Technique"
     },
     "Reveal": {
       "shared": "Shown to Other Players",
@@ -1691,19 +1625,19 @@
       "condition": "Condition",
       "undisclosed": "Undisclosed"
     },
-    "Boss": {
-      "label": "Boss",
-      "badge": "Boss",
-      "badgeHint": "One enemy built to fight the whole party. Its HP is split into Bars.",
-      "bars": "Bars",
-      "barsHint": "The Boss takes one full turn per remaining Bar. A broken Bar loses excess damage, ends its statuses, and may let it Shift.",
-      "barBroken": "{name}'s Bar breaks! ({remaining} of {total} left) — statuses cleared; it may Shift.",
-      "defeated": "{name}'s last Bar breaks — the Boss is defeated!",
-      "resolveShrug": "{name} shrugs off {status} (Resolve).",
+    "Gate": {
+      "plural": "Gates",
+      "hint": "A climax Villain's hit boxes divide across Gates. Breaking one loses excess damage, clears its statuses, and unlocks the next Gate's Techniques.",
+      "buildWith": "Build With Gates",
+      "broken": "{name}'s Gate breaks! ({remaining} of {total} left) — statuses cleared; its next Techniques unlock.",
+      "defeated": "{name}'s last Gate breaks — the Villain is defeated!",
+      "locked": "That Technique is locked until Gate {gate} opens.",
+      "nth": "Gate {n}",
+      "assign": "Assign to a Gate",
       "actsTwice": "Acts Twice Per Enemy Phase",
-      "energyPerBar": "6 Energy Boxes Per Bar",
-      "techniquesPerBar": "2 Techniques Per Bar",
-      "breakUnlocks": "A Break Unlocks the Next Bar's Techniques"
+      "techniquesPerGate": "2 Techniques Per Gate",
+      "breakUnlocks": "A Break Unlocks the Next Gate's Techniques",
+      "noCap": "No Hit-Box Cap With Gates"
     },
     "Merchant": {
       "stock": "Stock",
@@ -1942,10 +1876,9 @@
     "EnemyType": {
       "minion": "Minion",
       "standard": "Standard",
-      "bruiser": "Bruiser",
-      "skirmisher": "Skirmisher",
-      "support": "Support",
       "elite": "Elite",
+      "champion": "Champion",
+      "villain": "Villain",
       "companion": "Companion"
     }
   },

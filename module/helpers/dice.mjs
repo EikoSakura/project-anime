@@ -1,4 +1,4 @@
-import { PROJECTANIME, modifierValue, modifierTakes, techniqueResistance, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide } from "./config.mjs";
+import { PROJECTANIME, modifierValue, modifierTakes, techniqueResistance, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide, gateLockedTechnique } from "./config.mjs";
 import { renderDescriptionHTML } from "./prose.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
 import { resolveCompanion } from "./servants.mjs";
@@ -1174,6 +1174,13 @@ export async function rollSkill(actor, item) {
   // Sealed prevents activating Techniques (passives are always-on, not activated).
   if (actor.statuses?.has?.("exhausted") && sys.actionType !== "passive") {
     return ui.notifications.warn(i18n("PROJECTANIME.Roll.exhausted"));
+  }
+
+  // Villain Gates: a Technique assigned to a later Gate (flags.project-anime.gate, 1-based)
+  // stays locked until that Gate opens — breaking a Gate unlocks the next Gate's Techniques.
+  // Unassigned Techniques are always available; the lock only binds while Gates are enabled.
+  if (gateLockedTechnique(actor, item)) {
+    return ui.notifications.warn(i18n("PROJECTANIME.Gate.locked", { gate: Number(item.getFlag("project-anime", "gate")) || 0 }));
   }
 
   // Per-Conflict limiter: a Technique flagged usesPerConflict (a GM enemy-design knob) may be
@@ -2823,14 +2830,20 @@ function maybeGrantComboTurn(actor) {
   }
 }
 
+/** An actor that HOLDS Luck Dice: every Character, and a Villain-tier NPC (rules: Villains —
+ *  a Villain records three Luck Dice following the same rules as a Player Character). */
+export function holdsLuckDice(actor) {
+  return actor?.type === "character" || (actor?.type === "npc" && actor.system?.npcType === "villain");
+}
+
 /**
  * A Combo rolled during a Combo-granted turn can't chain another extra turn — instead (rules:
  * Fumble and Combo): adjust ONE held Luck Die up or down by 1 (bounds 1…the Luck Die size), or,
  * with no Luck Dice remaining, roll the actor's Luck Die and record the result as a restored Luck
- * Die. Characters only (NPCs hold no Luck Dice). Fire-and-forget from the sync combo path.
+ * Die. Luck-holders only (Characters and Villains). Fire-and-forget from the sync combo path.
  */
 async function restoreLuckDieOnGoAgain(actor) {
-  if (actor?.type !== "character" || !actor.isOwner) return;
+  if (!holdsLuckDice(actor) || !actor.isOwner) return;
   const dice = actor.system.luckDice ?? [];
 
   // No held dice → restore one spent Luck Die (roll the actor's Luck Die, record the result).
@@ -2862,7 +2875,7 @@ async function restoreLuckDieOnGoAgain(actor) {
  * to edit, or the dialog is dismissed.
  */
 export async function tuneLuckDie(actor, { title, message } = {}) {
-  if (actor?.type !== "character" || !actor.isOwner) return;
+  if (!holdsLuckDice(actor) || !actor.isOwner) return;
   const dice = [...(actor.system.luckDice ?? [])];
   if (!dice.length) return;
   const die = actor.system.luckDie ?? PROJECTANIME.luckDie;
@@ -3159,15 +3172,16 @@ export async function applyDamageTo(targetUuid, amount, heal, pool = "hp", { ign
   }
   if (!(applied > 0) && !heal) return;
   const stat = target.system[key] ?? { value: 0, max: 0 };
-  // Boss Bars (v0.03): HP damage that would empty the current Bar breaks it instead of defeating the
-  // Boss — unless it's the last Bar. On a break the excess is lost, the Bar refills, every Status ends,
-  // Desperation rises (+2 ATK/Bar via the broken count), and Resolve resets. The last Bar dies normally.
-  if (!heal && key === "hp" && target.type === "npc" && target.system.boss?.enabled) {
-    const remaining = Number(target.system.boss.remaining) || 1;
+  // Villain Gates: HP damage that would empty the current Gate BREAKS it instead of defeating
+  // the Villain — unless it's the last Gate. On a break the excess damage is lost, detrimental
+  // statuses clear, and the next Gate's Techniques unlock. The last Gate dies normally.
+  if (!heal && key === "hp" && target.type === "npc" && target.system.gates?.enabled
+    && (target.system.gates.hb?.length ?? 0) > 0) {
     if (stat.value - applied <= 0) {
-      if (remaining > 1) { await breakBossBar(target); return; }
-      await postBossNote(target, "PROJECTANIME.Boss.defeated", { name: target.name });
-      await target.update({ "system.hp.value": 0, "system.boss.remaining": 0 });
+      const gates = target.system.gates;
+      if ((Number(gates.broken) || 0) < gates.hb.length - 1) { await breakGate(target); return; }
+      await postGateNote(target, "PROJECTANIME.Gate.defeated", { name: target.name });
+      await target.update({ "system.hp.value": 0, "system.gates.broken": gates.hb.length });
       return;
     }
   }
@@ -3175,42 +3189,41 @@ export async function applyDamageTo(targetUuid, amount, heal, pool = "hp", { ign
   await target.update({ [`system.${key}.value`]: next });
 }
 
-/** Statuses that are BENEFICIAL (never shrugged by Boss Resolve, which only gates Detrimental ones). */
+/** Statuses that are BENEFICIAL (a Gate break clears only the Detrimental ones). */
 const BENEFICIAL_STATUSES = new Set(["barrier", "regen", "reflect", "vanished"]);
 
-/** True for a Detrimental Status (a real condition that isn't beneficial) — what Boss Resolve shrugs. */
+/** True for a Detrimental Status (a real condition that isn't beneficial) — what a Gate break clears. */
 function isDetrimentalStatus(id) {
   return (PROJECTANIME.conditionKeys ?? []).includes(id) && !BENEFICIAL_STATUSES.has(id);
 }
 
-/** Post a Boss-bar announcement to chat (bar break / defeat / Resolve shrug). GM/owner side. */
-async function postBossNote(actor, key, data) {
+/** Post a Villain-Gate announcement to chat (Gate break / defeat). GM/owner side. */
+async function postGateNote(actor, key, data) {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: tickerHTML(i18n(key, data), { variant: "boss", icon: "fa-crown" })
   });
 }
 
-/** Break the Boss's current Bar (rules: Bosses): refill to one Bar, end every detrimental
- *  status on it (excess damage is lost), count the broken Bar, and announce the break — the
- *  next Bar's Techniques unlock. */
-async function breakBossBar(target) {
-  const boss = target.system.boss ?? {};
-  const barHp = Number(boss.barHp) || Number(target.system.hp?.max) || 1;
-  const remaining = Math.max(0, (Number(boss.remaining) || 1) - 1);
-  const broken = (Number(boss.broken) || 0) + 1;
-  // End every detrimental Status Effect on the Boss (the Bar refills).
+/** Break the Villain's current Gate (rules: Villains → Gates): excess damage is lost, every
+ *  detrimental status on the Villain clears, the next Gate's hit boxes take over the HP pool,
+ *  and its Techniques unlock. Exported for the direct-write backstop in project-anime.mjs. */
+export async function breakGate(target) {
+  const gates = target.system.gates ?? {};
+  const hb = Array.isArray(gates.hb) ? gates.hb : [];
+  const broken = Math.min((Number(gates.broken) || 0) + 1, Math.max(0, hb.length - 1));
+  const nextHb = Math.max(1, Number(hb[broken]) || 1);
+  // Clear every detrimental Status Effect on the Villain (the next Gate opens clean).
   for (const s of [...(target.statuses ?? [])]) {
     if (!isDetrimentalStatus(s)) continue;
     try { await applyStatusTo(target.uuid, s, false); } catch (_e) { /* ignore a stubborn status */ }
   }
   await target.update({
-    "system.hp.value": barHp,
-    "system.boss.remaining": remaining,
-    "system.boss.broken": broken
+    "system.hp.value": nextHb,
+    "system.gates.broken": broken
   });
-  await postBossNote(target, "PROJECTANIME.Boss.barBroken",
-    { name: target.name, remaining, total: Number(boss.bars) || 0 });
+  await postGateNote(target, "PROJECTANIME.Gate.broken",
+    { name: target.name, remaining: hb.length - broken, total: hb.length });
 }
 
 /** A status condition that auto-expires by counting down rounds (default Duration 2, set by its
@@ -3941,15 +3954,27 @@ function applyLuckChoice({ die0, die1, d1, d2, pool }) {
   };
 }
 
+/** Resolve who SPENDS on a Spend-Luck click: the user's assigned character, else — for a GM
+ *  with no character — the card's own roller when it's a Villain holding Luck Dice (rules:
+ *  Villains record and spend Luck Dice following the same rules as a Player Character). */
+async function luckSpender(rollerUuid) {
+  if (game.user.character) return game.user.character;
+  if (!game.user.isGM || !rollerUuid) return null;
+  const doc = await fromUuid(rollerUuid).catch(() => null);
+  const roller = doc?.actor ?? doc;
+  return roller?.type === "npc" && holdsLuckDice(roller) ? roller : null;
+}
+
 /**
  * "Spend Luck" button. The clicking user spends one of THEIR assigned character's
  * stored Luck numbers to replace a die on this card (their own roll, an ally's, or
- * an enemy's), recomputes the outcome, and posts a follow-up result card.
+ * an enemy's), recomputes the outcome, and posts a follow-up result card. A GM without
+ * an assigned character spends a Villain's own pool on the Villain's cards.
  */
 async function onSpendLuckButton(event) {
   event.preventDefault();
   const el = event.currentTarget;
-  const actor = game.user.character;
+  const actor = await luckSpender(el.dataset.actorUuid);
   if (!actor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.luckNoActor"));
   const pool = actor.system.luckDice ?? [];
   if (!pool.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.luckNone"));
@@ -4040,14 +4065,13 @@ async function onSpendLuckButton(event) {
 async function onSpendLuckAoeButton(event) {
   event.preventDefault();
   const el = event.currentTarget;
-  const actor = game.user.character;
-  if (!actor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.luckNoActor"));
-  const pool = actor.system.luckDice ?? [];
-  if (!pool.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.luckNone"));
-
   let data;
   try { data = JSON.parse(decodeURIComponent(el.dataset.aoeLuck || "")); } catch (_e) { return; }
   const { d1 = 0, d2 = 0, mod = 0, targets = [], actorUuid = "", itemId = "" } = data || {};
+  const actor = await luckSpender(actorUuid);
+  if (!actor) return ui.notifications.warn(i18n("PROJECTANIME.Roll.luckNoActor"));
+  const pool = actor.system.luckDice ?? [];
+  if (!pool.length) return ui.notifications.warn(i18n("PROJECTANIME.Roll.luckNone"));
 
   const choice = await promptLuck({ d1, d2, pool });
   if (!choice) return;

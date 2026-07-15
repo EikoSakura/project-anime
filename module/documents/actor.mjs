@@ -1,4 +1,5 @@
 import { applyStructuredRules } from "../helpers/effects.mjs";
+import { gateLockedTechnique } from "../helpers/config.mjs";
 import { attributePeel } from "../helpers/skill-points.mjs";
 
 /**
@@ -126,7 +127,11 @@ export class ProjectAnimeActor extends Actor {
   *allApplicableEffects() {
     for (const effect of super.allApplicableEffects()) {
       const parent = effect.parent;
-      if (parent?.documentName === "Item" && parent.type === "skill" && parent.system?.actionType !== "passive") continue;
+      if (parent?.documentName === "Item" && parent.type === "skill") {
+        if (parent.system?.actionType !== "passive") continue;
+        // A gated Villain's Passive assigned to a later Gate stays locked until it opens.
+        if (gateLockedTechnique(this, parent)) continue;
+      }
       yield effect;
     }
   }

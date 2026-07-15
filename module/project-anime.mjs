@@ -88,6 +88,11 @@ const PROSE_DESC_SETTING = "proseDescriptionsV1";
 // and the system's Techniques pack. See migrateResistanceText.
 const RESISTANCE_TEXT_SETTING = "resistanceV1";
 
+// Hidden world flag — set once after every NPC converts to the Tier × EXP enemy model: retired
+// V2 Type keys fold into the Tier ladder, Bosses become gated Villains (Bars → Gates), Rivals
+// become Villains, and the retired boss/rival source keys drop. See migrateEnemyTiersV1.
+const ENEMY_TIERS_SETTING = "enemyTiersV1";
+
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
 
@@ -259,7 +264,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING, ENEMY_TIERS_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -581,10 +586,8 @@ function tickCard(actor, text) {
  *  (runPhaseDurationTick), so Lingering expires like every other condition. */
 async function tickDecay(actor) {
   if (!actor?.statuses?.has?.("decay")) return;
-  const hp = actor.system.hp ?? { value: 0, max: 0 };
-  const cur = hp.value ?? 0;
 
-  const updates = { "system.hp.value": Math.max(0, cur - 1) };
+  const updates = {};
   // Pre-timer applications carry no countdown (the old build ran Lingering on its own 3-turn
   // counter flag): retire any legacy counter and stamp the standard default so it still expires.
   if (actor.getFlag("project-anime", "decay") !== undefined) updates["flags.project-anime.-=decay"] = null;
@@ -592,7 +595,11 @@ async function tickDecay(actor) {
   if (actor.getFlag("project-anime", "decayType")) updates["flags.project-anime.-=decayType"] = null;
   const timers = actor.getFlag("project-anime", "statusTimers") ?? {};
   if (!("decay" in timers)) updates["flags.project-anime.statusTimers.decay"] = { n: 2, side: null };
-  await actor.update(updates);
+  if (Object.keys(updates).length) await actor.update(updates);
+
+  // The 1 HP fire goes through the single damage chokepoint so Barriers and a gated Villain's
+  // Gate-break rules apply — a bare hp.value write would kill through an unbroken Gate.
+  await dice.applyDamageTo(actor.uuid, 1, false, "hp");
 
   tickCard(actor, game.i18n.format("PROJECTANIME.Effect.decayTick", { name: actor.name }));
 }
@@ -834,19 +841,20 @@ async function runEndOfTurnTicks(combat, c) {
   }
 }
 
-/** True for a Boss combatant (its HP is split into Bars — it acts once per remaining Bar per round). */
-function isBossCombatant(c) {
-  return c?.actor?.type === "npc" && !!c.actor.system?.boss?.enabled;
+/** True for a GATED Villain combatant (rules: Villains → Gates — it acts twice per Enemy Phase). */
+function isGatedVillainCombatant(c) {
+  return c?.actor?.type === "npc" && !!c.actor.system?.gates?.enabled;
 }
 
-/** Clear every combatant's per-round markers (`actedRound` + the Boss `bossTurns` counter) — run when a
- *  fresh round begins so the flags stay tidy and a Boss's Bar-turns reset. */
+/** Clear every combatant's per-round markers (`actedRound` + the Villain `villainTurns` counter) — run
+ *  when a fresh round begins so the flags stay tidy and a gated Villain's turns reset. */
 async function clearActedMarkers(combat) {
   const updates = [];
   for (const c of combat.combatants) {
     const patch = { _id: c.id };
     let dirty = false;
     if (c.getFlag("project-anime", "actedRound") != null) { patch["flags.project-anime.-=actedRound"] = null; dirty = true; }
+    if (c.getFlag("project-anime", "villainTurns") != null) { patch["flags.project-anime.-=villainTurns"] = null; dirty = true; }
     if (c.getFlag("project-anime", "bossTurns") != null) { patch["flags.project-anime.-=bossTurns"] = null; dirty = true; }
     if (dirty) updates.push(patch);
   }
@@ -892,12 +900,12 @@ async function endActivation(combat, id = combat.combatant?.id) {
       return;                                            // stays the acting unit for a 2nd action
     }
     await runEndOfTurnTicks(combat, c);
-    // Boss (rules: Bosses) — "The Boss acts twice per Enemy Phase". Count this activation; leave it
-    // un-acted (still pickable this phase) until it has spent both actions.
-    if (isBossCombatant(c)) {
-      const used = (Number(c.getFlag("project-anime", "bossTurns")) || 0) + 1;
-      const allowed = Math.max(1, Number(PROJECTANIME.boss?.actionsPerPhase) || 2);
-      await c.setFlag("project-anime", "bossTurns", used);
+    // Gated Villain (rules: Villains → Gates) — "The Villain acts twice per Energy Phase". Count this
+    // activation; leave it un-acted (still pickable this phase) until it has spent both actions.
+    if (isGatedVillainCombatant(c)) {
+      const used = (Number(c.getFlag("project-anime", "villainTurns")) || 0) + 1;
+      const allowed = Math.max(1, Number(PROJECTANIME.villain?.actionsPerPhase) || 2);
+      await c.setFlag("project-anime", "villainTurns", used);
       if (used < allowed) return reconcilePhase(combat);   // a second action remains → the phase re-offers it
     }
     await c.setFlag("project-anime", "actedRound", combat.round);
@@ -956,8 +964,8 @@ async function startSideInitiative(combat) {
   await reconcilePhase(combat);
 }
 
-/** Reset per-encounter (1/Conflict) state on every combatant actor — and, at combat START, refill any
- *  Boss to full Bars so a re-used Boss token is fresh. Deduped per actor. GM-side. */
+/** Reset per-encounter (1/Conflict) state on every combatant actor — and, at combat START, reset any
+ *  gated Villain to its first Gate so a re-used Villain token is fresh. Deduped per actor. GM-side. */
 async function resetEncounterState(combat, { bars = false } = {}) {
   if (!combat || game.users.activeGM?.id !== game.user.id) return;
   const seen = new Set();
@@ -966,13 +974,10 @@ async function resetEncounterState(combat, { bars = false } = {}) {
     if (!a || seen.has(a.id)) continue;
     seen.add(a.id);
     await dice.resetConflictUses(a);
-    if (bars && a.type === "npc" && a.system.boss?.enabled) {
-      const barCount = Number(a.system.boss.bars) || 1;
-      const barHp = Number(a.system.boss.barHp) || a.system.hp.max || 1;
+    if (bars && a.type === "npc" && a.system.gates?.enabled && (a.system.gates.hb?.length ?? 0) > 0) {
       await a.update({
-        "system.boss.remaining": barCount,
-        "system.boss.broken": 0,
-        "system.hp.value": barHp
+        "system.gates.broken": 0,
+        "system.hp.value": Math.max(1, Number(a.system.gates.hb[0]) || 1)
       });
     }
   }
@@ -1010,6 +1015,16 @@ function markDefeatedFromHP(actor, changes) {
   const hp = foundry.utils.getProperty(changes, "system.hp.value");
   if (hp === undefined) return;
   const defeated = hp <= 0;
+  // Backstop for DIRECT hp writes (sheet mark boxes, token-bar edits) on a gated Villain:
+  // dropping to 0 with unbroken Gates is a Gate BREAK, not a defeat. applyDamageTo never writes
+  // 0 here mid-Gates, and its final-defeat update bakes gates.broken = hb.length in the same
+  // change, so this only catches writes that bypassed the chokepoint.
+  const gates = actor.type === "npc" ? actor.system?.gates : null;
+  if (defeated && gates?.enabled && (gates.hb?.length ?? 0) > 0
+    && (Number(gates.broken) || 0) < gates.hb.length - 1) {
+    dice.breakGate(actor);
+    return;
+  }
   let crossed = false;
   for (const c of game.combat?.combatants ?? []) {
     if (c.actor?.uuid !== actor.uuid || c.defeated === defeated) continue;
@@ -1644,75 +1659,72 @@ async function migrateTalentsToActorData() {
 /*  Version 2 actor migration (one-time)        */
 /* -------------------------------------------- */
 
-// V2: every actor re-baselines to the box model — Characters to Hit/Energy Boxes 5 (the data
-// model's migrateData collapses the old numeric pools in memory; this bakes it), monster NPCs to
-// their mapped enemy Type's printed stat line (npcType is seeded from the retired Role by the
-// model's migrateData: grunt→standard, brute→bruiser, skirmisher→skirmisher, caster→standard,
-// support→support, swarm→minion, elite→elite). Bosses re-derive their Bars from the party size
-// (Bars = ⌈party/2⌉, Bar HB = party × 2, EB 6). Basic-attack weapons get the Type's printed
-// Damage + Threshold. GM-side, once per world.
+// V2: every actor re-baselines to the box model (the data model's migrateData collapses the old
+// numeric pools in memory; this bakes it). The V2 Type-line stamping this once performed is
+// retired — enemies are Tier × EXP builds now, and migrateEnemyTiersV1 below finishes any world
+// jumping straight here. GM-side, once per world.
 async function migrateActorsV2() {
   if (game.users.activeGM?.id !== game.user.id) return;
   if (game.settings.get("project-anime", ACTORS_V2_SETTING)) return;
-  const partySize = Math.max(1, partyMembers(game.actors.find((a) => a.type === "party"))?.length || 4);
   let count = 0;
   for (const actor of game.actors) {
-    if (actor.type === "party") continue;
+    if (actor.type !== "character" && actor.type !== "npc") continue;
     const upd = { _id: actor.id };
-    if (actor.type === "character") {
-      // Bake the in-memory re-baseline (migrateData clamps >10 pools down to the base 5).
-      upd["system.hp.max"] = Math.clamp(actor.system.hp.max + (actor.system.woundCount ?? 0), 1, PROJECTANIME.maxBoxes);
-      upd["system.hp.value"] = Math.clamp(actor.system.hp.value, 0, PROJECTANIME.maxBoxes);
-      upd["system.energy.max"] = Math.clamp(actor.system.energy.base ?? actor.system.energy.max, 0, PROJECTANIME.maxBoxes);
-      upd["system.energy.value"] = Math.clamp(actor.system.energy.value, 0, PROJECTANIME.maxBoxes);
-    } else if (actor.type === "npc") {
-      const line = PROJECTANIME.enemyTypes[actor.system.npcType];
-      if (line) {
-        const boss = actor.system.boss?.enabled;
-        if (boss) {
-          const bars = Math.max(1, Math.ceil(partySize / 2));
-          const barHp = Math.max(1, partySize * 2);
-          Object.assign(upd, {
-            "system.boss.bars": bars, "system.boss.barHp": barHp,
-            "system.boss.remaining": bars, "system.boss.broken": 0,
-            "system.hp.max": barHp, "system.hp.value": barHp,
-            "system.energy.max": PROJECTANIME.boss.energyPerBar, "system.energy.value": PROJECTANIME.boss.energyPerBar,
-            "system.guard.bonus": PROJECTANIME.boss.guard - PROJECTANIME.baseGuard,
-            "system.movement.bonus": PROJECTANIME.boss.movement - PROJECTANIME.armorStyles.unarmored.movement
-          });
-        } else {
-          Object.assign(upd, {
-            "system.hp.max": line.hb, "system.hp.value": line.hb,
-            "system.energy.max": line.eb, "system.energy.value": line.eb,
-            "system.guard.bonus": line.guard - PROJECTANIME.baseGuard,
-            "system.movement.bonus": line.movement - PROJECTANIME.armorStyles.unarmored.movement
-          });
-        }
-        // Basic attacks (weapon items with no compendium origin, incl. the Natural Attack) take
-        // the Type's printed Damage + Threshold.
-        const atkDamage = boss ? PROJECTANIME.boss.damage : line.damage;
-        const atkThreshold = boss ? PROJECTANIME.boss.threshold : line.threshold;
-        const itemUpdates = [];
-        for (const item of actor.items) {
-          if (item.type !== "weapon" || item._stats?.compendiumSource) continue;
-          itemUpdates.push({ _id: item.id, "system.damage.value": atkDamage, "system.threshold": atkThreshold });
-        }
-        if (itemUpdates.length) await actor.updateEmbeddedDocuments("Item", itemUpdates);
-      } else {
-        // Untyped NPC: just bake the box clamp.
-        upd["system.hp.max"] = Math.clamp(actor.system.hp.max, 1, PROJECTANIME.maxBoxes);
-        upd["system.hp.value"] = Math.clamp(actor.system.hp.value, 0, PROJECTANIME.maxBoxes);
-        upd["system.energy.max"] = Math.clamp(actor.system.energy.base ?? actor.system.energy.max, 0, PROJECTANIME.maxBoxes);
-        upd["system.energy.value"] = Math.clamp(actor.system.energy.value, 0, PROJECTANIME.maxBoxes);
-      }
-    } else {
-      continue;
-    }
+    upd["system.hp.max"] = Math.clamp(actor.system.hp.max + (actor.system.woundCount ?? 0), 1, PROJECTANIME.maxBoxes);
+    upd["system.hp.value"] = Math.clamp(actor.system.hp.value, 0, PROJECTANIME.maxBoxes);
+    upd["system.energy.max"] = Math.clamp(actor.system.energy.base ?? actor.system.energy.max, 0, PROJECTANIME.maxBoxes);
+    upd["system.energy.value"] = Math.clamp(actor.system.energy.value, 0, PROJECTANIME.maxBoxes);
     await actor.update(upd);
     count++;
   }
   console.log(`Project: Anime | V2 actor migration — re-baselined ${count} actor(s) to the box model.`);
   await game.settings.set("project-anime", ACTORS_V2_SETTING, true);
+}
+
+/* -------------------------------------------- */
+/*  Enemy Tiers migration (one-time)            */
+/* -------------------------------------------- */
+
+// Tier × EXP enemies: persist what the NPC data model now migrates in memory — retired V2 Type
+// keys fold into the Tier ladder (bruiser → elite; skirmisher/support → standard), a Boss
+// becomes a Villain whose Bars carry over as Gates, a Rival becomes a Villain without Gates —
+// and the retired `boss`/`rival` source keys are dropped. Runs over world NPCs and any unlocked
+// NPC compendium of this world. GM-side, once per world.
+async function migrateEnemyTiersV1() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", ENEMY_TIERS_SETTING)) return;
+  let count = 0;
+  const migrateOne = async (actor) => {
+    if (actor.type !== "npc") return;
+    // NOTE: actor._source is NOT raw DB data — the model's migrateData already rewrote it in
+    // memory (npcType mapped, boss folded into gates). So never diff against it to decide what
+    // to persist: bake the in-memory values unconditionally with diff:false (a normal diff
+    // would compare against the same migrated values and strip everything).
+    const src = actor._source.system ?? {};
+    const hadLegacy = src.boss !== undefined || src.rival !== undefined || src.enemyRole !== undefined;
+    const meaningful = hadLegacy || (actor.system.npcType ?? "") !== "" || !!actor.system.gates?.enabled;
+    if (!meaningful) return;
+    const upd = {
+      "system.npcType": actor.system.npcType ?? "",
+      "system.gates": {
+        enabled: !!actor.system.gates?.enabled,
+        hb: [...(actor.system.gates?.hb ?? [])],
+        broken: Number(actor.system.gates?.broken) || 0
+      }
+    };
+    if (src.boss !== undefined) upd["system.-=boss"] = null;
+    if (src.rival !== undefined) upd["system.-=rival"] = null;
+    if (src.enemyRole !== undefined) upd["system.-=enemyRole"] = null;
+    await actor.update(upd, { diff: false });
+    count++;
+  };
+  for (const actor of game.actors) await migrateOne(actor);
+  for (const pack of game.packs) {
+    if (pack.metadata.type !== "Actor" || pack.locked) continue;
+    for (const actor of await pack.getDocuments()) await migrateOne(actor);
+  }
+  console.log(`Project: Anime | Enemy Tiers migration — converted ${count} NPC(s) to the Tier × EXP model.`);
+  await game.settings.set("project-anime", ENEMY_TIERS_SETTING, true);
 }
 
 // V2: re-base every EXISTING world/actor-owned weapon, armor, and shield to the Style tables
@@ -2067,9 +2079,12 @@ Hooks.once("ready", function () {
   // Restore the on-canvas quest tracker for whatever quest this client was tracking.
   ChronicleTracker.refresh();
 
-  // One-time (V2): re-baseline every actor to the box model (Hit/Energy Boxes, Guard, Movement)
-  // and remap monster NPCs to the V2 enemy Types.
+  // One-time (V2): re-baseline every actor to the box model (Hit/Energy Boxes, Guard, Movement).
   migrateActorsV2();
+
+  // One-time: convert every NPC to the Tier × EXP enemy model (retired Types fold into the Tier
+  // ladder; Bosses/Rivals become Villains, Bars carry over as Gates; boss/rival keys drop).
+  migrateEnemyTiersV1();
 
   // One-time: give pre-existing creatures their innate Natural Attack.
   backfillNaturalAttacks();

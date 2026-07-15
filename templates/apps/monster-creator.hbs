@@ -1,5 +1,17 @@
-{{!-- Step-by-step Monster Creator (V2): Concept → Type (stat line · Rival · Boss) → Attributes →
-      Talents → Techniques → Review. --}}
+{{!-- Step-by-step Monster Creator (Tier × EXP): Concept → Tier (EXP budget · Villain frame) →
+      Styles (Weapon · Armor · Shield · Basic Attacks) → Attributes & Boxes → Talents →
+      Techniques → Review. --}}
+
+{{#*inline "expPill"}}
+{{#if exp}}
+<div class="cc-budget-pill{{#if exp.over}} over{{/if}}">
+  <span class="cc-label">{{localize "PROJECTANIME.Exp.label"}}</span>
+  <span class="cc-strong-chip">{{localize "PROJECTANIME.Exp.spent"}} {{exp.spent}} / {{exp.total}}</span>
+  <span class="cc-strong-chip">{{localize "PROJECTANIME.Exp.remaining"}} {{exp.remaining}}</span>
+</div>
+{{/if}}
+{{/inline}}
+
 <div class="cc-body">
 
   <ol class="cc-steps">
@@ -41,13 +53,13 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 2 · TYPE (stat line · Rival · Boss) ===================== --}}
-  {{#if onType}}
+  {{!-- ===================== 2 · TIER (EXP budget · Villain frame) ===================== --}}
+  {{#if onTier}}
   <section class="cc-step-body cc-frame">
     <div class="cc-choose-grid">
-      {{#each types as |t|}}
+      {{#each tiers as |t|}}
       <button type="button" class="cc-choose-opt cc-style-opt{{#if t.selected}} selected{{/if}}" style="--tier-color: {{t.color}}"
-              data-action="pickType" data-type="{{t.key}}" data-tooltip="{{t.tooltip}}" data-tooltip-class="pa-tooltip">
+              data-action="pickTier" data-tier="{{t.key}}" data-tooltip="{{t.tooltip}}" data-tooltip-class="pa-tooltip">
         <span class="cc-style-icon cc-type-glyph"><i class="{{t.icon}}"></i></span>
         <span class="cc-choose-opt-name">{{t.label}}</span>
         {{#if t.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
@@ -55,18 +67,49 @@
       {{/each}}
     </div>
 
-    <div class="cc-flag-row">
-      <label class="cc-flag{{#if rival}} on{{/if}}"><input type="checkbox" data-action="toggleRival" {{#if rival}}checked{{/if}} /> <i class="fas fa-chess-king"></i> {{localize "PROJECTANIME.Rival.label"}}</label>
-      <label class="cc-flag{{#if boss}} on{{/if}}"><input type="checkbox" data-action="toggleBoss" {{#if boss}}checked{{/if}} /> <i class="fas fa-crown"></i> {{localize "PROJECTANIME.Boss.label"}}</label>
-    </div>
-
-    {{#if bossBars}}
+    {{#if framed}}{{#unless isCompanion}}
     <div class="cc-flag-row">
       <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Exp.partyXp"}}</span>
+        <input type="number" class="mc-party-xp" value="{{partyXp}}" min="0" step="1" />
+      </label>
+      <button type="button" class="cc-mini-btn" data-action="pullPartyXp" title="{{localize 'PROJECTANIME.Exp.partyXpHint'}}">
+        <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.Party.pullRoster"}} <span class="party-pull-n">{{rosterXp}}</span>
+      </button>
+    </div>
+    {{> expPill}}
+    {{/unless}}{{/if}}
+
+    {{#if isVillain}}
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.Stat.luckDice"}}</h4>
+    <div class="cc-flag-row">
+      <label class="cc-field">
+        <span class="cc-label">{{localize "PROJECTANIME.Exp.luckStep"}}</span>
+        <select class="mc-luck-die">
+          {{#each villainLuck.dieOptions as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
+        </select>
+      </label>
+      <button type="button" class="cc-mini-btn" data-action="rollLuck"><i class="fas fa-clover"></i> {{localize "PROJECTANIME.MonsterCreator.rollLuck"}} ({{villainLuck.formula}})</button>
+      <span class="luck-dice">
+        {{#each villainLuck.dice as |d|}}<span class="luck-die">{{d}}</span>{{else}}<em class="muted">—</em>{{/each}}
+      </span>
+    </div>
+
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.Gate.plural"}}</h4>
+    <div class="cc-flag-row">
+      <label class="cc-flag{{#if gates.enabled}} on{{/if}}"><input type="checkbox" data-action="toggleGates" {{#if gates.enabled}}checked{{/if}} /> <i class="fas fa-dungeon"></i> {{localize "PROJECTANIME.Gate.buildWith"}}</label>
+      <label class="cc-field">
         <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.partySize"}}</span>
-        <input type="number" class="mc-party-size" value="{{bossBars.partySize}}" min="1" step="1" />
+        <input type="number" class="mc-party-size" value="{{partySize}}" min="1" step="1" />
       </label>
     </div>
+    {{#if gates.enabled}}
+    <div class="cc-flag-row">
+      <span class="cc-strong-chip">{{gates.count}} × <i class="fas fa-dungeon"></i> {{gates.dist}} {{localize "PROJECTANIME.Stat.hbShort"}}</span>
+      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.actsTwice"}}</span>
+      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.techniquesPerGate"}}</span>
+    </div>
+    {{/if}}
     {{/if}}
 
     {{#if framed}}
@@ -75,29 +118,49 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 3 · ATTRIBUTES (assign the budget dice · attack accuracy) ===================== --}}
-  {{#if onAttributes}}
-  <section class="cc-step-body cc-attributes">
-    {{#if attrBudget}}
-    <div class="cc-budget-pill{{#if attrBudgetOff}} over{{/if}}">
-      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.attrBudget"}}</span>
-      {{#each attrBudget as |b|}}
-      <span class="cc-strong-chip">{{b.die}} {{b.used}}/{{b.need}}</span>
+  {{!-- ===================== 3 · STYLES (Weapon · Armor · Shield · Basic Attacks) ===================== --}}
+  {{#if onStyles}}
+  <section class="cc-step-body cc-frame">
+    {{> expPill}}
+
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.Style.weapon"}}</h4>
+    <div class="cc-choose-grid">
+      {{#each weaponStyles as |s|}}
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if s.selected}} selected{{/if}}"
+              data-action="pickWeaponStyle" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip">
+        <span class="cc-style-icon"><img src="{{s.icon}}" alt="" /></span>
+        <span class="cc-choose-opt-name">{{s.label}}</span>
+        {{#if s.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+      </button>
       {{/each}}
     </div>
-    {{/if}}
 
-    <div class="cc-attr-grid">
-      {{#each attributes as |a|}}
-      <div class="cc-attr-card" data-attribute="{{a.key}}">
-        <div class="cc-attr-head">
-          {{#if a.icon}}<i class="{{a.icon}}"></i>{{/if}}
-          <span class="cc-attr-name">{{a.label}}</span>
-        </div>
-        <select class="mc-attr-select">
-          {{#each a.options as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
-        </select>
-      </div>
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.Style.armor"}}</h4>
+    <div class="cc-choose-grid">
+      {{#each armorStyles as |s|}}
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if s.selected}} selected{{/if}}"
+              data-action="pickArmorStyle" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip">
+        <span class="cc-style-icon"><img src="{{s.icon}}" alt="" /></span>
+        <span class="cc-choose-opt-name">{{s.label}}</span>
+        {{#if s.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+      </button>
+      {{/each}}
+    </div>
+
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.Style.shield"}}</h4>
+    <div class="cc-choose-grid">
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if noShield}} selected{{/if}}" data-action="pickShieldStyle" data-style="">
+        <span class="cc-style-icon cc-type-glyph"><i class="fa-solid fa-ban"></i></span>
+        <span class="cc-choose-opt-name">{{localize "PROJECTANIME.MonsterCreator.noShield"}}</span>
+        {{#if noShield}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+      </button>
+      {{#each shieldStyles as |s|}}
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if s.selected}} selected{{/if}}"
+              data-action="pickShieldStyle" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip">
+        <span class="cc-style-icon"><img src="{{s.icon}}" alt="" /></span>
+        <span class="cc-choose-opt-name">{{s.label}}</span>
+        {{#if s.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+      </button>
       {{/each}}
     </div>
 
@@ -145,22 +208,49 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 4 · TALENTS ===================== --}}
-  {{#if onTalents}}
-  <section class="cc-step-body cc-talents">
-    {{#if talentBudget.length}}
-    <div class="cc-budget-pill">
-      <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.talentBudget"}}</span>
-      {{#each talentBudget as |b|}}
-      <span class="cc-strong-chip">{{b}}</span>
+  {{!-- ===================== 4 · ATTRIBUTES & BOXES (spend EXP) ===================== --}}
+  {{#if onAttributes}}
+  <section class="cc-step-body cc-attributes">
+    {{> expPill}}
+
+    <div class="cc-attr-grid">
+      {{#each attributes as |a|}}
+      <div class="cc-attr-card" data-attribute="{{a.key}}">
+        <div class="cc-attr-head">
+          {{#if a.icon}}<i class="{{a.icon}}"></i>{{/if}}
+          <span class="cc-attr-name">{{a.label}}</span>
+        </div>
+        <select class="mc-attr-select">
+          {{#each a.options as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
+        </select>
+      </div>
       {{/each}}
     </div>
-    {{/if}}
+
+    <h4 class="cc-subhead">{{localize "PROJECTANIME.MonsterCreator.boxes"}}</h4>
+    <div class="cc-flag-row mc-box-row" data-pool="hp">
+      <span class="cc-label">{{localize "PROJECTANIME.Stat.hp"}}</span>
+      <button type="button" class="cc-icon-btn" data-action="boxMinus"><i class="fas fa-minus"></i></button>
+      <span class="cc-strong-chip">{{boxes.hb}}</span>
+      <button type="button" class="cc-icon-btn" data-action="boxPlus" {{#if boxes.hbAtCap}}disabled{{/if}}><i class="fas fa-plus"></i></button>
+      {{#if gatesOn}}<span class="muted">{{localize "PROJECTANIME.Gate.noCap"}}</span>{{/if}}
+    </div>
+    <div class="cc-flag-row mc-box-row" data-pool="energy">
+      <span class="cc-label">{{localize "PROJECTANIME.Stat.energy"}}</span>
+      <button type="button" class="cc-icon-btn" data-action="boxMinus"><i class="fas fa-minus"></i></button>
+      <span class="cc-strong-chip">{{boxes.eb}}</span>
+      <button type="button" class="cc-icon-btn" data-action="boxPlus" {{#if boxes.ebAtCap}}disabled{{/if}}><i class="fas fa-plus"></i></button>
+    </div>
+  </section>
+  {{/if}}
+
+  {{!-- ===================== 5 · TALENTS ===================== --}}
+  {{#if onTalents}}
+  <section class="cc-step-body cc-talents">
+    {{> expPill}}
 
     <div class="cc-flag-row">
-      {{#each talentAdds as |t|}}
-      <button type="button" class="cc-mini-btn" data-action="addTalent" data-die="{{t.die}}"><i class="fas fa-plus"></i> {{t.label}}</button>
-      {{/each}}
+      <button type="button" class="cc-mini-btn" data-action="addTalent"><i class="fas fa-plus"></i> {{localize "PROJECTANIME.MonsterCreator.addTalentD6"}}</button>
     </div>
 
     {{#if talents.length}}
@@ -189,9 +279,10 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 5 · TECHNIQUES ===================== --}}
+  {{!-- ===================== 6 · TECHNIQUES ===================== --}}
   {{#if onTechniques}}
   <section class="cc-step-body cc-skills">
+    {{> expPill}}
     <h4 class="cc-subhead cc-skills-head">
       <span class="cc-head-title">
         {{localize "PROJECTANIME.MonsterCreator.step.techniques"}}
@@ -202,13 +293,10 @@
         <button type="button" class="cc-mini-btn" data-action="openSkillBuilder"><i class="fas fa-wand-sparkles"></i> {{localize "PROJECTANIME.MonsterCreator.openSkillBuilder"}}</button>
       </span>
     </h4>
-    {{#if supportNote}}
-    <div class="cc-flag-row"><span class="cc-strong-chip">{{localize "PROJECTANIME.MonsterCreator.supportNote"}}</span></div>
-    {{/if}}
-    {{#if boss}}
+    {{#if gatesOn}}
     <div class="cc-flag-row">
-      <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.techniquesPerBar"}}</span>
-      <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.breakUnlocks"}}</span>
+      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.techniquesPerGate"}}</span>
+      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.breakUnlocks"}}</span>
     </div>
     {{/if}}
     {{#if skills.length}}
@@ -220,6 +308,11 @@
           <span class="cc-skill-name">{{s.name}}</span>
           <span class="cc-skill-sub muted">{{s.actionLabel}} · {{s.cost}}</span>
         </div>
+        {{#if s.gateOptions}}
+        <select class="mc-skill-gate" title="{{localize 'PROJECTANIME.Gate.assign'}}">
+          {{#each s.gateOptions as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
+        </select>
+        {{/if}}
         <button type="button" class="cc-icon-btn danger" data-action="removeSkill" title="{{localize 'PROJECTANIME.MonsterCreator.removeSkill'}}">
           <i class="fas fa-trash"></i>
         </button>
@@ -232,7 +325,7 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 6 · REVIEW ===================== --}}
+  {{!-- ===================== 7 · REVIEW ===================== --}}
   {{#if onFinish}}
   <section class="cc-step-body cc-review">
     <div class="cc-review-id">
@@ -246,9 +339,8 @@
             <i class="{{reviewBadge.icon}}"></i> {{reviewBadge.label}}
           </span>
           {{/if}}
-          {{#if reviewBadge.rival}}<span class="cc-tier-badge rival"><i class="fas fa-chess-king"></i> {{localize "PROJECTANIME.Rival.badge"}}</span>{{/if}}
-          {{#if reviewBadge.boss}}<span class="cc-tier-badge boss"><i class="fas fa-crown"></i> {{localize "PROJECTANIME.Boss.badge"}}</span>{{/if}}
           {{#if reviewBadge.threat}}<span class="cc-tier-badge threat"><i class="fas fa-skull"></i> {{reviewBadge.threat}}</span>{{/if}}
+          {{#if exp}}<span class="cc-tier-badge{{#if exp.over}} over{{/if}}"><i class="fas fa-coins"></i> {{exp.spent}} / {{exp.total}}</span>{{/if}}
           {{/if}}
         </div>
       </div>

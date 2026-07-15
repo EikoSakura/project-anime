@@ -123,7 +123,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       let locked = 0;
       if (key === "hp") {
         const authored = Math.clamp(a._source.system?.hp?.max ?? (res.max ?? 0), 1, cfg.maxBoxes ?? 10);
-        locked = a.system?.boss?.enabled ? 0 : Math.max(0, authored - (res.max ?? 0));
+        locked = a.system?.gates?.enabled ? 0 : Math.max(0, authored - (res.max ?? 0));
       } else {
         locked = Math.max(0, (res.base ?? res.max ?? 0) - (res.max ?? 0));
       }
@@ -197,10 +197,10 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       });
 
     // Encounter tab (GM only) — difficulty, the Threat budget, and the planned enemies on ONE gauge:
-    // Threat spent vs the budget (party size shifted by difficulty: Easy −1 · Standard · Hard ×1.5 ·
-    // Climax ×2). Each enemy costs its Type's Threat (Minion ½ · Standard 1 · Bruiser 1½ · Elite 2 ·
-    // Rival 2 · Boss = party). Every enemy is one line (drag again to field another); Minions may not
-    // exceed half the budget.
+    // Threat spent vs the budget (party size × difficulty: Easy ½ · Standard 1 · Hard ×2 ·
+    // Climax ×3). Each enemy costs its Tier's Threat (Minion 1 · Standard 2 · Elite 3 · Champion 4);
+    // a Villain costs the FULL budget and its Retinue is free. Every enemy is one line (drag again
+    // to field another); Minions may not exceed half the budget.
     if (isGM) {
       const players = effectivePlayers(this.actor);
       context.encounterManual = sys.encounterManual ?? false;
@@ -214,12 +214,11 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
       context.budget = formatThreat(budget);
       context.thresholds = cfg.encounterDifficultyKeys.map((k) => {
         const d = cfg.encounterDifficulty[k];
-        const val = (d.mult != null) ? players * d.mult : players + (d.offset ?? 0);
-        return { label: game.i18n.localize(d.label), value: formatThreat(Math.max(0, val)), active: context.difficulty === k };
+        return { label: game.i18n.localize(d.label), value: formatThreat(Math.max(0, players * (d.mult ?? 1))), active: context.difficulty === k };
       });
 
       const lines = encounterLines(this.actor);
-      context.encounter = lines.map((l) => ({ ...l, threatLabel: formatThreat(l.threat) }));
+      context.encounter = lines.map((l) => ({ ...l, threatLabel: l.retinue ? "" : formatThreat(l.threat) }));
       const spent = lines.reduce((s, l) => s + (l.threat || 0), 0);
       context.spent = formatThreat(spent);
       context.over = spent > budget;

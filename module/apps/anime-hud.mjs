@@ -21,7 +21,7 @@
  */
 
 import { canSeeTokenVitals } from "./token-info.mjs";
-import { PROJECTANIME, combatantSide, activeSide, hasActed, isSkippable, healthStatus, enemyTypeThreat } from "../helpers/config.mjs";
+import { PROJECTANIME, combatantSide, activeSide, hasActed, isSkippable, healthStatus, enemyTierThreat } from "../helpers/config.mjs";
 import { rollCheck } from "../helpers/dice.mjs";
 import { liveEffects } from "../helpers/effects.mjs";
 import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
@@ -1175,21 +1175,26 @@ export class AnimeCombatTracker extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   /** GM-only encounter Threat readout for the header: sum each hostile NPC's Threat cost
-   *  (Rival 2 · Boss = party size · else its Type's Threat) against a Standard budget of the
-   *  PC count, banded Easy / Standard / Hard / Climax. null = nothing to show. */
+   *  (its Tier's Threat: Minion 1 · Standard 2 · Elite 3 · Champion 4; a Villain = the party
+   *  size, i.e. the full Standard budget, and its Retinue rides free) against a Standard
+   *  budget of the PC count, banded Easy / Standard / Hard / Climax. null = nothing to show. */
   #threat(combat, isGM) {
     if (!isGM) return null;
     const party = combat.turns.filter((c) => c.actor?.type === "character").length;
     if (party < 1) return null;
+    const hostiles = combat.turns.filter((c) => c.actor?.type === "npc" && combatantSide(c) === "hostile");
+    const hasVillain = hostiles.some((c) => c.actor.system?.npcType === "villain");
     let total = 0;
-    for (const c of combat.turns) {
-      const a = c.actor;
-      if (a?.type !== "npc" || combatantSide(c) !== "hostile") continue;
-      const s = a.system ?? {};
-      total += s.boss?.enabled ? party : s.rival ? PROJECTANIME.rivalThreat : enemyTypeThreat(s.npcType);
+    for (const c of hostiles) {
+      const tier = c.actor.system?.npcType || "";
+      if (tier === "companion") continue;
+      if (tier === "villain") { total += party; continue; }
+      if (hasVillain) continue;   // a Villain's Retinue does not cost additional Threat
+      const t = enemyTierThreat(tier);
+      total += t == null ? party : t;
     }
     if (total <= 0) return null;
-    const band = total <= party - 1 ? "easy" : total <= party ? "standard" : total <= party * 1.5 ? "hard" : "climax";
+    const band = total <= party / 2 ? "easy" : total <= party ? "standard" : total <= party * 2 ? "hard" : "climax";
     const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
     return { total: fmt(total), party, band, label: game.i18n.localize(PROJECTANIME.encounterDifficulty[band].label) };
   }

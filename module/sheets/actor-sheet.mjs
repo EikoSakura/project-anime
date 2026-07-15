@@ -1,6 +1,6 @@
 import { rollCheck, useConsumable, contextRemoveEffect, postCard, cardHTML } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion, healthStatus } from "../helpers/config.mjs";
+import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion, healthStatus, npcSpentExp, npcTotalExp } from "../helpers/config.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, applyEffectCopy } from "../helpers/effects.mjs";
@@ -143,27 +143,31 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.config = CONFIG.PROJECTANIME;
     context.isCharacter = this.actor.type === "character";
     context.isNPC = this.actor.type === "npc";
-    // Enemy Type badge (V2) — shows the Type + a Rival / Boss chip when flagged. Threat is
-    // the encounter cost. A Companion (bonded, hand-typed, or folder-filed) wears its own
-    // paw chip instead — no Threat, it never enters the encounter budget.
-    const eType = context.isNPC ? this.actor.system.npcType : "";
-    const typeCfg = eType ? CONFIG.PROJECTANIME.enemyTypes?.[eType] : null;
-    context.tierBadge = typeCfg
-      ? { label: game.i18n.localize(typeCfg.label), icon: typeCfg.icon, color: typeCfg.color,
-          tierNumeral: "",
-          rival: !!this.actor.system.rival,
-          boss: !!this.actor.system.boss?.enabled,
-          threat: this.actor.system.rival ? PROJECTANIME.rivalThreat : (typeCfg.threat ?? 1) }
+    // The Luck Dice panel shows for every luck-holder: Characters and Villain-tier NPCs.
+    context.showLuck = context.isCharacter || (context.isNPC && this.actor.system.npcType === "villain");
+    // Enemy Tier badge — shows the Tier + its Threat cost (a Villain reads "Full Budget") and,
+    // for the GM, the EXP readout (spent / total). A Companion (bonded, hand-typed, or
+    // folder-filed) wears its own paw chip instead — no Threat, it never enters the budget.
+    const eTier = context.isNPC ? this.actor.system.npcType : "";
+    const tierCfg = eTier ? CONFIG.PROJECTANIME.enemyTiers?.[eTier] : null;
+    context.tierBadge = tierCfg
+      ? { label: game.i18n.localize(tierCfg.label), icon: tierCfg.icon, color: tierCfg.color,
+          villain: eTier === "villain",
+          threat: tierCfg.threat != null ? tierCfg.threat : game.i18n.localize("PROJECTANIME.Threat.fullBudget"),
+          exp: this.document.isOwner
+            ? { spent: npcSpentExp(this.actor).total, total: npcTotalExp(this.actor) }
+            : null }
       : (context.isNPC && isCompanion(this.actor))
         ? { label: game.i18n.localize(PROJECTANIME.companion.label), icon: PROJECTANIME.companion.icon,
-            color: PROJECTANIME.companion.color, tierNumeral: "", rival: false, boss: false, threat: null }
+            color: PROJECTANIME.companion.color, villain: false, threat: null, exp: null }
         : null;
-    // Boss Bars readout: the pip strip under the header + the current-Bar note.
-    context.bossBars = (context.isNPC && this.actor.system.boss?.enabled)
-      ? { remaining: Number(this.actor.system.boss.remaining) || 0,
-          total: Number(this.actor.system.boss.bars) || 0,
-          broken: Number(this.actor.system.boss.broken) || 0,
-          pips: Array.from({ length: Number(this.actor.system.boss.bars) || 0 }, (_, i) => ({ full: i < (Number(this.actor.system.boss.remaining) || 0) })) }
+    // Villain Gates readout: the pip strip under the header (one pip per Gate, full = unbroken).
+    const gates = context.isNPC ? this.actor.system.gates : null;
+    context.villainGates = (gates?.enabled && (gates.hb?.length ?? 0) > 0)
+      ? { remaining: Math.max(0, gates.hb.length - (Number(gates.broken) || 0)),
+          total: gates.hb.length,
+          broken: Number(gates.broken) || 0,
+          pips: gates.hb.map((hb, i) => ({ full: i >= (Number(gates.broken) || 0), hb })) }
       : null;
     // The toggled <prose-mirror> shows enriched HTML while collapsed and loads the raw
     // value (+ this UUID, for content links) when editing — the PF2e click-to-edit
@@ -216,8 +220,8 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     // printed convention: start at 0 marks, work up to full). Storage keeps `value` = remaining,
     // so marks = max − value; the paired inputs also read in marks (see #bindMarkedInputs).
     // LOCKED boxes (Wound-locked hit boxes, Passive/Servant-locked energy boxes) still render,
-    // padlocked at the top of the strip: locked = authored max − effective max. A Boss's Bar
-    // override REPLACES the max rather than locking boxes, so it shows none.
+    // padlocked at the top of the strip: locked = authored max − effective max. A gated
+    // Villain's Gate override REPLACES the max rather than locking boxes, so it shows none.
     const hp = this.actor.system.hp ?? {};
     const energy = this.actor.system.energy ?? {};
     const marks = (res) => Math.clamp((res.max ?? 0) - (res.value ?? 0), 0, Math.max(res.max ?? 0, 0));
@@ -226,7 +230,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       ...Array.fromRange(Math.max(locked, 0)).map(() => ({ locked: true }))
     ];
     const hpAuthored = Math.clamp(this.actor._source.system?.hp?.max ?? (hp.max ?? 0), 1, CONFIG.PROJECTANIME.maxBoxes ?? 10);
-    const hpLocked = this.actor.system.boss?.enabled ? 0 : Math.max(0, hpAuthored - (hp.max ?? 0));
+    const hpLocked = this.actor.system.gates?.enabled ? 0 : Math.max(0, hpAuthored - (hp.max ?? 0));
     const energyLocked = Math.max(0, (energy.base ?? energy.max ?? 0) - (energy.max ?? 0));
     context.hpBoxes = boxes(hp, hpLocked);
     context.energyBoxes = boxes(energy, energyLocked);
@@ -1379,9 +1383,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
   }
 
   /** Like #bindEnergyMax for HP: the Max field shows the EFFECTIVE maximum (authored − Wound
-   *  locks; a Boss shows its Bar HP), so a name-bound field would write that derived number back
-   *  into the authored max on every form submit, compounding one box away per Wound per edit.
-   *  Edits store the AUTHORED max (entered + current Wound locks) so the shave is re-derived. */
+   *  locks; a gated Villain shows its current Gate's HB), so a name-bound field would write that
+   *  derived number back into the authored max on every form submit, compounding one box away per
+   *  Wound per edit. Edits store the AUTHORED max (entered + current Wound locks). */
   #bindHpMax() {
     const input = this.element?.querySelector?.("input[data-hp-max]");
     if (!input) return;

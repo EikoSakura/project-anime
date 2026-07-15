@@ -1,7 +1,7 @@
-{{!-- Encounter tab (GM-only part): difficulty → Threat budget, read on one gauge, and the planned
-      enemies — each one line, costing its Type's Threat (Minion ½ · Standard 1 · Bruiser 1½ ·
-      Skirmisher 1 · Support 1 · Elite 2 · Rival 2 · Boss = party). Minions may not exceed half the
-      budget. --}}
+{{!-- Encounter tab (GM-only part): difficulty → Threat budget (party × Easy ½ · Standard 1 ·
+      Hard 2 · Climax 3), read on one gauge, and the planned enemies — each one line, costing its
+      Tier's Threat (Minion 1 · Standard 2 · Elite 3 · Champion 4). A Villain costs the FULL
+      budget and its Retinue is free. Minions may not exceed half the budget. --}}
 <section class="party-pane{{#if onEncounter}} active{{/if}}" data-pane="encounter">
   <div class="party-section party-budget">
     <label class="party-manual-toggle">
@@ -57,10 +57,14 @@
 
     <div class="party-drop" data-drop="encounter">
       {{#each encounter as |m|}}
-      <div class="party-row{{#if m.missing}} missing{{/if}}{{#if m.boss}} is-boss{{/if}}{{#if m.rival}} is-rival{{/if}}" data-line-id="{{m.id}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.color}}">
+      <div class="party-row{{#if m.missing}} missing{{/if}}{{#if m.villain}} is-boss{{/if}}" data-line-id="{{m.id}}" data-uuid="{{m.uuid}}" style="--tier-color: {{m.color}}">
         <img src="{{m.img}}" alt="" data-action="openActor" />
-        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.typeLabel}} <span class="party-row-tier">{{#if m.icon}}<i class="{{m.icon}}"></i> {{/if}}{{m.typeLabel}}</span>{{/if}}</span>
+        <span class="party-row-name" data-action="openActor">{{m.name}}{{#if m.tierLabel}} <span class="party-row-tier">{{#if m.icon}}<i class="{{m.icon}}"></i> {{/if}}{{m.tierLabel}}</span>{{/if}}</span>
+        {{#if m.retinue}}
+        <span class="party-row-cost retinue">{{localize "PROJECTANIME.Threat.retinue"}}</span>
+        {{else}}
         <span class="party-row-cost"><i class="fas fa-skull"></i> {{m.threatLabel}}</span>
+        {{/if}}
         {{#if @root.editable}}
         <button type="button" class="party-x" data-action="removeMonster" title="{{localize 'PROJECTANIME.Party.remove'}}"><i class="fas fa-xmark"></i></button>
         {{/if}}

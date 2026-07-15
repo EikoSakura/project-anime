@@ -1,23 +1,20 @@
 /**
- * Project: Anime — step-by-step Monster Creator (V2 enemies).
+ * Project: Anime — step-by-step Monster Creator (Tier × EXP enemies).
  *
- * A guided ApplicationV2 that builds an enemy the way the rules do (Enemies → Building Your
- * Own): pick a TYPE (a complete stat line — Minion / Standard / Bruiser / Skirmisher / Support /
- * Elite; see PROJECTANIME.enemyTypes), assign the type's Attribute dice, choose Talents at the
- * printed die sizes, and write Techniques with the same Skill Browser / Builder players use.
+ * A guided ApplicationV2 that builds an enemy the way the rules do (Enemies): pick a TIER
+ * (Minion / Standard / Elite / Champion / Villain — see PROJECTANIME.enemyTiers), which sets the
+ * EXP budget (base EXP + the party's earned XP), start from the shared base line (1 hit box,
+ * 1 energy box, all Attributes at d4, Guard 6), pick one Weapon Style + one Armor Style
+ * (+ an optional Shield) off the player tables, then SPEND EXP: Attribute steps, hit/energy
+ * boxes, Talents, Techniques — and, for a Villain, Luck Die steps. Spends are DERIVED from the
+ * built statblock (npcSpentExp), so the budget pill audits live and nothing needs a ledger.
  * A seventh tile, COMPANION (PROJECTANIME.companion), hand-builds a party ally on the printed
  * companion line: it has no Threat, goes friendly on pick, and files itself with the companions.
  *
- * Picking a type stamps the printed line onto the actor: Hit Boxes, Energy Boxes, Guard
- * (as `guard.bonus` = printed − base 6), Movement (as `movement.bonus` = printed − unarmored 6)
- * and the Basic Attack's Damage + Threshold (onto every owned weapon item — the Natural Attack
- * included). The GM then picks the attack's two accuracy Attributes (the same Attribute may be
- * chosen twice) or links a Talent, which replaces one die and adds the Trained Edge.
- *
- * RIVAL is a designation (Threat 2 — a recurring villain built as a full PC). BOSS starts from
- * an Elite and applies the Boss line (PROJECTANIME.boss): Bars = ⌈party ÷ 2⌉, each Bar party × 2
- * hit boxes, 6 Energy Boxes per Bar, Damage 3 / Threshold 11, Guard 9, Movement 5; it acts twice
- * per Enemy Phase and budgets two Techniques per Bar (a break unlocks the next Bar's).
+ * A VILLAIN records three Luck Dice (base d6, stepped up with EXP) and may be built WITH GATES:
+ * its purchased hit boxes divide across ⌈party ÷ 2⌉ Gates (no hit-box cap while gated), energy
+ * stays one pool, it acts twice per Enemy Phase, and each Gate budgets two Techniques (a break
+ * unlocks the next Gate's — Techniques carry a `gate` flag the roll path enforces).
  *
  * Like the Character Creator it operates on the LIVE actor and registers in `actor.apps`, so
  * changes refresh it live; it sets the same `flags.project-anime.creationComplete` on finish.
@@ -25,65 +22,62 @@
  */
 import { SkillBuilderApp } from "./skill-builder.mjs";
 import { SkillBrowserApp } from "./skill-browser.mjs";
-import { PROJECTANIME, bossBarCount, bossBarHp, bossThreat, actorTalents } from "../helpers/config.mjs";
+import { PROJECTANIME, gateCount, actorTalents, npcTotalExp, npcSpentExp, styleTooltipHTML, physicalRangeLabel } from "../helpers/config.mjs";
 import { formatThreat } from "../helpers/encounter.mjs";
 import { partyMembers, partyActors } from "../helpers/party-folder.mjs";
 import { ensureServantFolder } from "../helpers/servants.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/** Creation steps, in order (rules: pick a type → assign Attributes → choose Talents → write
- *  Techniques), book-ended by Concept and Review. */
-const STEPS = ["concept", "type", "attributes", "talents", "techniques", "finish"];
+/** Creation steps, in order (rules: pick a Tier → pick the Styles → spend EXP on Attributes and
+ *  boxes → Talents → Techniques), book-ended by Concept and Review. */
+const STEPS = ["concept", "tier", "styles", "attributes", "talents", "techniques", "finish"];
 
 /** Default icon for a freshly-created Basic Attack weapon. */
 const NATURAL_WEAPON_IMG = "icons/svg/sword.svg";
 
-/** Starting-Talent loadouts per type (rules: Step 3) — each option is one full loadout. */
-const TALENT_OPTIONS = {
-  minion: [],
-  standard: [[6]],
-  bruiser: [[8]],
-  skirmisher: [[6]],
-  support: [[6]],
-  elite: [[8], [6, 6]],
-  companion: [[6]]
-};
+/** Default icons for the stamped Style gear. */
+const ARMOR_IMG = "icons/svg/shield.svg";
 
-/** A Boss's Talent loadouts: one at d10, or two at d8. */
-const BOSS_TALENT_OPTIONS = [[10], [8, 8]];
-
-/** Suggested Technique counts per type (display budget; rules: Step 4). */
-const TECHNIQUE_BUDGET = { minion: "0", standard: "1–2", bruiser: "1–2", skirmisher: "1–2", support: "2", elite: "2", companion: "1" };
-
-/** Resolve a tile key to its printed stat line — the six enemy Types, plus the Companion line
- *  (which is not an enemy Type: no Threat, never in the encounter budget). */
-function typeLine(key) {
-  return key === "companion" ? PROJECTANIME.companion : PROJECTANIME.enemyTypes[key];
-}
+/** Talent die sizes purchasable with EXP (a Talent enters at d6; steps go up from there). */
+const TALENT_DICE = [6, 8, 10, 12];
 
 /** Stable ordering: by sort, then name. */
 const bySort = (a, b) => (a.sort || 0) - (b.sort || 0) || a.name.localeCompare(b.name);
 
-/** An enemy Type's printed stat line as rich tooltip HTML — the same `.pa-tooltip` card the
- *  Style pickers use (glyph head, labeled stat rows), with Threat leading the rows. */
-function typeTooltipHTML(t) {
+/** Divide a Villain's total hit boxes across its Gates — as evenly as the rules allow, the
+ *  remainder marking up the earliest Gates ("Divide the Villain's total hit boxes across its
+ *  Gates"). SUM-PRESERVING: with fewer boxes than Gates the count shrinks instead of minting
+ *  boxes that were never bought, so every Gate still holds at least 1 box. */
+export function distributeGates(total, count) {
+  const t = Math.max(1, Number(total) || 0);
+  const n = Math.max(1, Math.min(Number(count) || 1, t));
+  const base = Math.floor(t / n);
+  const rem = t - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
+/** An enemy Tier's line as rich tooltip HTML — the same `.pa-tooltip` card the Style pickers
+ *  use (glyph head, labeled stat rows): Threat + Base EXP (Companion keeps its printed line). */
+function tierTooltipHTML(key, t) {
   const L = (k) => game.i18n.localize(k);
-  const row = (icon, key, value) =>
-    `<div class="pa-tt-row"><span class="k"><i class="fa-solid ${icon}"></i> ${L(key)}</span><span class="v">${value}</span></div>`;
-  const rows = [
-    // The Companion line has no Threat — skip the row rather than print a placeholder.
-    ...(Number.isFinite(t.threat) ? [row("fa-skull", "PROJECTANIME.Threat.label", formatThreat(t.threat))] : []),
-    row("fa-heart", "PROJECTANIME.Stat.hp", t.hb),
-    row("fa-bolt", "PROJECTANIME.Stat.energy", t.eb),
-    row("fa-shield", "PROJECTANIME.Stat.guard", t.guard),
-    row("fa-shoe-prints", "PROJECTANIME.Stat.movement", t.movement),
-    row("fa-burst", "PROJECTANIME.Roll.damage", t.damage),
-    row("fa-bullseye", "PROJECTANIME.Field.threshold", t.threshold)
-  ];
+  const row = (icon, label, value) =>
+    `<div class="pa-tt-row"><span class="k"><i class="fa-solid ${icon}"></i> ${label}</span><span class="v">${value}</span></div>`;
+  const rows = key === "companion"
+    ? [
+      row("fa-heart", L("PROJECTANIME.Stat.hp"), t.hb),
+      row("fa-bolt", L("PROJECTANIME.Stat.energy"), t.eb),
+      row("fa-shield", L("PROJECTANIME.Stat.guard"), t.guard),
+      row("fa-shoe-prints", L("PROJECTANIME.Stat.movement"), t.movement)
+    ]
+    : [
+      row("fa-skull", L("PROJECTANIME.Threat.label"),
+        t.threat != null ? formatThreat(t.threat) : L("PROJECTANIME.Threat.fullBudget")),
+      row("fa-coins", L("PROJECTANIME.Exp.base"), t.baseExp)
+    ];
   return `<div class="pa-tt-head"><span class="pa-tt-img pa-tt-glyph" style="--tier-color: ${t.color}"><i class="${t.icon}"></i></span>`
     + `<div class="pa-tt-heads"><div class="pa-tt-title">${L(t.label)}</div>`
-    + `<div class="pa-tt-type">${L("PROJECTANIME.MonsterCreator.step.type")}</div></div></div>`
+    + `<div class="pa-tt-type">${L("PROJECTANIME.MonsterCreator.step.tier")}</div></div></div>`
     + `<div class="pa-tt-body"><div class="pa-tt-rows">${rows.join("")}</div></div>`;
 }
 
@@ -94,6 +88,25 @@ function livePartySize() {
     for (const m of partyMembers(p)) if (m?.type === "character") seen.add(m.id);
   }
   return seen.size || 4;
+}
+
+/** The party's earned XP, read off the roster: the most advancements any member Character has
+ *  EARNED (unspent + every ledger spend) — the party earns milestones together, so one member's
+ *  earned total is the party's. 0 with no roster. */
+function rosterPartyXp() {
+  let best = 0;
+  const seen = new Set();
+  for (const p of partyActors()) {
+    for (const m of partyMembers(p)) {
+      if (m?.type !== "character" || seen.has(m.id)) continue;
+      seen.add(m.id);
+      const adv = m.system?.advancement ?? {};
+      const earned = (Number(adv.value) || 0)
+        + (adv.log ?? []).reduce((n, e) => n + (Number(e.amount) || 1), 0);
+      best = Math.max(best, earned);
+    }
+  }
+  return best;
 }
 
 export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -115,9 +128,15 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       stepBack: MonsterCreatorApp.#onStepBack,
       gotoStep: MonsterCreatorApp.#onGotoStep,
       pickImage: MonsterCreatorApp.#onPickImage,
-      pickType: MonsterCreatorApp.#onPickType,
-      toggleRival: MonsterCreatorApp.#onToggleRival,
-      toggleBoss: MonsterCreatorApp.#onToggleBoss,
+      pickTier: MonsterCreatorApp.#onPickTier,
+      pullPartyXp: MonsterCreatorApp.#onPullPartyXp,
+      rollLuck: MonsterCreatorApp.#onRollLuck,
+      toggleGates: MonsterCreatorApp.#onToggleGates,
+      pickWeaponStyle: MonsterCreatorApp.#onPickWeaponStyle,
+      pickArmorStyle: MonsterCreatorApp.#onPickArmorStyle,
+      pickShieldStyle: MonsterCreatorApp.#onPickShieldStyle,
+      boxPlus: MonsterCreatorApp.#onBoxPlus,
+      boxMinus: MonsterCreatorApp.#onBoxMinus,
       addAttack: MonsterCreatorApp.#onAddAttack,
       editAttack: MonsterCreatorApp.#onEditAttack,
       removeAttack: MonsterCreatorApp.#onRemoveAttack,
@@ -137,7 +156,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /** Current step index. */
   #step = 0;
 
-  /** Manual party-size override for the Boss Bars (null = read the live roster). */
+  /** Manual party-size override for the Villain Gates (null = read the live roster). */
   #partySizeOverride = null;
 
   get title() {
@@ -145,44 +164,44 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /* -------------------------------------------- */
-  /*  Type helpers                                */
+  /*  Tier helpers                                */
   /* -------------------------------------------- */
 
-  /** The selected Type's config entry (or the Companion line), or null while unset. */
-  #type() {
+  /** The selected Tier's config entry (or the Companion line), or null while unset. */
+  #tier() {
     const key = this.actor.system.npcType;
-    return key ? (typeLine(key) ?? null) : null;
+    if (!key) return null;
+    return key === "companion" ? PROJECTANIME.companion : (PROJECTANIME.enemyTiers[key] ?? null);
   }
 
-  #isBoss() {
-    return !!this.actor.system.boss?.enabled;
+  #isCompanion() {
+    return this.actor.system.npcType === "companion";
   }
 
-  /** The printed stat line in force — the Boss line overrides the Type's while enabled. */
-  #line() {
-    return this.#isBoss() ? PROJECTANIME.boss : this.#type();
+  #isVillain() {
+    return this.actor.system.npcType === "villain";
   }
 
-  /** A Type (or the Boss line, or the Rival designation) chosen — the minimum for a statblock. */
+  /** A Tier chosen — the minimum for a statblock. */
   #framed() {
-    return !!this.#type() || this.#isBoss() || !!this.actor.system.rival;
+    return !!this.#tier();
   }
 
-  /** The party size for the Boss Bars (manual override, else the live roster). */
+  /** The party size driving the Villain Gates + Threat readouts (manual override, else live). */
   #partySize() {
     return this.#partySizeOverride ?? livePartySize();
   }
 
-  /** The Attribute-die budget in force (Boss three d10 + two d6; else the Type's array). */
-  #attrBudget() {
-    if (this.#isBoss()) return PROJECTANIME.boss.attrs;
-    return this.#type()?.attrs ?? null;
+  /** Gates on (Villain only, with a laid-out hb array). */
+  #gatesOn() {
+    const g = this.actor.system.gates;
+    return this.#isVillain() && !!g?.enabled && (g.hb?.length ?? 0) > 0;
   }
 
-  /** The Talent loadout options in force (Boss: one d10 or two d8). */
-  #talentOptions() {
-    if (this.#isBoss()) return BOSS_TALENT_OPTIONS;
-    return TALENT_OPTIONS[this.actor.system.npcType] ?? [];
+  /** The purchased hit-box TOTAL — across all Gates when gated, else the authored max. */
+  #hbTotal() {
+    if (this.#gatesOn()) return this.actor.system.gates.hb.reduce((n, v) => n + (Number(v) || 0), 0);
+    return Number(this.actor._source.system.hp.max) || 1;
   }
 
   /* -------------------------------------------- */
@@ -210,7 +229,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.isFirst = this.#step === 0;
     ctx.isLast = this.#step === STEPS.length - 1;
     ctx.onConcept = stepKey === "concept";
-    ctx.onType = stepKey === "type";
+    ctx.onTier = stepKey === "tier";
+    ctx.onStyles = stepKey === "styles";
     ctx.onAttributes = stepKey === "attributes";
     ctx.onTalents = stepKey === "talents";
     ctx.onTechniques = stepKey === "techniques";
@@ -222,52 +242,75 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.biography = sys.biography ?? "";
     ctx.disposition = sys.disposition ?? "hostile";
 
-    // Type tiles — glyph + name on the face; the printed stat line lives in the hover tooltip
-    // (matches the Character Creator's Weapon/Armor Style cards). Companion rides along as a
-    // seventh tile: the party-ally stat line, not an enemy Type.
+    // Tier tiles — glyph + name on the face; Threat + Base EXP in the hover tooltip. Companion
+    // rides along as a seventh tile: the party-ally stat line, not an enemy Tier.
     ctx.npcType = sys.npcType ?? "";
-    ctx.types = [...cfg.enemyTypeKeys, "companion"].map((k) => {
-      const t = typeLine(k);
+    ctx.framed = this.#framed();
+    ctx.isCompanion = this.#isCompanion();
+    ctx.isVillain = this.#isVillain();
+    ctx.tiers = [...cfg.enemyTierKeys, "companion"].map((k) => {
+      const t = k === "companion" ? cfg.companion : cfg.enemyTiers[k];
       return {
         key: k, label: L(t.label), icon: t.icon, color: t.color,
-        tooltip: typeTooltipHTML(t),
+        tooltip: tierTooltipHTML(k, t),
         selected: sys.npcType === k
       };
     });
 
-    // Rival / Boss flags + whether the frame is complete.
-    ctx.rival = !!sys.rival;
-    ctx.boss = this.#isBoss();
-    ctx.framed = this.#framed();
-
-    // Boss readout — Bars × per-Bar boxes, the party size driving them, and the display notes
-    // (acts twice per Enemy Phase; 6 Energy Boxes per Bar; two Techniques per Bar, a break
-    // unlocks the next Bar's).
-    ctx.bossBars = ctx.boss ? {
-      count: Number(sys.boss.bars) || 0,
-      barHp: Number(sys.boss.barHp) || 0,
-      partySize: this.#partySize()
+    // The EXP budget pill — total (base + party XP), spent (derived off the build), remaining.
+    // Advisory: chips turn "over" but nothing blocks an over-budget build. Companions have no EXP.
+    const spend = ctx.framed && !ctx.isCompanion ? npcSpentExp(this.actor) : null;
+    ctx.exp = spend ? {
+      total: npcTotalExp(this.actor),
+      spent: spend.total,
+      remaining: npcTotalExp(this.actor) - spend.total,
+      over: spend.total > npcTotalExp(this.actor),
+      parts: spend
     } : null;
+    ctx.partyXp = Number(sys.exp?.party) || 0;
+    ctx.rosterXp = rosterPartyXp();
+    ctx.partySize = this.#partySize();
 
-    // Derived statblock — the printed numbers this build stores.
-    const attack = this.actor.items.filter((i) => i.type === "weapon").sort(bySort)[0] ?? null;
-    const line = this.#line();
-    ctx.stat = ctx.framed ? {
-      hb: sys.hp.max,
-      eb: sys.energy.base ?? sys.energy.max,
-      guard: sys.guard.value,
-      movement: sys.movement.value,
-      damage: attack ? (Number(attack.system.damage?.value) || 0) : (line?.damage ?? 1),
-      threshold: attack ? (Number(attack.system.threshold) || 0) : (line?.threshold ?? 10)
-    } : null;
-    ctx.attrDice = cfg.attributeKeys.map((k) => ({
-      key: k,
-      label: L(cfg.attributeAbbr[k]),
-      die: `d${sys.attributes[k]?.base ?? 4}`
-    }));
+    // Villain frame (tier step): the Luck Die (base d6, stepped with EXP — 2 per step) + the
+    // recorded Luck Dice, and the Gates toggle with the live layout readout.
+    if (ctx.isVillain) {
+      const luckDie = Number(sys.luckDie) || 6;
+      ctx.villainLuck = {
+        die: luckDie,
+        dieOptions: [6, 8, 10, 12].map((d) => ({ value: d, label: `d${d}`, selected: luckDie === d })),
+        dice: sys.luckDice ?? [],
+        formula: `${PROJECTANIME.villain.luckDiceCount}d${luckDie}`
+      };
+      const gatesOn = this.#gatesOn();
+      ctx.gates = {
+        enabled: gatesOn,
+        count: gatesOn ? sys.gates.hb.length : gateCount(this.#partySize()),
+        dist: gatesOn ? sys.gates.hb.join(" / ") : "",
+        techniquesPerGate: PROJECTANIME.villain.techniquesPerGate
+      };
+    }
 
-    // Attribute assignment — one die select per Attribute, audited against the budget chips.
-    const budget = this.#attrBudget();
+    // Styles (rules: The Stat Block) — one Weapon Style (Damage/Threshold/Range), one Armor
+    // Style (Guard bonus/Movement), an optional Shield. Cards match the Character Creator's.
+    if (ctx.onStyles) {
+      const styleCards = (keys, table, kindKey, selected) => keys.map((k) => {
+        const st = table[k];
+        return {
+          key: k, label: L(st.label), icon: st.icon,
+          tooltip: styleTooltipHTML(st, kindKey),
+          selected: k === selected
+        };
+      }).sort((a, b) => a.label.localeCompare(b.label));
+      ctx.weaponStyles = styleCards(cfg.weaponStyleKeys, cfg.weaponStyles, "PROJECTANIME.Style.weapon", sys.weaponStyle);
+      ctx.armorStyles = styleCards(cfg.armorStyleKeys, cfg.armorStyles, "PROJECTANIME.Style.armor", sys.armorStyle);
+      ctx.shieldStyles = styleCards(cfg.shieldStyleKeys, cfg.shieldStyles, "PROJECTANIME.Style.shield", sys.shieldStyle);
+      ctx.noShield = !sys.shieldStyle;
+    }
+
+    // Derived statblock — the numbers this build stores (shared partial; Tier + Review steps).
+    this.#statblockContext(ctx, cfg, sys, L);
+
+    // Attribute spending — one die select per Attribute; every step over d4 costs 1 EXP.
     ctx.attributes = cfg.attributeKeys.map((k) => ({
       key: k,
       label: L(cfg.attributes[k]),
@@ -275,52 +318,31 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       base: sys.attributes[k]?.base ?? 4,
       options: [4, 6, 8, 10, 12].map((d) => ({ value: d, label: `d${d}`, selected: (sys.attributes[k]?.base ?? 4) === d }))
     }));
-    if (budget) {
-      const need = {};
-      for (const d of budget) need[d] = (need[d] ?? 0) + 1;
-      const used = {};
-      for (const k of cfg.attributeKeys) {
-        const d = sys.attributes[k]?.base ?? 4;
-        used[d] = (used[d] ?? 0) + 1;
-      }
-      ctx.attrBudget = Object.keys(need).map(Number).sort((a, b) => b - a).map((d) => ({
-        die: `d${d}`, need: need[d], used: used[d] ?? 0, ok: (used[d] ?? 0) === need[d]
-      }));
-      // Off-budget when the assigned multiset differs from the printed one in any way.
-      ctx.attrBudgetOff = Object.keys({ ...need, ...used }).some((d) => (need[d] ?? 0) !== (used[d] ?? 0));
-    } else {
-      ctx.attrBudget = null;
-      ctx.attrBudgetOff = false;
-    }
+
+    // Hit / Energy boxes (1 EXP each). A gated Villain's hit boxes have no cap; everyone else
+    // stops at 10. Energy is always one shared pool.
+    ctx.boxes = {
+      hb: this.#hbTotal(),
+      hbAtCap: !this.#gatesOn() && this.#hbTotal() >= (PROJECTANIME.expOptions.hitBox.cap ?? 10),
+      eb: Number(this.actor._source.system.energy.max) || 0,
+      ebAtCap: (Number(this.actor._source.system.energy.max) || 0) >= (PROJECTANIME.expOptions.energy.cap ?? 10)
+    };
 
     // Embedded Talents (`system.talents`) — inline-editable rows (name · die · primary Attribute).
+    // A Talent enters at d6 (2 EXP); each die step above costs 1 more.
     const talents = actorTalents(this.actor);
     ctx.talents = talents.map((t) => ({
       id: t.id,
       name: t.name,
       die: t.die,
-      dieOptions: [4, 6, 8, 10, 12].map((d) => ({ value: d, label: `d${d}`, selected: t.die === d })),
+      dieOptions: TALENT_DICE.map((d) => ({ value: d, label: `d${d}`, selected: t.die === d })),
       attrOptions: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: t.attribute === k }))
     }));
     ctx.talentCount = talents.length;
-    // The printed loadouts ("1 × d8" / "2 × d6") + one quick-add button per distinct die.
-    const options = this.#talentOptions();
-    ctx.talentBudget = options.map((set) => {
-      const per = {};
-      for (const d of set) per[d] = (per[d] ?? 0) + 1;
-      return Object.keys(per).map((d) => `${per[d]} × d${d}`).join(" + ");
-    });
-    const addDice = [...new Set(options.flat())].sort((a, b) => b - a);
-    ctx.talentAdds = (addDice.length ? addDice : [6]).map((d) => ({
-      die: d,
-      label: addDice.length
-        ? game.i18n.format("PROJECTANIME.MonsterCreator.addTalentDie", { die: d })
-        : L("PROJECTANIME.MonsterCreator.addTalent")
-    }));
 
-    // Basic Attacks — weapon items (the Natural Attack included). Each row exposes the two
-    // accuracy Attributes (the same Attribute may be chosen twice) and the Talent link that
-    // replaces one die and adds the Trained Edge.
+    // Basic Attacks — weapon items (the Natural Attack included), stamped from the Weapon
+    // Style. Each row exposes the two accuracy Attributes (the same Attribute may be chosen
+    // twice) and the Talent link that replaces one die and adds the Trained Edge.
     ctx.attacks = this.actor.items
       .filter((i) => i.type === "weapon")
       .sort(bySort)
@@ -340,42 +362,88 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       });
     ctx.attackCount = ctx.attacks.length;
 
-    // Techniques — built with the Skill Builder or picked from the Skill Browser. The Type sets
-    // the suggested count; a Support wants at least one Heal or Empower (soft note only).
+    // Techniques — built with the Skill Builder or picked from the Skill Browser (2 EXP each).
+    // A gated Villain budgets two per Gate; rows carry a Gate select the roll path enforces.
+    const gatesOn = this.#gatesOn();
+    const gateOptions = gatesOn ? Array.fromRange(this.actor.system.gates.hb.length).map((i) => i + 1) : [];
     ctx.skills = this.actor.items
       .filter((i) => i.type === "skill")
       .sort(bySort)
-      .map((i) => ({
-        id: i.id,
-        name: i.name,
-        img: i.img,
-        cost: i.system.actionType === "passive" ? L("PROJECTANIME.Skill.passive") : `${i.system.energyCost ?? 0} EP`,
-        actionLabel: L(cfg.actionTypes[i.system.actionType] ?? "")
-      }));
+      .map((i) => {
+        const gate = Number(i.getFlag("project-anime", "gate")) || 0;
+        return {
+          id: i.id,
+          name: i.name,
+          img: i.img,
+          cost: i.system.actionType === "passive" ? L("PROJECTANIME.Skill.passive") : `${i.system.energyCost ?? 0} EP`,
+          actionLabel: L(cfg.actionTypes[i.system.actionType] ?? ""),
+          gateOptions: gatesOn ? [
+            { value: "", label: "—", selected: !gate },
+            ...gateOptions.map((g) => ({ value: g, label: game.i18n.format("PROJECTANIME.Gate.nth", { n: g }), selected: gate === g }))
+          ] : null
+        };
+      });
     ctx.skillCount = ctx.skills.length;
-    // A Boss budgets two Techniques per Bar (total shown; a break unlocks the next Bar's).
-    ctx.techBudget = ctx.boss
-      ? String(PROJECTANIME.boss.techniquesPerBar * (Number(sys.boss.bars) || 1))
-      : (TECHNIQUE_BUDGET[sys.npcType] ?? "");
-    ctx.supportNote = sys.npcType === "support" && !ctx.boss
-      && !this.actor.items.some((i) => i.type === "skill"
-        && (["mend", "bolster"].includes(i.system.effect) || ["mend", "bolster"].includes(i.system.secondaryEffect)));
+    ctx.techBudget = gatesOn
+      ? String(PROJECTANIME.villain.techniquesPerGate * this.actor.system.gates.hb.length)
+      : (ctx.isCompanion ? String(PROJECTANIME.companion.techniques) : "");
+    ctx.gatesOn = gatesOn;
 
-    // Review (last step) — a compact summary badge (Type + Rival/Boss + Threat; a Companion
-    // has no Threat, so its chip is skipped).
-    const typeCfg = this.#type();
+    // Review (last step) — a compact summary badge (Tier + Threat + EXP).
+    const tierCfg = this.#tier();
     ctx.reviewBadge = ctx.framed ? {
-      label: typeCfg ? L(typeCfg.label) : "",
-      icon: typeCfg?.icon ?? "",
-      color: ctx.boss ? "#9c4f6c" : ctx.rival ? "#c08a3e" : (typeCfg?.color ?? "var(--pa-line)"),
-      rival: ctx.rival,
-      boss: ctx.boss,
-      threat: ctx.boss ? formatThreat(bossThreat(this.#partySize()))
-        : ctx.rival ? formatThreat(cfg.rivalThreat)
-        : Number.isFinite(typeCfg?.threat) ? formatThreat(typeCfg.threat) : ""
+      label: L(tierCfg.label),
+      icon: tierCfg.icon ?? "",
+      color: tierCfg.color ?? "var(--pa-line)",
+      threat: ctx.isCompanion ? ""
+        : ctx.isVillain ? L("PROJECTANIME.Threat.fullBudget")
+        : formatThreat(tierCfg.threat ?? 1)
     } : null;
 
     return ctx;
+  }
+
+  /** The shared statblock readout (monster-statblock.hbs): the new printed format — HB / EB /
+   *  Guard / Movement, the Weapon Style line (Damage · Threshold · Range), the Attribute dice,
+   *  Talents with die sizes, Techniques, and the Villain extras (Gates layout + Luck Dice). */
+  #statblockContext(ctx, cfg, sys, L) {
+    if (!ctx.framed) { ctx.stat = null; return; }
+    const gatesOn = this.#gatesOn();
+    ctx.stat = {
+      hb: gatesOn ? this.#hbTotal() : sys.hp.max,
+      gateDist: gatesOn ? sys.gates.hb.join(" / ") : null,
+      eb: sys.energy.base ?? sys.energy.max,
+      guard: sys.guard.value,
+      movement: sys.movement.value
+    };
+    const ws = cfg.weaponStyles[sys.weaponStyle];
+    const firstWeapon = this.actor.items.filter((i) => i.type === "weapon").sort(bySort)[0] ?? null;
+    ctx.weaponLine = ws ? {
+      label: L(ws.label),
+      damage: ws.damage,
+      threshold: ws.threshold,
+      range: physicalRangeLabel({ tiles: ws.range[1], minTiles: ws.range[0] > 1 ? ws.range[0] : 0 })
+    } : firstWeapon ? {
+      label: firstWeapon.name,
+      damage: Number(firstWeapon.system.damage?.value) || 0,
+      threshold: Number(firstWeapon.system.threshold) || 0,
+      range: physicalRangeLabel(firstWeapon.system.range ?? {})
+    } : null;
+    const as = cfg.armorStyles[sys.armorStyle];
+    const ss = cfg.shieldStyles[sys.shieldStyle];
+    ctx.armorLine = as ? L(as.label) : "";
+    ctx.shieldLine = ss ? L(ss.label) : "";
+    ctx.attrDice = cfg.attributeKeys.map((k) => ({
+      key: k,
+      label: L(cfg.attributeAbbr[k]),
+      die: `d${sys.attributes[k]?.base ?? 4}`
+    }));
+    ctx.statTalents = actorTalents(this.actor).map((t) => ({ name: t.name, die: `d${t.die}` }));
+    ctx.statTechniques = this.actor.items.filter((i) => i.type === "skill").sort(bySort).map((i) => i.name);
+    ctx.statLuck = this.#isVillain() ? {
+      die: `d${Number(sys.luckDie) || 6}`,
+      dice: sys.luckDice ?? []
+    } : null;
   }
 
   /* -------------------------------------------- */
@@ -403,9 +471,20 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     for (const el of this.element.querySelectorAll(".mc-talent-name, .mc-talent-sel")) {
       el.addEventListener("change", (ev) => this.#commitTalentField(ev.currentTarget));
     }
-    // Boss party-size override → recompute the Bars.
+    // Party XP (the enemy's EXP boost) + party size (the Villain's Gate count).
+    for (const input of this.element.querySelectorAll(".mc-party-xp")) {
+      input.addEventListener("change", (ev) => this.#commitPartyXp(ev.currentTarget));
+    }
     for (const input of this.element.querySelectorAll(".mc-party-size")) {
       input.addEventListener("change", (ev) => this.#commitPartySize(ev.currentTarget));
+    }
+    // Villain Luck Die size select.
+    for (const sel of this.element.querySelectorAll(".mc-luck-die")) {
+      sel.addEventListener("change", (ev) => this.#commitLuckDie(ev.currentTarget));
+    }
+    // Technique Gate assignment selects (gated Villains).
+    for (const sel of this.element.querySelectorAll(".mc-skill-gate")) {
+      sel.addEventListener("change", (ev) => this.#commitSkillGate(ev.currentTarget));
     }
   }
 
@@ -458,10 +537,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Block leaving the Type step until a Type is chosen (a Rival or Boss counts as framed). */
+  /** Block leaving the Tier step until a Tier is chosen. */
   #validateStep() {
-    if (STEPS[this.#step] === "type" && !this.#framed()) {
-      ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.pickTypeFirst"));
+    if (STEPS[this.#step] === "tier" && !this.#framed()) {
+      ui.notifications.warn(game.i18n.localize("PROJECTANIME.MonsterCreator.pickTierFirst"));
       return false;
     }
     return true;
@@ -484,113 +563,295 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /* -------------------------------------------- */
-  /*  Type (stat line · Rival · Boss)             */
+  /*  Tier (EXP budget · Villain frame)           */
   /* -------------------------------------------- */
 
-  /** Pick a Type: stamp its key, then write the printed line + seed the Attribute dice.
-   *  Companion also wires the ally side of it: friendly disposition, linked token, and — when
-   *  the actor isn't filed anywhere yet — a home in the Servants & Companions folder (that
-   *  filing is what puts a hand-built companion on the party sheet's Companions strip). */
-  static async #onPickType(event, target) {
-    const key = target.closest("[data-type]")?.dataset.type;
-    if (!typeLine(key)) return;
+  /** Pick a Tier: stamp its key. The FIRST framing (no Tier yet, or coming off the Companion
+   *  line) also seeds the shared base statblock — 1 hit box, 1 energy box, all Attributes d4,
+   *  no Guard/Movement offsets (rules: The Stat Block). Re-picking a Tier later only moves the
+   *  EXP budget: the build stands. Companion keeps its own printed line + party-ally wiring. */
+  static async #onPickTier(event, target) {
+    const key = target.closest("[data-tier]")?.dataset.tier;
+    const isTier = !!PROJECTANIME.enemyTiers[key];
+    if (!isTier && key !== "companion") return;
+    const prev = this.actor.system.npcType || "";
     const update = { "system.npcType": key };
+
     if (key === "companion") {
+      // The printed Companion line + the ally side of it: friendly disposition, linked token,
+      // and — when the actor isn't filed anywhere yet — a home with the companions. Any Style
+      // gear from a prior enemy build comes off (the Companion line assumes an unarmored body).
+      const line = PROJECTANIME.companion;
       update["system.disposition"] = "friendly";
       update["prototypeToken.disposition"] = CONST.TOKEN_DISPOSITIONS.FRIENDLY;
       update["prototypeToken.actorLink"] = true;
-      if (!this.actor.folder) {
-        const folder = await ensureServantFolder();
-        if (folder) update.folder = folder.id;
-      }
-    }
-    await this.actor.update(update);
-    await this.#applyLine({ seedAttrs: true });
-    this.render();
-  }
-
-  /** Toggle the Rival designation (a recurring villain built as a full PC; Threat 2). */
-  static async #onToggleRival() {
-    await this.actor.update({ "system.rival": !this.actor.system.rival });
-    this.render();
-  }
-
-  /** Toggle the Boss flag — a Boss starts from an Elite and swaps its hit boxes for Bars.
-   *  Enabling sets the Type to Elite and applies the Boss line; disabling restores the Type's. */
-  static async #onToggleBoss() {
-    const on = !this.actor.system.boss?.enabled;
-    const update = { "system.boss.enabled": on };
-    if (on && this.actor.system.npcType !== "elite") update["system.npcType"] = "elite";
-    await this.actor.update(update);
-    await this.#applyLine({ seedAttrs: true });
-    this.render();
-  }
-
-  /**
-   * Write the printed stat line onto the actor: HB / EB, Guard as a bonus over the base 6,
-   * Movement as a bonus over the unarmored 6, the attack Damage + Threshold onto every owned
-   * weapon and (optionally) the Attribute dice seeded largest-first. For a Boss, hit boxes
-   * become Bars (count from the party size; the token bar shows ONE Bar) and Energy is 6 per Bar.
-   */
-  async #applyLine({ seedAttrs = false } = {}) {
-    const line = this.#line();
-    if (!line) return;
-    const update = {
-      "system.guard.bonus": (Number(line.guard) || 0) - PROJECTANIME.baseGuard,
-      "system.movement.bonus": (Number(line.movement) || 0) - PROJECTANIME.armorStyles.unarmored.movement
-    };
-    if (this.#isBoss()) {
-      const size = this.#partySize();
-      const bars = bossBarCount(size);
-      const barHp = bossBarHp(size);
-      update["system.boss.bars"] = bars;
-      update["system.boss.barHp"] = barHp;
-      update["system.boss.remaining"] = bars;
-      update["system.boss.broken"] = 0;
-      update["system.hp.max"] = barHp;
-      update["system.hp.value"] = barHp;
-      update["system.energy.max"] = PROJECTANIME.boss.energyPerBar;
-      update["system.energy.value"] = PROJECTANIME.boss.energyPerBar;
-    } else {
       update["system.hp.max"] = line.hb;
       update["system.hp.value"] = line.hb;
       update["system.energy.max"] = line.eb;
       update["system.energy.value"] = line.eb;
+      update["system.guard.bonus"] = (Number(line.guard) || 0) - PROJECTANIME.baseGuard;
+      update["system.movement.bonus"] = (Number(line.movement) || 0) - PROJECTANIME.armorStyles.unarmored.movement;
+      update["system.gates.enabled"] = false;
+      update["system.weaponStyle"] = "";
+      update["system.armorStyle"] = "";
+      update["system.shieldStyle"] = "";
+      const dice = [...line.attrs].sort((a, b) => b - a);
+      PROJECTANIME.attributeKeys.forEach((k, i) => { update[`system.attributes.${k}.base`] = dice[i] ?? 4; });
+      if (!this.actor.folder) {
+        const folder = await ensureServantFolder();
+        if (folder) update.folder = folder.id;
+      }
+      await this.actor.update(update);
+      const gear = this.actor.items.filter((i) =>
+        (i.type === "armor" && i.getFlag("project-anime", "creationArmor"))
+        || (i.type === "shield" && i.getFlag("project-anime", "creationShield")));
+      if (gear.length) await this.actor.deleteEmbeddedDocuments("Item", gear.map((i) => i.id));
+      await this.#stampAttacks();
+      return this.render();
     }
-    if (seedAttrs) {
-      const dice = [...(this.#attrBudget() ?? [])].sort((a, b) => b - a);
-      PROJECTANIME.attributeKeys.forEach((k, i) => {
-        update[`system.attributes.${k}.base`] = dice[i] ?? 4;
-      });
+
+    // Enemy Tier. Seed the base line only when there's no build yet to protect. Coming off the
+    // Companion tile also reverts the ally wiring (disposition, token link, companions folder).
+    if (!prev || prev === "companion") {
+      update["system.hp.max"] = PROJECTANIME.enemyBase.hitBoxes;
+      update["system.hp.value"] = PROJECTANIME.enemyBase.hitBoxes;
+      update["system.energy.max"] = PROJECTANIME.enemyBase.energyBoxes;
+      update["system.energy.value"] = PROJECTANIME.enemyBase.energyBoxes;
+      update["system.guard.bonus"] = 0;
+      update["system.movement.bonus"] = 0;
+      PROJECTANIME.attributeKeys.forEach((k) => { update[`system.attributes.${k}.base`] = PROJECTANIME.enemyBase.attrDie; });
+    }
+    if (prev === "companion") {
+      update["system.disposition"] = "hostile";
+      update["prototypeToken.disposition"] = CONST.TOKEN_DISPOSITIONS.HOSTILE;
+      update["prototypeToken.actorLink"] = false;
+      // Only clear the auto-assigned companions home — never a GM-chosen folder.
+      if (/companion/i.test(this.actor.folder?.name ?? "")) update.folder = null;
+    }
+    // Leaving the Villain tier folds any Gates back into one pool (capped at 10 without them):
+    // remaining = the current Gate's value + every unbroken later Gate (broken Gates lost their
+    // excess on the break, so they contribute nothing).
+    if (prev === "villain" && key !== "villain" && this.actor.system.gates?.enabled) {
+      const g = this.actor.system.gates;
+      const total = Math.clamp(this.#hbTotal(), 1, PROJECTANIME.maxBoxes);
+      const later = (g.hb ?? []).slice((Number(g.broken) || 0) + 1).reduce((n, v) => n + (Number(v) || 0), 0);
+      update["system.gates.enabled"] = false;
+      update["system.gates.hb"] = [];
+      update["system.gates.broken"] = 0;
+      update["system.hp.max"] = total;
+      update["system.hp.value"] = Math.min((Number(this.actor.system.hp.value) || 0) + later, total);
     }
     await this.actor.update(update);
-    await this.#stampAttacks();
-  }
-
-  /** Stamp the printed Damage + Threshold onto every owned weapon (the Basic Attacks). */
-  async #stampAttacks() {
-    const line = this.#line();
-    if (!line) return;
-    const updates = this.actor.items
-      .filter((i) => i.type === "weapon")
-      .filter((i) => (Number(i.system.damage?.value) || 0) !== line.damage || (Number(i.system.threshold) || 0) !== line.threshold)
-      .map((i) => ({ _id: i.id, "system.damage.value": line.damage, "system.threshold": line.threshold }));
-    if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
-  }
-
-  /** Commit the Boss party-size override and recompute the Bars from it. */
-  async #commitPartySize(input) {
-    const n = Math.max(1, Number(input.value) || 0);
-    this.#partySizeOverride = n === livePartySize() ? null : n;
-    if (this.#isBoss()) await this.#applyLine();
     this.render();
   }
 
+  /** Pull the party's earned XP off the live roster into `system.exp.party`. */
+  static async #onPullPartyXp() {
+    await this.actor.update({ "system.exp.party": rosterPartyXp() });
+    this.render();
+  }
+
+  /** Commit a typed Party XP (the EXP the build adds to its Tier's base). */
+  async #commitPartyXp(input) {
+    const n = Math.max(0, Math.round(Number(input.value) || 0));
+    await this.actor.update({ "system.exp.party": n });
+    this.render();
+  }
+
+  /** Commit the party-size override — a gated Villain re-lays its Gates over the new count
+   *  (Technique Gate flags re-clamp so nothing strands past the last Gate). */
+  async #commitPartySize(input) {
+    const n = Math.max(1, Number(input.value) || 0);
+    this.#partySizeOverride = n === livePartySize() ? null : n;
+    if (this.#gatesOn()) {
+      const hb = distributeGates(this.#hbTotal(), gateCount(n));
+      await this.actor.update({
+        "system.gates.hb": hb,
+        "system.gates.broken": 0,
+        "system.hp.value": hb[0]
+      });
+      await this.#assignSkillGates(hb.length);
+    }
+    this.render();
+  }
+
+  /** Commit the Villain's Luck Die size (base d6; each step up costs 2 EXP, cap d12). */
+  async #commitLuckDie(select) {
+    const die = Number(select.value) || 6;
+    if (![6, 8, 10, 12].includes(die)) return;
+    await this.actor.update({ "system.luckDie": die });
+    this.render();
+  }
+
+  /** Roll the Villain's three Luck Dice and record the results (rules: Villains — the same
+   *  rules as a Player Character). */
+  static async #onRollLuck() {
+    if (!this.#isVillain()) return;
+    const die = Number(this.actor.system.luckDie) || 6;
+    const roll = await new Roll(`${PROJECTANIME.villain.luckDiceCount}d${die}`).evaluate();
+    await this.actor.update({ "system.luckDice": roll.dice[0].results.map((r) => r.result) });
+    this.render();
+  }
+
+  /** Toggle the Villain's Gates: ON divides the purchased hit boxes across ⌈party ÷ 2⌉ Gates
+   *  (and chunk-assigns unflagged Techniques, two per Gate); OFF folds them back into one pool
+   *  (re-capped at 10 — the no-cap allowance is a Gates privilege). */
+  static async #onToggleGates() {
+    if (!this.#isVillain()) return;
+    const sys = this.actor.system;
+    if (!sys.gates?.enabled) {
+      const total = this.#hbTotal();
+      const hb = distributeGates(total, gateCount(this.#partySize()));
+      await this.actor.update({
+        "system.gates.enabled": true,
+        "system.gates.hb": hb,
+        "system.gates.broken": 0,
+        "system.hp.value": hb[0]
+      });
+      await this.#assignSkillGates(hb.length);
+    } else {
+      // Fold back into one pool (re-capped at 10 — the no-cap allowance is a Gates privilege):
+      // remaining = the current Gate's value + every unbroken later Gate.
+      const g = sys.gates;
+      const total = Math.clamp(this.#hbTotal(), 1, PROJECTANIME.maxBoxes);
+      const later = (g.hb ?? []).slice((Number(g.broken) || 0) + 1).reduce((n, v) => n + (Number(v) || 0), 0);
+      await this.actor.update({
+        "system.gates.enabled": false,
+        "system.gates.hb": [],
+        "system.gates.broken": 0,
+        "system.hp.max": total,
+        "system.hp.value": Math.min((Number(sys.hp.value) || 0) + later, total)
+      });
+    }
+    this.render();
+  }
+
+  /** Reconcile Technique Gate flags with a (re)laid Gate count: chunk-assign unflagged
+   *  Techniques in list order (two per Gate) and clamp any stale flag past the last Gate —
+   *  a stranded flag would lock the Technique for the whole fight (rollSkill's gate check). */
+  async #assignSkillGates(count) {
+    const per = PROJECTANIME.villain.techniquesPerGate;
+    const updates = [];
+    this.actor.items.filter((i) => i.type === "skill").sort(bySort).forEach((item, i) => {
+      const cur = Number(item.getFlag("project-anime", "gate")) || 0;
+      if (!cur) updates.push({ _id: item.id, "flags.project-anime.gate": Math.min(count, Math.floor(i / per) + 1) });
+      else if (cur > count) updates.push({ _id: item.id, "flags.project-anime.gate": count });
+    });
+    if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
+  }
+
   /* -------------------------------------------- */
-  /*  Attributes                                  */
+  /*  Styles (Weapon · Armor · Shield)            */
   /* -------------------------------------------- */
 
-  /** Commit one Attribute's assigned die (Attributes step select). */
+  /** Pick the Weapon Style: store the key and stamp its printed line (Damage, Threshold, Range,
+   *  properties) onto every owned weapon — the Basic Attacks, the Natural Attack included. */
+  static async #onPickWeaponStyle(event, target) {
+    const key = target.closest("[data-style]")?.dataset.style;
+    const st = PROJECTANIME.weaponStyles[key];
+    if (!st) return;
+    await this.actor.update({ "system.weaponStyle": key });
+    await this.#stampAttacks();
+    this.render();
+  }
+
+  /** Pick the Armor Style: store the key and wear it as an equipped armor item (Unarmored
+   *  removes the item — Guard 6, Movement 6, Energy Regen 2 come from the base derivation). */
+  static async #onPickArmorStyle(event, target) {
+    const key = target.closest("[data-style]")?.dataset.style;
+    const st = PROJECTANIME.armorStyles[key];
+    if (!st) return;
+    await this.actor.update({ "system.armorStyle": key });
+    const existing = this.actor.items.find((i) => i.type === "armor" && i.getFlag("project-anime", "creationArmor"));
+    if (key === "unarmored") {
+      if (existing) await existing.delete();
+      return this.render();
+    }
+    const name = `${game.i18n.localize(st.label)} ${game.i18n.localize("TYPES.Item.armor")}`;
+    const system = {
+      style: key,
+      guardBonus: st.guard,
+      movement: st.movement,
+      energyRegen: st.energyRegen ?? 0,
+      size: 0,
+      equipped: true
+    };
+    if (existing) await existing.update({ name, img: st.icon, system });
+    else {
+      await this.actor.createEmbeddedDocuments("Item", [{
+        name, type: "armor", img: st.icon ?? ARMOR_IMG, system,
+        flags: { "project-anime": { creationArmor: true } }
+      }]);
+    }
+    this.render();
+  }
+
+  /** Pick the Shield Style (or none): store the key and wear it as an equipped shield item —
+   *  its Guard bonus joins the derivation; it can bash as a weapon like any shield. */
+  static async #onPickShieldStyle(event, target) {
+    const key = target.closest("[data-style]")?.dataset.style ?? "";
+    const existing = this.actor.items.find((i) => i.type === "shield" && i.getFlag("project-anime", "creationShield"));
+    if (!key) {
+      await this.actor.update({ "system.shieldStyle": "" });
+      if (existing) await existing.delete();
+      return this.render();
+    }
+    const st = PROJECTANIME.shieldStyles[key];
+    if (!st) return;
+    await this.actor.update({ "system.shieldStyle": key });
+    const [min, max] = st.range;
+    const name = game.i18n.localize(st.label);
+    const system = {
+      style: key,
+      guardBonus: st.guard,
+      accuracy: { attrA: "might", attrB: "agility", mod: 0 },
+      damage: { value: st.damage },
+      threshold: st.threshold,
+      range: { type: "melee", tiles: max, minTiles: min > 1 ? min : 0 },
+      dual: !!st.dual,
+      size: 0,
+      equipped: true,
+      hand: "off"
+    };
+    if (existing) await existing.update({ name, img: st.icon, system });
+    else {
+      await this.actor.createEmbeddedDocuments("Item", [{
+        name, type: "shield", img: st.icon, system,
+        flags: { "project-anime": { creationShield: true } }
+      }]);
+    }
+    this.render();
+  }
+
+  /** Stamp the chosen Weapon Style's printed line onto every owned weapon (the Basic Attacks).
+   *  Without a Style (a fresh Companion, say) fall back to the Companion damage/threshold. */
+  async #stampAttacks() {
+    const st = PROJECTANIME.weaponStyles[this.actor.system.weaponStyle];
+    const line = st ?? (this.#isCompanion()
+      ? { damage: PROJECTANIME.companion.damage, threshold: PROJECTANIME.companion.threshold, range: [1, 1] }
+      : null);
+    if (!line) return;
+    const [min, max] = line.range;
+    const updates = this.actor.items
+      .filter((i) => i.type === "weapon")
+      .map((i) => ({
+        _id: i.id,
+        "system.style": st ? this.actor.system.weaponStyle : (i.system.style || ""),
+        "system.damage.value": line.damage,
+        "system.threshold": line.threshold,
+        "system.range": { type: max > 1 ? "ranged" : "melee", tiles: max, minTiles: min > 1 ? min : 0 },
+        "system.dual": !!line.dual,
+        "system.grip": line.twoHanded ? "two" : "one",
+        "system.twoHandedOnly": !!line.twoHanded
+      }));
+    if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
+  }
+
+  /* -------------------------------------------- */
+  /*  Attributes & Boxes (EXP spends)             */
+  /* -------------------------------------------- */
+
+  /** Commit one Attribute's assigned die (Attributes step select; 1 EXP per step over d4). */
   async #commitAttribute(select) {
     const key = select.closest("[data-attribute]")?.dataset.attribute;
     if (!PROJECTANIME.attributeKeys.includes(key)) return;
@@ -599,28 +860,80 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
+  /** Buy one hit/energy box (1 EXP). Hit boxes cap at 10 — unless the Villain is gated, where
+   *  the purchased total has no ceiling and re-lays across the Gates. */
+  static async #onBoxPlus(event, target) {
+    return this.#stepBox(target.closest("[data-pool]")?.dataset.pool, +1);
+  }
+
+  /** Refund one hit/energy box (floor 1 hit box / 0 energy — the shared base line). */
+  static async #onBoxMinus(event, target) {
+    return this.#stepBox(target.closest("[data-pool]")?.dataset.pool, -1);
+  }
+
+  async #stepBox(pool, delta) {
+    if (pool === "hp") {
+      if (this.#gatesOn()) {
+        const g = this.actor.system.gates;
+        const total = Math.max(1, this.#hbTotal() + delta);
+        // Re-lay over the party-derived count (not hb.length) so the Gate count recovers once
+        // enough boxes are bought; the current Gate's value grows with the boxes added to it.
+        const hb = distributeGates(total, gateCount(this.#partySize()));
+        const oldIdx = Math.clamp(Number(g.broken) || 0, 0, g.hb.length - 1);
+        const idx = Math.clamp(Number(g.broken) || 0, 0, hb.length - 1);
+        const grown = Math.max(0, (hb[idx] ?? 1) - (Number(g.hb[oldIdx]) || 1));
+        await this.actor.update({
+          "system.gates.hb": hb,
+          "system.hp.value": Math.clamp((Number(this.actor.system.hp.value) || 0) + grown, 0, hb[idx] ?? 1)
+        });
+        await this.#assignSkillGates(hb.length);
+        return this.render();
+      }
+      const authored = Number(this.actor._source.system.hp.max) || 1;
+      const next = Math.clamp(authored + delta, 1, PROJECTANIME.expOptions.hitBox.cap ?? PROJECTANIME.maxBoxes);
+      if (next === authored) return;
+      return this.actor.update({
+        "system.hp.max": next,
+        "system.hp.value": Math.clamp((Number(this.actor.system.hp.value) || 0) + Math.max(0, next - authored), 0, next)
+      }).then(() => this.render());
+    }
+    if (pool === "energy") {
+      const authored = Number(this.actor._source.system.energy.max) || 0;
+      const next = Math.clamp(authored + delta, 0, PROJECTANIME.expOptions.energy.cap ?? PROJECTANIME.maxBoxes);
+      if (next === authored) return;
+      return this.actor.update({
+        "system.energy.max": next,
+        "system.energy.value": Math.clamp((Number(this.actor.system.energy.value) || 0) + Math.max(0, next - authored), 0, next)
+      }).then(() => this.render());
+    }
+  }
+
   /* -------------------------------------------- */
   /*  Basic Attacks                               */
   /* -------------------------------------------- */
 
-  /** Add a Basic Attack: an equipped weapon carrying the Type's printed Damage + Threshold.
-   *  Strikes with it roll through rollAttack and never spend Energy. Weighs nothing (size 0);
-   *  rename it inline and fine-tune it on its item sheet. */
+  /** Add a Basic Attack: an equipped weapon carrying the Weapon Style's printed line. Strikes
+   *  with it roll through rollAttack and never spend Energy. Weighs nothing (size 0); rename it
+   *  inline and fine-tune it on its item sheet. */
   static async #onAddAttack() {
-    const line = this.#line();
+    const st = PROJECTANIME.weaponStyles[this.actor.system.weaponStyle] ?? null;
+    const [min, max] = st?.range ?? [1, 1];
     await this.actor.createEmbeddedDocuments("Item", [{
       name: game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName"),
       type: "weapon",
       img: NATURAL_WEAPON_IMG,
       system: {
+        style: this.actor.system.weaponStyle || "",
         accuracy: { attrA: "might", attrB: "agility", mod: 0 },
-        damage: { value: line?.damage ?? 1 },
-        threshold: line?.threshold ?? 10,
-        range: { type: "melee", tiles: 1 },
+        damage: { value: st?.damage ?? 1 },
+        threshold: st?.threshold ?? 10,
+        range: { type: max > 1 ? "ranged" : "melee", tiles: max, minTiles: min > 1 ? min : 0 },
+        dual: !!st?.dual,
+        grip: st?.twoHanded ? "two" : "one",
+        twoHandedOnly: !!st?.twoHanded,
         size: 0,
         equipped: true,
-        hand: "main",
-        grip: "one"
+        hand: "main"
       }
     }]);
     this.render();
@@ -664,16 +977,15 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /* -------------------------------------------- */
-  /*  Talents                                     */
+  /*  Talents (2 EXP at d6 · +1 per step)         */
   /* -------------------------------------------- */
 
-  /** Add a Talent at the clicked die size (the printed loadout; the GM may add more). */
-  static async #onAddTalent(event, target) {
-    const die = Number(target.dataset.die) || 6;
+  /** Add a Talent at d6 (rules: Spending EXP — "Talent at d6", 2 EXP; step it up inline). */
+  static async #onAddTalent() {
     await this.actor.update({
       [`system.talents.${foundry.utils.randomID()}`]: {
         name: game.i18n.localize("PROJECTANIME.MonsterCreator.talentName"),
-        die,
+        die: 6,
         attribute: "might"
       }
     });
@@ -730,6 +1042,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     if (!item || item.type !== "skill") return;
     if (item.getFlag("project-anime", "granted")) return;
     await item.delete();
+    this.render();
+  }
+
+  /** Commit a Technique's Gate assignment (gated Villains; "—" = always available). */
+  async #commitSkillGate(select) {
+    const id = select.closest("[data-skill-id]")?.dataset.skillId;
+    const item = this.actor.items.get(id);
+    if (!item || item.type !== "skill") return;
+    const gate = Number(select.value) || 0;
+    if (gate > 0) await item.setFlag("project-anime", "gate", gate);
+    else await item.unsetFlag("project-anime", "gate");
     this.render();
   }
 

@@ -157,9 +157,8 @@
     <span class="tier-badge" style="--tier-color: {{tierBadge.color}}" title="{{tierBadge.label}}">
       <i class="{{tierBadge.icon}}"></i><span>{{tierBadge.label}}</span>
     </span>
-    {{#if tierBadge.rival}}<span class="enemy-chip rival" title="{{localize 'PROJECTANIME.Rival.badgeHint'}}"><i class="fas fa-chess-king"></i>{{localize "PROJECTANIME.Rival.badge"}}</span>{{/if}}
-    {{#if tierBadge.boss}}<span class="enemy-chip boss" title="{{localize 'PROJECTANIME.Boss.badgeHint'}}"><i class="fas fa-crown"></i>{{localize "PROJECTANIME.Boss.badge"}}</span>{{/if}}
     {{#if tierBadge.threat}}<span class="enemy-threat" title="{{localize 'PROJECTANIME.Threat.hint'}}"><i class="fas fa-skull"></i>{{tierBadge.threat}}</span>{{/if}}
+    {{#if tierBadge.exp}}<span class="enemy-chip exp" title="{{localize 'PROJECTANIME.Exp.hint'}}"><i class="fas fa-coins"></i>{{tierBadge.exp.spent}}/{{tierBadge.exp.total}}</span>{{/if}}
     {{/if}}
     {{/if}}
   </div>
@@ -178,11 +177,11 @@
   </div>
   {{/if}}
 
-  {{#if bossBars}}
-  <div class="boss-bars" title="{{localize 'PROJECTANIME.Boss.barsHint'}}">
-    <span class="boss-bars-label">{{localize "PROJECTANIME.Boss.bars"}}</span>
-    <span class="boss-bars-pips">{{#each bossBars.pips}}<i class="boss-pip{{#if this.full}} full{{/if}}"></i>{{/each}}</span>
-    <span class="boss-bars-count">{{bossBars.remaining}}/{{bossBars.total}}</span>
+  {{#if villainGates}}
+  <div class="boss-bars" title="{{localize 'PROJECTANIME.Gate.hint'}}">
+    <span class="boss-bars-label">{{localize "PROJECTANIME.Gate.plural"}}</span>
+    <span class="boss-bars-pips">{{#each villainGates.pips}}<i class="boss-pip{{#if this.full}} full{{/if}}" title="{{this.hb}} {{localize 'PROJECTANIME.Stat.hbShort'}}"></i>{{/each}}</span>
+    <span class="boss-bars-count">{{villainGates.remaining}}/{{villainGates.total}}</span>
   </div>
   {{/if}}
 
@@ -197,7 +196,7 @@
           {{!-- Reads in MARKS (0 = untouched), not remaining — no `name`, persisted by #bindMarkedInputs. --}}
           <input type="number" data-marked="hp" value="{{hpMarked}}" min="0" max="{{system.hp.max}}" />
           <span class="sep">/</span>
-          {{!-- Shows the EFFECTIVE maximum (authored − Wound locks; a Boss shows its Bar HP). NO
+          {{!-- Shows the EFFECTIVE maximum (authored − Wound locks; a gated Villain shows its Gate HB). NO
                 `name`: the form's submitOnChange would write this derived number back into the
                 authored max on every edit, compounding one box away per Wound. #bindHpMax persists
                 the AUTHORED max instead (entered + current Wound locks). --}}
@@ -245,7 +244,7 @@
     {{/if}}
   </div>
 
-  {{#if isCharacter}}
+  {{#if showLuck}}
   <div class="panel-rule"></div>
   <div class="panel-luck">
     <span class="panel-luck-label">{{localize "PROJECTANIME.Stat.luckDice"}} {{> revealEye key="luck" on=reveal.luck}}</span>

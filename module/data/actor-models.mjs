@@ -1,4 +1,4 @@
-import { PROJECTANIME } from "../helpers/config.mjs";
+import { PROJECTANIME, gateLockedTechnique } from "../helpers/config.mjs";
 import { collectTradeRates } from "../helpers/effects.mjs";
 
 const fields = foundry.data.fields;
@@ -151,7 +151,8 @@ export class ProjectAnimeActorBase extends foundry.abstract.TypeDataModel {
     for (const item of this.parent?.items ?? []) {
       const data = item.system ?? {};
       if (item.type === "skill") {
-        passiveEnergyTax += Number(data.passiveEnergyTax) || 0;
+        // A gated Villain's Passive locked behind a later Gate isn't live yet — no energy lock.
+        if (!gateLockedTechnique(this.parent, item)) passiveEnergyTax += Number(data.passiveEnergyTax) || 0;
         continue;
       }
       if (!data.equipped) continue;
@@ -310,6 +311,19 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
   static defineSchema() {
     const schema = super.defineSchema();
 
+    // Every enemy BEGINS with 1 hit box and 1 energy box (rules: The Stat Block) — EXP buys
+    // more. Same field shapes as the base; only the initials differ from a Character's 5.
+    schema.hp = new fields.SchemaField({
+      value: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 }),
+      max: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 })
+    });
+    schema.energy = new fields.SchemaField({
+      value: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 }),
+      max: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 }),
+      base: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 }),
+      passiveTax: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
+    });
+
     schema.disposition = new fields.StringField({
       required: true,
       blank: false,
@@ -319,15 +333,26 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
       choices: PROJECTANIME.dispositions
     });
 
-    // The V2 enemy TYPE — the complete stat line this enemy was built from (see
-    // PROJECTANIME.enemyTypes: minion/standard/bruiser/skirmisher/support/elite; also
-    // "companion" for a bonded Companion). A free StringField so the table can be retuned and
-    // hand-editing stays valid; "" = an untyped NPC.
+    // The enemy TIER this enemy was built at (see PROJECTANIME.enemyTiers:
+    // minion/standard/elite/champion/villain; also "companion" for a bonded Companion).
+    // A free StringField so the table can be retuned and hand-editing stays valid;
+    // "" = an untyped NPC.
     schema.npcType = new fields.StringField({ required: false, blank: true, initial: "" });
 
-    // RIVAL — a recurring named villain built on full PC rules; counts as Threat 2 and grows
-    // with the party. A designation only; the statblock is authored like a PC's.
-    schema.rival = new fields.BooleanField({ initial: false });
+    // Enemy XP (rules: Enemies) — the build budget is the Tier's base EXP + the XP the party
+    // has earned (`party`, stamped by the Monster Creator). Spends are DERIVED from the built
+    // statblock (npcSpentExp), not ledgered.
+    schema.exp = new fields.SchemaField({
+      party: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
+    });
+
+    // The equipment Styles this enemy was built on (rules: The Stat Block — one Weapon Style
+    // sets Damage/Threshold/Range, one Armor Style sets Guard bonus/Movement, an optional
+    // Shield adds Guard). Keys into weaponStyles/armorStyles/shieldStyles; the stats live on
+    // the stamped equipped items — these keys are for the statblock line + re-stamping.
+    schema.weaponStyle = new fields.StringField({ required: false, blank: true, initial: "" });
+    schema.armorStyle = new fields.StringField({ required: false, blank: true, initial: "" });
+    schema.shieldStyle = new fields.StringField({ required: false, blank: true, initial: "" });
 
     // Advancements (rules: Companion Advancement) — a bonded Companion earns 1 whenever its
     // bonder does (the Milestone tool pays them alongside the party) and spends on the
@@ -338,52 +363,84 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
       log: advancementLogField()
     });
 
-    // BOSS — one enemy built to fight the whole party. Its hit boxes are replaced by BARS:
-    // `bars` = the Bar count (⌈party ÷ 2⌉), `barHp` = one Bar's hit boxes (party × 2),
-    // `remaining` = Bars not yet broken, `broken` = Bars destroyed. On a Bar break the token
-    // HP bar (which shows ONE Bar) refills, excess damage is lost, detrimental statuses clear,
-    // and the next Bar's Techniques unlock. A Boss acts twice per Enemy Phase.
-    schema.boss = new fields.SchemaField({
+    // Villain Luck Dice (rules: Villains) — three dice rolled and recorded like a Player
+    // Character's. `luckDie` is the purchased die SIZE (base d6, stepped up with EXP —
+    // Villain-only; stored, unlike the Character's advancement-derived size).
+    schema.luckDice = new fields.ArrayField(
+      new fields.NumberField({ ...requiredInteger, min: 1 }),
+      { initial: [] }
+    );
+    schema.luckDie = new fields.NumberField({ ...requiredInteger, initial: 6, min: 4, max: 12 });
+
+    // GATES (rules: Villains → Gates) — a climax Villain's hit boxes are replaced by Gates:
+    // `hb` = each Gate's hit boxes (the purchased total divided across ⌈party ÷ 2⌉ Gates),
+    // `broken` = Gates already destroyed. The token HP bar shows the CURRENT Gate. On a break
+    // excess damage is lost, detrimental statuses clear, and the next Gate's Techniques
+    // unlock; a gated Villain acts twice per Enemy Phase.
+    schema.gates = new fields.SchemaField({
       enabled: new fields.BooleanField({ initial: false }),
-      bars: new fields.NumberField({ ...requiredInteger, initial: 1, min: 1 }),
-      barHp: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
-      remaining: new fields.NumberField({ ...requiredInteger, initial: 1, min: 0 }),
+      hb: new fields.ArrayField(
+        new fields.NumberField({ ...requiredInteger, initial: 1, min: 1 }),
+        { initial: [] }
+      ),
       broken: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
     });
 
     return schema;
   }
 
-  /** A Boss's hit boxes over the cap are legal (barHp = party × 2 can exceed 10); everything
-   *  else answers to the same 10-box cap as PCs. Desperation is retired in V2 — a broken Bar
-   *  only unlocks Techniques. */
+  /** A gated Villain's Gate can legally exceed the 10-box cap (Villains have no hit-box
+   *  ceiling when built with Gates); everything else answers to the same cap as PCs. The
+   *  current Gate drives the visible HP pool. */
   prepareDerivedData() {
     super.prepareDerivedData();
-    if (this.boss?.enabled) {
-      // Re-widen the Bar HP past the base clamp (the token bar shows ONE Bar).
-      const bar = Math.max(1, Number(this.boss.barHp) || 1);
-      this.hp.max = bar;
-      this.hp.value = Math.clamp(this.hp.value, 0, bar);
+    if (this.gates?.enabled && this.gates.hb.length) {
+      // Re-widen the current Gate's boxes past the base clamp (the token bar shows ONE Gate).
+      // The base clamp already crushed hp.value to the (stale) stored max, so re-derive the
+      // value from SOURCE against the Gate size, and recompute Critical off the real pool.
+      const idx = Math.clamp(this.gates.broken, 0, this.gates.hb.length - 1);
+      const gate = Math.max(1, Number(this.gates.hb[idx]) || 1);
+      this.hp.max = gate;
+      this.hp.value = Math.clamp(Number(this._source.hp?.value) || 0, 0, gate);
+      this.critical = this.hp.value > 0
+        && (gate - this.hp.value) >= Math.ceil(gate * PROJECTANIME.criticalMarkedFraction);
     }
   }
 
   /**
-   * Legacy migrations:
-   *  1. Pre-V2 Role × Tier enemies map to the nearest V2 Type (stat rebase happens in the
-   *     one-time world migration; this only seeds the type key so sheets render).
-   *  2. Pre-V2 numeric pools over the box cap re-baseline from the Type's stat line.
+   * Legacy migrations (in-memory; the one-time world migration persists them):
+   *  1. Pre-V2 Role × Tier enemies map straight to the nearest Tier key.
+   *  2. Retired V2 Type keys fold into the Tier ladder (bruiser → elite; skirmisher/support →
+   *     standard); a Boss or Rival becomes a Villain (a Boss's Bars becoming its Gates).
+   *  3. Pre-Tier numeric pools over the box cap re-baseline to the base line.
    */
   static migrateData(source) {
     if (!source?.npcType && source?.enemyRole) {
-      const map = { grunt: "standard", brute: "bruiser", skirmisher: "skirmisher", caster: "standard", support: "support", swarm: "minion", elite: "elite" };
+      const map = { grunt: "standard", brute: "elite", skirmisher: "standard", caster: "standard", support: "standard", swarm: "minion", elite: "elite" };
       source.npcType = map[source.enemyRole] ?? "";
     }
-    const line = PROJECTANIME.enemyTypes[source?.npcType] ?? null;
-    const isBoss = !!source?.boss?.enabled;
+    const typeMap = { bruiser: "elite", skirmisher: "standard", support: "standard" };
+    if (typeMap[source?.npcType]) source.npcType = typeMap[source.npcType];
+    // Boss → Villain with Gates (Bars carry over 1:1); Rival → Villain without Gates.
+    if (source?.boss?.enabled) {
+      source.npcType = "villain";
+      if (!source.gates?.enabled) {
+        const bars = Math.max(1, Number(source.boss.bars) || 1);
+        const barHp = Math.max(1, Number(source.boss.barHp) || 1);
+        source.gates = {
+          enabled: true,
+          hb: Array(bars).fill(barHp),
+          broken: Math.clamp(Number(source.boss.broken) || 0, 0, bars - 1)
+        };
+      }
+    } else if (source?.rival && !PROJECTANIME.enemyTiers[source?.npcType]) {
+      source.npcType = "villain";
+    }
+    const isGated = !!source?.gates?.enabled;
     for (const pool of ["hp", "energy"]) {
       const p = source?.[pool];
-      if (!isBoss && p && typeof p === "object" && Number(p.max) > PROJECTANIME.maxBoxes) {
-        p.max = line ? (pool === "hp" ? line.hb : line.eb) : PROJECTANIME.baseHitBoxes;
+      if (!(isGated && pool === "hp") && p && typeof p === "object" && Number(p.max) > PROJECTANIME.maxBoxes) {
+        p.max = PROJECTANIME.maxBoxes;
         p.value = Math.min(Number(p.value) || 0, p.max);
         if ("base" in p) p.base = p.max;
       }

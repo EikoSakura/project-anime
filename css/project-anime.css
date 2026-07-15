@@ -8323,12 +8323,11 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .project-anime.roll-dialog.pa-milestones .ms-row b { opacity: 0.85; }
 
 /* ============================================================================
-   Phase 3 (v0.3.2) — Enemies: Role · Tier badges, Boss Bars, Monster Creator
-   Role/Tier pickers, Four Rails, Twists. Minimal functional styling.
+   Enemies (Tier × EXP) — Tier badges, EXP chip, Villain Gates, Monster Creator
+   tier/style tiles + EXP budget. Minimal functional styling.
    ============================================================================ */
 
-/* NPC sheet header — Role · Tier badge extras + Rival/Boss chips + Threat. */
-.project-anime.sheet.actor .tier-badge .tier-numeral { margin-left: 0.35rem; opacity: 0.8; }
+/* NPC sheet header — Tier badge + Threat + EXP chip. */
 .project-anime.sheet.actor .enemy-chip,
 .project-anime.sheet.actor .enemy-threat {
   display: inline-flex; align-items: center; gap: 0.25rem;
@@ -8336,9 +8335,9 @@ body.pa-combat-shown #chat-notifications { display: none; }
   font-size: 0.72rem; letter-spacing: 0.03em;
   border: 1px solid var(--pa-line);
 }
-.project-anime.sheet.actor .enemy-chip.rival { color: #d9a441; border-color: #a97b28; }
-.project-anime.sheet.actor .enemy-chip.boss { color: #d16a86; border-color: #9c4f6c; }
+.project-anime.sheet.actor .enemy-chip.exp { color: var(--pa-gold); }
 .project-anime.sheet.actor .enemy-threat { color: var(--pa-accent-2); }
+/* Villain Gates pip strip (one pip per Gate; full = unbroken). */
 .project-anime.sheet.actor .boss-bars {
   display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0 0.1rem;
   font-size: 0.75rem;
@@ -8354,31 +8353,30 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .project-anime .party-row-tier { opacity: 0.75; font-size: 0.8em; }
 .project-anime .party-warn { color: var(--pa-danger); font-size: 0.8rem; margin: 0.25rem 0; display: flex; gap: 0.35rem; align-items: center; }
 .project-anime .party-row.is-boss { --tier-color: #9c4f6c; }
-.project-anime .party-row.is-rival { --tier-color: #c08a3e; }
+.project-anime .party-row-cost.retinue { opacity: 0.7; font-size: 0.75em; letter-spacing: 0.03em; text-transform: uppercase; }
 
-/* Monster Creator — build-path chips, Role grid, Tier buttons, flags, rails, twists. */
-.monster-creator .cc-path-row,
-.monster-creator .cc-tier-row,
+/* Monster Creator — flags + EXP spends. */
 .monster-creator .cc-flag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.4rem 0; }
-.monster-creator .cc-path,
-.monster-creator .cc-tier-btn,
-.monster-creator .cc-flag,
-.monster-creator .cc-strong-opt {
+.monster-creator .cc-flag {
   cursor: pointer; border: 1px solid var(--pa-line); border-radius: 5px;
   padding: 0.3rem 0.55rem; background: rgba(255,255,255,0.03);
 }
-.monster-creator .cc-path.selected,
-.monster-creator .cc-tier-btn.selected,
-.monster-creator .cc-strong-opt.on,
 .monster-creator .cc-flag.on { border-color: var(--pa-accent-2); box-shadow: 0 0 0 1px var(--pa-accent-2) inset; }
-.monster-creator .cc-tier-btn { display: inline-flex; flex-direction: column; align-items: center; min-width: 3.2rem; }
-.monster-creator .cc-tier-num { font-size: 1.05rem; font-weight: 600; }
-.monster-creator .cc-tier-dice { font-size: 0.65rem; }
-/* Type tiles — the Style-picker treatment: the type glyph (tier-tinted) stands in for the
-   Style art; the printed stat line lives in the hover tooltip. */
+/* Tier tiles — the Style-picker treatment: the tier glyph (tier-tinted) stands in for the
+   Style art; Threat + Base EXP live in the hover tooltip. */
 .monster-creator .cc-type-glyph {
   width: 3rem; height: 3rem; display: grid; place-items: center;
   font-size: 1.8rem; color: var(--tier-color, var(--pa-accent));
+}
+/* Box steppers (+1 Hit / Energy Box, 1 EXP each) + Gate / Luck Die selects. */
+.monster-creator .mc-box-row .cc-strong-chip { font-size: 0.85rem; min-width: 2rem; text-align: center; }
+.monster-creator .mc-skill-gate { flex: 0 0 auto; min-width: 0; }
+.monster-creator .mc-luck-die { min-width: 4rem; }
+.monster-creator .luck-dice { display: inline-flex; gap: 0.3rem; align-items: center; }
+.monster-creator .luck-die {
+  display: inline-grid; place-items: center; min-width: 1.4rem; height: 1.4rem;
+  border: 1px solid var(--pa-gold); border-radius: 4px; padding: 0 0.25rem;
+  color: var(--pa-gold); font-weight: 600; font-size: 0.8rem;
 }
 
 /* Basic Attack + Talent rows — the name column keeps a real width and its printed line stays
@@ -8389,29 +8387,20 @@ body.pa-combat-shown #chat-notifications { display: none; }
 .monster-creator .mc-attack-sel,
 .monster-creator .mc-talent-sel { flex: 1 1 6rem; min-width: 0; }
 .monster-creator .cc-role-strong { margin-top: 0.3rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.monster-creator .cc-strong-chip, .monster-creator .cc-strong-any {
+.monster-creator .cc-strong-chip {
   font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em;
   padding: 0.05rem 0.35rem; border: 1px solid var(--pa-line); border-radius: 3px; opacity: 0.85;
 }
-.monster-creator .cc-strong-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.3rem 0; }
-.monster-creator .cc-trade-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin: 0.5rem 0; }
-.monster-creator .cc-trade { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.72rem; }
-.monster-creator .cc-trade input { width: 100%; }
-.monster-creator .cc-rails { margin: 0.5rem 0; }
-.monster-creator .cc-rail-list { list-style: none; margin: 0.2rem 0 0; padding: 0; }
-.monster-creator .cc-rail { display: flex; align-items: center; gap: 0.45rem; padding: 0.15rem 0; font-size: 0.78rem; }
-.monster-creator .cc-rail.ok i { color: #4f9c6c; }
-.monster-creator .cc-rail.bad i { color: var(--pa-danger); }
-.monster-creator .cc-rail-label { flex: 1; }
-.monster-creator .cc-twist-tag { color: var(--pa-accent-2); opacity: 0.9; }
 .monster-creator .cc-count { font-size: 0.78rem; }
 /* Abilities step — the "Skills" header carries its Browse + Skill Builder actions on the right. */
 .project-anime.character-creator .cc-subhead.cc-skills-head { flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
 .project-anime.character-creator .cc-head-title { display: inline-flex; align-items: center; gap: 0.4rem; }
 .project-anime.character-creator .cc-head-actions { margin-left: auto; display: inline-flex; gap: 0.4rem; }
 .monster-creator .cc-boss-bars { margin-top: 0.4rem; font-size: 0.8rem; opacity: 0.9; }
-.monster-creator .cc-tier-badge.rival { color: #d9a441; }
-.monster-creator .cc-tier-badge.boss { color: #d16a86; }
+.monster-creator .cc-tier-badge.threat { color: var(--pa-accent-2); }
+.monster-creator .cc-tier-badge.over { color: var(--pa-danger); }
+.monster-creator .cc-budget-pill.over .cc-strong-chip { color: var(--pa-danger); border-color: var(--pa-danger); }
+.monster-creator .cc-style-line .cc-strong-chip { text-transform: none; font-size: 0.72rem; }
 
 /* LEGACY (pre-0.5.24): boss-bar announcements now post as .pa-tick.is-boss tickers — this rule
    only styles old boss notes still sitting in chat history. */

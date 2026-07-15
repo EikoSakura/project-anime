@@ -1,26 +1,65 @@
-{{!-- Shared derived statblock readout for the Monster Creator (Type + Review steps). Reads the V2
-      stat line off the actor (ctx.stat): HB · EB · Guard · Movement · Damage · Threshold, the five
-      Attribute dice, and (for a Boss) the Bars readout plus its display notes. --}}
+{{!-- Shared derived statblock readout for the Monster Creator (Tier + Review steps) — the
+      printed stat-block format: HB · EB · Guard · Movement, the Weapon Style line
+      (Damage · Threshold · Range), the five Attribute dice, Talents with die sizes, and the
+      Techniques list; a Villain adds its Luck Dice and (with Gates) the Gate layout. --}}
+{{#if stat}}
 <div class="cc-statblock">
   <div class="cc-vitals-grid cc-frame-stats">
     <div class="cc-vital hp"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.hbShort"}}</span><span class="cc-v-val">{{stat.hb}}</span></div>
     <div class="cc-vital energy"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.ebShort"}}</span><span class="cc-v-val">{{stat.eb}}</span></div>
     <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.guard"}}</span><span class="cc-v-val">{{stat.guard}}</span></div>
     <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.movShort"}}</span><span class="cc-v-val">{{stat.movement}}</span></div>
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.dmgShort"}}</span><span class="cc-v-val">{{stat.damage}}</span></div>
-    <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.thrShort"}}</span><span class="cc-v-val">{{stat.threshold}}</span></div>
   </div>
+
+  {{#if weaponLine}}
+  <div class="cc-role-strong cc-style-line">
+    <span class="cc-strong-chip"><i class="fa-solid fa-sword"></i> {{weaponLine.label}} — {{localize "PROJECTANIME.Stat.dmgShort"}} {{weaponLine.damage}} · {{localize "PROJECTANIME.Stat.thrShort"}} {{weaponLine.threshold}} · {{weaponLine.range}}</span>
+    {{#if armorLine}}<span class="cc-strong-chip"><i class="fa-solid fa-shirt"></i> {{armorLine}}</span>{{/if}}
+    {{#if shieldLine}}<span class="cc-strong-chip"><i class="fa-solid fa-shield"></i> {{shieldLine}}</span>{{/if}}
+  </div>
+  {{/if}}
+
   <div class="cc-role-strong">
     {{#each attrDice as |a|}}
     <span class="cc-strong-chip">{{a.label}} {{a.die}}</span>
     {{/each}}
   </div>
-  {{#if bossBars}}
-  <div class="cc-boss-bars"><i class="fas fa-crown"></i> {{localize "PROJECTANIME.Boss.bars"}}: <strong>{{bossBars.count}}</strong> × <strong>{{bossBars.barHp}}</strong> {{localize "PROJECTANIME.Stat.hbShort"}}</div>
+
+  {{#if statTalents.length}}
   <div class="cc-role-strong">
-    <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.actsTwice"}}</span>
-    <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.energyPerBar"}}</span>
-    <span class="cc-strong-chip">{{localize "PROJECTANIME.Boss.techniquesPerBar"}}</span>
+    <span class="cc-label">{{localize "PROJECTANIME.Item.talents"}}</span>
+    {{#each statTalents as |t|}}
+    <span class="cc-strong-chip">{{t.name}} {{t.die}}</span>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if statTechniques.length}}
+  <div class="cc-role-strong">
+    <span class="cc-label">{{localize "PROJECTANIME.MonsterCreator.step.techniques"}}</span>
+    {{#each statTechniques as |name|}}
+    <span class="cc-strong-chip">{{name}}</span>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if statLuck}}
+  <div class="cc-role-strong">
+    <span class="cc-label">{{localize "PROJECTANIME.Stat.luckDice"}}</span>
+    <span class="cc-strong-chip">{{statLuck.die}}</span>
+    {{#each statLuck.dice as |d|}}
+    <span class="cc-strong-chip">{{d}}</span>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if stat.gateDist}}
+  <div class="cc-boss-bars"><i class="fas fa-dungeon"></i> {{localize "PROJECTANIME.Gate.plural"}}: <strong>{{stat.gateDist}}</strong> {{localize "PROJECTANIME.Stat.hbShort"}}</div>
+  <div class="cc-role-strong">
+    <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.actsTwice"}}</span>
+    <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.techniquesPerGate"}}</span>
+    <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.breakUnlocks"}}</span>
   </div>
   {{/if}}
 </div>
+{{/if}}
