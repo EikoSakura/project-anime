@@ -242,7 +242,7 @@
         <li class="sb-mod-row{{#if mod.selected}} selected{{/if}}{{#if mod.blocked}} blocked{{/if}}"
             data-action="toggleModifier" data-modifier="{{mod.key}}">
           <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
-          <span class="sb-mod-name">{{mod.label}}{{#if mod.isPotent}}{{#if mod.canDropTake}} ×{{mod.potentTakes}}{{/if}}{{/if}}</span>
+          <span class="sb-mod-name">{{mod.label}}{{#if mod.canDropTake}} ×{{mod.takes}}{{/if}}</span>
           <span class="sb-mod-desc">{{mod.desc}}{{#if mod.scaled}} · {{mod.scaled}}{{/if}}</span>
           {{#if mod.selected}}
           {{#if mod.isCustom}}
@@ -250,7 +250,7 @@
             <span class="sb-mod-opt{{#if mod.customHeavy}} on{{/if}}" data-action="toggleCustomHeavy">{{localize "PROJECTANIME.Skill.heavy"}}</span>
           </span>
           {{/if}}
-          {{#if mod.isPotent}}
+          {{#if mod.multiTake}}
           <span class="sb-mod-opts">
             {{#if mod.canTakeAgain}}<span class="sb-mod-opt sb-take-add" data-action="addModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeAdd'}}"><i class="fas fa-plus"></i></span>{{/if}}
             {{#if mod.canDropTake}}<span class="sb-mod-opt sb-take-x" data-action="removeModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeRemove'}}"><i class="fas fa-xmark"></i></span>{{/if}}

@@ -354,8 +354,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const modRow = (key) => {
       const selected = d.modifiers.includes(key);
       const isCustom = key === "custom";
-      const isPotent = key === "potent";
-      const takes = isPotent ? Math.clamp(Math.round(Number(d.potentCount) || 1), 1, 2) : 1;
+      const multiTake = (cfg.multiTakeModifiers ?? []).includes(key);
+      const takes = multiTake ? modifierTakes(key, d) : 1;
       const blocked = !selected && (noMods || modifierBarredByType(key, { actionType: sysShape.actionType, effect: d.effect }));
       // Scaled Modifiers (Aura/Burst/Chain/Move/Reposition) show their live die/2 value in
       // their own unit (tiles; Chain counts leaps).
@@ -370,10 +370,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         blocked,
         isCustom,
         customHeavy: isCustom && !!d.customModifierHeavy,
-        isPotent: selected && isPotent,
-        potentTakes: takes,
-        canTakeAgain: selected && isPotent && takes < 2,
-        canDropTake: selected && isPotent && takes > 1,
+        multiTake: selected && multiTake,
+        takes,
+        canTakeAgain: selected && multiTake && takes < 2,
+        canDropTake: selected && multiTake && takes > 1,
         showInflict: selected && key === "inflict",
         showInflictSevere: selected && key === "inflictSevere",
         showDrain: selected && key === "drain",
@@ -665,31 +665,32 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#sync();
     const key = target.closest("[data-modifier]")?.dataset.modifier;
     if (!key) return;
-    // A row's inline option chips (Custom's Heavy, Potent's takes) and in-row config pickers
-    // live inside the row — ignore clicks on them so making a choice never de-selects it.
+    // A row's inline option chips (Custom's Heavy, a multi-take's takes) and in-row config
+    // pickers live inside the row — ignore clicks on them so making a choice never de-selects it.
     if (event.target.closest(".sb-mod-opts, .sb-mod-config")) return;
     const res = toggleTechniqueModifier(this.#draft, key);
     if (!res.ok) return ui.notifications.warn(game.i18n.localize(res.warn));
     this.render();
   }
 
-  /** Take Potent a second time (rules: "Can be taken twice") — its cost counts per take. */
+  /** Take a multi-take Modifier (Potent / Keen) a second time (rules: "Can be taken twice")
+   *  — its cost counts per take. */
   static #onAddModifierTake(event, target) {
     this.#sync();
     const d = this.#draft;
     const key = target.closest("[data-modifier]")?.dataset.modifier;
-    if (key !== "potent" || !d.modifiers.includes("potent")) return;
-    d.potentCount = Math.min(2, (Number(d.potentCount) || 1) + 1);
+    if (!(CONFIG.PROJECTANIME.multiTakeModifiers ?? []).includes(key) || !d.modifiers.includes(key)) return;
+    d[`${key}Count`] = Math.min(2, (Number(d[`${key}Count`]) || 1) + 1);
     this.render();
   }
 
-  /** Drop one Potent take (never the last — un-tick the row for that). */
+  /** Drop one take (never the last — un-tick the row for that). */
   static #onRemoveModifierTake(event, target) {
     this.#sync();
     const d = this.#draft;
     const key = target.closest("[data-modifier]")?.dataset.modifier;
-    if (key !== "potent") return;
-    d.potentCount = Math.max(1, (Number(d.potentCount) || 1) - 1);
+    if (!(CONFIG.PROJECTANIME.multiTakeModifiers ?? []).includes(key)) return;
+    d[`${key}Count`] = Math.max(1, (Number(d[`${key}Count`]) || 1) - 1);
     this.render();
   }
 

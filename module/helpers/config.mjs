@@ -333,6 +333,7 @@ PROJECTANIME.skillModifiers = {
   drain: "PROJECTANIME.Skill.modifier.drain",
   inflict: "PROJECTANIME.Skill.modifier.inflict",
   inflictSevere: "PROJECTANIME.Skill.modifier.inflictSevere",
+  keen: "PROJECTANIME.Skill.modifier.keen",
   line: "PROJECTANIME.Skill.modifier.line",
   link: "PROJECTANIME.Skill.modifier.link",
   manifest: "PROJECTANIME.Skill.modifier.manifest",
@@ -376,13 +377,15 @@ export function isHeavyModifier(key, sys) {
   return modifierCost(key, sys) >= 2;
 }
 
-/** Modifiers the rules let a Technique select MORE THAN ONCE: Potent ("Can be taken twice"). */
-PROJECTANIME.multiTakeModifiers = ["potent"];
+/** Modifiers the rules let a Technique select MORE THAN ONCE ("Can be taken twice"):
+ *  Potent and Keen. Each stores its take count on its own `<key>Count` field. */
+PROJECTANIME.multiTakeModifiers = ["keen", "potent"];
 
-/** How many times a Modifier is taken on a Technique — Potent reads its stored count (1–2). */
+/** How many times a Modifier is taken on a Technique — a multi-take key reads its stored
+ *  `<key>Count` (1–2); everything else is once. */
 export function modifierTakes(key, sys) {
-  if (key === "potent") return Math.clamp(Math.round(Number(sys?.potentCount) || 1), 1, 2);
-  return 1;
+  if (!PROJECTANIME.multiTakeModifiers.includes(key)) return 1;
+  return Math.clamp(Math.round(Number(sys?.[`${key}Count`]) || 1), 1, 2);
 }
 
 /** The Energy a set of Modifiers adds (each × its takes). `sys` is the Technique data / draft. */
@@ -451,9 +454,11 @@ PROJECTANIME.scaledModifiers = {
   reposition: { unit: "PROJECTANIME.Skill.growUnit.tiles" }
 };
 
-/** Fixed Modifier numbers (V2): Potent = +1 box per take; Protection grants +1 Guard;
- *  Retaliation deals 1 box back; Regen clears 1 box per turn. */
+/** Fixed Modifier numbers (V2): Potent = +1 box per take; Keen = −1 attack Threshold per
+ *  take; Protection grants +1 Guard; Retaliation deals 1 box back; Regen clears 1 box per
+ *  turn. */
 PROJECTANIME.potentBonus = 1;
+PROJECTANIME.keenBonus = 1;
 PROJECTANIME.protectionGuard = 1;
 PROJECTANIME.retaliationDamage = 1;
 PROJECTANIME.regenHeal = 1;

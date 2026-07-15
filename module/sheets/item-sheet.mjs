@@ -1,7 +1,7 @@
 import { enhanceSelects } from "../helpers/select.mjs";
 import {
   PROJECTANIME, rangeHasTiles, skillEffectKeys, actorTalents, styleTooltipHTML,
-  getTalent, effectCost, effectAttrCount, modifierCost, modifierValue,
+  getTalent, effectCost, effectAttrCount, modifierCost, modifierTakes, modifierValue,
   modifierBarredByType, isSelfCenteredArea
 } from "../helpers/config.mjs";
 import {
@@ -541,12 +541,11 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     t.manifestHasChoices = Object.keys(t.manifestChoices).length > 0;
 
     const noMods = (cfg.noModifierEffects ?? []).includes(sys.effect);
-    const potentTakes = Math.clamp(Math.round(Number(sys.potentCount) || 1), 1, 2);
     const modRow = (key) => {
       const selected = mods.includes(key);
       const isCustom = key === "custom";
-      const isPotent = key === "potent";
-      const takes = isPotent ? potentTakes : 1;
+      const multiTake = (cfg.multiTakeModifiers ?? []).includes(key);
+      const takes = multiTake ? modifierTakes(key, sys) : 1;
       const blocked = !selected && (noMods || modifierBarredByType(key, { actionType: sys.actionType, effect: sys.effect }));
       const scaled = key in (cfg.scaledModifiers ?? {})
         ? `${modifierValue(this.item, key)} ${game.i18n.localize("PROJECTANIME.Skill.tiles")}` : "";
@@ -560,10 +559,10 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         blocked,
         isCustom,
         customHeavy: isCustom && !!sys.customModifierHeavy,
-        isPotent: selected && isPotent,
-        potentTakes: takes,
-        canTakeAgain: selected && isPotent && takes < 2,
-        canDropTake: selected && isPotent && takes > 1,
+        multiTake: selected && multiTake,
+        takes,
+        canTakeAgain: selected && multiTake && takes < 2,
+        canDropTake: selected && multiTake && takes > 1,
         showInflict: selected && key === "inflict",
         showInflictSevere: selected && key === "inflictSevere",
         showDrain: selected && key === "drain",
@@ -716,23 +715,28 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
     if (!this.isEditable) return;
     const key = target.closest("[data-modifier]")?.dataset.modifier;
     if (!key) return;
-    // A row's inline option chips (Custom's Heavy, Potent's takes) and in-row config pickers
-    // live inside the row — ignore clicks on them so making a choice never de-selects it.
+    // A row's inline option chips (Custom's Heavy, a multi-take's takes) and in-row config
+    // pickers live inside the row — ignore clicks on them so making a choice never de-selects it.
     if (event.target.closest(".tech-mod-opts, .tech-mod-config")) return;
     await this.#updateTechnique((d) => toggleTechniqueModifier(d, key));
   }
 
-  /** Take Potent a second time (rules: "Can be taken twice") — its cost counts per take. */
-  static async #onAddModifierTake() {
+  /** Take a multi-take Modifier (Potent / Keen) a second time (rules: "Can be taken twice")
+   *  — its cost counts per take. */
+  static async #onAddModifierTake(event, target) {
+    const key = target.closest("[data-modifier]")?.dataset.modifier;
+    if (!(PROJECTANIME.multiTakeModifiers ?? []).includes(key)) return;
     await this.#updateTechnique((d) => {
-      if (d.modifiers.includes("potent")) d.potentCount = Math.min(2, (Number(d.potentCount) || 1) + 1);
+      if (d.modifiers.includes(key)) d[`${key}Count`] = Math.min(2, (Number(d[`${key}Count`]) || 1) + 1);
     });
   }
 
-  /** Drop one Potent take (never the last — un-tick the row for that). */
-  static async #onRemoveModifierTake() {
+  /** Drop one take (never the last — un-tick the row for that). */
+  static async #onRemoveModifierTake(event, target) {
+    const key = target.closest("[data-modifier]")?.dataset.modifier;
+    if (!(PROJECTANIME.multiTakeModifiers ?? []).includes(key)) return;
     await this.#updateTechnique((d) => {
-      if (d.modifiers.includes("potent")) d.potentCount = Math.max(1, (Number(d.potentCount) || 1) - 1);
+      if (d.modifiers.includes(key)) d[`${key}Count`] = Math.max(1, (Number(d[`${key}Count`]) || 1) - 1);
     });
   }
 

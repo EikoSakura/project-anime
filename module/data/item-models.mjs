@@ -109,6 +109,8 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     schema.modifiers = new fields.ArrayField(new fields.StringField({ blank: false }), { initial: [] });
     // Potent can be taken twice (+1 box each) — the stored take count (1–2).
     schema.potentCount = new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 2 });
+    // Keen can be taken twice (−1 attack Threshold each) — the stored take count (1–2).
+    schema.keenCount = new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 2 });
     // The free-form "Custom" Modifier can be flagged Heavy per-Technique (the Builder checkbox).
     schema.customModifierHeavy = new fields.BooleanField({ initial: false });
     // Inflict — one Status chosen at creation (Blinded / Lingering / Prone / Slowed / Weakened).

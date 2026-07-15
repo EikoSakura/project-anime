@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3 - 2026-07-15
+
+- New Modifier - Keen: reduce the Threshold for attacks by 1. Can be taken twice (Standard tier, +1 Energy per take),Keen lowers the effective Threshold on every Technique attack path (single-target, area, and Chain Weapon-range Strikes), applied after Weakened/Prone and floored at 1 - the chat card's Threshold note and Luck flips read the reduced number,The take-twice chips on the Technique tab and Skill Builder are now shared by all multi-take Modifiers (Potent and Keen)
+
 ## 0.6.2 - 2026-07-15
 
 - Unarmed Strikes REMOVED: the innate Natural Attack is retired - attacks are built from Weapon Styles now; a one-time migration deletes every Natural Attack from world items, actors, and unlocked packs, and imports from older compendiums are scrubbed on creation,The Weapon Adjustment Unarmed scope now matches weapons whose Type is Unarmed (build a fist or bite as a Weapon Style and Type it Unarmed),Monster Creator: picking Unarmored now stamps a real equipped Unarmored item (Guard +0, Movement 6, Energy Regen 2) instead of leaving the sheet bare,Monster Creator: the Party XP and Party Size fields are compact inline pills matching the From Roster button - label and a small gold number in one row

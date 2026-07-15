@@ -113,14 +113,17 @@ function guardOf(targetActor) {
 /**
  * The effective Threshold of an attack with `item` against `targetActor` (rules: Threshold;
  * Weakened "your attacks increase their Threshold by 2"; Prone "attacks against you reduce
- * their Threshold by 2"). Null when the item carries no Threshold (non-weapon Techniques).
+ * their Threshold by 2"; Keen "reduce the Threshold for attacks by 1", per take). `skill` is
+ * the Technique whose Modifiers apply when a Weapon-range Strike borrows the weapon's
+ * Threshold. Null when the item carries no Threshold (non-weapon Techniques).
  */
-function thresholdVs(actor, item, targetActor) {
+function thresholdVs(actor, item, targetActor, skill = null) {
   const base = Number(item?.system?.threshold);
   if (!Number.isFinite(base) || base <= 0) return null;
   let t = base;
   if (actor?.statuses?.has?.("weakened")) t += PROJECTANIME.weakenedThresholdMod;
   if (targetActor?.statuses?.has?.("prone")) t -= PROJECTANIME.proneThresholdMod;
+  if ((skill?.system?.modifiers ?? []).includes("keen")) t -= PROJECTANIME.keenBonus * modifierTakes("keen", skill.system);
   return Math.max(1, t);
 }
 
@@ -1480,7 +1483,7 @@ async function resolveSingleSkill(actor, item, { charged = false, chargeLockedHi
   // Weapon-range Strikes use the weapon's Threshold (rules: Technique Damage); non-weapon
   // ranges have none.
   const spec = skillRollSpec(actor, item);
-  const threshold = hasStrike && spec.weapon ? thresholdVs(actor, spec.weapon, targetActor) : null;
+  const threshold = hasStrike && spec.weapon ? thresholdVs(actor, spec.weapon, targetActor, item) : null;
   let thresholdMet = false;
 
   const badges = [];
@@ -1639,7 +1642,7 @@ async function resolveAreaStrike(actor, item, targetTokens, { charged = false } 
   const fumble = r1 === 1 && r2 === 1;
   const combo = r1 === r2 && r1 >= 6;
   // Weapon-range area Strikes still read the weapon's Threshold off the shared roll.
-  const threshold = hasStrike && spec.weapon ? thresholdVs(actor, spec.weapon, null) : null;
+  const threshold = hasStrike && spec.weapon ? thresholdVs(actor, spec.weapon, null, item) : null;
   const thresholdMet = threshold != null && !fumble && roll.total >= threshold;
 
   const badges = [];
@@ -1824,7 +1827,7 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
 
   // One fixed damage amount (doubled on a charged release); every leap deals the same damage.
   const dmg = await computeDamageRoll(actor, item, { target: primaryToken.actor, charged });
-  const threshold = spec.weapon ? thresholdVs(actor, spec.weapon, null) : null;
+  const threshold = spec.weapon ? thresholdVs(actor, spec.weapon, null, item) : null;
 
   const lines = [`<strong>${escHTML(spec.labelA)} + ${escHTML(spec.labelB)}</strong>${spec.edge ? ` <em class="muted">(+${spec.edge} ${i18n("PROJECTANIME.Roll.trainedEdge")})</em>` : ""}`];
   const rows = [];

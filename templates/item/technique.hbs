@@ -167,7 +167,7 @@
       <li class="tech-mod-row{{#if mod.selected}} selected{{/if}}{{#if mod.blocked}} blocked{{/if}}"
           data-action="toggleModifier" data-modifier="{{mod.key}}" data-tooltip="{{mod.desc}}">
         <i class="fas {{#if mod.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
-        <span class="tech-mod-name">{{mod.label}}{{#if mod.canDropTake}} ×{{mod.potentTakes}}{{/if}}</span>
+        <span class="tech-mod-name">{{mod.label}}{{#if mod.canDropTake}} ×{{mod.takes}}{{/if}}</span>
         {{#if mod.scaled}}<span class="tech-mod-scale">{{mod.scaled}}</span>{{/if}}
         <span class="tech-mod-cost">+{{mod.cost}}</span>
         {{#if mod.selected}}
@@ -176,7 +176,7 @@
           <span class="tech-mod-opt{{#if mod.customHeavy}} on{{/if}}" data-action="toggleCustomHeavy">{{localize "PROJECTANIME.Skill.heavy"}}</span>
         </span>
         {{/if}}
-        {{#if mod.isPotent}}
+        {{#if mod.multiTake}}
         <span class="tech-mod-opts">
           {{#if mod.canTakeAgain}}<span class="tech-mod-opt" data-action="addModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeAdd'}}"><i class="fas fa-plus"></i></span>{{/if}}
           {{#if mod.canDropTake}}<span class="tech-mod-opt" data-action="removeModifierTake" data-tooltip="{{localize 'PROJECTANIME.SkillBuilder.takeRemove'}}"><i class="fas fa-xmark"></i></span>{{/if}}

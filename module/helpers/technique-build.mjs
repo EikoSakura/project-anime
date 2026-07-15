@@ -52,6 +52,7 @@ export function blankTechniqueDraft() {
     secondaryDamagePool: "hp",
     modifiers: [],
     potentCount: 1,
+    keenCount: 1,
     customModifierHeavy: false,
     inflictStatus: "",
     inflictSevereStatus: "",
@@ -91,6 +92,7 @@ export function techniqueDraftFromSystem(s = {}) {
     // The legacy "none" marker means "no Modifiers" — the V2 list simply starts empty.
     modifiers: (s.modifiers ?? []).filter((m) => m !== "none"),
     potentCount: Math.clamp(Math.round(Number(s.potentCount) || 1), 1, 2),
+    keenCount: Math.clamp(Math.round(Number(s.keenCount) || 1), 1, 2),
     customModifierHeavy: !!s.customModifierHeavy,
     inflictStatus: s.inflictStatus ?? "",
     inflictSevereStatus: s.inflictSevereStatus ?? "",
@@ -144,6 +146,7 @@ export function toggleTechniqueModifier(d, key) {
     // Dropping a Modifier clears its creation-time picks, so re-adding starts clean.
     if (key === "custom") d.customModifierHeavy = false;
     if (key === "potent") d.potentCount = 1;
+    if (key === "keen") d.keenCount = 1;
     if (key === "inflict") d.inflictStatus = "";
     if (key === "inflictSevere") d.inflictSevereStatus = "";
     return { ok: true };
@@ -195,8 +198,9 @@ export function normalizeTechniqueDraft(d) {
   if (!auraOn && !selfArea && d.range.scope === "self") d.target = "self";
   if (auraOn && d.target === "self") d.target = "ally";
   if (selfArea && d.target === "self") d.target = "any";
-  // Potent's take count only means something while Potent is on.
+  // A multi-take Modifier's count only means something while it's on.
   if (!d.modifiers.includes("potent")) d.potentCount = 1;
+  if (!d.modifiers.includes("keen")) d.keenCount = 1;
   return d;
 }
 
@@ -268,6 +272,7 @@ export function assembleTechniqueSystem(d) {
     secondaryDamagePool: d.secondaryDamagePool === "energy" ? "energy" : "hp",
     modifiers: mods,
     potentCount: mods.includes("potent") ? Math.clamp(Math.round(Number(d.potentCount) || 1), 1, 2) : 1,
+    keenCount: mods.includes("keen") ? Math.clamp(Math.round(Number(d.keenCount) || 1), 1, 2) : 1,
     customModifierHeavy: mods.includes("custom") ? !!d.customModifierHeavy : false,
     inflictStatus: mods.includes("inflict") && (cfg.inflictStatuses ?? []).includes(d.inflictStatus) ? d.inflictStatus : "",
     inflictSevereStatus: mods.includes("inflictSevere") && (cfg.inflictSevereStatuses ?? []).includes(d.inflictSevereStatus) ? d.inflictSevereStatus : "",
