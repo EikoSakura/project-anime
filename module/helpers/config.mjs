@@ -770,20 +770,21 @@ PROJECTANIME.milestones = {
 };
 PROJECTANIME.milestoneKeys = ["episode", "arc", "season"];
 
-/** The Advancement List — each option's slot cap (`slots`), and the Companion's own cap where
- *  it differs (rules: Companion Advancement — Create a Technique has 3 slots there). Rebuild
- *  does not consume a Create-a-Technique slot. */
+/** The Advancement List — each option's slot cap (`slots`) and, where the Companion table
+ *  differs (rules: Companion Advancement), the Companion's own cap (`companionSlots`,
+ *  Infinity = uncapped) and per-purchase price in advancements (`companionCost`; a Character
+ *  always pays 1). Rebuild does not consume a Create-a-Technique slot. */
 PROJECTANIME.advancementOptions = {
-  technique:  { label: "PROJECTANIME.Advance.technique",  slots: 6, companionSlots: 3 },
-  energy:     { label: "PROJECTANIME.Advance.energy",     slots: 5 },
-  hitBox:     { label: "PROJECTANIME.Advance.hitBox",     slots: 5 },
-  talent:     { label: "PROJECTANIME.Advance.talent",     slots: 2 },
-  rebuild:    { label: "PROJECTANIME.Advance.rebuild",    slots: 2 },
-  attribute:  { label: "PROJECTANIME.Advance.attribute",  slots: 4 },
-  talentStep: { label: "PROJECTANIME.Advance.talentStep", slots: 8 },
-  // Raise the Luck Die one size (d6→d8→d10→d12); 3 slots = the d12 ceiling. Characters only —
-  // Companions hold no Luck Dice, so their cap is 0.
-  luckDie:    { label: "PROJECTANIME.Advance.luckDie",    slots: 3, companionSlots: 0 }
+  technique:  { label: "PROJECTANIME.Advance.technique",  slots: 6, companionSlots: Infinity, companionCost: 2 },
+  energy:     { label: "PROJECTANIME.Advance.energy",     slots: 5, companionCost: 1 },
+  hitBox:     { label: "PROJECTANIME.Advance.hitBox",     slots: 5, companionCost: 1 },
+  talent:     { label: "PROJECTANIME.Advance.talent",     slots: 2, companionSlots: Infinity, companionCost: 2 },
+  rebuild:    { label: "PROJECTANIME.Advance.rebuild",    slots: 2, companionSlots: Infinity, companionCost: 1 },
+  attribute:  { label: "PROJECTANIME.Advance.attribute",  slots: 4, companionSlots: Infinity, companionCost: 2 },
+  talentStep: { label: "PROJECTANIME.Advance.talentStep", slots: 8, companionSlots: Infinity, companionCost: 1 },
+  // Raise the Luck Die one size (d6→d8→d10→d12); 3 slots = the d12 ceiling. Characters and
+  // Companions both step it — a Companion pays 2 per step.
+  luckDie:    { label: "PROJECTANIME.Advance.luckDie",    slots: 3, companionCost: 2 }
 };
 PROJECTANIME.advancementOptionKeys = ["technique", "energy", "hitBox", "talent", "rebuild", "attribute", "talentStep", "luckDie"];
 
@@ -892,11 +893,11 @@ export function activeSide(combat) {
  *   • baseExp — the EXP the build starts with before party XP is added.
  */
 PROJECTANIME.enemyTiers = {
-  minion:   { label: "PROJECTANIME.EnemyType.minion",   icon: "fa-solid fa-bugs",          color: "#8a8f4f", threat: 1,    baseExp: 5 },
-  standard: { label: "PROJECTANIME.EnemyType.standard", icon: "fa-solid fa-helmet-battle", color: "#7a8a8f", threat: 2,    baseExp: 10 },
-  elite:    { label: "PROJECTANIME.EnemyType.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", threat: 3,    baseExp: 15 },
-  champion: { label: "PROJECTANIME.EnemyType.champion", icon: "fa-solid fa-chess-knight",  color: "#9c6b4f", threat: 4,    baseExp: 20 },
-  villain:  { label: "PROJECTANIME.EnemyType.villain",  icon: "fa-solid fa-crown",         color: "#9c4f6c", threat: null, baseExp: 30 }
+  minion:   { label: "PROJECTANIME.EnemyType.minion",   icon: "fa-solid fa-bugs",          color: "#8a8f4f", threat: 1,    baseExp: 10 },
+  standard: { label: "PROJECTANIME.EnemyType.standard", icon: "fa-solid fa-helmet-battle", color: "#7a8a8f", threat: 2,    baseExp: 15 },
+  elite:    { label: "PROJECTANIME.EnemyType.elite",    icon: "fa-solid fa-shield-halved", color: "#4f9c6c", threat: 3,    baseExp: 25 },
+  champion: { label: "PROJECTANIME.EnemyType.champion", icon: "fa-solid fa-chess-knight",  color: "#9c6b4f", threat: 4,    baseExp: 30 },
+  villain:  { label: "PROJECTANIME.EnemyType.villain",  icon: "fa-solid fa-crown",         color: "#9c4f6c", threat: null, baseExp: 40 }
 };
 
 /** Iteration order for enemy Tiers (chaff → villain). */
@@ -929,8 +930,10 @@ export function enemyTierThreat(tierKey) {
 }
 
 /** An enemy's total EXP budget: its Tier's base EXP + the XP the party has earned
- *  (`system.exp.party`, stamped by the Monster Creator). */
+ *  (`system.exp.party`, stamped by the Monster Creator). A Companion budgets its printed
+ *  starting EXP instead — no party XP (rules: Building a Companion). */
 export function npcTotalExp(actor) {
+  if (actor?.system?.npcType === "companion") return PROJECTANIME.companion.startingExp;
   const tier = PROJECTANIME.enemyTiers[actor?.system?.npcType];
   return (tier?.baseExp ?? 0) + (Number(actor?.system?.exp?.party) || 0);
 }
@@ -940,22 +943,31 @@ export function npcTotalExp(actor) {
  * energy boxes over the base 1 (a gated Villain counts the boxes across ALL its Gates),
  * Talents (2 for the d6 + 1 per step above it), Techniques (2 each; granted ones are free)
  * and Villain Luck steps over d6 (2 each). Returns the per-option spends plus their `total`.
+ * A COMPANION audits only its CREATION spends against the 8 starting EXP: growth funded by
+ * its advancement ledger — and the free creation Talent — never counts against the budget.
  */
 export function npcSpentExp(actor) {
   const sys = actor?.system ?? {};
   const opt = PROJECTANIME.expOptions;
+  const comp = sys.npcType === "companion";
+  const ledger = comp ? (sys.advancement?.log ?? []) : [];
+  const funded = (kind) => ledger.filter((e) => e.kind === kind).length;
   const attrSteps = PROJECTANIME.attributeKeys.reduce(
     (n, k) => n + Math.max(0, ((Number(sys.attributes?.[k]?.base) || 4) - 4) / 2), 0);
   const hbTotal = sys.gates?.enabled && sys.gates.hb?.length
     ? sys.gates.hb.reduce((n, v) => n + (Number(v) || 0), 0)
     : (Number(sys.hp?.max) || 1);
+  const talents = Object.values(sys.talents ?? {});
+  const talentSteps = talents.reduce((n, t) => n + Math.max(0, ((Number(t.die) || 6) - 6) / 2), 0);
+  const freeTalents = comp ? 1 + funded("talent") : 0;
+  const skills = (actor?.items ?? []).filter((i) => i.type === "skill" && !i.getFlag?.("project-anime", "granted")).length;
   const spend = {
-    attribute: attrSteps * opt.attribute.cost,
-    hitBox: Math.max(0, hbTotal - PROJECTANIME.enemyBase.hitBoxes) * opt.hitBox.cost,
-    energy: Math.max(0, (Number(sys.energy?.base ?? sys.energy?.max) || 1) - PROJECTANIME.enemyBase.energyBoxes) * opt.energy.cost,
-    talent: Object.values(sys.talents ?? {}).reduce(
-      (n, t) => n + opt.talent.cost + Math.max(0, ((Number(t.die) || 6) - 6) / 2) * opt.talentStep.cost, 0),
-    technique: (actor?.items ?? []).filter((i) => i.type === "skill" && !i.getFlag?.("project-anime", "granted")).length * opt.technique.cost,
+    attribute: Math.max(0, attrSteps - funded("attribute")) * opt.attribute.cost,
+    hitBox: Math.max(0, hbTotal - PROJECTANIME.enemyBase.hitBoxes - funded("hitBox")) * opt.hitBox.cost,
+    energy: Math.max(0, (Number(sys.energy?.base ?? sys.energy?.max) || 1) - PROJECTANIME.enemyBase.energyBoxes - funded("energy")) * opt.energy.cost,
+    talent: Math.max(0, talents.length - freeTalents) * opt.talent.cost
+      + Math.max(0, talentSteps - funded("talentStep")) * opt.talentStep.cost,
+    technique: Math.max(0, skills - funded("technique")) * opt.technique.cost,
     luckStep: sys.npcType === "villain"
       ? Math.max(0, ((Number(sys.luckDie) || 6) - 6) / 2) * opt.luckStep.cost
       : 0
@@ -1009,25 +1021,21 @@ export function villainThreat(partySize, budget = null) {
 /*  Companions (V2)                             */
 /* -------------------------------------------- */
 
-/** The Companion Effect's stat line (rules: Companion Rules). One Talent at d6, one Technique,
- *  Attributes one at d6 + four at d4; on your turn you act OR the Companion acts. Carries the
- *  same presentation fields as an enemyTiers entry (label/icon/color) so the sheet badge and
- *  the Monster Creator's Companion tile can render it, but it is NOT an enemy Tier — it has
- *  no Threat and never enters the encounter budget. */
+/** The Companion line (rules: Companion Rules). The Companion Effect (cost 2, always Passive)
+ *  bonds a creature BUILT LIKE AN ENEMY: the shared base line (1 hit box, 1 energy box, all
+ *  Attributes d4, Guard 6 + Armor Style), Weapon/Armor Styles off the player tables, and
+ *  `startingExp` spent on the enemy buy list (no Luck steps). It carries one free Talent at
+ *  `talentDie`, named at creation. On your turn you act OR the Companion acts; the bonder's 2
+ *  locked energy boxes release while it's left behind (`companionHome`). Carries the same
+ *  presentation fields as an enemyTiers entry (label/icon/color) so the sheet badge and the
+ *  Monster Creator's Companion tile can render it, but it is NOT an enemy Tier — it has no
+ *  Threat and never enters the encounter budget. */
 PROJECTANIME.companion = {
   label: "PROJECTANIME.EnemyType.companion",
   icon: "fa-solid fa-paw",
   color: "#4f7c9c",
-  hb: 3,
-  eb: 2,
-  guard: 7,
-  movement: 5,
-  damage: 1,
-  threshold: 10,
-  attrs: [6, 4, 4, 4, 4],
-  energyLock: 2,
-  talents: [6],
-  techniques: 1
+  startingExp: 8,
+  talentDie: 6
 };
 
 /** A bonded Companion actor — an NPC created by the Companion Effect (flagged `companionOf`),

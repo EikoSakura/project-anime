@@ -1,10 +1,12 @@
 /**
  * Project: Anime — Advancement dialog (V2 milestones).
  *
- * A standalone ApplicationV2 opened from the actor sheet. Characters hold unspent
- * advancements (system.advancement.value) granted by the GM's milestone tool; this
- * dialog spends them, one per option, on the slot-capped Advancement List
- * (PROJECTANIME.advancementOptions). Everything STAGES first — +/− marks pending
+ * A standalone ApplicationV2 opened from the actor sheet (and, for Companions, the party
+ * sheet's Companions strip). Characters hold unspent advancements
+ * (system.advancement.value) granted by the GM's milestone tool; this dialog spends them
+ * on the slot-capped Advancement List (PROJECTANIME.advancementOptions) — a Character pays
+ * 1 per purchase, a Companion its own per-option price (rules: Companion Advancement).
+ * Everything STAGES first — +/− marks pending
  * purchases against the unspent pool and the option slot caps — and CONFIRM commits
  * the lot: one atomic actor update carrying one refundable ledger entry per purchase
  * (actor.recordAdvancementSpends), plus the item writes the purchases need.
@@ -15,7 +17,7 @@
  * delete-item refund hook can find it.
  */
 import { advancementLedger } from "../helpers/skill-points.mjs";
-import { actorTalents } from "../helpers/config.mjs";
+import { actorTalents, isCompanion } from "../helpers/config.mjs";
 import { SkillBuilderApp } from "./skill-builder.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -88,17 +90,16 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#staged = { technique: false, energy: 0, hitBox: 0, luckDie: 0, talents: [], rebuildId: "", attrs: {}, talentSteps: {} };
   }
 
-  /** Advancements the current staging would spend (every option costs exactly 1). */
-  #stagedCount() {
-    const s = this.#staged;
-    return (s.technique ? 1 : 0) + s.energy + s.hitBox + s.luckDie + s.talents.length + (s.rebuildId ? 1 : 0)
-      + Object.values(s.attrs).reduce((n, v) => n + v, 0)
-      + Object.values(s.talentSteps).reduce((n, v) => n + v, 0);
+  /** An option's price in advancements — a Companion pays its own per-option cost
+   *  (rules: Companion Advancement); a Character always pays 1. */
+  #cost(kind) {
+    const opt = CONFIG.PROJECTANIME.advancementOptions[kind] ?? {};
+    return isCompanion(this.actor) ? (opt.companionCost ?? 1) : 1;
   }
 
-  /** Free slots left on an option once its staged purchases are counted. */
-  #slotsLeft(slots, kind) {
-    const stagedOf = {
+  /** Staged purchase COUNT on one option (slot usage, not price). */
+  #stagedOf(kind) {
+    return {
       technique: this.#staged.technique ? 1 : 0,
       energy: this.#staged.energy,
       hitBox: this.#staged.hitBox,
@@ -108,8 +109,18 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       attribute: Object.values(this.#staged.attrs).reduce((n, v) => n + v, 0),
       talentStep: Object.values(this.#staged.talentSteps).reduce((n, v) => n + v, 0)
     }[kind] ?? 0;
+  }
+
+  /** Advancements the current staging would spend (each purchase at its option's price). */
+  #stagedCount() {
+    return CONFIG.PROJECTANIME.advancementOptionKeys.reduce(
+      (n, kind) => n + this.#stagedOf(kind) * this.#cost(kind), 0);
+  }
+
+  /** Free slots left on an option once its staged purchases are counted (Infinity = uncapped). */
+  #slotsLeft(slots, kind) {
     const slot = slots[kind] ?? { used: 0, max: 0 };
-    return slot.max - slot.used - stagedOf;
+    return slot.max - slot.used - this.#stagedOf(kind);
   }
 
   /** The actor's owned Techniques / Talents, stably ordered. */
@@ -140,11 +151,14 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const left = advInfo.available - staged;
     const slots = advInfo.slots;
     const label = (kind) => game.i18n.localize(cfg.advancementOptions[kind]?.label ?? kind);
-    // Live slot usage per option: committed entries + this window's staged purchases.
+    // Live slot usage per option: committed entries + this window's staged purchases. An
+    // uncapped Companion option (max Infinity) shows a dash instead of a ceiling.
     const slotLine = (kind) => {
       const slot = slots[kind] ?? { used: 0, max: 0 };
-      const used = slot.max - this.#slotsLeft(slots, kind);
-      return game.i18n.format("PROJECTANIME.Advancement.slots", { used, max: slot.max });
+      const used = slot.used + this.#stagedOf(kind);
+      return game.i18n.format("PROJECTANIME.Advancement.slots", {
+        used, max: Number.isFinite(slot.max) ? slot.max : "—"
+      });
     };
 
     const techniques = this.#owned("skill");
@@ -164,7 +178,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         icon: cfg.attributeIcons?.[k] ?? "",
         die: `d${at}`,
         staged: stagedSteps > 0,
-        canPlus: at < 12 && left > 0 && attrSlotsLeft > 0,
+        canPlus: at < 12 && left >= this.#cost("attribute") && attrSlotsLeft > 0,
         canMinus: stagedSteps > 0,
         nodes: DIE_LADDER.map((d, i) => ({
           cls: i <= lockIdx ? "lk" : i <= lockIdx + stagedSteps ? "on" : "",
@@ -187,7 +201,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         attrLabel: game.i18n.localize(cfg.attributes[t.attribute] ?? ""),
         die: `d${at}`,
         staged: stagedSteps > 0,
-        canPlus: at < 12 && left > 0 && talentStepSlotsLeft > 0,
+        canPlus: at < 12 && left >= this.#cost("talentStep") && talentStepSlotsLeft > 0,
         canMinus: stagedSteps > 0,
         nodes: DIE_LADDER.map((d, i) => ({
           cls: i <= lockIdx ? "lk" : i <= lockIdx + stagedSteps ? "on" : "",
@@ -201,16 +215,17 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const hpBase = Number(src.hp?.max) || 0;
     const attrChoices = Object.fromEntries(cfg.attributeKeys.map((k) => [k, game.i18n.localize(cfg.attributes[k])]));
 
-    // Luck Die — a single count-based step track (d6→d8→d10→d12). Characters only; Companions
-    // hold no Luck Dice. `luckUsed` = committed steps, `luckAt` = the projected die with staging.
+    // Luck Die — a single count-based step track (d6→d8→d10→d12), held by Characters and
+    // Companions alike. `luckUsed` = committed steps, `luckAt` = the projected die with staging.
     const luckUsed = slots.luckDie?.used ?? 0;
     const luckAt = cfg.luckDie + 2 * (luckUsed + s.luckDie);
-    const luckDie = this.actor.type === "character" ? {
+    const luckDie = (this.actor.type === "character" || isCompanion(this.actor)) ? {
       label: label("luckDie"),
       slots: slotLine("luckDie"),
+      cost: this.#cost("luckDie"),
       value: `d${Math.min(cfg.luckDieMax, luckAt)}`,
       stagedAmount: s.luckDie ? `+${s.luckDie}` : "",
-      canPlus: left > 0 && this.#slotsLeft(slots, "luckDie") > 0 && luckAt < cfg.luckDieMax,
+      canPlus: left >= this.#cost("luckDie") && this.#slotsLeft(slots, "luckDie") > 0 && luckAt < cfg.luckDieMax,
       canMinus: s.luckDie > 0
     } : null;
 
@@ -222,41 +237,48 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       technique: {
         label: label("technique"),
         slots: slotLine("technique"),
+        cost: this.#cost("technique"),
         staged: s.technique,
-        canPlus: !s.technique && !s.rebuildId && left > 0 && this.#slotsLeft(slots, "technique") > 0,
+        canPlus: !s.technique && !s.rebuildId && left >= this.#cost("technique") && this.#slotsLeft(slots, "technique") > 0,
         canMinus: s.technique
       },
       energy: {
         label: label("energy"),
         slots: slotLine("energy"),
+        cost: this.#cost("energy"),
         value: Math.min(cfg.maxBoxes, energyBase + s.energy),
         stagedAmount: s.energy ? `+${s.energy}` : "",
-        canPlus: left > 0 && this.#slotsLeft(slots, "energy") > 0 && energyBase + s.energy < cfg.maxBoxes,
+        canPlus: left >= this.#cost("energy") && this.#slotsLeft(slots, "energy") > 0 && energyBase + s.energy < cfg.maxBoxes,
         canMinus: s.energy > 0
       },
       hitBox: {
         label: label("hitBox"),
         slots: slotLine("hitBox"),
+        cost: this.#cost("hitBox"),
         value: Math.min(cfg.maxBoxes, hpBase + s.hitBox),
         stagedAmount: s.hitBox ? `+${s.hitBox}` : "",
-        canPlus: left > 0 && this.#slotsLeft(slots, "hitBox") > 0 && hpBase + s.hitBox < cfg.maxBoxes,
+        canPlus: left >= this.#cost("hitBox") && this.#slotsLeft(slots, "hitBox") > 0 && hpBase + s.hitBox < cfg.maxBoxes,
         canMinus: s.hitBox > 0
       },
       luckDie,
       talent: {
         label: label("talent"),
         slots: slotLine("talent"),
-        canPlus: left > 0 && this.#slotsLeft(slots, "talent") > 0,
+        cost: this.#cost("talent"),
+        canPlus: left >= this.#cost("talent") && this.#slotsLeft(slots, "talent") > 0,
         rows: s.talents.map((t, i) => ({ index: i, name: t.name, attr: t.attr }))
       },
       rebuild: {
         label: label("rebuild"),
         slots: slotLine("rebuild"),
-        disabled: s.technique || (!s.rebuildId && (left <= 0 || this.#slotsLeft(slots, "rebuild") <= 0 || !techniques.length)),
+        cost: this.#cost("rebuild"),
+        disabled: s.technique || (!s.rebuildId && (left < this.#cost("rebuild") || this.#slotsLeft(slots, "rebuild") <= 0 || !techniques.length)),
         options: techniques.map((t) => ({ id: t.id, name: t.name, selected: t.id === s.rebuildId }))
       },
       attributes,
+      attrCost: this.#cost("attribute"),
       talentRows,
+      talentStepCost: this.#cost("talentStep"),
       hasTalents: talentRows.length > 0,
       attrChoices
     };
@@ -321,7 +343,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const delta = Number(target.dataset.delta) || 0;
     const { advInfo } = advancementLedger(this.actor);
     const left = advInfo.available - this.#stagedCount();
-    const canBuy = (k) => left > 0 && this.#slotsLeft(advInfo.slots, k) > 0;
+    const canBuy = (k) => left >= this.#cost(k) && this.#slotsLeft(advInfo.slots, k) > 0;
     const s = this.#staged;
     const src = this.actor._source.system ?? {};
 
@@ -360,7 +382,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static #onAddTalent() {
     this.#collectTalentInputs();
     const { advInfo } = advancementLedger(this.actor);
-    if (advInfo.available - this.#stagedCount() <= 0) return;
+    if (advInfo.available - this.#stagedCount() < this.#cost("talent")) return;
     if (this.#slotsLeft(advInfo.slots, "talent") <= 0) return;
     this.#staged.talents.push({ name: "", attr: "might" });
     this.render();
@@ -404,7 +426,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         attribute: t.attr in cfg.attributes ? t.attr : "might"
       };
       entries.push({
-        kind: "talent", ref: key,
+        kind: "talent", ref: key, amount: this.#cost("talent"),
         label: game.i18n.format("PROJECTANIME.AdvLog.entry.talent", { name: t.name.trim() })
       });
     }
@@ -423,7 +445,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
         });
       }
       entries.push({
-        kind: "rebuild", ref: "",
+        kind: "rebuild", ref: "", amount: this.#cost("rebuild"),
         label: game.i18n.format("PROJECTANIME.AdvLog.entry.rebuild", { name: rebuildItem.name })
       });
       await rebuildItem.delete();
@@ -433,7 +455,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (s.technique) {
       placeholder = placeholder || `pending-${foundry.utils.randomID(8)}`;
       entries.push({
-        kind: "technique", ref: placeholder,
+        kind: "technique", ref: placeholder, amount: this.#cost("technique"),
         label: game.i18n.localize("PROJECTANIME.AdvLog.entry.techniquePending")
       });
     }
@@ -444,20 +466,20 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const max = Math.min(cfg.maxBoxes, base + s.energy);
       changes["system.energy.max"] = max;
       changes["system.energy.value"] = Math.min((Number(src.energy?.value) || 0) + s.energy, max);
-      for (let i = 0; i < s.energy; i++) entries.push({ kind: "energy", ref: "", label: game.i18n.localize("PROJECTANIME.AdvLog.entry.energy") });
+      for (let i = 0; i < s.energy; i++) entries.push({ kind: "energy", ref: "", amount: this.#cost("energy"), label: game.i18n.localize("PROJECTANIME.AdvLog.entry.energy") });
     }
     if (s.hitBox) {
       const base = Number(src.hp?.max) || 0;
       const max = Math.min(cfg.maxBoxes, base + s.hitBox);
       changes["system.hp.max"] = max;
       changes["system.hp.value"] = Math.min((Number(src.hp?.value) || 0) + s.hitBox, max);
-      for (let i = 0; i < s.hitBox; i++) entries.push({ kind: "hitBox", ref: "", label: game.i18n.localize("PROJECTANIME.AdvLog.entry.hitBox") });
+      for (let i = 0; i < s.hitBox; i++) entries.push({ kind: "hitBox", ref: "", amount: this.#cost("hitBox"), label: game.i18n.localize("PROJECTANIME.AdvLog.entry.hitBox") });
     }
 
     // Luck Die — fungible count-based steps (d6→d8→d10→d12). The derived Luck Die size reads the
     // count of these entries, so no actor `changes` are needed — one refundable entry per step.
     for (let i = 0; i < s.luckDie; i++) {
-      entries.push({ kind: "luckDie", ref: "", label: game.i18n.localize("PROJECTANIME.AdvLog.entry.luckDie") });
+      entries.push({ kind: "luckDie", ref: "", amount: this.#cost("luckDie"), label: game.i18n.localize("PROJECTANIME.AdvLog.entry.luckDie") });
     }
 
     // Attributes — one refundable entry per die step (the Log's cascade-refund reads from/to).
@@ -467,7 +489,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       for (let i = 0; i < steps; i++) {
         const from = base + 2 * i;
         entries.push({
-          kind: "attribute", ref: k, data: { from, to: from + 2 },
+          kind: "attribute", ref: k, data: { from, to: from + 2 }, amount: this.#cost("attribute"),
           label: game.i18n.format("PROJECTANIME.SkillLog.entry.attribute", {
             attr: game.i18n.localize(cfg.attributes[k] ?? k),
             from: `d${from}`, to: `d${from + 2}`
@@ -486,7 +508,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
       for (let i = 0; i < steps; i++) {
         const from = die + 2 * i;
         entries.push({
-          kind: "talentStep", ref: id, data: { from, to: from + 2 },
+          kind: "talentStep", ref: id, data: { from, to: from + 2 }, amount: this.#cost("talentStep"),
           label: game.i18n.format("PROJECTANIME.AdvLog.entry.talentStep", {
             name: talent.name, from: `d${from}`, to: `d${from + 2}`
           })

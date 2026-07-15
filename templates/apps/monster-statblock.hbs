@@ -1,5 +1,5 @@
 {{!-- Shared derived statblock readout for the Monster Creator (Tier + Review steps) — the
-      printed stat-block format: HB · EB · Guard · Movement, the Weapon Style line
+      printed stat-block format: HB · EB · Guard · Movement, every Attack's line
       (Damage · Threshold · Range), the five Attribute dice, Talents with die sizes, and the
       Techniques list; a Villain adds its Luck Dice and (with Gates) the Gate layout. --}}
 {{#if stat}}
@@ -11,13 +11,13 @@
     <div class="cc-vital"><span class="cc-v-label">{{localize "PROJECTANIME.Stat.movShort"}}</span><span class="cc-v-val">{{stat.movement}}</span></div>
   </div>
 
-  {{#if weaponLine}}
   <div class="cc-role-strong cc-style-line">
-    <span class="cc-strong-chip"><i class="fa-solid fa-sword"></i> {{weaponLine.label}} — {{localize "PROJECTANIME.Stat.dmgShort"}} {{weaponLine.damage}} · {{localize "PROJECTANIME.Stat.thrShort"}} {{weaponLine.threshold}} · {{weaponLine.range}}</span>
+    {{#each attackLines as |w|}}
+    <span class="cc-strong-chip"><i class="fa-solid fa-sword"></i> {{w.label}} — {{localize "PROJECTANIME.Stat.dmgShort"}} {{w.damage}} · {{localize "PROJECTANIME.Stat.thrShort"}} {{w.threshold}} · {{w.range}}</span>
+    {{/each}}
     {{#if armorLine}}<span class="cc-strong-chip"><i class="fa-solid fa-shirt"></i> {{armorLine}}</span>{{/if}}
     {{#if shieldLine}}<span class="cc-strong-chip"><i class="fa-solid fa-shield"></i> {{shieldLine}}</span>{{/if}}
   </div>
-  {{/if}}
 
   <div class="cc-role-strong">
     {{#each attrDice as |a|}}

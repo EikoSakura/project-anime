@@ -346,11 +346,10 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
       party: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 })
     });
 
-    // The equipment Styles this enemy was built on (rules: The Stat Block — one Weapon Style
-    // sets Damage/Threshold/Range, one Armor Style sets Guard bonus/Movement, an optional
-    // Shield adds Guard). Keys into weaponStyles/armorStyles/shieldStyles; the stats live on
-    // the stamped equipped items — these keys are for the statblock line + re-stamping.
-    schema.weaponStyle = new fields.StringField({ required: false, blank: true, initial: "" });
+    // The equipment Styles this enemy wears (rules: The Stat Block — one Armor Style sets
+    // Guard bonus/Movement, an optional Shield adds Guard). Keys into armorStyles/shieldStyles;
+    // the stats live on the stamped equipped items — these keys are for the statblock line +
+    // re-stamping. Attacks carry their own Weapon Style key per weapon item (`system.style`).
     schema.armorStyle = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.shieldStyle = new fields.StringField({ required: false, blank: true, initial: "" });
 
@@ -363,9 +362,10 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
       log: advancementLogField()
     });
 
-    // Villain Luck Dice (rules: Villains) — three dice rolled and recorded like a Player
-    // Character's. `luckDie` is the purchased die SIZE (base d6, stepped up with EXP —
-    // Villain-only; stored, unlike the Character's advancement-derived size).
+    // Luck Dice (rules: Villains; Companion Advancement) — three dice rolled and recorded like
+    // a Player Character's. `luckDie` is the die SIZE: a Villain's is stored (base d6, stepped
+    // up with EXP in the Monster Creator); a Companion's derives from its "luckDie" advancement
+    // entries in prepareDerivedData, exactly like a Character's.
     schema.luckDice = new fields.ArrayField(
       new fields.NumberField({ ...requiredInteger, min: 1 }),
       { initial: [] }
@@ -394,6 +394,12 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
    *  current Gate drives the visible HP pool. */
   prepareDerivedData() {
     super.prepareDerivedData();
+    // A Companion's Luck Die (rules: Companion Advancement — Step Up Luck Dice): base d6,
+    // stepped by each "luckDie" ledger entry like a Character's. Villains keep the stored size.
+    if (this.npcType === "companion" || this.parent?.flags?.["project-anime"]?.companionOf) {
+      const luckSteps = (this.advancement?.log ?? []).filter((e) => e.kind === "luckDie").length;
+      this.luckDie = Math.min(PROJECTANIME.luckDieMax, PROJECTANIME.luckDie + 2 * luckSteps);
+    }
     if (this.gates?.enabled && this.gates.hb.length) {
       // Re-widen the current Gate's boxes past the base clamp (the token bar shows ONE Gate).
       // The base clamp already crushed hp.value to the (stale) stored max, so re-derive the

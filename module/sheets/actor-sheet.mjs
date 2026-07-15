@@ -143,8 +143,10 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     context.config = CONFIG.PROJECTANIME;
     context.isCharacter = this.actor.type === "character";
     context.isNPC = this.actor.type === "npc";
-    // The Luck Dice panel shows for every luck-holder: Characters and Villain-tier NPCs.
-    context.showLuck = context.isCharacter || (context.isNPC && this.actor.system.npcType === "villain");
+    // The Luck Dice panel shows for every luck-holder: Characters, Villain-tier NPCs, and
+    // bonded Companions (they step their Luck Dice through Companion Advancement).
+    context.showLuck = context.isCharacter
+      || (context.isNPC && (this.actor.system.npcType === "villain" || isCompanion(this.actor)));
     // Enemy Tier badge — shows the Tier + its Threat cost (a Villain reads "Full Budget") and,
     // for the GM, the EXP readout (spent / total). A Companion (bonded, hand-typed, or
     // folder-filed) wears its own paw chip instead — no Threat, it never enters the budget.
@@ -159,7 +161,13 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
             : null }
       : (context.isNPC && isCompanion(this.actor))
         ? { label: game.i18n.localize(PROJECTANIME.companion.label), icon: PROJECTANIME.companion.icon,
-            color: PROJECTANIME.companion.color, villain: false, threat: null, exp: null }
+            color: PROJECTANIME.companion.color, villain: false, threat: null,
+            // Companions budget 8 starting EXP like an enemy build (advancement growth is
+            // excluded from the audit — see npcSpentExp). Typed companions only: a folder-filed
+            // NPC without the companion type has no budget to audit.
+            exp: this.document.isOwner && this.actor.system.npcType === "companion"
+              ? { spent: npcSpentExp(this.actor).total, total: npcTotalExp(this.actor) }
+              : null }
         : null;
     // Villain Gates readout: the pip strip under the header (one pip per Gate, full = unbroken).
     const gates = context.isNPC ? this.actor.system.gates : null;

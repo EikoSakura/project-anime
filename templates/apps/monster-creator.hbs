@@ -1,5 +1,5 @@
 {{!-- Step-by-step Monster Creator (Tier × EXP): Concept → Tier (EXP budget · Villain frame) →
-      Styles (Weapon · Armor · Shield · Basic Attacks) → Attributes & Boxes → Talents →
+      Styles (Weapon Attacks · Armor · Shield) → Attributes & Boxes → Talents →
       Techniques → Review. --}}
 
 {{#*inline "expPill"}}
@@ -67,7 +67,8 @@
       {{/each}}
     </div>
 
-    {{#if framed}}{{#unless isCompanion}}
+    {{#if framed}}
+    {{#unless isCompanion}}
     <div class="cc-flag-row">
       <label class="cc-field">
         <span class="cc-label">{{localize "PROJECTANIME.Exp.partyXp"}}</span>
@@ -77,8 +78,9 @@
         <i class="fas fa-rotate"></i> {{localize "PROJECTANIME.Party.pullRoster"}} <span class="party-pull-n">{{rosterXp}}</span>
       </button>
     </div>
+    {{/unless}}
     {{> expPill}}
-    {{/unless}}{{/if}}
+    {{/if}}
 
     {{#if isVillain}}
     <h4 class="cc-subhead">{{localize "PROJECTANIME.Stat.luckDice"}}</h4>
@@ -118,22 +120,63 @@
   </section>
   {{/if}}
 
-  {{!-- ===================== 3 · STYLES (Weapon · Armor · Shield · Basic Attacks) ===================== --}}
+  {{!-- ===================== 3 · STYLES (Weapon Attacks · Armor · Shield) ===================== --}}
   {{#if onStyles}}
   <section class="cc-step-body cc-frame">
     {{> expPill}}
 
+    {{!-- Weapon Style cards ADD attacks — one click stamps a new attack carrying the Style's
+          printed line; the badge counts the attacks wearing each Style. --}}
     <h4 class="cc-subhead">{{localize "PROJECTANIME.Style.weapon"}}</h4>
     <div class="cc-choose-grid">
       {{#each weaponStyles as |s|}}
-      <button type="button" class="cc-choose-opt cc-style-opt{{#if s.selected}} selected{{/if}}"
-              data-action="pickWeaponStyle" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip">
+      <button type="button" class="cc-choose-opt cc-style-opt{{#if s.count}} selected{{/if}}"
+              data-action="addStyleAttack" data-style="{{s.key}}" data-tooltip="{{s.tooltip}}" data-tooltip-class="pa-tooltip">
         <span class="cc-style-icon"><img src="{{s.icon}}" alt="" /></span>
         <span class="cc-choose-opt-name">{{s.label}}</span>
-        {{#if s.selected}}<i class="cc-choose-check fas fa-circle-check"></i>{{/if}}
+        {{#if s.count}}<span class="cc-style-count">{{s.count}}</span>{{/if}}
       </button>
       {{/each}}
     </div>
+
+    {{!-- Attacks — pick the two accuracy Attributes (the same one may be chosen twice) or
+          link a Talent, which replaces one die and adds the Trained Edge. --}}
+    <h4 class="cc-subhead cc-skills-head">
+      <span class="cc-head-title">{{localize "PROJECTANIME.MonsterCreator.basicAttacks"}} <span class="cc-count muted">{{attackCount}}</span></span>
+    </h4>
+    {{#if attacks.length}}
+    <ul class="cc-skill-list cc-attack-list">
+      {{#each attacks as |atk|}}
+      <li class="cc-skill-row cc-attack-row" data-attack-id="{{atk.id}}">
+        <img src="{{atk.img}}" alt="" />
+        <div class="cc-skill-info">
+          <input type="text" class="cc-attack-name" value="{{atk.name}}" autocomplete="off" />
+          <span class="cc-skill-sub muted">{{#if atk.styleLabel}}{{atk.styleLabel}} · {{/if}}{{localize "PROJECTANIME.Stat.dmgShort"}} {{atk.damage}} · {{localize "PROJECTANIME.Stat.thrShort"}} {{atk.threshold}} · {{atk.range}}</span>
+        </div>
+        <select class="mc-attack-sel" data-field="attrA" title="{{localize 'PROJECTANIME.Roll.attrA'}}">
+          {{#each atk.attrA as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
+        </select>
+        <select class="mc-attack-sel" data-field="attrB" title="{{localize 'PROJECTANIME.Roll.attrB'}}">
+          {{#each atk.attrB as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
+        </select>
+        <select class="mc-attack-sel" data-field="talent" title="{{localize 'PROJECTANIME.MonsterCreator.step.talents'}}">
+          <option value="">{{localize "PROJECTANIME.MonsterCreator.noTalent"}}</option>
+          {{#each atk.talentOptions as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
+        </select>
+        <button type="button" class="cc-icon-btn" data-action="editAttack" title="{{localize 'PROJECTANIME.MonsterCreator.editAttack'}}">
+          <i class="fas fa-pen"></i>
+        </button>
+        {{#unless atk.natural}}
+        <button type="button" class="cc-icon-btn danger" data-action="removeAttack" title="{{localize 'PROJECTANIME.MonsterCreator.removeAttack'}}">
+          <i class="fas fa-trash"></i>
+        </button>
+        {{/unless}}
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="cc-empty muted">{{localize "PROJECTANIME.MonsterCreator.noAttacks"}}</p>
+    {{/if}}
 
     <h4 class="cc-subhead">{{localize "PROJECTANIME.Style.armor"}}</h4>
     <div class="cc-choose-grid">
@@ -163,48 +206,6 @@
       </button>
       {{/each}}
     </div>
-
-    {{!-- Basic Attacks — pick the two accuracy Attributes (the same one may be chosen twice) or
-          link a Talent, which replaces one die and adds the Trained Edge. --}}
-    <h4 class="cc-subhead cc-skills-head">
-      <span class="cc-head-title">{{localize "PROJECTANIME.MonsterCreator.basicAttacks"}} <span class="cc-count muted">{{attackCount}}</span></span>
-      <span class="cc-head-actions">
-        <button type="button" class="cc-mini-btn" data-action="addAttack"><i class="fas fa-plus"></i> {{localize "PROJECTANIME.MonsterCreator.addBasicAttack"}}</button>
-      </span>
-    </h4>
-    {{#if attacks.length}}
-    <ul class="cc-skill-list cc-attack-list">
-      {{#each attacks as |atk|}}
-      <li class="cc-skill-row cc-attack-row" data-attack-id="{{atk.id}}">
-        <img src="{{atk.img}}" alt="" />
-        <div class="cc-skill-info">
-          <input type="text" class="cc-attack-name" value="{{atk.name}}" autocomplete="off" />
-          <span class="cc-skill-sub muted">{{localize "PROJECTANIME.Stat.dmgShort"}} {{atk.damage}} · {{localize "PROJECTANIME.Stat.thrShort"}} {{atk.threshold}}</span>
-        </div>
-        <select class="mc-attack-sel" data-field="attrA" title="{{localize 'PROJECTANIME.Roll.attrA'}}">
-          {{#each atk.attrA as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
-        </select>
-        <select class="mc-attack-sel" data-field="attrB" title="{{localize 'PROJECTANIME.Roll.attrB'}}">
-          {{#each atk.attrB as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
-        </select>
-        <select class="mc-attack-sel" data-field="talent" title="{{localize 'PROJECTANIME.MonsterCreator.step.talents'}}">
-          <option value="">{{localize "PROJECTANIME.MonsterCreator.noTalent"}}</option>
-          {{#each atk.talentOptions as |o|}}<option value="{{o.value}}" {{#if o.selected}}selected{{/if}}>{{o.label}}</option>{{/each}}
-        </select>
-        <button type="button" class="cc-icon-btn" data-action="editAttack" title="{{localize 'PROJECTANIME.MonsterCreator.editAttack'}}">
-          <i class="fas fa-pen"></i>
-        </button>
-        {{#unless atk.natural}}
-        <button type="button" class="cc-icon-btn danger" data-action="removeAttack" title="{{localize 'PROJECTANIME.MonsterCreator.removeAttack'}}">
-          <i class="fas fa-trash"></i>
-        </button>
-        {{/unless}}
-      </li>
-      {{/each}}
-    </ul>
-    {{else}}
-    <p class="cc-empty muted">{{localize "PROJECTANIME.MonsterCreator.noAttacks"}}</p>
-    {{/if}}
   </section>
   {{/if}}
 

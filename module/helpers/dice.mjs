@@ -1,4 +1,4 @@
-import { PROJECTANIME, modifierValue, modifierTakes, techniqueResistance, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide, gateLockedTechnique } from "./config.mjs";
+import { PROJECTANIME, modifierValue, modifierTakes, techniqueResistance, getTalent, actorTalents, skillEffectKeys, skillDieSpecs, skillNeedsAccuracy, skillTarget, skillDuration, auraAudience, cursedPools, isSelfCenteredArea, valuedStatusValue, actorSide, gateLockedTechnique, isCompanion } from "./config.mjs";
 import { renderDescriptionHTML } from "./prose.mjs";
 import { collectRollModifiers, collectNonCombatCheckMods, collectSkillModBonuses, collectWeaponModBonuses, collectInflictedConditions, statusImmunities, statusResists, effectRules, effectCopyData, bolsterHinderRules, hasAuthoredAttributeEffect, skillModifierRules, collectRetaliation, collectToggles, effectAffectsRoll, collectLuckTunes, makeRoundsDuration } from "./effects.mjs";
 import { resolveCompanion } from "./servants.mjs";
@@ -2830,10 +2830,12 @@ function maybeGrantComboTurn(actor) {
   }
 }
 
-/** An actor that HOLDS Luck Dice: every Character, and a Villain-tier NPC (rules: Villains —
- *  a Villain records three Luck Dice following the same rules as a Player Character). */
+/** An actor that HOLDS Luck Dice: every Character, a Villain-tier NPC (rules: Villains — a
+ *  Villain records three Luck Dice following the same rules as a Player Character), and a
+ *  bonded Companion (rules: Companion Advancement — it steps its Luck Dice like a PC). */
 export function holdsLuckDice(actor) {
-  return actor?.type === "character" || (actor?.type === "npc" && actor.system?.npcType === "villain");
+  return actor?.type === "character"
+    || (actor?.type === "npc" && (actor.system?.npcType === "villain" || isCompanion(actor)));
 }
 
 /**

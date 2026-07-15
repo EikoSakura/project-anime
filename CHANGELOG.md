@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.1 - 2026-07-15
+
+- Monster Creator: Weapon Style cards now ADD attacks - one click per attack carrying that Style's printed line, any number, repeats allowed (cards wear count badges); the Add Basic Attack button and the actor-level Weapon Style pick are gone,Enemy Tier base EXP raised to the printed table: Minion 10, Standard 15, Elite 25, Champion 30, Villain 40,Companions rebuilt on the printed Companion Rules: built like an enemy (shared base line, Weapon/Armor Styles, 8 starting EXP with a live budget pill) plus one free Talent at d6 named at creation,Companion Advancement runs on its own price and slot table (boxes 1 EXP / 5 slots, Techniques and Attributes 2, Luck steps 2 / 3 slots, most caps removed) and Companions now hold Luck Dice like a PC,Advancement dialog charges and shows each option's real price for Companions, uncapped options read a dash, and an unclosed template block that could break the dialog is fixed
+
+## 0.6.1 - 2026-07-15
+
+- Monster Creator: the Weapon Style cards now ADD attacks - one click stamps a new attack carrying that Style's printed line (name, icon, Damage/Threshold/Range, properties), any number of attacks, the same Style more than once (cards wear a count badge); the separate Add Basic Attack button and the single actor-level Weapon Style pick are gone - each attack carries its own Style, and the review statblock lists every attack's line
+- Enemy Tier base EXP raised to the printed table: Minion 10, Standard 15, Elite 25, Champion 30, Villain 40
+- Companions rebuilt on the printed Companion Rules: built like an enemy - the same shared base line (1 hit box, 1 energy box, all Attributes d4, Guard 6 + Armor Style), Weapon/Armor Styles off the player tables, and 8 starting EXP on the enemy buy list with the live budget pill (creation spends only - advancement growth never counts against it); one free Talent at d6 named at creation (bond-created companions arrive with it); the old printed 3-hit-box companion line is gone - existing companions keep their stats, rebuild with the Creator when convenient
+- Companion Advancement now runs on its own price and slot table: +1 energy/hit box 1 (5 slots each), Create a Technique 2, Learn a New Talent 2, Rebuild a Technique 1, Step Up an Attribute 2, Step Up a Talent 1 (uncapped where the table says so), Step Up Luck Dice 2 (3 slots) - Companions now hold Luck Dice like a PC (base d6, derived from the ledger) and the Luck panel, spends, tunes, and Go-Again restores all work for them
+- Advancement dialog: every option shows and charges its real price for a Companion (staging, budget, ledger amounts, and refunds all follow), uncapped options read a dash for their cap; also fixed an unclosed template block that broke the dialog when the Luck row hid
+
 ## 0.6.0 - 2026-07-14
 
 - Enemies rebuilt on the printed Tier x EXP rules: five Tiers (Minion 1/5, Standard 2/10, Elite 3/15, Champion 4/20, Villain full budget/30), every enemy starting from the shared base line (1 hit box, 1 energy box, all Attributes d4, Guard 6 + Armor Style + Shield) and spending base EXP + the party earned XP on the printed purchase list, with spends audited live off the built statblock

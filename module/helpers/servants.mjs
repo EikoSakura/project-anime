@@ -5,9 +5,10 @@ import { postCard, cardHTML, enrichDescription, skillMeta } from "./dice.mjs";
  * Companions (rules: Companion Rules). The Companion Effect (cost 2, always Passive) bonds a
  * creature as a loyal ally. Its 2 energy boxes are locked only while the Companion is actively
  * adventuring (the Technique's `companionHome` toggle lifts the lock). The bonded creature is a
- * real NPC actor: Hit Boxes 3 · Energy Boxes 2 · Guard 7 · Movement 5 · one Attribute at d6,
- * four at d4 · one Talent at d6 · one Technique · attack Damage 1, Threshold 10. On your turn
- * you act OR your Companion acts (table-adjudicated).
+ * real NPC actor BUILT LIKE AN ENEMY: the shared base line (1 hit box, 1 energy box, all
+ * Attributes d4, Guard 6), one free Talent at d6, Weapon/Armor Styles off the player tables,
+ * and 8 starting EXP spent in the Monster Creator. On your turn you act OR your Companion acts
+ * (table-adjudicated).
  */
 
 const FLAG = "project-anime";
@@ -81,20 +82,20 @@ export async function resolveCompanion(actor, item) {
 }
 
 /**
- * Create the bonded companion (GM-side; exported for the socket relay): a fresh NPC on the V2
- * companion stat line, friendly, owned by its player, filed with the companions. The energy
- * lock rides the Companion Technique's own passive tax on the OWNER, not this actor.
+ * Create the bonded companion (GM-side; exported for the socket relay): a fresh NPC on the
+ * shared enemy base line (1 hit box, 1 energy box, all Attributes d4, Guard 6) with its free
+ * Talent at d6 — the owner names the Talent and spends the 8 starting EXP in the Monster
+ * Creator. Friendly, owned by its player, filed with the companions. The energy lock rides
+ * the Companion Technique's own passive tax on the OWNER, not this actor.
  */
 export async function createCompanion(casterUuid, itemId, name, userId) {
   const caster = await fromUuid(casterUuid);
   const item = caster?.items?.get(itemId);
   if (!caster || !item) return;
 
-  const line = PROJECTANIME.companion;
-  const attrs = Object.fromEntries(PROJECTANIME.attributeKeys.map((k, i) => {
-    const v = line.attrs[i] ?? 4;
-    return [k, { base: v, value: v }];
-  }));
+  const base = PROJECTANIME.enemyBase;
+  const attrs = Object.fromEntries(PROJECTANIME.attributeKeys.map((k) =>
+    [k, { base: base.attrDie, value: base.attrDie }]));
   const folder = await ensureServantFolder();
   const data = {
     name,
@@ -103,13 +104,20 @@ export async function createCompanion(casterUuid, itemId, name, userId) {
     folder: folder?.id,
     system: {
       attributes: attrs,
-      hp: { value: line.hb, max: line.hb },
-      energy: { value: line.eb, max: line.eb },
-      guard: { bonus: line.guard - PROJECTANIME.baseGuard },
-      movement: { bonus: line.movement - PROJECTANIME.armorStyles.unarmored.movement },
+      hp: { value: base.hitBoxes, max: base.hitBoxes },
+      energy: { value: base.energyBoxes, max: base.energyBoxes },
+      guard: { bonus: 0 },
+      movement: { bonus: 0 },
       npcType: "companion",
       disposition: "friendly",
-      role: "npc"
+      role: "npc",
+      talents: {
+        [foundry.utils.randomID()]: {
+          name: i18n("PROJECTANIME.MonsterCreator.talentName"),
+          die: PROJECTANIME.companion.talentDie,
+          attribute: "might"
+        }
+      }
     },
     prototypeToken: { actorLink: true, disposition: CONST.TOKEN_DISPOSITIONS.FRIENDLY },
     flags: { [FLAG]: { companionOf: caster.uuid, companionSkill: item.id, servantOf: caster.uuid } },
@@ -119,7 +127,6 @@ export async function createCompanion(casterUuid, itemId, name, userId) {
 
   const created = await Actor.create(data);
   if (!created) return;
-  // The companion's attack: Damage 1, Threshold 10 (its Natural Attack is born on that profile).
 
   return postCard(caster, cardHTML({
     title: item.name,

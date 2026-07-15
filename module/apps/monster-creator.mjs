@@ -4,12 +4,15 @@
  * A guided ApplicationV2 that builds an enemy the way the rules do (Enemies): pick a TIER
  * (Minion / Standard / Elite / Champion / Villain — see PROJECTANIME.enemyTiers), which sets the
  * EXP budget (base EXP + the party's earned XP), start from the shared base line (1 hit box,
- * 1 energy box, all Attributes at d4, Guard 6), pick one Weapon Style + one Armor Style
- * (+ an optional Shield) off the player tables, then SPEND EXP: Attribute steps, hit/energy
+ * 1 energy box, all Attributes at d4, Guard 6), build the Attacks off the Weapon Style table
+ * (each click adds an attack carrying that Style's printed line — any number, the same Style
+ * more than once), pick one Armor Style (+ an optional Shield), then SPEND EXP: Attribute steps, hit/energy
  * boxes, Talents, Techniques — and, for a Villain, Luck Die steps. Spends are DERIVED from the
  * built statblock (npcSpentExp), so the budget pill audits live and nothing needs a ledger.
- * A seventh tile, COMPANION (PROJECTANIME.companion), hand-builds a party ally on the printed
- * companion line: it has no Threat, goes friendly on pick, and files itself with the companions.
+ * A seventh tile, COMPANION (PROJECTANIME.companion), hand-builds a party ally the same way
+ * (rules: Building a Companion): the same shared base line and Styles, 8 starting EXP on the
+ * same buy list (no Luck steps), and one free Talent at d6 named at creation. It has no
+ * Threat, goes friendly on pick, and files itself with the companions.
  *
  * A VILLAIN records three Luck Dice (base d6, stepped up with EXP) and may be built WITH GATES:
  * its purchased hit boxes divide across ⌈party ÷ 2⌉ Gates (no hit-box cap while gated), energy
@@ -33,9 +36,6 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
  *  boxes → Talents → Techniques), book-ended by Concept and Review. */
 const STEPS = ["concept", "tier", "styles", "attributes", "talents", "techniques", "finish"];
 
-/** Default icon for a freshly-created Basic Attack weapon. */
-const NATURAL_WEAPON_IMG = "icons/svg/sword.svg";
-
 /** Default icons for the stamped Style gear. */
 const ARMOR_IMG = "icons/svg/shield.svg";
 
@@ -58,18 +58,14 @@ export function distributeGates(total, count) {
 }
 
 /** An enemy Tier's line as rich tooltip HTML — the same `.pa-tooltip` card the Style pickers
- *  use (glyph head, labeled stat rows): Threat + Base EXP (Companion keeps its printed line). */
+ *  use (glyph head, labeled stat rows): Threat + Base EXP (a Companion has no Threat — just
+ *  its starting EXP). */
 function tierTooltipHTML(key, t) {
   const L = (k) => game.i18n.localize(k);
   const row = (icon, label, value) =>
     `<div class="pa-tt-row"><span class="k"><i class="fa-solid ${icon}"></i> ${label}</span><span class="v">${value}</span></div>`;
   const rows = key === "companion"
-    ? [
-      row("fa-heart", L("PROJECTANIME.Stat.hp"), t.hb),
-      row("fa-bolt", L("PROJECTANIME.Stat.energy"), t.eb),
-      row("fa-shield", L("PROJECTANIME.Stat.guard"), t.guard),
-      row("fa-shoe-prints", L("PROJECTANIME.Stat.movement"), t.movement)
-    ]
+    ? [row("fa-coins", L("PROJECTANIME.Exp.base"), t.startingExp)]
     : [
       row("fa-skull", L("PROJECTANIME.Threat.label"),
         t.threat != null ? formatThreat(t.threat) : L("PROJECTANIME.Threat.fullBudget")),
@@ -132,12 +128,11 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       pullPartyXp: MonsterCreatorApp.#onPullPartyXp,
       rollLuck: MonsterCreatorApp.#onRollLuck,
       toggleGates: MonsterCreatorApp.#onToggleGates,
-      pickWeaponStyle: MonsterCreatorApp.#onPickWeaponStyle,
+      addStyleAttack: MonsterCreatorApp.#onAddStyleAttack,
       pickArmorStyle: MonsterCreatorApp.#onPickArmorStyle,
       pickShieldStyle: MonsterCreatorApp.#onPickShieldStyle,
       boxPlus: MonsterCreatorApp.#onBoxPlus,
       boxMinus: MonsterCreatorApp.#onBoxMinus,
-      addAttack: MonsterCreatorApp.#onAddAttack,
       editAttack: MonsterCreatorApp.#onEditAttack,
       removeAttack: MonsterCreatorApp.#onRemoveAttack,
       addTalent: MonsterCreatorApp.#onAddTalent,
@@ -257,9 +252,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       };
     });
 
-    // The EXP budget pill — total (base + party XP), spent (derived off the build), remaining.
-    // Advisory: chips turn "over" but nothing blocks an over-budget build. Companions have no EXP.
-    const spend = ctx.framed && !ctx.isCompanion ? npcSpentExp(this.actor) : null;
+    // The EXP budget pill — total (base + party XP; a Companion budgets its 8 starting EXP),
+    // spent (derived off the build), remaining. Advisory: chips turn "over" but nothing blocks
+    // an over-budget build.
+    const spend = ctx.framed ? npcSpentExp(this.actor) : null;
     ctx.exp = spend ? {
       total: npcTotalExp(this.actor),
       spent: spend.total,
@@ -290,8 +286,10 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       };
     }
 
-    // Styles (rules: The Stat Block) — one Weapon Style (Damage/Threshold/Range), one Armor
-    // Style (Guard bonus/Movement), an optional Shield. Cards match the Character Creator's.
+    // Styles (rules: The Stat Block) — the Weapon Style cards ADD attacks (one click = one
+    // attack carrying that Style's printed line; the same Style may be taken more than once),
+    // one Armor Style (Guard bonus/Movement), an optional Shield. Cards match the Character
+    // Creator's; a weapon card wears a count badge instead of a single check.
     if (ctx.onStyles) {
       const styleCards = (keys, table, kindKey, selected) => keys.map((k) => {
         const st = table[k];
@@ -301,7 +299,15 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
           selected: k === selected
         };
       }).sort((a, b) => a.label.localeCompare(b.label));
-      ctx.weaponStyles = styleCards(cfg.weaponStyleKeys, cfg.weaponStyles, "PROJECTANIME.Style.weapon", sys.weaponStyle);
+      const weapons = this.actor.items.filter((i) => i.type === "weapon");
+      ctx.weaponStyles = cfg.weaponStyleKeys.map((k) => {
+        const st = cfg.weaponStyles[k];
+        return {
+          key: k, label: L(st.label), icon: st.icon,
+          tooltip: styleTooltipHTML(st, "PROJECTANIME.Style.weapon"),
+          count: weapons.filter((i) => i.system.style === k).length
+        };
+      }).sort((a, b) => a.label.localeCompare(b.label));
       ctx.armorStyles = styleCards(cfg.armorStyleKeys, cfg.armorStyles, "PROJECTANIME.Style.armor", sys.armorStyle);
       ctx.shieldStyles = styleCards(cfg.shieldStyleKeys, cfg.shieldStyles, "PROJECTANIME.Style.shield", sys.shieldStyle);
       ctx.noShield = !sys.shieldStyle;
@@ -340,19 +346,22 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     }));
     ctx.talentCount = talents.length;
 
-    // Basic Attacks — weapon items (the Natural Attack included), stamped from the Weapon
-    // Style. Each row exposes the two accuracy Attributes (the same Attribute may be chosen
-    // twice) and the Talent link that replaces one die and adds the Trained Edge.
+    // Attacks — weapon items (the Natural Attack included), each carrying its own Weapon
+    // Style's printed line. Each row exposes the two accuracy Attributes (the same Attribute
+    // may be chosen twice) and the Talent link that replaces one die and adds the Trained Edge.
     ctx.attacks = this.actor.items
       .filter((i) => i.type === "weapon")
       .sort(bySort)
       .map((i) => {
         const acc = i.system.accuracy ?? {};
+        const st = cfg.weaponStyles[i.system.style];
         return {
           id: i.id,
           name: i.name,
           img: i.img,
           natural: !!i.getFlag("project-anime", "natural"),
+          styleLabel: st ? L(st.label) : "",
+          range: physicalRangeLabel(i.system.range ?? {}),
           damage: Number(i.system.damage?.value) || 0,
           threshold: Number(i.system.threshold) || 0,
           attrA: cfg.attributeKeys.map((k) => ({ value: k, label: L(cfg.attributes[k]), selected: acc.attrA === k })),
@@ -386,7 +395,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.skillCount = ctx.skills.length;
     ctx.techBudget = gatesOn
       ? String(PROJECTANIME.villain.techniquesPerGate * this.actor.system.gates.hb.length)
-      : (ctx.isCompanion ? String(PROJECTANIME.companion.techniques) : "");
+      : "";
     ctx.gatesOn = gatesOn;
 
     // Review (last step) — a compact summary badge (Tier + Threat + EXP).
@@ -404,7 +413,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /** The shared statblock readout (monster-statblock.hbs): the new printed format — HB / EB /
-   *  Guard / Movement, the Weapon Style line (Damage · Threshold · Range), the Attribute dice,
+   *  Guard / Movement, every Attack's line (Damage · Threshold · Range), the Attribute dice,
    *  Talents with die sizes, Techniques, and the Villain extras (Gates layout + Luck Dice). */
   #statblockContext(ctx, cfg, sys, L) {
     if (!ctx.framed) { ctx.stat = null; return; }
@@ -416,19 +425,15 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       guard: sys.guard.value,
       movement: sys.movement.value
     };
-    const ws = cfg.weaponStyles[sys.weaponStyle];
-    const firstWeapon = this.actor.items.filter((i) => i.type === "weapon").sort(bySort)[0] ?? null;
-    ctx.weaponLine = ws ? {
-      label: L(ws.label),
-      damage: ws.damage,
-      threshold: ws.threshold,
-      range: physicalRangeLabel({ tiles: ws.range[1], minTiles: ws.range[0] > 1 ? ws.range[0] : 0 })
-    } : firstWeapon ? {
-      label: firstWeapon.name,
-      damage: Number(firstWeapon.system.damage?.value) || 0,
-      threshold: Number(firstWeapon.system.threshold) || 0,
-      range: physicalRangeLabel(firstWeapon.system.range ?? {})
-    } : null;
+    ctx.attackLines = this.actor.items
+      .filter((i) => i.type === "weapon")
+      .sort(bySort)
+      .map((i) => ({
+        label: i.name,
+        damage: Number(i.system.damage?.value) || 0,
+        threshold: Number(i.system.threshold) || 0,
+        range: physicalRangeLabel(i.system.range ?? {})
+      }));
     const as = cfg.armorStyles[sys.armorStyle];
     const ss = cfg.shieldStyles[sys.shieldStyle];
     ctx.armorLine = as ? L(as.label) : "";
@@ -460,7 +465,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     for (const sel of this.element.querySelectorAll(".mc-attr-select")) {
       sel.addEventListener("change", (ev) => this.#commitAttribute(ev.currentTarget));
     }
-    // Basic Attack rows: inline rename + accuracy Attribute / Talent-link selects.
+    // Attack rows: inline rename + accuracy Attribute / Talent-link selects.
     for (const input of this.element.querySelectorAll(".cc-attack-name")) {
       input.addEventListener("change", (ev) => this.#commitAttackName(ev.currentTarget));
     }
@@ -566,10 +571,11 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /*  Tier (EXP budget · Villain frame)           */
   /* -------------------------------------------- */
 
-  /** Pick a Tier: stamp its key. The FIRST framing (no Tier yet, or coming off the Companion
-   *  line) also seeds the shared base statblock — 1 hit box, 1 energy box, all Attributes d4,
-   *  no Guard/Movement offsets (rules: The Stat Block). Re-picking a Tier later only moves the
-   *  EXP budget: the build stands. Companion keeps its own printed line + party-ally wiring. */
+  /** Pick a Tier: stamp its key. The FIRST framing (no Tier yet) also seeds the shared base
+   *  statblock — 1 hit box, 1 energy box, all Attributes d4, no Guard/Movement offsets (rules:
+   *  The Stat Block). Re-picking a Tier later only moves the EXP budget: the build stands, the
+   *  Companion tile included — a Companion is built like an enemy on the very same base line
+   *  (rules: Building a Companion), so switching between them just rewires the ally side. */
   static async #onPickTier(event, target) {
     const key = target.closest("[data-tier]")?.dataset.tier;
     const isTier = !!PROJECTANIME.enemyTiers[key];
@@ -577,42 +583,55 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     const prev = this.actor.system.npcType || "";
     const update = { "system.npcType": key };
 
+    // Leaving the Villain tier — whatever the destination tile — folds any Gates back into one
+    // pool (capped at 10 without them): remaining = the current Gate's value + every unbroken
+    // later Gate (broken Gates lost their excess on the break, so they contribute nothing).
+    if (prev === "villain" && key !== "villain" && this.actor.system.gates?.enabled) {
+      const g = this.actor.system.gates;
+      const total = Math.clamp(this.#hbTotal(), 1, PROJECTANIME.maxBoxes);
+      const later = (g.hb ?? []).slice((Number(g.broken) || 0) + 1).reduce((n, v) => n + (Number(v) || 0), 0);
+      update["system.gates.enabled"] = false;
+      update["system.gates.hb"] = [];
+      update["system.gates.broken"] = 0;
+      update["system.hp.max"] = total;
+      update["system.hp.value"] = Math.min((Number(this.actor.system.hp.value) || 0) + later, total);
+    }
+
     if (key === "companion") {
-      // The printed Companion line + the ally side of it: friendly disposition, linked token,
-      // and — when the actor isn't filed anywhere yet — a home with the companions. Any Style
-      // gear from a prior enemy build comes off (the Companion line assumes an unarmored body).
-      const line = PROJECTANIME.companion;
+      // The ally side of the Companion tile: friendly disposition, linked token, and — when
+      // the actor isn't filed anywhere yet — a home with the companions. The free creation
+      // Talent arrives at d6 (rules: Companion Talents) if the build holds none yet.
       update["system.disposition"] = "friendly";
       update["prototypeToken.disposition"] = CONST.TOKEN_DISPOSITIONS.FRIENDLY;
       update["prototypeToken.actorLink"] = true;
-      update["system.hp.max"] = line.hb;
-      update["system.hp.value"] = line.hb;
-      update["system.energy.max"] = line.eb;
-      update["system.energy.value"] = line.eb;
-      update["system.guard.bonus"] = (Number(line.guard) || 0) - PROJECTANIME.baseGuard;
-      update["system.movement.bonus"] = (Number(line.movement) || 0) - PROJECTANIME.armorStyles.unarmored.movement;
-      update["system.gates.enabled"] = false;
-      update["system.weaponStyle"] = "";
-      update["system.armorStyle"] = "";
-      update["system.shieldStyle"] = "";
-      const dice = [...line.attrs].sort((a, b) => b - a);
-      PROJECTANIME.attributeKeys.forEach((k, i) => { update[`system.attributes.${k}.base`] = dice[i] ?? 4; });
+      if (!prev) {
+        update["system.hp.max"] = PROJECTANIME.enemyBase.hitBoxes;
+        update["system.hp.value"] = PROJECTANIME.enemyBase.hitBoxes;
+        update["system.energy.max"] = PROJECTANIME.enemyBase.energyBoxes;
+        update["system.energy.value"] = PROJECTANIME.enemyBase.energyBoxes;
+        update["system.guard.bonus"] = 0;
+        update["system.movement.bonus"] = 0;
+        PROJECTANIME.attributeKeys.forEach((k) => { update[`system.attributes.${k}.base`] = PROJECTANIME.enemyBase.attrDie; });
+      }
+      if (!actorTalents(this.actor).length) {
+        update[`system.talents.${foundry.utils.randomID()}`] = {
+          name: game.i18n.localize("PROJECTANIME.MonsterCreator.talentName"),
+          die: PROJECTANIME.companion.talentDie,
+          attribute: "might"
+        };
+      }
       if (!this.actor.folder) {
         const folder = await ensureServantFolder();
         if (folder) update.folder = folder.id;
       }
       await this.actor.update(update);
-      const gear = this.actor.items.filter((i) =>
-        (i.type === "armor" && i.getFlag("project-anime", "creationArmor"))
-        || (i.type === "shield" && i.getFlag("project-anime", "creationShield")));
-      if (gear.length) await this.actor.deleteEmbeddedDocuments("Item", gear.map((i) => i.id));
-      await this.#stampAttacks();
       return this.render();
     }
 
-    // Enemy Tier. Seed the base line only when there's no build yet to protect. Coming off the
-    // Companion tile also reverts the ally wiring (disposition, token link, companions folder).
-    if (!prev || prev === "companion") {
+    // Enemy Tier. Seed the base line only on the FIRST framing — a Companion build shares the
+    // same base, so it carries over. Coming off the Companion tile reverts the ally wiring
+    // (disposition, token link, companions folder).
+    if (!prev) {
       update["system.hp.max"] = PROJECTANIME.enemyBase.hitBoxes;
       update["system.hp.value"] = PROJECTANIME.enemyBase.hitBoxes;
       update["system.energy.max"] = PROJECTANIME.enemyBase.energyBoxes;
@@ -627,19 +646,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       update["prototypeToken.actorLink"] = false;
       // Only clear the auto-assigned companions home — never a GM-chosen folder.
       if (/companion/i.test(this.actor.folder?.name ?? "")) update.folder = null;
-    }
-    // Leaving the Villain tier folds any Gates back into one pool (capped at 10 without them):
-    // remaining = the current Gate's value + every unbroken later Gate (broken Gates lost their
-    // excess on the break, so they contribute nothing).
-    if (prev === "villain" && key !== "villain" && this.actor.system.gates?.enabled) {
-      const g = this.actor.system.gates;
-      const total = Math.clamp(this.#hbTotal(), 1, PROJECTANIME.maxBoxes);
-      const later = (g.hb ?? []).slice((Number(g.broken) || 0) + 1).reduce((n, v) => n + (Number(v) || 0), 0);
-      update["system.gates.enabled"] = false;
-      update["system.gates.hb"] = [];
-      update["system.gates.broken"] = 0;
-      update["system.hp.max"] = total;
-      update["system.hp.value"] = Math.min((Number(this.actor.system.hp.value) || 0) + later, total);
     }
     await this.actor.update(update);
     this.render();
@@ -744,14 +750,34 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   /*  Styles (Weapon · Armor · Shield)            */
   /* -------------------------------------------- */
 
-  /** Pick the Weapon Style: store the key and stamp its printed line (Damage, Threshold, Range,
-   *  properties) onto every owned weapon — the Basic Attacks, the Natural Attack included. */
-  static async #onPickWeaponStyle(event, target) {
+  /** A Weapon Style card ADDS an attack: an equipped weapon carrying the Style's printed line
+   *  (Damage, Threshold, Range, properties), named and iconed for the Style. Click as many as
+   *  the monster needs — the same Style more than once included; rename inline, fine-tune on
+   *  the item sheet, remove from the attack list. Strikes roll through rollAttack and never
+   *  spend Energy. */
+  static async #onAddStyleAttack(event, target) {
     const key = target.closest("[data-style]")?.dataset.style;
     const st = PROJECTANIME.weaponStyles[key];
     if (!st) return;
-    await this.actor.update({ "system.weaponStyle": key });
-    await this.#stampAttacks();
+    const [min, max] = st.range;
+    await this.actor.createEmbeddedDocuments("Item", [{
+      name: game.i18n.localize(st.label),
+      type: "weapon",
+      img: st.icon,
+      system: {
+        style: key,
+        accuracy: { attrA: "might", attrB: "agility", mod: 0 },
+        damage: { value: st.damage },
+        threshold: st.threshold,
+        range: { type: max > 1 ? "ranged" : "melee", tiles: max, minTiles: min > 1 ? min : 0 },
+        dual: !!st.dual,
+        grip: st.twoHanded ? "two" : "one",
+        twoHandedOnly: !!st.twoHanded,
+        size: 0,
+        equipped: true,
+        hand: "main"
+      }
+    }]);
     this.render();
   }
 
@@ -823,30 +849,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Stamp the chosen Weapon Style's printed line onto every owned weapon (the Basic Attacks).
-   *  Without a Style (a fresh Companion, say) fall back to the Companion damage/threshold. */
-  async #stampAttacks() {
-    const st = PROJECTANIME.weaponStyles[this.actor.system.weaponStyle];
-    const line = st ?? (this.#isCompanion()
-      ? { damage: PROJECTANIME.companion.damage, threshold: PROJECTANIME.companion.threshold, range: [1, 1] }
-      : null);
-    if (!line) return;
-    const [min, max] = line.range;
-    const updates = this.actor.items
-      .filter((i) => i.type === "weapon")
-      .map((i) => ({
-        _id: i.id,
-        "system.style": st ? this.actor.system.weaponStyle : (i.system.style || ""),
-        "system.damage.value": line.damage,
-        "system.threshold": line.threshold,
-        "system.range": { type: max > 1 ? "ranged" : "melee", tiles: max, minTiles: min > 1 ? min : 0 },
-        "system.dual": !!line.dual,
-        "system.grip": line.twoHanded ? "two" : "one",
-        "system.twoHandedOnly": !!line.twoHanded
-      }));
-    if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
-  }
-
   /* -------------------------------------------- */
   /*  Attributes & Boxes (EXP spends)             */
   /* -------------------------------------------- */
@@ -909,43 +911,16 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
   }
 
   /* -------------------------------------------- */
-  /*  Basic Attacks                               */
+  /*  Attacks                                     */
   /* -------------------------------------------- */
 
-  /** Add a Basic Attack: an equipped weapon carrying the Weapon Style's printed line. Strikes
-   *  with it roll through rollAttack and never spend Energy. Weighs nothing (size 0); rename it
-   *  inline and fine-tune it on its item sheet. */
-  static async #onAddAttack() {
-    const st = PROJECTANIME.weaponStyles[this.actor.system.weaponStyle] ?? null;
-    const [min, max] = st?.range ?? [1, 1];
-    await this.actor.createEmbeddedDocuments("Item", [{
-      name: game.i18n.localize("PROJECTANIME.MonsterCreator.basicAttackName"),
-      type: "weapon",
-      img: NATURAL_WEAPON_IMG,
-      system: {
-        style: this.actor.system.weaponStyle || "",
-        accuracy: { attrA: "might", attrB: "agility", mod: 0 },
-        damage: { value: st?.damage ?? 1 },
-        threshold: st?.threshold ?? 10,
-        range: { type: max > 1 ? "ranged" : "melee", tiles: max, minTiles: min > 1 ? min : 0 },
-        dual: !!st?.dual,
-        grip: st?.twoHanded ? "two" : "one",
-        twoHandedOnly: !!st?.twoHanded,
-        size: 0,
-        equipped: true,
-        hand: "main"
-      }
-    }]);
-    this.render();
-  }
-
-  /** Open a Basic Attack's item sheet for full tuning (range, grip, size…). */
+  /** Open an attack's item sheet for full tuning (range, grip, size…). */
   static #onEditAttack(event, target) {
     const id = target.closest("[data-attack-id]")?.dataset.attackId;
     this.actor.items.get(id)?.sheet?.render(true);
   }
 
-  /** Delete a Basic Attack (the innate Natural Attack is protected). */
+  /** Delete an attack (the innate Natural Attack is protected). */
   static async #onRemoveAttack(event, target) {
     const id = target.closest("[data-attack-id]")?.dataset.attackId;
     const item = this.actor.items.get(id);
@@ -954,7 +929,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Commit an inline Basic Attack rename to its weapon item (empty falls back to the default). */
+  /** Commit an inline attack rename to its weapon item (empty falls back to the default). */
   async #commitAttackName(input) {
     const id = input.closest("[data-attack-id]")?.dataset.attackId;
     const item = this.actor.items.get(id);

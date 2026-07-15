@@ -8379,7 +8379,17 @@ body.pa-combat-shown #chat-notifications { display: none; }
   color: var(--pa-gold); font-weight: 600; font-size: 0.8rem;
 }
 
-/* Basic Attack + Talent rows — the name column keeps a real width and its printed line stays
+/* Weapon Style cards double as the attack picker — the badge counts the attacks wearing the
+   Style (a card with any keeps the selected glow; a click always adds another attack). */
+.monster-creator .cc-style-count {
+  position: absolute; top: 0.3rem; right: 0.35rem;
+  min-width: 1.05rem; height: 1.05rem; padding: 0 0.25rem;
+  border-radius: 999px; text-align: center;
+  font-size: 0.65rem; font-weight: 700; line-height: 1.05rem;
+  color: #1d1602; background: var(--pa-gold);
+}
+
+/* Attack + Talent rows — the name column keeps a real width and its printed line stays
    on one line; the selects share the rest and shrink instead of crushing the name (a native
    select refuses to shrink without min-width: 0). */
 .monster-creator .cc-attack-row .cc-skill-info { flex: 1 1 9rem; }
