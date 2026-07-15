@@ -16,8 +16,9 @@
  *
  * A VILLAIN records three Luck Dice (base d6, stepped up with EXP) and may be built WITH GATES:
  * its purchased hit boxes divide across ⌈party ÷ 2⌉ Gates (no hit-box cap while gated), energy
- * stays one pool, it acts twice per Enemy Phase, and each Gate budgets two Techniques (a break
- * unlocks the next Gate's — Techniques carry a `gate` flag the roll path enforces).
+ * stays one pool, and it acts twice per Enemy Phase. Techniques carry no count cap; each MAY be
+ * hand-assigned to a Gate (a break unlocks the next Gate's — the `gate` flag the roll path and
+ * sheet enforce). Assignment is manual only: nothing ever auto-writes or rewrites the flags.
  *
  * Like the Character Creator it operates on the LIVE actor and registers in `actor.apps`, so
  * changes refresh it live; it sets the same `flags.project-anime.creationComplete` on finish.
@@ -86,9 +87,9 @@ function livePartySize() {
   return seen.size || 4;
 }
 
-/** The party's earned XP, read off the roster: the most advancements any member Character has
- *  EARNED (unspent + every ledger spend) — the party earns milestones together, so one member's
- *  earned total is the party's. 0 with no roster. */
+/** The party's earned XP, read off the roster: the most XP any member Character has EARNED
+ *  (unspent + every ledger spend at its XP price) — the party earns milestones together, so one
+ *  member's earned total is the party's. 0 with no roster. */
 function rosterPartyXp() {
   let best = 0;
   const seen = new Set();
@@ -281,8 +282,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
       ctx.gates = {
         enabled: gatesOn,
         count: gatesOn ? sys.gates.hb.length : gateCount(this.#partySize()),
-        dist: gatesOn ? sys.gates.hb.join(" / ") : "",
-        techniquesPerGate: PROJECTANIME.villain.techniquesPerGate
+        dist: gatesOn ? sys.gates.hb.join(" / ") : ""
       };
     }
 
@@ -371,7 +371,8 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     ctx.attackCount = ctx.attacks.length;
 
     // Techniques — built with the Skill Builder or picked from the Skill Browser (2 EXP each).
-    // A gated Villain budgets two per Gate; rows carry a Gate select the roll path enforces.
+    // No count cap. A gated Villain's rows carry an optional Gate select ("—" = always
+    // available) the roll path and sheet enforce; assignment is manual only.
     const gatesOn = this.#gatesOn();
     const gateOptions = gatesOn ? Array.fromRange(this.actor.system.gates.hb.length).map((i) => i + 1) : [];
     ctx.skills = this.actor.items
@@ -392,9 +393,6 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         };
       });
     ctx.skillCount = ctx.skills.length;
-    ctx.techBudget = gatesOn
-      ? String(PROJECTANIME.villain.techniquesPerGate * this.actor.system.gates.hb.length)
-      : "";
     ctx.gatesOn = gatesOn;
 
     // Review (last step) — a compact summary badge (Tier + Threat + EXP).
@@ -675,7 +673,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         "system.gates.broken": 0,
         "system.hp.value": hb[0]
       });
-      await this.#assignSkillGates(hb.length);
+      await this.#clampSkillGates(hb.length);
     }
     this.render();
   }
@@ -698,13 +696,17 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Toggle the Villain's Gates: ON divides the purchased hit boxes across ⌈party ÷ 2⌉ Gates
-   *  (and chunk-assigns unflagged Techniques, two per Gate); OFF folds them back into one pool
-   *  (re-capped at 10 — the no-cap allowance is a Gates privilege). */
+  /** Toggle the Villain's Gates: ON divides the purchased hit boxes across ⌈party ÷ 2⌉ Gates;
+   *  OFF folds them back into one pool (re-capped at 10 — the no-cap allowance is a Gates
+   *  privilege). Branches off #gatesOn — the exact state the checkbox rendered from — so an
+   *  inconsistent `enabled` flag (e.g. an empty Gate layout) can never invert the toggle and
+   *  silently strip the Gates out from under the Techniques' locks. Gate flags are untouched
+   *  either way: OFF just makes every Technique available (the lock only binds while Gates
+   *  are enabled), and re-enabling finds the assignments where they were left. */
   static async #onToggleGates() {
     if (!this.#isVillain()) return;
     const sys = this.actor.system;
-    if (!sys.gates?.enabled) {
+    if (!this.#gatesOn()) {
       const total = this.#hbTotal();
       const hb = distributeGates(total, gateCount(this.#partySize()));
       await this.actor.update({
@@ -713,7 +715,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
         "system.gates.broken": 0,
         "system.hp.value": hb[0]
       });
-      await this.#assignSkillGates(hb.length);
+      await this.#clampSkillGates(hb.length);
     } else {
       // Fold back into one pool (re-capped at 10 — the no-cap allowance is a Gates privilege):
       // remaining = the current Gate's value + every unbroken later Gate.
@@ -731,17 +733,16 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
     this.render();
   }
 
-  /** Reconcile Technique Gate flags with a (re)laid Gate count: chunk-assign unflagged
-   *  Techniques in list order (two per Gate) and clamp any stale flag past the last Gate —
-   *  a stranded flag would lock the Technique for the whole fight (rollSkill's gate check). */
-  async #assignSkillGates(count) {
-    const per = PROJECTANIME.villain.techniquesPerGate;
+  /** Reconcile Technique Gate flags with a (re)laid Gate count: clamp any stale flag past the
+   *  last Gate — a stranded flag would lock the Technique for the whole fight (rollSkill's gate
+   *  check). Assignment itself is manual only (the row selects): unflagged Techniques stay "—"
+   *  (always available) and hand-set flags are never rewritten. */
+  async #clampSkillGates(count) {
     const updates = [];
-    this.actor.items.filter((i) => i.type === "skill").sort(bySort).forEach((item, i) => {
+    for (const item of this.actor.items.filter((i) => i.type === "skill")) {
       const cur = Number(item.getFlag("project-anime", "gate")) || 0;
-      if (!cur) updates.push({ _id: item.id, "flags.project-anime.gate": Math.min(count, Math.floor(i / per) + 1) });
-      else if (cur > count) updates.push({ _id: item.id, "flags.project-anime.gate": count });
-    });
+      if (cur > count) updates.push({ _id: item.id, "flags.project-anime.gate": count });
+    }
     if (updates.length) await this.actor.updateEmbeddedDocuments("Item", updates);
   }
 
@@ -886,7 +887,7 @@ export class MonsterCreatorApp extends HandlebarsApplicationMixin(ApplicationV2)
           "system.gates.hb": hb,
           "system.hp.value": Math.clamp((Number(this.actor.system.hp.value) || 0) + grown, 0, hb[idx] ?? 1)
         });
-        await this.#assignSkillGates(hb.length);
+        await this.#clampSkillGates(hb.length);
         return this.render();
       }
       const authored = Number(this.actor._source.system.hp.max) || 1;

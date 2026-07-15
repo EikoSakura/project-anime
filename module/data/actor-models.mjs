@@ -25,7 +25,7 @@ function advancementLogField() {
     new fields.SchemaField({
       id: new fields.StringField({ required: true, blank: false }),
       label: new fields.StringField({ required: true, blank: true }),
-      // Advancements spent (1 for every option on the list).
+      // XP spent (the option's price on the Advancement List).
       amount: new fields.NumberField({ ...requiredInteger, initial: 1 }),
       // One of PROJECTANIME.advancementOptionKeys — drives the slot caps + how Refund reverses it.
       kind: new fields.StringField({ required: true, blank: false, initial: "technique" }),
@@ -233,8 +233,8 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
 
     schema.gold = new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 });
 
-    // Advancements (rules: Advancement) — earned at story Milestones (Episode 2 / Arc 4 /
-    // Season 6), spent on the slot-capped Advancement List. `value` = unspent advancements;
+    // XP (rules: Advancement) — earned at story Milestones (Episode 2 / Arc 4 / Season 6),
+    // spent on the Advancement List at each option's XP price. `value` = unspent XP;
     // `log` = one refundable entry per spend (the source of truth for slot usage: slots used
     // per option = count of log entries of that kind).
     schema.advancement = new fields.SchemaField({
@@ -287,7 +287,7 @@ export class ProjectAnimeCharacter extends ProjectAnimeActorBase {
     this.woundCount = (this.wounds ?? []).length;
     super.prepareDerivedData();
 
-    // Luck Die size (rules: Luck) — base d6, stepped d6→d8→d10→d12 by each "Raise the Luck Die"
+    // Luck Die size (rules: Luck) — base d6, stepped d6→d8→d10→d12 by each "Step Up Luck Dice"
     // advancement (a "luckDie" ledger entry). Its 3-slot cap hard-limits this to d12. Held Luck
     // Dice keep their rolled faces; they reroll at this size on the next rest.
     const luckSteps = (this.advancement?.log ?? []).filter((e) => e.kind === "luckDie").length;
@@ -353,10 +353,10 @@ export class ProjectAnimeNPC extends ProjectAnimeActorBase {
     schema.armorStyle = new fields.StringField({ required: false, blank: true, initial: "" });
     schema.shieldStyle = new fields.StringField({ required: false, blank: true, initial: "" });
 
-    // Advancements (rules: Companion Advancement) — a bonded Companion earns 1 whenever its
-    // bonder does (the Milestone tool pays them alongside the party) and spends on the
-    // Companion slot caps. Same pool + refundable ledger shape as Characters; monsters simply
-    // never receive any.
+    // XP (rules: Companion Advancement) — a bonded Companion earns 1 point per milestone its
+    // bonder's XP came from (the Milestone tool pays them alongside the party) and spends on
+    // the same Advancement List. Same pool + refundable ledger shape as Characters; monsters
+    // simply never receive any.
     schema.advancement = new fields.SchemaField({
       value: new fields.NumberField({ ...requiredInteger, initial: 0, min: 0 }),
       log: advancementLogField()

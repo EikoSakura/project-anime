@@ -1,6 +1,6 @@
 import { rollCheck, useConsumable, contextRemoveEffect, postCard, cardHTML } from "../helpers/dice.mjs";
 import { enhanceSelects } from "../helpers/select.mjs";
-import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion, healthStatus, npcSpentExp, npcTotalExp } from "../helpers/config.mjs";
+import { PROJECTANIME, rangeLabel, physicalRangeLabel, skillEffectKeys, getTalent, isCompanion, healthStatus, npcSpentExp, npcTotalExp, gateLockedTechnique } from "../helpers/config.mjs";
 import { isImageIcon } from "../helpers/config.mjs";
 import { getBioFields } from "../helpers/bio-fields.mjs";
 import { summarizeRules, applyEffectCopy } from "../helpers/effects.mjs";
@@ -498,6 +498,9 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
     // carries its Effect glyph + role colour, rank, energy cost, pinned state, and
     // rules-validation flags (over Modifier budget / unaffordable at current Energy).
     skills.sort(bySort);
+    // A gated Villain's Technique assigned to a still-sealed Gate stays off the sheet entirely
+    // (drawer + quick panel) until its Gate opens — a break reveals the next Gate's.
+    const unlocked = skills.filter((i) => !gateLockedTechnique(this.actor, i));
     const cfgS = CONFIG.PROJECTANIME;
     const curEnergy = this.actor.system.energy?.value ?? 0;
     const mapDrawerSkill = (i) => {
@@ -540,7 +543,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
       { key: "react", label: game.i18n.localize("PROJECTANIME.Quick.react") },
       { key: "passive", label: game.i18n.localize("PROJECTANIME.Quick.passive") }
     ]
-      .map((g) => ({ ...g, skills: skills.filter((i) => (i.system?.actionType || "action") === g.key).map(mapDrawerSkill) }))
+      .map((g) => ({ ...g, skills: unlocked.filter((i) => (i.system?.actionType || "action") === g.key).map(mapDrawerSkill) }))
       .filter((g) => g.skills.length);
 
     // Advancement summary for the drawer strip; the full refundable ledger lives in the
@@ -605,7 +608,7 @@ export class ProjectAnimeActorSheet extends HandlebarsApplicationMixin(ActorShee
           hasMeta: !!(accHTML || dmgLabel || rangeText || descHTML)
         };
       }));
-    const readied = skills.filter((i) => i.getFlag("project-anime", "readied"));
+    const readied = unlocked.filter((i) => i.getFlag("project-anime", "readied"));
     const mapSkill = (i) => ({ id: i.id, name: i.name, img: i.img, energyCost: i.system?.energyCost ?? 0 });
     // Pinned skills, split into the three action-type groups (empty groups drop out).
     context.quickSkillGroups = [

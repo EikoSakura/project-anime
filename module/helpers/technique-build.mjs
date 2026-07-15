@@ -52,6 +52,7 @@ export function blankTechniqueDraft() {
     secondaryDamagePool: "hp",
     modifiers: [],
     potentCount: 1,
+    potentPool: "",
     keenCount: 1,
     customModifierHeavy: false,
     inflictStatus: "",
@@ -92,6 +93,7 @@ export function techniqueDraftFromSystem(s = {}) {
     // The legacy "none" marker means "no Modifiers" — the V2 list simply starts empty.
     modifiers: (s.modifiers ?? []).filter((m) => m !== "none"),
     potentCount: Math.clamp(Math.round(Number(s.potentCount) || 1), 1, 2),
+    potentPool: ["hp", "energy"].includes(s.potentPool) ? s.potentPool : "",
     keenCount: Math.clamp(Math.round(Number(s.keenCount) || 1), 1, 2),
     customModifierHeavy: !!s.customModifierHeavy,
     inflictStatus: s.inflictStatus ?? "",
@@ -145,7 +147,7 @@ export function toggleTechniqueModifier(d, key) {
     d.modifiers.splice(at, 1);
     // Dropping a Modifier clears its creation-time picks, so re-adding starts clean.
     if (key === "custom") d.customModifierHeavy = false;
-    if (key === "potent") d.potentCount = 1;
+    if (key === "potent") { d.potentCount = 1; d.potentPool = ""; }
     if (key === "keen") d.keenCount = 1;
     if (key === "inflict") d.inflictStatus = "";
     if (key === "inflictSevere") d.inflictSevereStatus = "";
@@ -198,8 +200,8 @@ export function normalizeTechniqueDraft(d) {
   if (!auraOn && !selfArea && d.range.scope === "self") d.target = "self";
   if (auraOn && d.target === "self") d.target = "ally";
   if (selfArea && d.target === "self") d.target = "any";
-  // A multi-take Modifier's count only means something while it's on.
-  if (!d.modifiers.includes("potent")) d.potentCount = 1;
+  // A multi-take Modifier's count (and Potent's aimed pool) only mean something while it's on.
+  if (!d.modifiers.includes("potent")) { d.potentCount = 1; d.potentPool = ""; }
   if (!d.modifiers.includes("keen")) d.keenCount = 1;
   return d;
 }
@@ -272,6 +274,7 @@ export function assembleTechniqueSystem(d) {
     secondaryDamagePool: d.secondaryDamagePool === "energy" ? "energy" : "hp",
     modifiers: mods,
     potentCount: mods.includes("potent") ? Math.clamp(Math.round(Number(d.potentCount) || 1), 1, 2) : 1,
+    potentPool: mods.includes("potent") && ["hp", "energy"].includes(d.potentPool) ? d.potentPool : "",
     keenCount: mods.includes("keen") ? Math.clamp(Math.round(Number(d.keenCount) || 1), 1, 2) : 1,
     customModifierHeavy: mods.includes("custom") ? !!d.customModifierHeavy : false,
     inflictStatus: mods.includes("inflict") && (cfg.inflictStatuses ?? []).includes(d.inflictStatus) ? d.inflictStatus : "",

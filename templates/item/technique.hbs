@@ -205,6 +205,14 @@
             <select name="system.drainPool">{{selectOptions ../../config.damagePools selected=../../system.drainPool localize=true}}</select>
           </label>
           {{/if}}
+          {{#if mod.showPotent}}
+          <label>{{localize "PROJECTANIME.Skill.field.potentPool"}}
+            <select name="system.potentPool">
+              <option value="">{{localize "PROJECTANIME.Skill.potentMatch"}}</option>
+              {{selectOptions ../../config.damagePools selected=../../system.potentPool localize=true}}
+            </select>
+          </label>
+          {{/if}}
           {{#if mod.showAnalyze}}
           <label>{{localize "PROJECTANIME.Skill.field.analyzeCategory"}}
             <select name="system.analyzeCategory">{{selectOptions ../../tech.analyzeChoices selected=../../system.analyzeCategory}}</select>

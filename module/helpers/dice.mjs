@@ -911,16 +911,22 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
     flat = 1;
   }
 
-  // Potent (+1 box marked or cleared per take, up to two).
-  let potent = 0;
-  if (isSkill && (item.system.modifiers ?? []).includes("potent")) {
-    potent = PROJECTANIME.potentBonus * modifierTakes("potent", item.system);
-    flat += potent;
-  }
-
   // A Heal restores its chosen pool; a Strike marks hit boxes.
   const slotPool = spec?.damagePool ?? item.system?.damagePool;
   const pool = heal && slotPool === "energy" ? "energy" : "hp";
+
+  // Potent (+1 box marked or cleared per take, up to two) — aimed at its chosen pool
+  // (`potentPool`; "" = the Technique's own). A matching pool folds into the amount above
+  // (the classic +1); a DIFFERENT pool splits off as its own application — a Strike marks
+  // energy boxes, a Heal restores the other pool. Charge doubles the split like the rest.
+  let potent = 0;
+  let potentSplit = 0;
+  const potentPool = ["hp", "energy"].includes(item.system?.potentPool) ? item.system.potentPool : pool;
+  if (isSkill && (item.system.modifiers ?? []).includes("potent")) {
+    potent = PROJECTANIME.potentBonus * modifierTakes("potent", item.system);
+    if (potentPool === pool) flat += potent;
+    else potentSplit = potent * (charged ? 2 : 1);
+  }
 
   // Flat modifiers from effects / weapon adjustments (GM-authored bonuses).
   let mod = 0;
@@ -939,7 +945,7 @@ async function computeDamageRoll(actor, item, { target = null, charged = false, 
   const roll = new Roll(String(raw));
   await roll.evaluate();
 
-  return { roll, raw, isSkill, heal, pool, dmgReasons, rmods, charged, potent, thresholdMet };
+  return { roll, raw, isSkill, heal, pool, dmgReasons, rmods, charged, potent, potentPool, potentSplit, thresholdMet };
 }
 
 /**
@@ -1040,6 +1046,8 @@ export async function rollDamage(actor, item, { targetUuids = null, charged = fa
     rows.push({ uuid: targetActor.uuid, name: targetActor.name, img: targetActor.img, amount: bc.amount, heal: adj.heal, pool, calc: bc.calc, undone: false });
     if (!adj.heal) dealt = bc.amount;
   }
+  // Potent aimed at the OTHER pool lands as its own application (its row carries the label).
+  if (targetActor) await applyPotentSplit(dmg, targetActor, rows, notes);
   // House rule: a damaging attack/skill visits its on-hit riders (conditions / Decay / applied
   // effects) on the target ONLY when the blow dealt >0 net damage — a fully mitigated hit (immune,
   // armour-soaked, Barrier-absorbed, or absorbed as healing → dealt 0) inflicts nothing. Riders ride
@@ -1077,9 +1085,27 @@ function damageNotes(dmg) {
   const lines = [];
   if (dmg.charged) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.charged")}</em>`);
   if (dmg.dmgReasons.includes("threshold")) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.thresholdBonus")}</em>`);
-  if (dmg.potent) lines.push(`<em class="muted">${i18n("PROJECTANIME.Roll.potent", { n: dmg.potent })}</em>`);
+  if (dmg.potent) {
+    lines.push(`<em class="muted">${dmg.potentSplit
+      ? i18n("PROJECTANIME.Roll.potentPool", { n: dmg.potentSplit, pool: i18n(`PROJECTANIME.Skill.damagePool.${dmg.potentPool}`) })
+      : i18n("PROJECTANIME.Roll.potent", { n: dmg.potent })}</em>`);
+  }
   const modLine = rollModLine(dmg.rmods); if (modLine) lines.push(modLine);
   return lines;
+}
+
+/** Apply Potent's SPLIT boxes — the bonus aimed at a DIFFERENT pool than the Technique's own
+ *  (rules: Potent — the bonus box may mark or clear energy instead). Marks on a damaging
+ *  Technique, clears on a Heal; a Barrier on that pool absorbs its share like any hit, and a
+ *  Curse still voids the clear. Pushes its own undo row, labelled with the Modifier. */
+async function applyPotentSplit(dmg, ta, rows, lines) {
+  const n = dmg.potentSplit;
+  if (!n || !ta) return;
+  const pool = dmg.potentPool;
+  if (dmg.heal && curseBlocks(ta, pool)) { lines.push(curseNote(ta.name, pool)); return; }
+  const bc = barrierCalc(ta, { amount: n, heal: dmg.heal, line: i18n("PROJECTANIME.Skill.modifier.potent") }, pool);
+  await routeApply(ta, ta.uuid, n, dmg.heal, pool);
+  rows.push({ uuid: ta.uuid, name: ta.name, img: ta.img, amount: bc.amount, heal: dmg.heal, pool, calc: bc.calc, undone: false });
 }
 
 /** Multi-target damage card: one fixed amount, applied per target. */
@@ -1112,6 +1138,8 @@ async function postAoeDamageCard(actor, item, targetActors, { charged = false, s
       // Nothing dealt (e.g. immune) — note it, but there's nothing to apply or undo.
       lines.push(`<span class="card-target-row"><strong>${escHTML(ta.name)}</strong> <span class="muted">${adj.line}</span></span>`);
     }
+    // Potent aimed at the OTHER pool lands as its own application (its row carries the label).
+    await applyPotentSplit(dmg, ta, rows, lines);
     // House rule: an area Strike visits its on-hit riders on each target ONLY where the blow dealt
     // >0 net damage (a fully mitigated target takes none).
     if (doRiders && through > 0) {
@@ -1886,6 +1914,8 @@ async function resolveChain(actor, item, chainTokens, { charged = false } = {}) 
     } else {
       lines.push(`<span class="card-target-row"><span class="muted">${adj.line}</span></span>`);
     }
+    // Potent aimed at the OTHER pool lands as its own application (its row carries the label).
+    await applyPotentSplit(dmg, ta, rows, lines);
     // House rule: a leap inflicts its riders (conditions / Lingering) only where it dealt damage.
     if (!adj.heal && through > 0) {
       for (const c of collectInflictedConditions(item, ta)) {

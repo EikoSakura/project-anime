@@ -57,12 +57,12 @@ export function tierNumeral(tier = partyTier()) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Milestone Advancements (V2)                                               */
+/*  Milestone XP (rules: Advancement)                                         */
 /* -------------------------------------------------------------------------- */
 
-/** The Milestone award dialog — the campaign's advancement faucet (rules: Advancement —
- *  Episode 2 · Arc 4 · Season 6; each milestone is picked on its own, no stacking implied by
- *  the doc's table). Awards the chosen milestones' advancements to every character in the
+/** The Milestone award dialog — the campaign's XP faucet (rules: Advancement —
+ *  Episode 2 · Arc 4 · Season 6 XP; each milestone is picked on its own, no stacking implied
+ *  by the doc's table). Awards the chosen milestones' XP to every character in the
  *  party folder, posts one card, and advances the Season counter when a Season is included.
  *  GM only. */
 export async function promptMilestoneAward() {
@@ -74,7 +74,7 @@ export async function promptMilestoneAward() {
   const cfg = CONFIG.PROJECTANIME?.milestones ?? {};
   const row = (key) => `
     <label class="ms-row"><input type="checkbox" name="${key}" />
-      <span>${L(`PROJECTANIME.Chronicle.milestones.${key}`)}</span><b>+${cfg[key]?.advancements ?? 0}</b></label>`;
+      <span>${L(`PROJECTANIME.Chronicle.milestones.${key}`)}</span><b>+${cfg[key]?.xp ?? 0}</b></label>`;
   const res = await foundry.applications.api.DialogV2.wait({
     window: { title: L("PROJECTANIME.Chronicle.milestone"), icon: "fa-solid fa-flag-checkered" },
     classes: ["project-anime"],
@@ -96,17 +96,19 @@ export async function promptMilestoneAward() {
 
   const parts = [];
   for (const key of ["episode", "arc", "season"]) {
-    if (res[key]) parts.push({ key, n: cfg[key]?.advancements ?? 0 });
+    if (res[key]) parts.push({ key, n: cfg[key]?.xp ?? 0 });
   }
   if (!parts.length) return;
   const total = parts.reduce((n, p) => n + p.n, 0);
 
-  // Companions advance with their bonders (rules: Companion Advancement — the Companion earns
-  // 1 whenever you earn 1), so each earns the same total.
+  // Companions earn 1 point per milestone their bonder's XP came from (rules: Companion
+  // Advancement — "whenever you earn XP, your Companion earns 1 point of its own").
+  const companionXp = parts.length;
   const companions = partyCompanions(party);
-  await Promise.all([...members, ...companions].map((m) =>
-    m.update({ "system.advancement.value": (m.system.advancement?.value ?? 0) + total })
-  ));
+  await Promise.all([
+    ...members.map((m) => m.update({ "system.advancement.value": (m.system.advancement?.value ?? 0) + total })),
+    ...companions.map((c) => c.update({ "system.advancement.value": (c.system.advancement?.value ?? 0) + companionXp }))
+  ]);
 
   let seasonLine = "";
   if (res.season) {
@@ -117,8 +119,8 @@ export async function promptMilestoneAward() {
   const breakdown = parts.map((p) => `${L(`PROJECTANIME.Chronicle.milestones.${p.key}`)} +${p.n}`).join(" · ");
   const lines = [
     '<span class="card-rule"></span>',
-    ...members.map((m) => ({ k: m.name, v: `+${total} ${L("PROJECTANIME.Advance.advancements")}`, cls: "good" })),
-    ...companions.map((c) => ({ icon: "fa-paw", k: c.name, v: `+${total} ${L("PROJECTANIME.Advance.advancements")}`, cls: "good" }))
+    ...members.map((m) => ({ k: m.name, v: `+${total} ${L("PROJECTANIME.Advance.xp")}`, cls: "good" })),
+    ...companions.map((c) => ({ icon: "fa-paw", k: c.name, v: `+${companionXp} ${L("PROJECTANIME.Advance.xp")}`, cls: "good" }))
   ];
   if (seasonLine) lines.push(seasonLine);
   await ChatMessage.create({

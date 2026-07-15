@@ -578,7 +578,7 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render(false);
   }
 
-  /** Milestone SP (v0.03): Episode 2 / Arc 3 / Season 5, stacking — the campaign's SP faucet. */
+  /** Milestone XP (rules: Advancement): Episode 2 / Arc 4 / Season 6 — the campaign's XP faucet. */
   static async #onMilestone() {
     if (!this.isGM) return;
     await promptMilestoneAward();
@@ -714,8 +714,8 @@ export class Codex extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  /** Add rewards from the form: the filled Gold box becomes its own reward chip. (SP retired
-   *  v0.03 — the Milestone tool pays Episode/Arc/Season SP; quests never pay SP directly.) */
+  /** Add rewards from the form: the filled Gold box becomes its own reward chip. (Quests never
+   *  pay XP directly — the Milestone tool pays Episode/Arc/Season XP.) */
   static async #onAddReward(event, target) {
     const box = target.closest(".add-reward");
     if (!box) return;

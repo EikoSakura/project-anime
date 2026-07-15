@@ -1,4 +1,4 @@
-import { PROJECTANIME, isCompanion } from "./config.mjs";
+import { PROJECTANIME } from "./config.mjs";
 
 /**
  * Advancement ledger view-model (V2). Shared by the actor sheet (the drawer summary strip),
@@ -52,12 +52,11 @@ export function advancementLedger(actor) {
       .sort((a, b) => b.time - a.time);
   }
 
-  // A Companion spends against its own caps where they differ (rules: Companion Advancement).
-  const companion = isCompanion(actor);
+  // One slot table for everyone (rules: Advancement — Characters and Companions alike).
   const slots = {};
   for (const key of PROJECTANIME.advancementOptionKeys) {
     const opt = PROJECTANIME.advancementOptions[key] ?? {};
-    const max = (companion ? opt.companionSlots : null) ?? opt.slots ?? 0;
+    const max = opt.slots ?? 0;
     const u = used[key] ?? 0;
     slots[key] = { used: u, max, full: u >= max };
   }

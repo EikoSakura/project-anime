@@ -109,6 +109,10 @@ export class ProjectAnimeSkill extends ProjectAnimeItemBase {
     schema.modifiers = new fields.ArrayField(new fields.StringField({ blank: false }), { initial: [] });
     // Potent can be taken twice (+1 box each) — the stored take count (1–2).
     schema.potentCount = new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 2 });
+    // The pool Potent's bonus box(es) mark or clear: "" = the Technique's own pool (fold into
+    // its damage/heal — the default); "hp"/"energy" aim them explicitly, splitting off as
+    // their own application when the pools differ (e.g. a Strike marking energy boxes).
+    schema.potentPool = new fields.StringField({ required: false, blank: true, initial: "" });
     // Keen can be taken twice (−1 attack Threshold each) — the stored take count (1–2).
     schema.keenCount = new fields.NumberField({ ...requiredInteger, initial: 1, min: 1, max: 2 });
     // The free-form "Custom" Modifier can be flagged Heavy per-Technique (the Builder checkbox).

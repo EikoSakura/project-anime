@@ -218,8 +218,9 @@ export function inlineCalcHTML(kind, arg, doc, raw) {
           return calcSpan(Number(sys.damage?.value) || 0, L("PROJECTANIME.Prose.calcDamage"));
         if (item?.type === "skill" && skillDieSpecs(sys).some((ds) => ds.effect === "strike")) {
           // Weapon-range Strikes deal the weapon's Damage; any other range marks 1 box.
-          // Potent adds its bonus per take — mirror the damage engine (dice.mjs).
-          const potent = (sys.modifiers ?? []).includes("potent")
+          // Potent adds its bonus per take — mirror the damage engine (dice.mjs): aimed at
+          // energy it splits off as its own application, so it stays out of this figure.
+          const potent = (sys.modifiers ?? []).includes("potent") && sys.potentPool !== "energy"
             ? (CONFIG.PROJECTANIME?.potentBonus ?? 1) * modifierTakes("potent", sys) : 0;
           return sys.range?.scope === "weapon"
             ? calcSpan(potent ? `${L("PROJECTANIME.Prose.calcWeaponDamage")} + ${potent}` : L("PROJECTANIME.Prose.calcWeaponDamage"),

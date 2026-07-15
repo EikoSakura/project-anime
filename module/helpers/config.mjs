@@ -117,7 +117,7 @@ PROJECTANIME.baseEnergyRegen = 1;
 PROJECTANIME.criticalMarkedFraction = 0.75;
 
 /** Luck Dice: three dice, recorded at creation, restored by resting. The die STARTS at d6 and
- *  steps up d6→d8→d10→d12 as the character buys the "Raise the Luck Die" advancement (capped at
+ *  steps up d6→d8→d10→d12 as the character buys the "Step Up Luck Dice" advancement (capped at
  *  3 steps by its slot cap). The effective size per actor is derived in the Character data model
  *  (`system.luckDie`); `luckDie` here is only the base, `luckDieMax` the ceiling. */
 PROJECTANIME.luckDiceCount = 3;
@@ -764,32 +764,30 @@ PROJECTANIME.dispositions = {
 };
 
 /* -------------------------------------------- */
-/*  Advancement (V2 milestones)                 */
+/*  Advancement (XP milestones)                 */
 /* -------------------------------------------- */
 
-/** Milestones and the advancements each pays (rules: Advancement). */
+/** Milestones and the XP each pays (rules: Advancement). */
 PROJECTANIME.milestones = {
-  episode: { label: "PROJECTANIME.Milestone.episode", advancements: 2 },
-  arc:     { label: "PROJECTANIME.Milestone.arc",     advancements: 4 },
-  season:  { label: "PROJECTANIME.Milestone.season",  advancements: 6 }
+  episode: { label: "PROJECTANIME.Milestone.episode", xp: 2 },
+  arc:     { label: "PROJECTANIME.Milestone.arc",     xp: 4 },
+  season:  { label: "PROJECTANIME.Milestone.season",  xp: 6 }
 };
 PROJECTANIME.milestoneKeys = ["episode", "arc", "season"];
 
-/** The Advancement List — each option's slot cap (`slots`) and, where the Companion table
- *  differs (rules: Companion Advancement), the Companion's own cap (`companionSlots`,
- *  Infinity = uncapped) and per-purchase price in advancements (`companionCost`; a Character
- *  always pays 1). Rebuild does not consume a Create-a-Technique slot. */
+/** The Advancement List (rules: Advancement) — each option's XP price (`cost`) and slot cap
+ *  (`slots`, Infinity = uncapped). One table for Characters and Companions alike.
+ *  Rebuild does not consume a Create-a-Technique slot. */
 PROJECTANIME.advancementOptions = {
-  technique:  { label: "PROJECTANIME.Advance.technique",  slots: 6, companionSlots: Infinity, companionCost: 2 },
-  energy:     { label: "PROJECTANIME.Advance.energy",     slots: 5, companionCost: 1 },
-  hitBox:     { label: "PROJECTANIME.Advance.hitBox",     slots: 5, companionCost: 1 },
-  talent:     { label: "PROJECTANIME.Advance.talent",     slots: 2, companionSlots: Infinity, companionCost: 2 },
-  rebuild:    { label: "PROJECTANIME.Advance.rebuild",    slots: 2, companionSlots: Infinity, companionCost: 1 },
-  attribute:  { label: "PROJECTANIME.Advance.attribute",  slots: 4, companionSlots: Infinity, companionCost: 2 },
-  talentStep: { label: "PROJECTANIME.Advance.talentStep", slots: 8, companionSlots: Infinity, companionCost: 1 },
-  // Raise the Luck Die one size (d6→d8→d10→d12); 3 slots = the d12 ceiling. Characters and
-  // Companions both step it — a Companion pays 2 per step.
-  luckDie:    { label: "PROJECTANIME.Advance.luckDie",    slots: 3, companionCost: 2 }
+  technique:  { label: "PROJECTANIME.Advance.technique",  cost: 2, slots: Infinity },
+  energy:     { label: "PROJECTANIME.Advance.energy",     cost: 1, slots: 5 },
+  hitBox:     { label: "PROJECTANIME.Advance.hitBox",     cost: 1, slots: 5 },
+  talent:     { label: "PROJECTANIME.Advance.talent",     cost: 2, slots: Infinity },
+  rebuild:    { label: "PROJECTANIME.Advance.rebuild",    cost: 1, slots: Infinity },
+  attribute:  { label: "PROJECTANIME.Advance.attribute",  cost: 2, slots: Infinity },
+  talentStep: { label: "PROJECTANIME.Advance.talentStep", cost: 1, slots: Infinity },
+  // Step Up Luck Dice one size (d6→d8→d10→d12); 3 slots = the d12 ceiling.
+  luckDie:    { label: "PROJECTANIME.Advance.luckDie",    cost: 2, slots: 3 }
 };
 PROJECTANIME.advancementOptionKeys = ["technique", "energy", "hitBox", "talent", "rebuild", "attribute", "talentStep", "luckDie"];
 
@@ -988,14 +986,13 @@ export function npcSpentExp(actor) {
 /** A Villain is one enemy built to challenge the whole party — same build rules, Threat = the
  *  full encounter budget. It records Luck Dice like a Player Character (three, base d6,
  *  stepped up with EXP). A climax-ending Villain is built WITH GATES: its hit boxes divide
- *  across ⌈party ÷ 2⌉ Gates, energy stays one shared pool, it acts twice per Enemy Phase and
- *  budgets two Techniques per Gate; breaking a Gate loses excess damage, clears every
- *  detrimental status, and unlocks the next Gate's Techniques. The same Villain can fight
- *  without Gates in one scene and with Gates in another. */
+ *  across ⌈party ÷ 2⌉ Gates, energy stays one shared pool, and it acts twice per Enemy Phase.
+ *  Techniques carry no count cap; each may be hand-assigned to a Gate. Breaking a Gate loses
+ *  excess damage, clears every detrimental status, and unlocks the next Gate's Techniques.
+ *  The same Villain can fight without Gates in one scene and with Gates in another. */
 PROJECTANIME.villain = {
   luckDiceCount: 3,
-  actionsPerPhase: 2,
-  techniquesPerGate: 2
+  actionsPerPhase: 2
 };
 
 /** A Villain's Gate count = half the party size, rounded up (min 1). */

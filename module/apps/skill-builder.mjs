@@ -377,9 +377,10 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         showInflict: selected && key === "inflict",
         showInflictSevere: selected && key === "inflictSevere",
         showDrain: selected && key === "drain",
+        showPotent: selected && key === "potent",
         showAnalyze: selected && key === "analyze",
         showManifest: selected && key === "manifest" && ctx.manifestHasChoices,
-        hasConfig: selected && (["inflict", "inflictSevere", "drain", "analyze"].includes(key)
+        hasConfig: selected && (["inflict", "inflictSevere", "drain", "potent", "analyze"].includes(key)
           || (key === "manifest" && ctx.manifestHasChoices))
       };
     };
@@ -445,6 +446,8 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
         ? `${conditionLabel(sysShape.inflictSevereStatus)}${(cfg.poolChoiceStatuses ?? []).includes(sysShape.inflictSevereStatus)
           ? ` · ${game.i18n.localize(cfg.damagePools[sysShape.inflictPool] ?? "")}` : ""}` : "",
       drain: sysShape.modifiers.includes("drain") ? game.i18n.localize(cfg.damagePools[sysShape.drainPool] ?? "") : "",
+      potent: sysShape.modifiers.includes("potent") && sysShape.potentPool
+        ? game.i18n.localize(cfg.damagePools[sysShape.potentPool] ?? "") : "",
       analyze: sysShape.modifiers.includes("analyze") ? (ctx.analyzeChoices[sysShape.analyzeCategory] ?? "") : "",
       manifest: sysShape.modifiers.includes("manifest") ? (ctx.manifestChoices[sysShape.manifestSkillId] ?? "") : "",
       trigger: sysShape.trigger ? game.i18n.localize(cfg.triggers[sysShape.trigger] ?? sysShape.trigger) : "",
@@ -573,6 +576,7 @@ export class SkillBuilderApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if ("inflictSevereStatus" in data) d.inflictSevereStatus = data.inflictSevereStatus ?? "";
     if (data.inflictPool) d.inflictPool = data.inflictPool;
     if (data.drainPool) d.drainPool = data.drainPool;
+    if ("potentPool" in data) d.potentPool = ["hp", "energy"].includes(data.potentPool) ? data.potentPool : "";
     if (data.analyzeCategory) d.analyzeCategory = data.analyzeCategory;
     if ("manifestSkillId" in data) d.manifestSkillId = data.manifestSkillId ?? "";
     if ("companionHome" in data) d.companionHome = !!data.companionHome;

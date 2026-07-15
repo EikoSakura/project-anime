@@ -43,8 +43,8 @@ export function enforceEquipExclusivity(actor, item) {
 }
 
 /**
- * Refund a deleted Technique's logged advancements. Called from the `deleteItem` hook so
- * removal by ANY path (drawer trash, Builder, creator, drag-out) returns the advancements
+ * Refund a deleted Technique's logged XP. Called from the `deleteItem` hook so
+ * removal by ANY path (drawer trash, Builder, creator, drag-out) returns the XP
  * logged against it and prunes its ledger entries — the ledger never dangles. Only the user
  * who made the deletion runs it (they own the actor). Talents are actor data — their removal
  * refunds inside `Actor#removeTalent`.

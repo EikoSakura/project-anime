@@ -566,9 +566,10 @@ export class ProjectAnimeItemSheet extends HandlebarsApplicationMixin(ItemSheetV
         showInflict: selected && key === "inflict",
         showInflictSevere: selected && key === "inflictSevere",
         showDrain: selected && key === "drain",
+        showPotent: selected && key === "potent",
         showAnalyze: selected && key === "analyze",
         showManifest: selected && key === "manifest" && t.manifestHasChoices,
-        hasConfig: selected && (["inflict", "inflictSevere", "drain", "analyze"].includes(key)
+        hasConfig: selected && (["inflict", "inflictSevere", "drain", "potent", "analyze"].includes(key)
           || (key === "manifest" && t.manifestHasChoices))
       };
     };

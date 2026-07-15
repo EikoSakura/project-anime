@@ -450,6 +450,7 @@
       "thresholdMissed": "Threshold {n} Not Met",
       "thresholdBonus": "Threshold Met — +1 Box",
       "potent": "Potent +{n}",
+      "potentPool": "Potent +{n} ({pool})",
       "reflected": "{name}'s Reflect Turns the Technique Back on Its User"
     },
     "SkillEvasion": {
@@ -735,6 +736,7 @@
         "companionHome": "Left at Home",
         "inflictSevereStatus": "Severe Status",
         "drainPool": "Drain Clears",
+        "potentPool": "Potent Affects",
         "manifestSkill": "Manifested Passive",
         "energyLock": "Energy Lock",
         "resistance": "Resistance",
@@ -753,6 +755,7 @@
         "hp": "Hit Points",
         "energy": "Energy"
       },
+      "potentMatch": "Match Effect",
       "filter": {
         "all": "All",
         "search": "Search skills…"
@@ -922,7 +925,7 @@
         "inflictSevere": "On hit, apply one: Bound, Cursed (choose hit or energy boxes), Exposed, or Sealed. Duration: 2.",
         "keen": "Reduce the Threshold for attacks by 1. Can be taken twice.",
         "link": "When you use this Technique, also activate another Technique you know. Pay its energy cost separately.",
-        "potent": "+1 hit box marked or cleared. Can be taken twice.",
+        "potent": "+1 box marked or cleared — hit or energy, chosen at creation. Can be taken twice.",
         "reflect": "The next Technique that targets you redirects to the user. Consumed on use.",
         "regen": "Clear 1 hit box at the start of each of your turns. Duration follows the Technique.",
         "reposition": "Move another creature up to your Talent die/2 tiles in any direction."
@@ -1351,7 +1354,7 @@
       "combatStats": "Combat Stats",
       "calcVitals": "Calculate HP/Energy",
       "rollLuck": "Roll Luck Dice",
-      "notEnough": "Not enough Advancements.",
+      "notEnough": "Not enough XP.",
       "vitalsSet": "Set HP to {hp} and Energy to {energy} from attributes.",
       "skillEnhancement": "Skill Enhancement",
       "expansion": "Expansion",
@@ -1369,7 +1372,7 @@
       "hintRange": "+1 tile",
       "hintArea": "+1 tile",
       "refineWarn": "Skill Enhancement is earned with the Refine activity during a rest.",
-      "available": "Advancements",
+      "available": "XP",
       "optionList": "Advancement List",
       "talents": "Talents",
       "slots": "{used}/{max} Slots",
@@ -1632,8 +1635,6 @@
       "nth": "Gate {n}",
       "assign": "Assign to a Gate",
       "actsTwice": "Acts Twice Per Enemy Phase",
-      "techniquesPerGate": "2 Techniques Per Gate",
-      "breakUnlocks": "A Break Unlocks the Next Gate's Techniques",
       "noCap": "No Hit-Box Cap With Gates"
     },
     "Merchant": {
@@ -1819,15 +1820,15 @@
       "rebuild": "Rebuild a Technique",
       "attribute": "Step Up an Attribute",
       "talentStep": "Step Up a Talent",
-      "luckDie": "Raise the Luck Die",
-      "advancements": "Advancements"
+      "luckDie": "Step Up Luck Dice",
+      "xp": "XP"
     },
     "AdvLog": {
       "title": "Advancement Log",
       "confirmTitle": "Refund Advancement",
-      "confirm": "Undo “{label}” and refund {amount}?",
-      "confirmDelete": "Delete “{label}” and refund {amount}?",
-      "confirmCascade": "Undo “{label}” and every higher step stacked on it, refunding {amount} total?",
+      "confirm": "Undo “{label}” and refund {amount} XP?",
+      "confirmDelete": "Delete “{label}” and refund {amount} XP?",
+      "confirmCascade": "Undo “{label}” and every higher step stacked on it, refunding {amount} XP total?",
       "entry": {
         "technique": "Create a Technique — {name}",
         "techniquePending": "Create a Technique",
@@ -1836,7 +1837,7 @@
         "talent": "New Talent — {name}",
         "rebuild": "Rebuilt — {name}",
         "talentStep": "Step Up {name} ({from} → {to})",
-        "luckDie": "Raise the Luck Die"
+        "luckDie": "Step Up Luck Dice"
       }
     },
     "Threshold": {

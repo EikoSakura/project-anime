@@ -128,7 +128,7 @@
           <div class="boxes">{{#each c.energyBoxes as |b|}}{{#if b.locked}}<span class="mark-box locked"><i class="fa-solid fa-lock"></i></span>{{else}}<button type="button" class="mark-box{{#if b.marked}} marked{{/if}}" data-action="setMemberBox" data-resource="energy" data-n="{{b.n}}" {{#unless c.editable}}disabled{{/unless}} aria-label="{{localize 'PROJECTANIME.Stat.energy'}} {{b.n}}" aria-pressed="{{b.marked}}"></button>{{/if}}{{/each}}</div>
         </div>
       </div>
-      {{#if c.adv}}<span class="pcomp-adv" title="{{localize 'PROJECTANIME.Advance.advancements'}}"><i class="fas fa-arrow-up-right-dots"></i><b>{{c.adv}}</b></span>{{/if}}
+      {{#if c.adv}}<span class="pcomp-adv" title="{{localize 'PROJECTANIME.Advance.xp'}}"><i class="fas fa-arrow-up-right-dots"></i><b>{{c.adv}}</b></span>{{/if}}
       {{#if c.canAdvance}}
       <button type="button" class="pcomp-btn" data-action="advanceCompanion" title="{{localize 'PROJECTANIME.Advancement.title'}}"><i class="fas fa-arrow-up-right-dots"></i></button>
       {{/if}}

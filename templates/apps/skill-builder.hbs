@@ -283,6 +283,15 @@
               <select name="drainPool">{{selectOptions ../../config.damagePools selected=../../draft.drainPool localize=true}}</select>
             </label>
             {{/if}}
+            {{#if mod.showPotent}}
+            <label class="sb-field">
+              <span class="sb-label">{{localize "PROJECTANIME.Skill.field.potentPool"}}</span>
+              <select name="potentPool">
+                <option value="">{{localize "PROJECTANIME.Skill.potentMatch"}}</option>
+                {{selectOptions ../../config.damagePools selected=../../draft.potentPool localize=true}}
+              </select>
+            </label>
+            {{/if}}
             {{#if mod.showAnalyze}}
             <label class="sb-field">
               <span class="sb-label">{{localize "PROJECTANIME.Skill.field.analyzeCategory"}}</span>
@@ -363,6 +372,7 @@
         {{#if review.inflict}}<div><dt>{{localize "PROJECTANIME.Skill.field.inflictStatus"}}</dt><dd>{{review.inflict}}</dd></div>{{/if}}
         {{#if review.inflictSevere}}<div><dt>{{localize "PROJECTANIME.Skill.field.inflictSevereStatus"}}</dt><dd>{{review.inflictSevere}}</dd></div>{{/if}}
         {{#if review.drain}}<div><dt>{{localize "PROJECTANIME.Skill.field.drainPool"}}</dt><dd>{{review.drain}}</dd></div>{{/if}}
+        {{#if review.potent}}<div><dt>{{localize "PROJECTANIME.Skill.field.potentPool"}}</dt><dd>{{review.potent}}</dd></div>{{/if}}
         {{#if review.analyze}}<div><dt>{{localize "PROJECTANIME.Skill.field.analyzeCategory"}}</dt><dd>{{review.analyze}}</dd></div>{{/if}}
         {{#if review.manifest}}<div><dt>{{localize "PROJECTANIME.Skill.field.manifestSkill"}}</dt><dd>{{review.manifest}}</dd></div>{{/if}}
         {{#if review.trigger}}<div><dt>{{localize "PROJECTANIME.Skill.field.trigger"}}</dt><dd>{{review.trigger}}</dd></div>{{/if}}

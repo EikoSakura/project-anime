@@ -109,7 +109,6 @@
     <div class="cc-flag-row">
       <span class="cc-strong-chip">{{gates.count}} × <i class="fas fa-dungeon"></i> {{gates.dist}} {{localize "PROJECTANIME.Stat.hbShort"}}</span>
       <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.actsTwice"}}</span>
-      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.techniquesPerGate"}}</span>
     </div>
     {{/if}}
     {{/if}}
@@ -285,19 +284,13 @@
     <h4 class="cc-subhead cc-skills-head">
       <span class="cc-head-title">
         {{localize "PROJECTANIME.MonsterCreator.step.techniques"}}
-        <span class="cc-count muted">{{skillCount}}{{#if techBudget}} / {{techBudget}}{{/if}}</span>
+        <span class="cc-count muted">{{skillCount}}</span>
       </span>
       <span class="cc-head-actions">
         <button type="button" class="cc-mini-btn" data-action="browseSkills"><i class="fas fa-book-open"></i> {{localize "PROJECTANIME.MonsterCreator.browseSkills"}}</button>
         <button type="button" class="cc-mini-btn" data-action="openSkillBuilder"><i class="fas fa-wand-sparkles"></i> {{localize "PROJECTANIME.MonsterCreator.openSkillBuilder"}}</button>
       </span>
     </h4>
-    {{#if gatesOn}}
-    <div class="cc-flag-row">
-      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.techniquesPerGate"}}</span>
-      <span class="cc-strong-chip">{{localize "PROJECTANIME.Gate.breakUnlocks"}}</span>
-    </div>
-    {{/if}}
     {{#if skills.length}}
     <ul class="cc-skill-list">
       {{#each skills as |s|}}

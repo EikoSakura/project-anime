@@ -160,7 +160,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
 
     // Companions strip — the party's bonded Companions (flagged to a member, or filed in the
     // Servants & Companions folder). Rendered only when the party has any. The Advancement
-    // button spends the pool the Milestone tool pays them (Companion slot caps).
+    // button spends the pool the Milestone tool pays them (1 point per milestone).
     context.companions = partyCompanions(this.actor).map((c) => {
       const cs = c.system ?? {};
       let bonder = null;
@@ -476,7 +476,7 @@ export class ProjectAnimePartySheet extends HandlebarsApplicationMixin(ActorShee
     actor?.sheet?.render(true);
   }
 
-  /** Open the Advancement dialog for a Companion (its pool is paid by the Milestone tool). */
+  /** Open the Advancement dialog for a Companion (the Milestone tool pays it 1 point per milestone). */
   static async #onAdvanceCompanion(event, target) {
     const ref = target.closest("[data-ref]")?.dataset.ref;
     const companion = ref ? await fromUuid(ref) : null;

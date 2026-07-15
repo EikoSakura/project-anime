@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.5 - 2026-07-15
+
+- Advancement moved to the printed XP economy: milestones pay XP (Episode 2 / Arc 4 / Season 6), one per-option price and slot table for Characters and Companions, Step Up Luck Dice; a one-time migration re-prices existing ledgers,Villain Techniques lose the count cap and the 2-per-Gate budget; Gate locks are manual-only now and can no longer be silently stripped or rewritten,Techniques assigned to a still-sealed Villain Gate stay off the character sheet until their Gate opens,Potent gains a Potent Affects pool pick: restore EP or mark energy boxes on the target, with its own damage-card row, undo, Barrier absorb, Curse voiding, and Charge doubling,Fix (Foundry v14): the Monster Creator Gate and Luck selects and the Advancement dialog attribute pick are content-sized
+
+## 0.6.5 - 2026-07-15
+
+- Potent can now affect Energy: the Modifier gains a "Potent Affects" pool pick (Match Effect / Hit Points / Energy) on the Skill Builder and the Technique tab - matching the Technique's own pool folds in as the classic +1, while aiming at the other pool splits off as its own application (a Strike marks energy boxes on the target, a Heal restores the other pool alongside), with its own damage-card row, undo, Barrier absorb, Curse voiding, and Charge doubling; existing Techniques keep their exact behavior (the pick defaults to Match Effect)
+
+- Villain Techniques have no count cap: the Monster Creator's "X / Y" technique budget and the "2 Techniques Per Gate" rule chips are gone - take as many Techniques as the build wants
+- Villain Gate locks are manual only: Techniques are never auto-assigned to Gates anymore (new ones - Passives included - arrive "always available" until you pick a Gate on their row); re-laying the Gates only clamps a flag stranded past the last Gate, and the Gates toggle can no longer invert against a stale layout and silently strip the locks
+- A gated Villain's Techniques assigned to a still-sealed Gate no longer show on the character sheet (skills drawer and pinned quick panel) - breaking a Gate reveals the next Gate's
+
+## 0.6.4 - 2026-07-15
+
+- Advancement moved to the printed XP economy: milestones pay XP (Episode 2 / Arc 4 / Season 6) and each Advancement List option charges its own XP cost - +1 energy/hit box 1 XP (5 slots each), Create a Technique 2, Learn a New Talent 2, Rebuild a Technique 1, Step Up an Attribute 2 (d12 max), Step Up Luck Dice 2 (3 slots), Step Up a Talent 1 - one price and slot table for Characters and Companions alike; the old character-only caps on Techniques, Talents, Rebuilds, Attributes, and Talent steps are gone
+- Companions now earn 1 XP per milestone their bonder's XP came from (instead of the character's full total)
+- "Raise the Luck Die" renamed to the printed "Step Up Luck Dice"
+- One-time migration (advancementXpV1) re-prices every existing ledger entry to its option's current XP cost so refunds return what the list now charges; unspent pools carry over 1:1
+- Fixed (Foundry v14): the Monster Creator's technique Gate select swallowed its whole row - v14 core gives every bare select width: 100%, crushing the Technique name to one word per line and forcing a horizontal scrollbar; the Gate and Villain Luck selects and the Advancement dialog's new-Talent attribute pick are now content-sized
+
 ## 0.6.3 - 2026-07-15
 
 - New Modifier - Keen: reduce the Threshold for attacks by 1. Can be taken twice (Standard tier, +1 Energy per take),Keen lowers the effective Threshold on every Technique attack path (single-target, area, and Chain Weapon-range Strikes), applied after Weakened/Prone and floored at 1 - the chat card's Threshold note and Luck flips read the reduced number,The take-twice chips on the Technique tab and Skill Builder are now shared by all multi-take Modifiers (Potent and Keen)

@@ -2,10 +2,10 @@
  * Project: Anime — Advancement dialog (V2 milestones).
  *
  * A standalone ApplicationV2 opened from the actor sheet (and, for Companions, the party
- * sheet's Companions strip). Characters hold unspent advancements
- * (system.advancement.value) granted by the GM's milestone tool; this dialog spends them
- * on the slot-capped Advancement List (PROJECTANIME.advancementOptions) — a Character pays
- * 1 per purchase, a Companion its own per-option price (rules: Companion Advancement).
+ * sheet's Companions strip). Characters hold unspent XP
+ * (system.advancement.value) granted by the GM's milestone tool; this dialog spends it
+ * on the Advancement List (PROJECTANIME.advancementOptions) — every purchase pays the
+ * option's XP price against its slot cap (rules: Advancement).
  * Everything STAGES first — +/− marks pending
  * purchases against the unspent pool and the option slot caps — and CONFIRM commits
  * the lot: one atomic actor update carrying one refundable ledger entry per purchase
@@ -90,11 +90,9 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#staged = { technique: false, energy: 0, hitBox: 0, luckDie: 0, talents: [], rebuildId: "", attrs: {}, talentSteps: {} };
   }
 
-  /** An option's price in advancements — a Companion pays its own per-option cost
-   *  (rules: Companion Advancement); a Character always pays 1. */
+  /** An option's XP price (rules: Advancement — one list for Characters and Companions). */
   #cost(kind) {
-    const opt = CONFIG.PROJECTANIME.advancementOptions[kind] ?? {};
-    return isCompanion(this.actor) ? (opt.companionCost ?? 1) : 1;
+    return CONFIG.PROJECTANIME.advancementOptions[kind]?.cost ?? 1;
   }
 
   /** Staged purchase COUNT on one option (slot usage, not price). */
@@ -111,7 +109,7 @@ export class AdvancementApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }[kind] ?? 0;
   }
 
-  /** Advancements the current staging would spend (each purchase at its option's price). */
+  /** XP the current staging would spend (each purchase at its option's price). */
   #stagedCount() {
     return CONFIG.PROJECTANIME.advancementOptionKeys.reduce(
       (n, kind) => n + this.#stagedOf(kind) * this.#cost(kind), 0);

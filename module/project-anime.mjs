@@ -98,6 +98,12 @@ const ENEMY_TIERS_SETTING = "enemyTiersV1";
 // actors and unlocked Actor packs. See migrateNaturalAttacksRemoved.
 const NATURAL_REMOVED_SETTING = "naturalAttacksRemovedV1";
 
+// Hidden world flag — set once after Advancement moved to XP prices (each Advancement List
+// option charges its own XP cost instead of a Character's flat 1): every stored ledger entry
+// is re-priced to its option's current cost so refunds return what the list now charges.
+// See migrateAdvancementXp.
+const ADVANCEMENT_XP_SETTING = "advancementXpV1";
+
 // Per-user toggle for the PLAYER PHASE / ENEMY PHASE sweep banner on side-phase flips.
 const PHASE_BANNER_CLIENT_SETTING = "phaseBannerClientShow";
 
@@ -269,7 +275,7 @@ Hooks.once("init", function () {
 
   // One-shot guards that each run exactly once per world: the v0.01 compendium gear audit, the
   // Unarmed DMG −2 backfill, and seeding the world's starter Party. Hidden.
-  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING, ENEMY_TIERS_SETTING, NATURAL_REMOVED_SETTING]) {
+  for (const key of [PACK_AUDIT_SETTING, WEAPON_TYPE_BACKFILL_SETTING, DEFAULT_PARTY_SETTING, ACTORS_V2_SETTING, GEAR_REBASE_V2_SETTING, ACCESSORIES_V2_SETTING, PROSE_DESC_SETTING, RESISTANCE_TEXT_SETTING, ENEMY_TIERS_SETTING, NATURAL_REMOVED_SETTING, ADVANCEMENT_XP_SETTING]) {
     game.settings.register("project-anime", key, {
       scope: "world",
       config: false,
@@ -1954,6 +1960,42 @@ async function migrateNaturalAttacksRemoved() {
 }
 
 /* -------------------------------------------- */
+/*  Advancement XP re-price (one-time)          */
+/* -------------------------------------------- */
+
+// Advancement moved to XP prices: milestones pay XP (Episode 2 / Arc 4 / Season 6) and each
+// Advancement List option charges its own cost instead of a Character's flat 1. Re-price every
+// stored ledger entry to its option's current cost so refunds return what the list now charges
+// (Companion entries already carried these prices — the rewrite is idempotent). Unspent pools
+// carry over 1:1. GM-side, once per world.
+async function migrateAdvancementXp() {
+  if (game.users.activeGM?.id !== game.user.id) return;
+  if (game.settings.get("project-anime", ADVANCEMENT_XP_SETTING)) return;
+  let count = 0;
+  const reprice = async (actor) => {
+    const log = actor.system?.advancement?.log;
+    if (!Array.isArray(log) || !log.length) return;
+    let changed = false;
+    const next = log.map((e) => {
+      const cost = PROJECTANIME.advancementOptions[e.kind]?.cost;
+      if (!cost || Number(e.amount) === cost) return e;
+      changed = true;
+      return { ...e, amount: cost };
+    });
+    if (!changed) return;
+    await actor.update({ "system.advancement.log": next });
+    count++;
+  };
+  for (const actor of game.actors) await reprice(actor);
+  for (const pack of game.packs) {
+    if (pack.metadata.type !== "Actor" || pack.locked) continue;
+    for (const actor of await pack.getDocuments()) await reprice(actor);
+  }
+  if (count) console.log(`Project: Anime | Advancement XP — re-priced the ledger on ${count} actor(s).`);
+  await game.settings.set("project-anime", ADVANCEMENT_XP_SETTING, true);
+}
+
+/* -------------------------------------------- */
 /*  Weapon Type from name backfill (one-time)   */
 /* -------------------------------------------- */
 
@@ -2099,6 +2141,10 @@ Hooks.once("ready", function () {
   // One-time: retire the innate Natural Attack (Unarmed Strike) — attacks come from Weapon
   // Styles now; every natural-flagged weapon is deleted.
   migrateNaturalAttacksRemoved();
+
+  // One-time: re-price every advancement ledger entry to its option's XP cost (the milestone
+  // economy moved from flat-1 advancements to per-option XP prices).
+  migrateAdvancementXp();
 
   // One-time: seed each weapon/shield's Type from its name (they were named after their type).
   backfillWeaponTypes();
