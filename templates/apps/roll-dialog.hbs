@@ -2,26 +2,49 @@
 <div class="dbody">
   <div class="dhead">
     <span class="cname">{{first.name}}</span>
-    <span class="chip pap">{{first.die}}</span>
+    <span class="stepgrp">
+      <button type="button" class="stepbtn" data-action="step" data-die="0" data-delta="-1"
+              aria-label="{{localize "PROJECTANIME.Roll.StepDown"}}"{{#if first.downDisabled}} disabled{{/if}}>&#9660;</button>
+      <span class="chip pap {{first.stepClass}}">{{first.die}}</span>
+      <button type="button" class="stepbtn" data-action="step" data-die="0" data-delta="1"
+              aria-label="{{localize "PROJECTANIME.Roll.StepUp"}}"{{#if first.upDisabled}} disabled{{/if}}>&#9650;</button>
+    </span>
     {{#if first.isTechnique}}
     <span class="chip gold">{{first.costLabel}}</span>
     {{/if}}
   </div>
   <div class="slab">{{localize "PROJECTANIME.Roll.SecondDie"}}</div>
-  <select class="dsel" name="second" aria-label="{{localize "PROJECTANIME.Roll.SecondDie"}}">
-    {{#each seconds}}
-    <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
-    {{/each}}
-  </select>
-  {{#if traits.length}}
-  <div class="slab">{{localize "PROJECTANIME.Roll.Trait"}}</div>
-  <select class="dsel" name="trait" aria-label="{{localize "PROJECTANIME.Roll.Trait"}}">
-    <option value="">{{localize "PROJECTANIME.Roll.None"}}</option>
-    {{#each traits}}
-    <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
-    {{/each}}
-  </select>
-  {{/if}}
+  <div class="dierow">
+    <select class="dsel" name="second" aria-label="{{localize "PROJECTANIME.Roll.SecondDie"}}">
+      {{#each seconds}}
+      <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
+      {{/each}}
+    </select>
+    <span class="stepgrp">
+      <button type="button" class="stepbtn" data-action="step" data-die="1" data-delta="-1"
+              aria-label="{{localize "PROJECTANIME.Roll.StepDown"}}"{{#if secondDie.downDisabled}} disabled{{/if}}>&#9660;</button>
+      <span class="diebadge {{secondDie.stepClass}}">{{secondDie.die}}</span>
+      <button type="button" class="stepbtn" data-action="step" data-die="1" data-delta="1"
+              aria-label="{{localize "PROJECTANIME.Roll.StepUp"}}"{{#if secondDie.upDisabled}} disabled{{/if}}>&#9650;</button>
+    </span>
+  </div>
+  <div class="tworow">
+    {{#if traits.length}}
+    <div class="grow">
+      <div class="slab">{{localize "PROJECTANIME.Roll.Trait"}}</div>
+      <select class="dsel" name="trait" aria-label="{{localize "PROJECTANIME.Roll.Trait"}}">
+        <option value="">{{localize "PROJECTANIME.Roll.None"}}</option>
+        {{#each traits}}
+        <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+    </div>
+    {{/if}}
+    <div>
+      <div class="slab">{{localize "PROJECTANIME.Roll.Bonus"}}</div>
+      <input type="number" class="dnum" name="bonus" value="{{bonus}}" step="1" aria-label="{{localize "PROJECTANIME.Roll.Bonus"}}">
+    </div>
+  </div>
 </div>
 <div class="dfoot">
   <span class="formula">{{formula}}</span>

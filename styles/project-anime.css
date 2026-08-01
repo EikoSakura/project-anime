@@ -1221,6 +1221,93 @@
     padding: 6px 8px;
     margin-bottom: 14px;
   }
+  .dierow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .dierow .dsel {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .stepgrp {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+  }
+  .stepbtn {
+    width: 22px;
+    height: 22px;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    background: #fffdf8;
+    color: var(--ink);
+    border: 1.5px solid var(--ink);
+    border-radius: 2px;
+    font-size: 9px;
+    line-height: 1;
+  }
+  .stepbtn:disabled {
+    opacity: .35;
+    cursor: default;
+  }
+  .dhead .stepbtn {
+    background: transparent;
+    color: var(--paper);
+    border-color: rgba(247, 242, 231, .7);
+  }
+  .diebadge {
+    display: inline-block;
+    min-width: 38px;
+    text-align: center;
+    font-size: 8.5px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: 1px 7px;
+    border: 1.5px solid var(--ink);
+    border-radius: 2px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .diebadge.up,
+  .chip.pap.up {
+    background: var(--beni);
+    border-color: var(--beni-deep);
+    color: #fff;
+  }
+  .diebadge.down,
+  .chip.pap.down {
+    background: #8a8fa0;
+    border-color: #6d7285;
+    color: #fff;
+  }
+  .tworow {
+    display: flex;
+    gap: 12px;
+  }
+  .tworow .grow {
+    flex: 1;
+    min-width: 0;
+  }
+  .dnum {
+    display: block;
+    width: 84px;
+    text-align: center;
+    font-family: var(--f-ui);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink);
+    background: #fffdf8;
+    border: 1.5px solid var(--ink);
+    border-radius: 2px;
+    padding: 6px 8px;
+    margin-bottom: 14px;
+  }
   .dfoot {
     display: flex;
     align-items: center;

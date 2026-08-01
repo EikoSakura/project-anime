@@ -16,6 +16,7 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     classes: ["project-anime", "sheet", "roll-dialog"],
     position: { width: 380, height: "auto" },
     actions: {
+      step: this.#onStep,
       roll: this.#onRoll
     }
   };
@@ -34,6 +35,11 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
   #second = "";
 
   #trait = "";
+
+  /* Rank steps applied to [first, second] for this one roll, clamped E..S. */
+  #steps = [0, 0];
+
+  #bonus = 0;
 
   static open(actor, first) {
     this.#instances.get(actor.uuid)?.close();
@@ -61,14 +67,30 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     }));
     if (this.#trait && !traits.some(t => t.value === this.#trait)) this.#trait = "";
 
+    const second = this.#resolveSecond();
+    const bases = [first.rank, second.rank];
+    const ranks = this.#effRanks();
+    this.#steps = ranks.map((r, i) => r - bases[i]);
+    const stepClass = i => this.#steps[i] > 0 ? "up" : this.#steps[i] < 0 ? "down" : "";
+
     context.first = {
       name: first.name,
-      die: LADDER[first.rank].die,
+      die: LADDER[ranks[0]].die,
+      stepClass: stepClass(0),
+      upDisabled: ranks[0] >= 5,
+      downDisabled: ranks[0] <= 0,
       isTechnique: first.tech,
       costLabel: first.tech ? game.i18n.format("PROJECTANIME.Technique.Energy", { n: LADDER[first.rank].mod }) : ""
     };
+    context.secondDie = {
+      die: LADDER[ranks[1]].die,
+      stepClass: stepClass(1),
+      upDisabled: ranks[1] >= 5,
+      downDisabled: ranks[1] <= 0
+    };
     context.seconds = seconds.map(s => ({ ...s, selected: s.value === this.#second }));
     context.traits = traits.map(t => ({ ...t, selected: t.value === this.#trait }));
+    context.bonus = this.#bonus;
     context.formula = this.#formula();
     return context;
   }
@@ -135,30 +157,52 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     return { name: item.name, rank: item.system.rank };
   }
 
-  #formula() {
+  #effRanks() {
     const first = this.#resolveFirst();
     const second = this.#resolveSecond();
-    if (!first || !second) return "";
-    const parts = [first, second].map(d => `1${LADDER[d.rank].die}`);
+    if (!first || !second) return null;
+    return [first, second].map((d, i) => Math.clamp(d.rank + this.#steps[i], 0, 5));
+  }
+
+  #formula() {
+    const ranks = this.#effRanks();
+    if (!ranks) return "";
+    const parts = ranks.map(r => `1${LADDER[r].die}`);
     const trait = this.#resolveTrait();
     if (trait) parts.push(String(LADDER[trait.rank].mod));
-    return parts.join(" + ");
+    let formula = parts.join(" + ");
+    if (this.#bonus > 0) formula += ` + ${this.#bonus}`;
+    else if (this.#bonus < 0) formula += ` − ${-this.#bonus}`;
+    return formula;
   }
 
   #onChange(event) {
-    const select = event.target.closest("select[name]");
-    if (!select) return;
-    if (select.name === "second") this.#second = select.value;
-    else if (select.name === "trait") this.#trait = select.value;
-    const formula = this.element.querySelector(".formula");
-    if (formula) formula.textContent = this.#formula();
+    const el = event.target.closest("[name]");
+    if (!el) return;
+    if (el.name === "second") this.#second = el.value;
+    else if (el.name === "trait") this.#trait = el.value;
+    else if (el.name === "bonus") this.#bonus = Math.trunc(Number(el.value) || 0);
+    else return;
+    this.render();
+  }
+
+  static #onStep(event, target) {
+    this.#steps[Number(target.dataset.die)] += Number(target.dataset.delta);
+    this.render();
   }
 
   static async #onRoll() {
     const first = this.#resolveFirst();
     const second = this.#resolveSecond();
     if (!first || !second) return this.close();
-    await postActionRoll(this.#actor, first, second, this.#resolveTrait());
+    const ranks = this.#effRanks();
+    await postActionRoll(
+      this.#actor,
+      { name: first.name, rank: ranks[0] },
+      { name: second.name, rank: ranks[1] },
+      this.#resolveTrait(),
+      this.#bonus
+    );
     this.close();
   }
 }

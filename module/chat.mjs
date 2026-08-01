@@ -29,17 +29,23 @@ export async function postItemCard(item) {
   });
 }
 
-/* Post an Action Roll: two dice, one optional Trait bonus, backed by a real Roll.
-   first and second are { name, rank }; trait is { name, rank } or null. */
-export async function postActionRoll(actor, first, second, trait) {
+/* Post an Action Roll: two dice, one optional Trait bonus, one optional flat
+   bonus, backed by a real Roll. first and second are { name, rank } with any
+   die steps already applied; trait is { name, rank } or null; bonus is a
+   signed integer. */
+export async function postActionRoll(actor, first, second, trait, bonus = 0) {
   const parts = [first, second].map(d => `1${LADDER[d.rank].die}`);
   if (trait) parts.push(String(LADDER[trait.rank].mod));
-  const roll = await new foundry.dice.Roll(parts.join(" + ")).evaluate();
+  let formula = parts.join(" + ");
+  if (bonus > 0) formula += ` + ${bonus}`;
+  else if (bonus < 0) formula += ` - ${-bonus}`;
+  const roll = await new foundry.dice.Roll(formula).evaluate();
   const context = {
     title: `${first.name} + ${second.name}`,
     faces: roll.dice.map(d => d.total),
     total: roll.total,
-    trait: trait ? { name: trait.name, mod: LADDER[trait.rank].mod } : null
+    trait: trait ? { name: trait.name, mod: LADDER[trait.rank].mod } : null,
+    bonus: bonus ? `${bonus > 0 ? "+" : "−"}${Math.abs(bonus)}` : null
   };
   const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", context);
   return ChatMessage.implementation.create({

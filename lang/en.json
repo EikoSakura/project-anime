@@ -94,6 +94,9 @@
       "SecondDie": "Second Die",
       "Trait": "Trait",
       "None": "None",
+      "Bonus": "Bonus",
+      "StepUp": "Step Up",
+      "StepDown": "Step Down",
       "Roll": "Roll",
       "Total": "Total"
     },
