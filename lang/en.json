@@ -1,0 +1,11 @@
+{
+  "TYPES": {
+    "Actor": {
+      "character": "Character"
+    },
+    "Item": {
+      "trait": "Trait",
+      "technique": "Technique"
+    }
+  }
+}

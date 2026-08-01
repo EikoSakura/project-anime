@@ -1,0 +1,28 @@
+{
+  "id": "project-anime",
+  "title": "Project: Anime",
+  "description": "A fiction-first framework that uses anime as a medium to run any game or world.",
+  "version": "0.1.0",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14.364"
+  },
+  "esmodules": ["module/project-anime.mjs"],
+  "styles": ["styles/project-anime.css"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "documentTypes": {
+    "Actor": {
+      "character": {}
+    },
+    "Item": {
+      "trait": {},
+      "technique": {}
+    }
+  }
+}
