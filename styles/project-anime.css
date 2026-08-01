@@ -1040,6 +1040,19 @@
     border: 2px solid var(--ink);
     border-radius: 2px;
     background: #fffdf8;
+    --menu-background: var(--paper-2);
+    --dropdown-background: var(--paper);
+    --dropdown-border: var(--ink);
+    --dialog-background: var(--paper);
+    --dialog-border: var(--ink);
+    --button-text-color: var(--ink);
+    --color-form-label-hover: var(--beni-deep);
+    --color-control-hover: rgba(34, 26, 54, .12);
+  }
+  prose-mirror menu {
+    color: var(--ink);
+    border-radius: 0;
+    border-bottom: 1.5px solid var(--line);
   }
   prose-mirror .editor-content {
     padding: 8px 10px;
