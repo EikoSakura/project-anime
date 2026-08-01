@@ -1,0 +1,30 @@
+<div class="rolldlg">
+<div class="dbody">
+  <div class="dhead">
+    <span class="cname">{{first.name}}</span>
+    <span class="chip pap">{{first.die}}</span>
+    {{#if first.isTechnique}}
+    <span class="chip gold">{{first.costLabel}}</span>
+    {{/if}}
+  </div>
+  <div class="slab">{{localize "PROJECTANIME.Roll.SecondDie"}}</div>
+  <select class="dsel" name="second" aria-label="{{localize "PROJECTANIME.Roll.SecondDie"}}">
+    {{#each seconds}}
+    <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
+    {{/each}}
+  </select>
+  {{#if traits.length}}
+  <div class="slab">{{localize "PROJECTANIME.Roll.Trait"}}</div>
+  <select class="dsel" name="trait" aria-label="{{localize "PROJECTANIME.Roll.Trait"}}">
+    <option value="">{{localize "PROJECTANIME.Roll.None"}}</option>
+    {{#each traits}}
+    <option value="{{this.value}}"{{#if this.selected}} selected{{/if}}>{{this.label}}</option>
+    {{/each}}
+  </select>
+  {{/if}}
+</div>
+<div class="dfoot">
+  <span class="formula">{{formula}}</span>
+  <button type="button" class="rollbtn" data-action="roll">{{localize "PROJECTANIME.Roll.Roll"}}</button>
+</div>
+</div>

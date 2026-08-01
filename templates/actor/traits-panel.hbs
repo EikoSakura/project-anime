@@ -7,10 +7,13 @@
         {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
         {{#if @root.editMode}}
         <button type="button" class="ttl ttl-open" data-action="openItem" data-item-id="{{this.id}}"><b>{{this.name}}</b></button>
-        <button type="button" class="delbtn" data-action="deleteItem" data-item-id="{{this.id}}"
-          aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
         {{else}}
         <span class="ttl"><b>{{this.name}}</b></span>
+        {{/if}}
+        <button type="button" class="postbtn" data-action="postItem" data-item-id="{{this.id}}">{{localize "PROJECTANIME.Chat.Post"}}</button>
+        {{#if @root.editMode}}
+        <button type="button" class="delbtn" data-action="deleteItem" data-item-id="{{this.id}}"
+          aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
         {{/if}}
       </div>
       <div class="card-text">{{{this.enrichedText}}}</div>

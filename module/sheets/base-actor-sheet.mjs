@@ -1,5 +1,7 @@
 import ProjectAnimeSheet from "./mixin.mjs";
 import { LADDER, ATTRIBUTES } from "../config.mjs";
+import { postItemCard } from "../chat.mjs";
+import RollDialog from "../apps/roll-dialog.mjs";
 
 const { ActorSheetV2 } = foundry.applications.sheets;
 
@@ -15,7 +17,9 @@ export default class BaseActorSheet extends ProjectAnimeSheet(ActorSheetV2) {
       stepMax: this.#onStepMax,
       createItem: this.#onCreateItem,
       openItem: this.#onOpenItem,
-      deleteItem: this.#onDeleteItem
+      deleteItem: this.#onDeleteItem,
+      postItem: this.#onPostItem,
+      openRoll: this.#onOpenRoll
     }
   };
 
@@ -179,5 +183,17 @@ export default class BaseActorSheet extends ProjectAnimeSheet(ActorSheetV2) {
     if (!this.isEditable) return;
     const item = this.document.items.get(target.dataset.itemId);
     await item?.deleteDialog();
+  }
+
+  static async #onPostItem(event, target) {
+    const item = this.document.items.get(target.dataset.itemId);
+    if (item) await postItemCard(item);
+  }
+
+  static #onOpenRoll(event, target) {
+    const first = target.dataset.first === "technique"
+      ? { kind: "technique", id: target.dataset.itemId }
+      : { kind: "attribute", key: target.dataset.key };
+    RollDialog.open(this.document, first);
   }
 }

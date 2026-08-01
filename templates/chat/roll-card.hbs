@@ -1,0 +1,19 @@
+<div class="pa-card">
+  <div class="chead">
+    <span class="cname">{{title}}</span>
+  </div>
+  <div class="cbody">
+    <div class="dicerow">
+      {{#each faces}}
+      <span class="face">{{this}}</span>
+      {{/each}}
+      <div class="rtotal">
+        <span class="tlab">{{localize "PROJECTANIME.Roll.Total"}}</span>
+        <span class="tnum">{{total}}</span>
+      </div>
+    </div>
+    {{#if trait}}
+    <div class="rtrait"><span class="rmark">◆</span><span>{{trait.name}} +{{trait.mod}}</span></div>
+    {{/if}}
+  </div>
+</div>

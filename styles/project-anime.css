@@ -157,6 +157,30 @@
       background: var(--paper);
       color: var(--ink);
     }
+    .postbtn {
+      flex: none;
+      width: auto;
+      height: auto;
+      min-height: 0;
+      line-height: 1.5;
+      border: 1.5px solid var(--paper);
+      border-radius: 2px;
+      background: transparent;
+      color: var(--paper);
+      padding: 3px 10px;
+      margin: 0 8px 0 0;
+      font-family: var(--f-ui);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      box-shadow: none;
+      cursor: pointer;
+    }
+    .postbtn:hover {
+      background: var(--paper);
+      color: var(--ink);
+    }
   }
   .window-content {
     padding: 0;
@@ -721,14 +745,36 @@
     font-size: 17px;
     line-height: 1.2;
   }
-  button.ttl-open {
+  button.ttl-open,
+  button.ttl-roll {
     text-align: left;
   }
-  button.ttl-open:hover b {
+  button.ttl-open:hover b,
+  button.ttl-roll:hover b,
+  button.nm-roll:hover b {
     color: var(--beni-deep);
     text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 3px;
+  }
+  button.nm-roll {
+    display: block;
+    text-align: left;
+  }
+  .card-h .postbtn {
+    flex: none;
+    border: 1.5px solid var(--ink);
+    background: var(--paper);
+    border-radius: 2px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+  }
+  .card-h .postbtn:hover {
+    border-color: var(--beni);
+    color: var(--beni-deep);
   }
   .chip {
     display: inline-block;
@@ -1127,4 +1173,273 @@
     font-size: 13.5px;
     color: var(--ink);
   }
+}
+
+/* ===== action roll dialog ===== */
+.project-anime.roll-dialog {
+  .dbody {
+    padding: 14px 14px 2px;
+  }
+  .dhead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 8px 12px;
+    border-left: 5px solid var(--beni);
+    box-shadow: 3px 3px 0 rgba(34, 26, 54, .18);
+    margin-bottom: 14px;
+  }
+  .dhead .cname {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.2;
+    flex: 1;
+    min-width: 0;
+  }
+  .dhead .chip {
+    border-color: var(--paper);
+  }
+  .dhead .chip.pap {
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .dhead .chip.gold {
+    border-color: #a8771f;
+  }
+  .slab {
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .dsel {
+    display: block;
+    width: 100%;
+    font-family: var(--f-ui);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink);
+    background: #fffdf8;
+    border: 1.5px solid var(--ink);
+    border-radius: 2px;
+    padding: 6px 8px;
+    margin-bottom: 14px;
+  }
+  .dfoot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--paper-2);
+    border-top: 2px solid var(--ink);
+  }
+  .formula {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .rollbtn {
+    background: var(--beni);
+    color: #fff;
+    border: 2px solid var(--ink);
+    border-radius: 2px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    padding: 6px 18px;
+    box-shadow: 3px 3px 0 rgba(34, 26, 54, .25);
+  }
+}
+
+/* ===== chat cards =====
+   Self-contained: chat messages sit outside the sheet scope and either
+   Foundry chat theme, so the card carries its own tokens. */
+.pa-card {
+  --ink: #221a36;
+  --paper: #f7f2e7;
+  --muted: rgba(34, 26, 54, .62);
+  --beni: #d92b48;
+  --gold: #d9a13b;
+  --rk-e: #8a8fa0;
+  --rk-d: #3ba55d;
+  --rk-c: #3c78d8;
+  --rk-b: #7d5cd6;
+  --rk-a: #e2632e;
+  --rk-s: #d9a13b;
+  --f-display: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --f-ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+
+  position: relative;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .3);
+  overflow: hidden;
+  font-family: var(--f-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.pa-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: var(--beni);
+  border-right: 1.5px solid var(--paper);
+  z-index: 2;
+}
+.pa-card .chead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 7px 10px 7px 15px;
+  overflow: hidden;
+}
+.pa-card .chead::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 48px;
+  background: radial-gradient(rgba(247, 242, 231, .22) 1px, transparent 1.3px);
+  background-size: 6px 6px;
+  clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%);
+}
+.pa-card .cname {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+.pa-card .dia {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.pa-card .dia i {
+  position: absolute;
+  inset: 2px;
+  transform: rotate(45deg);
+  border: 1.5px solid rgba(247, 242, 231, .9);
+  background: var(--rkc, var(--rk-e));
+}
+.pa-card .dia b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+.pa-card .chip {
+  display: inline-block;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border: 1.5px solid var(--paper);
+  border-radius: 2px;
+  position: relative;
+  z-index: 1;
+}
+.pa-card .chip.pap {
+  background: var(--paper);
+  color: var(--ink);
+}
+.pa-card .chip.inv {
+  background: transparent;
+  color: var(--paper);
+}
+.pa-card .chip.gold {
+  background: var(--gold);
+  border-color: #a8771f;
+  color: var(--ink);
+}
+.pa-card .cbody {
+  padding: 10px 12px 11px 16px;
+}
+.pa-card .cbody p {
+  font-size: 12.5px;
+  margin: 0;
+}
+.pa-card .cbody p + p {
+  margin-top: 7px;
+}
+.pa-card .ruled {
+  display: flex;
+  gap: 7px;
+  font-size: 11.5px;
+  margin-top: 7px;
+  padding-left: 0;
+  border-left: none;
+}
+.pa-card .rmark {
+  color: var(--beni);
+  flex: none;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.pa-card .dicerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pa-card .face {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: #fffdf8;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 19px;
+}
+.pa-card .rtotal {
+  margin-left: auto;
+  text-align: right;
+}
+.pa-card .tlab {
+  display: block;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pa-card .tnum {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1;
+}
+.pa-card .rtrait {
+  display: flex;
+  gap: 7px;
+  font-size: 11.5px;
+  margin-top: 9px;
+  font-weight: 500;
 }

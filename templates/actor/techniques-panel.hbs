@@ -8,10 +8,12 @@
         {{#if @root.editMode}}
         <button type="button" class="ttl ttl-open" data-action="openItem" data-item-id="{{this.id}}"><b>{{this.name}}</b></button>
         {{else}}
-        <span class="ttl"><b>{{this.name}}</b></span>
+        <button type="button" class="ttl ttl-roll" data-action="openRoll" data-first="technique"
+          data-item-id="{{this.id}}"><b>{{this.name}}</b></button>
         {{/if}}
         <span class="chip{{#if this.activated}} solid{{/if}}">{{this.kindLabel}}</span>
         <span class="chip gold">{{this.costLabel}}</span>
+        <button type="button" class="postbtn" data-action="postItem" data-item-id="{{this.id}}">{{localize "PROJECTANIME.Chat.Post"}}</button>
         {{#if @root.editMode}}
         <button type="button" class="delbtn" data-action="deleteItem" data-item-id="{{this.id}}"
           aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>

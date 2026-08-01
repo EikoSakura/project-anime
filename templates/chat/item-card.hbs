@@ -1,0 +1,16 @@
+<div class="pa-card">
+  <div class="chead">
+    <span class="dia" style="--rkc: var({{cssVar}})"><i></i><b>{{rank}}</b></span>
+    <span class="cname">{{name}}</span>
+    {{#if isTechnique}}
+    <span class="chip{{#if activated}} pap{{else}} inv{{/if}}">{{kindLabel}}</span>
+    <span class="chip gold">{{costLabel}}</span>
+    {{/if}}
+  </div>
+  <div class="cbody">
+    {{{enrichedText}}}
+    {{#each rulings}}
+    <div class="ruled"><span class="rmark">◆</span><span>{{this}}</span></div>
+    {{/each}}
+  </div>
+</div>

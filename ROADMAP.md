@@ -7,3 +7,4 @@
 5. **Character sheet, edit mode** — done. Title bar toggle, all fields editable. Add creates an embedded item, a card opens its item sheet, delete removes it. Pips, Luck spent, Advancement boxes, and the unspent counter stay clickable in both modes.
 6. **Adversary actor type** — done. Desire, Fear, Grade, the five Attributes, Hearts, Energy, embedded Traits and Techniques. Rivals add Luck Dice. Reuse sheet parts.
 7. **Packaging** — done. Release zip, manifest and download URLs, install test from the manifest.
+8. **Chat cards** — done. Item and roll cards from the chat cards mockup. Post buttons on the item sheet title bar and on each sheet card. Rolls start from an Attribute or Technique name in view mode; the Action Roll dialog picks the second die and a Trait, backed by a real Roll. No Difficulty, no outcome text.

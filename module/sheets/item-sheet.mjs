@@ -1,5 +1,6 @@
 import ProjectAnimeSheet from "./mixin.mjs";
 import { LADDER } from "../config.mjs";
+import { postItemCard } from "../chat.mjs";
 
 const { ItemSheetV2 } = foundry.applications.sheets;
 
@@ -11,7 +12,8 @@ export default class ProjectAnimeItemSheet extends ProjectAnimeSheet(ItemSheetV2
       flipSeal: this.#onFlipSeal,
       stepRank: this.#onStepRank,
       addRuling: this.#onAddRuling,
-      deleteRuling: this.#onDeleteRuling
+      deleteRuling: this.#onDeleteRuling,
+      postItem: this.#onPostItem
     }
   };
 
@@ -22,6 +24,17 @@ export default class ProjectAnimeItemSheet extends ProjectAnimeSheet(ItemSheetV2
 
   /* Whether the seal shows its die or bonus face. Display state only, never stored. */
   #flipped = false;
+
+  async _renderFrame(options) {
+    const frame = await super._renderFrame(options);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "postbtn";
+    button.dataset.action = "postItem";
+    button.textContent = game.i18n.localize("PROJECTANIME.Chat.Post");
+    this.window.title.after(button);
+    return frame;
+  }
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
@@ -86,5 +99,9 @@ export default class ProjectAnimeItemSheet extends ProjectAnimeSheet(ItemSheetV2
     const rulings = this.document.system.toObject().rulings;
     rulings.splice(Number(target.dataset.j), 1);
     await this.document.update({ "system.rulings": rulings });
+  }
+
+  static async #onPostItem() {
+    await postItemCard(this.document);
   }
 }

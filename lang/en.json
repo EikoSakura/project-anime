@@ -86,6 +86,17 @@
       "Energy": "{n} Energy"
     },
     "RuledInPlay": "Ruled in play:",
+    "Chat": {
+      "Post": "Post"
+    },
+    "Roll": {
+      "Title": "Action Roll",
+      "SecondDie": "Second Die",
+      "Trait": "Trait",
+      "None": "None",
+      "Roll": "Roll",
+      "Total": "Total"
+    },
     "Advancement": {
       "Unspent": "Unspent",
       "Spend": "Spend",
