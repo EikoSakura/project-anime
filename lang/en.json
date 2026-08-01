@@ -7,5 +7,37 @@
       "trait": "Trait",
       "technique": "Technique"
     }
+  },
+  "PROJECTANIME": {
+    "Sheet": {
+      "Item": "Item File"
+    },
+    "Mode": {
+      "View": "View",
+      "Edit": "Edit"
+    },
+    "Header": {
+      "Name": "Name"
+    },
+    "Item": {
+      "Rank": "Rank",
+      "Kind": "Kind",
+      "Description": "Description",
+      "Rulings": "Rulings"
+    },
+    "Technique": {
+      "Activated": "Activated",
+      "Triggered": "Triggered",
+      "Energy": "{n} Energy"
+    },
+    "Edit": {
+      "RankUp": "Rank Up",
+      "RankDown": "Rank Down",
+      "AddRuling": "+ Ruling",
+      "Remove": "Remove"
+    },
+    "Placeholder": {
+      "Ruling": "Ruling"
+    }
   }
 }

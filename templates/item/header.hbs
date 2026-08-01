@@ -1,0 +1,39 @@
+<header class="obi">
+  <div class="obi-inner">
+    <div class="idblock">
+      <div class="eyebrow">{{typeLabel}}</div>
+      {{#if editMode}}
+      <input class="ed-input ed-iname" type="text" name="name" value="{{name}}"
+        placeholder="{{localize "PROJECTANIME.Header.Name"}}" aria-label="{{localize "PROJECTANIME.Header.Name"}}">
+      {{else}}
+      <div class="iname">{{name}}</div>
+      {{/if}}
+      {{#if isTechnique}}
+      <div class="obichips">
+        {{#if editMode}}
+        <select class="kindsel" name="system.kind" aria-label="{{localize "PROJECTANIME.Item.Kind"}}">
+          {{selectOptions kindOptions selected=system.kind}}
+        </select>
+        {{else}}
+        <span class="chip {{#if activated}}pap{{else}}inv{{/if}}">{{kindLabel}}</span>
+        {{/if}}
+        <span class="chip gold">{{costLabel}}</span>
+      </div>
+      {{/if}}
+    </div>
+    <div class="sealwrap">
+      <button type="button" class="seal" data-action="flipSeal" aria-label="{{localize "PROJECTANIME.Item.Rank"}}">
+        <span class="lbl">{{localize "PROJECTANIME.Item.Rank"}}</span>
+        <span class="g{{#if seal.flipped}} alt{{/if}}" style="font-size: {{seal.size}}">{{seal.text}}</span>
+      </button>
+      {{#if editMode}}
+      <div class="sealsteps">
+        <button type="button" class="smallbtn" data-action="stepRank" data-dir="-1"
+          aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}">−</button>
+        <button type="button" class="smallbtn" data-action="stepRank" data-dir="1"
+          aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}">＋</button>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+</header>

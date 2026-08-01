@@ -1,0 +1,37 @@
+<main class="sheetbody">
+  <div class="panel">
+    <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Item.Description"}}</span></div>
+    <div class="panel-b">
+      {{#if editMode}}
+      <prose-mirror name="system.text" value="{{system.text}}" data-document-uuid="{{document.uuid}}"></prose-mirror>
+      {{else}}
+      {{{enrichedText}}}
+      {{/if}}
+    </div>
+  </div>
+  {{#if showRulings}}
+  <div class="panel">
+    <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Item.Rulings"}}</span></div>
+    <div class="panel-b">
+      {{#if editMode}}
+      {{#each system.rulings}}
+      <div class="rulerow">
+        <span class="rmark">◆</span>
+        <input class="ed-input" type="text" name="system.rulings.{{@index}}" value="{{this}}"
+          placeholder="{{localize "PROJECTANIME.Placeholder.Ruling"}}">
+        <button type="button" class="delbtn" data-action="deleteRuling" data-j="{{@index}}"
+          aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+      </div>
+      {{/each}}
+      <div class="addrule">
+        <button type="button" class="smallbtn" data-action="addRuling">{{localize "PROJECTANIME.Edit.AddRuling"}}</button>
+      </div>
+      {{else}}
+      {{#each system.rulings}}
+      <div class="ruled"><span class="rmark">◆</span><span>{{this}}</span></div>
+      {{/each}}
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+</main>
