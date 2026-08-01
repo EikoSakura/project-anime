@@ -710,6 +710,15 @@
     font-size: 17px;
     line-height: 1.2;
   }
+  button.ttl-open {
+    text-align: left;
+  }
+  button.ttl-open:hover b {
+    color: var(--beni-deep);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
   .chip {
     display: inline-block;
     font-size: 9px;

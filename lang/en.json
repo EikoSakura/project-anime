@@ -105,10 +105,19 @@
       "RankUp": "Rank Up",
       "RankDown": "Rank Down",
       "AddRuling": "+ Ruling",
-      "Remove": "Remove"
+      "Remove": "Remove",
+      "RaiseMax": "Raise Max",
+      "LowerMax": "Lower Max",
+      "LuckValue": "Recorded Value",
+      "AddTrait": "+ New Trait",
+      "AddTechnique": "+ New Technique",
+      "AddBond": "+ New Bond",
+      "BondNumber": "Bond Number"
     },
     "Placeholder": {
-      "Ruling": "Ruling"
+      "Ruling": "Ruling",
+      "BondName": "Bond Name",
+      "Description": "Description"
     }
   }
 }

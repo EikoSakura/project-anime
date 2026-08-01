@@ -9,7 +9,13 @@
           <div class="card" data-item-id="{{this.id}}">
             <div class="card-h">
               {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+              {{#if @root.editMode}}
+              <button type="button" class="ttl ttl-open" data-action="openItem" data-item-id="{{this.id}}"><b>{{this.name}}</b></button>
+              <button type="button" class="delbtn" data-action="deleteItem" data-item-id="{{this.id}}"
+                aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+              {{else}}
               <span class="ttl"><b>{{this.name}}</b></span>
+              {{/if}}
             </div>
             <div class="card-text">{{{this.enrichedText}}}</div>
             {{#each this.rulings}}
@@ -17,6 +23,9 @@
             {{/each}}
           </div>
           {{/each}}
+          {{#if editMode}}
+          <button type="button" class="addbtn" data-action="createItem" data-type="trait">{{localize "PROJECTANIME.Edit.AddTrait"}}</button>
+          {{/if}}
         </div>
       </div>
       <div class="panel">
@@ -26,9 +35,17 @@
           <div class="card" data-item-id="{{this.id}}">
             <div class="card-h">
               {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+              {{#if @root.editMode}}
+              <button type="button" class="ttl ttl-open" data-action="openItem" data-item-id="{{this.id}}"><b>{{this.name}}</b></button>
+              {{else}}
               <span class="ttl"><b>{{this.name}}</b></span>
+              {{/if}}
               <span class="chip{{#if this.activated}} solid{{/if}}">{{this.kindLabel}}</span>
               <span class="chip gold">{{this.costLabel}}</span>
+              {{#if @root.editMode}}
+              <button type="button" class="delbtn" data-action="deleteItem" data-item-id="{{this.id}}"
+                aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+              {{/if}}
             </div>
             <div class="card-text">{{{this.enrichedText}}}</div>
             {{#each this.rulings}}
@@ -36,6 +53,9 @@
             {{/each}}
           </div>
           {{/each}}
+          {{#if editMode}}
+          <button type="button" class="addbtn" data-action="createItem" data-type="technique">{{localize "PROJECTANIME.Edit.AddTechnique"}}</button>
+          {{/if}}
         </div>
       </div>
       <div class="panel">
@@ -47,12 +67,31 @@
           {{#each bonds}}
           <div class="card">
             <div class="card-h">
+              {{#if @root.editMode}}
+              <select class="kindsel" name="system.bonds.{{@index}}.number" data-dtype="Number"
+                aria-label="{{localize "PROJECTANIME.Edit.BondNumber"}}">
+                {{selectOptions @root.bondNumbers selected=this.number}}
+              </select>
+              <span class="ttl"><input class="ed-input ed-name" type="text" name="system.bonds.{{@index}}.name"
+                value="{{this.name}}" placeholder="{{localize "PROJECTANIME.Placeholder.BondName"}}"></span>
+              <button type="button" class="delbtn" data-action="deleteBond" data-i="{{@index}}"
+                aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+              {{else}}
               <span class="bondnum">{{this.number}}</span>
               <span class="ttl"><b>{{this.name}}</b></span>
+              {{/if}}
             </div>
+            {{#if @root.editMode}}
+            <textarea class="ed-area" name="system.bonds.{{@index}}.text"
+              placeholder="{{localize "PROJECTANIME.Placeholder.Description"}}">{{this.text}}</textarea>
+            {{else}}
             <p>{{this.text}}</p>
+            {{/if}}
           </div>
           {{/each}}
+          {{#if editMode}}{{#if canAddBond}}
+          <button type="button" class="addbtn" data-action="addBond">{{localize "PROJECTANIME.Edit.AddBond"}}</button>
+          {{/if}}{{/if}}
         </div>
       </div>
     </div>

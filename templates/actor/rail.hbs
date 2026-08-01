@@ -4,7 +4,15 @@
     <div class="panel-b">
       {{#each attributes}}
       <div class="attr">
+        {{#if @root.editMode}}
+        <button type="button" class="rkbtn" data-action="stepRank" data-kind="attribute" data-key="{{this.key}}"
+          data-dir="-1" aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}">−</button>
+        {{/if}}
         {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+        {{#if @root.editMode}}
+        <button type="button" class="rkbtn" data-action="stepRank" data-kind="attribute" data-key="{{this.key}}"
+          data-dir="1" aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}">＋</button>
+        {{/if}}
         <span class="nm"><b>{{this.name}}</b><span>{{this.desc}}</span></span>
       </div>
       {{/each}}

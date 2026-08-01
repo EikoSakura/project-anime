@@ -12,12 +12,16 @@ export default class CharacterSheet extends ProjectAnimeSheet(ActorSheetV2) {
       setPip: this.#onSetPip,
       toggleLuck: this.#onToggleLuck,
       toggleBox: this.#onToggleBox,
-      stepUnspent: this.#onStepUnspent
+      stepUnspent: this.#onStepUnspent,
+      stepRank: this.#onStepRank,
+      stepMax: this.#onStepMax,
+      createItem: this.#onCreateItem,
+      openItem: this.#onOpenItem,
+      deleteItem: this.#onDeleteItem,
+      addBond: this.#onAddBond,
+      deleteBond: this.#onDeleteBond
     }
   };
-
-  /* The View | Edit toggle arrives with the edit-mode step. */
-  static USES_MODE_TOGGLE = false;
 
   static PARTS = {
     header: { template: "systems/project-anime/templates/actor/header.hbs" },
@@ -67,6 +71,9 @@ export default class CharacterSheet extends ProjectAnimeSheet(ActorSheetV2) {
     context.traits = await this.#prepareItems("trait");
     context.techniques = await this.#prepareItems("technique");
     context.bonds = system.bonds;
+    context.canAddBond = system.bonds.length < 6;
+    context.bondNumbers = { 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6" };
+    context.dieOptions = { 6: "d6", 8: "d8", 10: "d10", 12: "d12" };
     context.advancements = {
       unspent: system.advancements.unspent,
       standard: STANDARD_ADVANCEMENTS.map(d => ({
@@ -86,6 +93,22 @@ export default class CharacterSheet extends ProjectAnimeSheet(ActorSheetV2) {
   async _preparePartContext(partId, context) {
     if (context.tabs && partId in context.tabs) context.tab = context.tabs[partId];
     return context;
+  }
+
+  /* Form inputs cover only some columns of each row; keep the rest from the stored row. */
+  _processFormData(event, form, formData) {
+    const data = super._processFormData(event, form, formData);
+    const system = data.system;
+    if (system) {
+      const source = this.document.system.toObject();
+      for (const key of ["bonds", "luck"]) {
+        if (!(key in system)) continue;
+        system[key] = Object.entries(system[key]).map(([i, row]) =>
+          foundry.utils.getType(row) === "Object" ? { ...source[key][Number(i)], ...row } : row
+        );
+      }
+    }
+    return data;
   }
 
   async #prepareItems(type) {
@@ -162,5 +185,63 @@ export default class CharacterSheet extends ProjectAnimeSheet(ActorSheetV2) {
     if (!this.isEditable) return;
     const value = Math.max(0, this.document.system.advancements.unspent + Number(target.dataset.dir));
     await this.document.update({ "system.advancements.unspent": value });
+  }
+
+  static async #onStepRank(event, target) {
+    if (!this.isEditable) return;
+    const dir = Number(target.dataset.dir);
+    const step = v => Math.min(5, Math.max(0, v + dir));
+    const { kind, key } = target.dataset;
+    if (kind === "grade") {
+      await this.document.update({ "system.grade": step(this.document.system.grade) });
+    } else if (kind === "attribute" && key in this.document.system.attributes) {
+      await this.document.update({ [`system.attributes.${key}`]: step(this.document.system.attributes[key]) });
+    }
+  }
+
+  static async #onStepMax(event, target) {
+    if (!this.isEditable) return;
+    const kind = target.dataset.kind;
+    if (kind !== "hearts" && kind !== "energy") return;
+    const { value, max } = this.document.system[kind];
+    const newMax = Math.max(1, max + Number(target.dataset.dir));
+    await this.document.update({
+      [`system.${kind}.max`]: newMax,
+      [`system.${kind}.value`]: Math.min(value, newMax)
+    });
+  }
+
+  static async #onCreateItem(event, target) {
+    if (!this.isEditable) return;
+    const type = target.dataset.type;
+    if (type !== "trait" && type !== "technique") return;
+    const name = CONFIG.Item.documentClass.defaultName({ type, parent: this.document });
+    await this.document.createEmbeddedDocuments("Item", [{ name, type }], { renderSheet: true });
+  }
+
+  static #onOpenItem(event, target) {
+    const item = this.document.items.get(target.dataset.itemId);
+    item?.sheet.render(true);
+  }
+
+  static async #onDeleteItem(event, target) {
+    if (!this.isEditable) return;
+    const item = this.document.items.get(target.dataset.itemId);
+    await item?.deleteDialog();
+  }
+
+  static async #onAddBond() {
+    if (!this.isEditable) return;
+    const bonds = this.document.system.toObject().bonds;
+    if (bonds.length >= 6) return;
+    bonds.push({ name: "", number: 1, text: "" });
+    await this.document.update({ "system.bonds": bonds });
+  }
+
+  static async #onDeleteBond(event, target) {
+    if (!this.isEditable) return;
+    const bonds = this.document.system.toObject().bonds;
+    bonds.splice(Number(target.dataset.i), 1);
+    await this.document.update({ "system.bonds": bonds });
   }
 }

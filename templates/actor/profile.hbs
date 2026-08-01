@@ -2,6 +2,38 @@
   <div class="panel">
     <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Background"}}</span></div>
     <div class="panel-b">
+      {{#if editMode}}
+      <div class="pgrid">
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Header.Age"}}</div>
+          <input class="ed-input" type="text" name="system.age" value="{{system.age}}">
+        </div>
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Profile.Gender"}}</div>
+          <input class="ed-input" type="text" name="system.gender" value="{{system.gender}}">
+        </div>
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Profile.Pronouns"}}</div>
+          <input class="ed-input" type="text" name="system.pronouns" value="{{system.pronouns}}">
+        </div>
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Header.Player"}}</div>
+          <input class="ed-input" type="text" name="system.player" value="{{system.player}}">
+        </div>
+      </div>
+      <div class="field">
+        <div class="flabel">{{localize "PROJECTANIME.Profile.Personality"}}</div>
+        <textarea class="ed-area" name="system.personality">{{system.personality}}</textarea>
+      </div>
+      <div class="field">
+        <div class="flabel">{{localize "PROJECTANIME.Profile.History"}}</div>
+        <textarea class="ed-area" name="system.history">{{system.history}}</textarea>
+      </div>
+      <div class="field">
+        <div class="flabel">{{localize "PROJECTANIME.Profile.Notes"}}</div>
+        <textarea class="ed-area" name="system.notes">{{system.notes}}</textarea>
+      </div>
+      {{else}}
       <div class="pgrid">
         <div class="field">
           <div class="flabel">{{localize "PROJECTANIME.Header.Age"}}</div>
@@ -32,6 +64,7 @@
         <div class="flabel">{{localize "PROJECTANIME.Profile.Notes"}}</div>
         <div class="fval long">{{#if system.notes}}{{system.notes}}{{else}}<span class="empty">·</span>{{/if}}</div>
       </div>
+      {{/if}}
     </div>
   </div>
 </section>

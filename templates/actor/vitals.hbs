@@ -10,6 +10,12 @@
       {{/each}}
     </div>
     <span class="vcount">{{hearts.value}} / {{hearts.max}}</span>
+    {{#if editMode}}
+    <span class="stepper">
+      <button type="button" data-action="stepMax" data-kind="hearts" data-dir="-1" aria-label="{{localize "PROJECTANIME.Edit.LowerMax"}}">−</button>
+      <button type="button" data-action="stepMax" data-kind="hearts" data-dir="1" aria-label="{{localize "PROJECTANIME.Edit.RaiseMax"}}">＋</button>
+    </span>
+    {{/if}}
   </div>
   <div class="vgroup">
     <span class="vlabel">{{localize "PROJECTANIME.Vitals.Energy"}}</span>
@@ -22,6 +28,12 @@
       {{/each}}
     </div>
     <span class="vcount">{{energy.value}} / {{energy.max}}</span>
+    {{#if editMode}}
+    <span class="stepper">
+      <button type="button" data-action="stepMax" data-kind="energy" data-dir="-1" aria-label="{{localize "PROJECTANIME.Edit.LowerMax"}}">−</button>
+      <button type="button" data-action="stepMax" data-kind="energy" data-dir="1" aria-label="{{localize "PROJECTANIME.Edit.RaiseMax"}}">＋</button>
+    </span>
+    {{/if}}
   </div>
   {{#if showLuck}}
   <div class="vgroup">
@@ -30,6 +42,15 @@
       {{#each luck}}
       <div class="luckslot{{#if this.spent}} spent{{/if}}">
         <button type="button" class="face" data-action="toggleLuck" data-i="{{@index}}" data-tooltip="{{this.stateLabel}}">{{this.value}}</button>
+        {{#if @root.editMode}}
+        <div class="luckedit">
+          <select name="system.luck.{{@index}}.die" data-dtype="Number">
+            {{selectOptions @root.dieOptions selected=this.die}}
+          </select>
+          <input type="number" name="system.luck.{{@index}}.value" data-dtype="Number" min="1" max="{{this.die}}"
+            value="{{this.value}}" aria-label="{{localize "PROJECTANIME.Edit.LuckValue"}}">
+        </div>
+        {{/if}}
       </div>
       {{/each}}
     </div>
