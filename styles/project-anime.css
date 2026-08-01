@@ -162,24 +162,20 @@
       width: auto;
       height: auto;
       min-height: 0;
-      line-height: 1.5;
-      border: 1.5px solid var(--paper);
-      border-radius: 2px;
+      line-height: 1;
+      border: none;
       background: transparent;
       color: var(--paper);
-      padding: 3px 10px;
-      margin: 0 8px 0 0;
-      font-family: var(--f-ui);
-      font-size: 9px;
-      font-weight: 900;
-      letter-spacing: .18em;
-      text-transform: uppercase;
+      opacity: .7;
+      padding: 2px 4px;
+      margin: 0 6px 0 0;
+      font-size: 12px;
       box-shadow: none;
       cursor: pointer;
     }
     .postbtn:hover {
-      background: var(--paper);
-      color: var(--ink);
+      opacity: 1;
+      color: var(--beni);
     }
   }
   .window-content {
@@ -763,17 +759,12 @@
   }
   .card-h .postbtn {
     flex: none;
-    border: 1.5px solid var(--ink);
-    background: var(--paper);
-    border-radius: 2px;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    padding: 2px 8px;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--muted);
+    padding: 2px 4px;
   }
   .card-h .postbtn:hover {
-    border-color: var(--beni);
     color: var(--beni-deep);
   }
   .chip {

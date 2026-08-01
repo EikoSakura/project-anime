@@ -31,7 +31,9 @@ export default class ProjectAnimeItemSheet extends ProjectAnimeSheet(ItemSheetV2
     button.type = "button";
     button.className = "postbtn";
     button.dataset.action = "postItem";
-    button.textContent = game.i18n.localize("PROJECTANIME.Chat.Post");
+    button.dataset.tooltip = "PROJECTANIME.Chat.Post";
+    button.ariaLabel = game.i18n.localize("PROJECTANIME.Chat.Post");
+    button.innerHTML = '<i class="fa-solid fa-message"></i>';
     this.window.title.after(button);
     return frame;
   }
