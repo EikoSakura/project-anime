@@ -1,0 +1,57 @@
+<section class="tab growth {{tab.cssClass}}" data-group="primary" data-tab="growth">
+  <div class="growgrid">
+    <div class="panel">
+      <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Advancements"}}</span></div>
+      <div class="panel-b centered">
+        <div class="bignum">{{advancements.unspent}}</div>
+        <div class="vlabel">{{localize "PROJECTANIME.Advancement.Unspent"}}</div>
+        <div class="stepper">
+          <button type="button" data-action="stepUnspent" data-dir="-1" aria-label="{{localize "PROJECTANIME.Advancement.Spend"}}">−</button>
+          <button type="button" data-action="stepUnspent" data-dir="1" aria-label="{{localize "PROJECTANIME.Advancement.Gain"}}">＋</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="panel-h">
+          <span class="en">{{localize "PROJECTANIME.Panel.Standard"}}</span>
+          <span class="tail">{{localize "PROJECTANIME.Advancement.StandardTail"}}</span>
+        </div>
+        <div class="panel-b">
+          {{#each advancements.standard}}
+          <div class="advrow">
+            <span class="nm">{{this.name}}</span>
+            <span class="boxes">
+              {{#each this.boxes}}
+              <button type="button" class="abox{{#if this}} on{{/if}}" data-action="toggleBox"
+                data-group="standard" data-key="{{../key}}" data-j="{{@index}}"
+                aria-label="{{../name}}">{{#if this}}✓{{/if}}</button>
+              {{/each}}
+            </span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h">
+          <span class="en">{{localize "PROJECTANIME.Panel.Special"}}</span>
+          <span class="tail">{{localize "PROJECTANIME.Advancement.SpecialTail"}}</span>
+        </div>
+        <div class="panel-b">
+          {{#each advancements.special}}
+          <div class="advrow">
+            <span class="nm">{{this.name}}</span>
+            <span class="boxes">
+              {{#each this.boxes}}
+              <button type="button" class="abox sp{{#if this}} on{{/if}}" data-action="toggleBox"
+                data-group="special" data-key="{{../key}}" data-j="{{@index}}"
+                aria-label="{{../name}}">{{#if this}}✓{{/if}}</button>
+              {{/each}}
+            </span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

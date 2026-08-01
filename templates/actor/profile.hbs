@@ -1,0 +1,37 @@
+<section class="tab profile {{tab.cssClass}}" data-group="primary" data-tab="profile">
+  <div class="panel">
+    <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Background"}}</span></div>
+    <div class="panel-b">
+      <div class="pgrid">
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Header.Age"}}</div>
+          <div class="fval">{{#if system.age}}{{system.age}}{{else}}<span class="empty">·</span>{{/if}}</div>
+        </div>
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Profile.Gender"}}</div>
+          <div class="fval">{{#if system.gender}}{{system.gender}}{{else}}<span class="empty">·</span>{{/if}}</div>
+        </div>
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Profile.Pronouns"}}</div>
+          <div class="fval">{{#if system.pronouns}}{{system.pronouns}}{{else}}<span class="empty">·</span>{{/if}}</div>
+        </div>
+        <div class="field">
+          <div class="flabel">{{localize "PROJECTANIME.Header.Player"}}</div>
+          <div class="fval">{{#if system.player}}{{system.player}}{{else}}<span class="empty">·</span>{{/if}}</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="flabel">{{localize "PROJECTANIME.Profile.Personality"}}</div>
+        <div class="fval long">{{#if system.personality}}{{system.personality}}{{else}}<span class="empty">·</span>{{/if}}</div>
+      </div>
+      <div class="field">
+        <div class="flabel">{{localize "PROJECTANIME.Profile.History"}}</div>
+        <div class="fval long">{{#if system.history}}{{system.history}}{{else}}<span class="empty">·</span>{{/if}}</div>
+      </div>
+      <div class="field">
+        <div class="flabel">{{localize "PROJECTANIME.Profile.Notes"}}</div>
+        <div class="fval long">{{#if system.notes}}{{system.notes}}{{else}}<span class="empty">·</span>{{/if}}</div>
+      </div>
+    </div>
+  </div>
+</section>

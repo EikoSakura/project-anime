@@ -1,0 +1,26 @@
+<div class="sheet-head">
+<header class="obi">
+  <div class="obi-inner">
+    <div class="portrait">
+      {{#if portrait}}<img src="{{portrait}}" alt="{{name}}">{{else}}<span class="ph">{{initial}}</span>{{/if}}
+    </div>
+    <div class="idblock">
+      <div class="eyebrow">{{localize "PROJECTANIME.Header.Character"}}</div>
+      <div class="cname">{{name}}</div>
+      <div class="cmeta">
+        <span>{{localize "PROJECTANIME.Header.Age"}} <b>{{system.age}}</b></span>
+        <span><b>{{system.pronouns}}</b></span>
+        <span>{{localize "PROJECTANIME.Header.Player"}} <b>{{system.player}}</b></span>
+      </div>
+    </div>
+    <div class="sealwrap">
+      <div class="seal" aria-label="{{localize "PROJECTANIME.Header.Grade"}}">
+        <span class="lbl">{{localize "PROJECTANIME.Header.Grade"}}</span>
+        <span class="g">{{grade.letter}}</span>
+        <span class="num">{{grade.number}}</span>
+      </div>
+    </div>
+  </div>
+</header>
+{{> "systems/project-anime/templates/actor/vitals.hbs"}}
+</div>

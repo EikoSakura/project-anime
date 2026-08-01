@@ -1,4 +1,42 @@
-/* Project: Anime — shared stylesheet for all sheets. Fonts arrive with the character sheet step. */
+/* Project: Anime — shared stylesheet for all sheets. */
+
+/* ===== fonts (bundled, OFL — see fonts/OFL-*.txt) ===== */
+@font-face {
+  font-family: "Shippori Mincho B1";
+  src: url("../fonts/ShipporiMinchoB1-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Shippori Mincho B1";
+  src: url("../fonts/ShipporiMinchoB1-ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  src: url("../fonts/ZenKakuGothicNew-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  src: url("../fonts/ZenKakuGothicNew-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  src: url("../fonts/ZenKakuGothicNew-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Zen Kaku Gothic New";
+  src: url("../fonts/ZenKakuGothicNew-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+}
 
 /* ===== shared sheet chrome ===== */
 .project-anime.sheet {
@@ -705,6 +743,15 @@
     color: var(--beni-deep);
     font-style: italic;
     font-weight: 700;
+  }
+  .card .card-text {
+    font-size: 13px;
+  }
+  .card .card-text p {
+    margin: 0;
+  }
+  .card .card-text p + p {
+    margin-top: 6px;
   }
   .bondnum {
     width: 32px;

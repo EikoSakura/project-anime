@@ -1,0 +1,39 @@
+<div>
+  <div class="panel">
+    <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Attributes"}}</span></div>
+    <div class="panel-b">
+      {{#each attributes}}
+      <div class="attr">
+        {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+        <span class="nm"><b>{{this.name}}</b><span>{{this.desc}}</span></span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Ladder"}}</span></div>
+    <div class="panel-b">
+      <table class="ladder">
+        <thead>
+          <tr>
+            <th>{{localize "PROJECTANIME.Ladder.RankGrade"}}</th>
+            <th>{{localize "PROJECTANIME.Ladder.Die"}}</th>
+            <th>{{localize "PROJECTANIME.Ladder.Trait"}}</th>
+            <th>{{localize "PROJECTANIME.Ladder.Difficulty"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each ladder}}
+          <tr>
+            <td class="rk" style="color: var({{this.cssVar}})">{{this.rank}}</td>
+            <td>{{this.die}}</td>
+            <td>+{{this.mod}}</td>
+            <td>{{this.grade}}</td>
+          </tr>
+          {{/each}}
+          <tr><td class="rk" style="color: var(--beni)">SS</td><td></td><td></td><td>22</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

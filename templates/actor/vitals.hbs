@@ -1,0 +1,38 @@
+<div class="vitals">
+  <div class="vgroup">
+    <span class="vlabel">{{localize "PROJECTANIME.Vitals.Hearts"}}</span>
+    <div class="pips">
+      {{#each hearts.pips}}
+      <button type="button" class="pip{{#if this}} on{{/if}}" data-action="setPip" data-kind="hearts" data-i="{{@index}}"
+        aria-label="{{localize "PROJECTANIME.Vitals.Hearts"}}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="shape heart" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      </button>
+      {{/each}}
+    </div>
+    <span class="vcount">{{hearts.value}} / {{hearts.max}}</span>
+  </div>
+  <div class="vgroup">
+    <span class="vlabel">{{localize "PROJECTANIME.Vitals.Energy"}}</span>
+    <div class="pips">
+      {{#each energy.pips}}
+      <button type="button" class="pip{{#if this}} on{{/if}}" data-action="setPip" data-kind="energy" data-i="{{@index}}"
+        aria-label="{{localize "PROJECTANIME.Vitals.Energy"}}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="shape bolt" d="M13 2 4.5 13.5H11l-1.2 8.5 8.7-11.5H12L13 2z"/></svg>
+      </button>
+      {{/each}}
+    </div>
+    <span class="vcount">{{energy.value}} / {{energy.max}}</span>
+  </div>
+  {{#if showLuck}}
+  <div class="vgroup">
+    <span class="vlabel">{{localize "PROJECTANIME.Vitals.LuckDice"}}</span>
+    <div class="luckrow">
+      {{#each luck}}
+      <div class="luckslot{{#if this.spent}} spent{{/if}}">
+        <button type="button" class="face" data-action="toggleLuck" data-i="{{@index}}" data-tooltip="{{this.stateLabel}}">{{this.value}}</button>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+</div>

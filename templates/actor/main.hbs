@@ -1,0 +1,60 @@
+<section class="tab main {{tab.cssClass}}" data-group="primary" data-tab="main">
+  <div class="maingrid">
+    {{> "systems/project-anime/templates/actor/rail.hbs"}}
+    <div>
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Traits"}}</span></div>
+        <div class="panel-b">
+          {{#each traits}}
+          <div class="card" data-item-id="{{this.id}}">
+            <div class="card-h">
+              {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+              <span class="ttl"><b>{{this.name}}</b></span>
+            </div>
+            <div class="card-text">{{{this.enrichedText}}}</div>
+            {{#each this.rulings}}
+            <div class="ruled"><em>{{localize "PROJECTANIME.RuledInPlay"}}</em> {{this}}</div>
+            {{/each}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Techniques"}}</span></div>
+        <div class="panel-b">
+          {{#each techniques}}
+          <div class="card" data-item-id="{{this.id}}">
+            <div class="card-h">
+              {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+              <span class="ttl"><b>{{this.name}}</b></span>
+              <span class="chip{{#if this.activated}} solid{{/if}}">{{this.kindLabel}}</span>
+              <span class="chip gold">{{this.costLabel}}</span>
+            </div>
+            <div class="card-text">{{{this.enrichedText}}}</div>
+            {{#each this.rulings}}
+            <div class="ruled"><em>{{localize "PROJECTANIME.RuledInPlay"}}</em> {{this}}</div>
+            {{/each}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h">
+          <span class="en">{{localize "PROJECTANIME.Panel.Bonds"}}</span>
+          <span class="tail">{{bonds.length}} / 6</span>
+        </div>
+        <div class="panel-b">
+          {{#each bonds}}
+          <div class="card">
+            <div class="card-h">
+              <span class="bondnum">{{this.number}}</span>
+              <span class="ttl"><b>{{this.name}}</b></span>
+            </div>
+            <p>{{this.text}}</p>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

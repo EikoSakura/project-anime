@@ -13,6 +13,8 @@ export default function ProjectAnimeSheet(Base) {
       }
     };
 
+    static USES_MODE_TOGGLE = true;
+
     #mode = "view";
 
     get isEditMode() {
@@ -21,7 +23,7 @@ export default function ProjectAnimeSheet(Base) {
 
     async _renderFrame(options) {
       const frame = await super._renderFrame(options);
-      if (this.isEditable) {
+      if (this.isEditable && this.constructor.USES_MODE_TOGGLE) {
         const toggle = document.createElement("div");
         toggle.className = "modetoggle";
         for (const [mode, key] of [["view", "PROJECTANIME.Mode.View"], ["edit", "PROJECTANIME.Mode.Edit"]]) {

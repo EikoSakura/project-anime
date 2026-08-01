@@ -10,14 +10,61 @@
   },
   "PROJECTANIME": {
     "Sheet": {
+      "Character": "Character File",
       "Item": "Item File"
     },
     "Mode": {
       "View": "View",
       "Edit": "Edit"
     },
+    "Tab": {
+      "main": "Main",
+      "growth": "Growth",
+      "profile": "Profile"
+    },
     "Header": {
-      "Name": "Name"
+      "Character": "Character",
+      "Grade": "Grade",
+      "Age": "Age",
+      "Player": "Player",
+      "Name": "Name",
+      "EditPortrait": "Edit Portrait"
+    },
+    "Vitals": {
+      "Hearts": "Hearts",
+      "Energy": "Energy",
+      "LuckDice": "Luck Dice",
+      "Ready": "Ready",
+      "Spent": "Spent"
+    },
+    "Panel": {
+      "Attributes": "Attributes",
+      "Ladder": "The Ladder",
+      "Traits": "Traits",
+      "Techniques": "Techniques",
+      "Bonds": "Bonds",
+      "Advancements": "Advancements",
+      "Standard": "Standard",
+      "Special": "Special",
+      "Background": "Background"
+    },
+    "Ladder": {
+      "RankGrade": "Rank/Grade",
+      "Die": "Die",
+      "Trait": "Trait",
+      "Difficulty": "Difficulty"
+    },
+    "Attribute": {
+      "Might": "Might",
+      "MightDesc": "Physical strength and power",
+      "Agility": "Agility",
+      "AgilityDesc": "Nimbleness and deftness",
+      "Mind": "Mind",
+      "MindDesc": "Mental awareness and acuity",
+      "Spirit": "Spirit",
+      "SpiritDesc": "Empathy and willpower",
+      "Charm": "Charm",
+      "CharmDesc": "Persuasion and deception"
     },
     "Item": {
       "Rank": "Rank",
@@ -29,6 +76,30 @@
       "Activated": "Activated",
       "Triggered": "Triggered",
       "Energy": "{n} Energy"
+    },
+    "RuledInPlay": "Ruled in play:",
+    "Advancement": {
+      "Unspent": "Unspent",
+      "Spend": "Spend",
+      "Gain": "Gain",
+      "StandardTail": "Cost 1 · Clear Each Season",
+      "SpecialTail": "Cost 2 · Never Clear",
+      "NewTrait": "New Trait",
+      "RankTrait": "Rank Up Trait",
+      "NewTech": "New Technique",
+      "RankTech": "Rank Up Technique",
+      "NewHeart": "New Heart",
+      "NewEnergy": "New Energy",
+      "Luck": "Rank Up Luck Dice",
+      "Grade": "Rank Up Grade",
+      "Attribute": "Rank Up Attribute"
+    },
+    "Profile": {
+      "Gender": "Gender",
+      "Pronouns": "Pronouns",
+      "Personality": "Personality",
+      "History": "History",
+      "Notes": "Notes"
     },
     "Edit": {
       "RankUp": "Rank Up",
