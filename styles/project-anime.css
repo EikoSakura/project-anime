@@ -450,6 +450,17 @@
     height: 14px;
     accent-color: var(--beni);
   }
+  .rivaltoggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .rivaltoggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--beni);
+  }
 
   /* ===== tabs ===== */
   nav.tabs {

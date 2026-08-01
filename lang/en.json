@@ -1,7 +1,8 @@
 {
   "TYPES": {
     "Actor": {
-      "character": "Character"
+      "character": "Character",
+      "adversary": "Adversary"
     },
     "Item": {
       "trait": "Trait",
@@ -11,7 +12,13 @@
   "PROJECTANIME": {
     "Sheet": {
       "Character": "Character File",
+      "Adversary": "Adversary File",
       "Item": "Item File"
+    },
+    "Adversary": {
+      "Desire": "Desire",
+      "Fear": "Fear",
+      "Rival": "Rival"
     },
     "Mode": {
       "View": "View",
@@ -46,7 +53,8 @@
       "Advancements": "Advancements",
       "Standard": "Standard",
       "Special": "Special",
-      "Background": "Background"
+      "Background": "Background",
+      "DesireFear": "Desire & Fear"
     },
     "Ladder": {
       "RankGrade": "Rank/Grade",

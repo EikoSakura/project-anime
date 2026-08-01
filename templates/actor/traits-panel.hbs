@@ -1,0 +1,26 @@
+<div class="panel">
+  <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Traits"}}</span></div>
+  <div class="panel-b">
+    {{#each traits}}
+    <div class="card" data-item-id="{{this.id}}">
+      <div class="card-h">
+        {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+        {{#if @root.editMode}}
+        <button type="button" class="ttl ttl-open" data-action="openItem" data-item-id="{{this.id}}"><b>{{this.name}}</b></button>
+        <button type="button" class="delbtn" data-action="deleteItem" data-item-id="{{this.id}}"
+          aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+        {{else}}
+        <span class="ttl"><b>{{this.name}}</b></span>
+        {{/if}}
+      </div>
+      <div class="card-text">{{{this.enrichedText}}}</div>
+      {{#each this.rulings}}
+      <div class="ruled"><em>{{localize "PROJECTANIME.RuledInPlay"}}</em> {{this}}</div>
+      {{/each}}
+    </div>
+    {{/each}}
+    {{#if editMode}}
+    <button type="button" class="addbtn" data-action="createItem" data-type="trait">{{localize "PROJECTANIME.Edit.AddTrait"}}</button>
+    {{/if}}
+  </div>
+</div>

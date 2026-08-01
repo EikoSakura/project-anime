@@ -56,4 +56,10 @@
     </div>
   </div>
   {{/if}}
+  {{#if showRivalToggle}}
+  <label class="vlabel rivaltoggle">
+    <input type="checkbox" name="system.rival" {{#if system.rival}}checked{{/if}}>
+    {{localize "PROJECTANIME.Adversary.Rival"}}
+  </label>
+  {{/if}}
 </div>

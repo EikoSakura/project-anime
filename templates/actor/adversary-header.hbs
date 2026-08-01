@@ -1,0 +1,39 @@
+<div class="sheet-head">
+<header class="obi">
+  <div class="obi-inner">
+    {{#if editMode}}
+    <img class="portrait editable" src="{{img}}" alt="{{name}}" data-edit="img" data-action="editImage"
+      data-tooltip="{{localize "PROJECTANIME.Header.EditPortrait"}}">
+    {{else}}
+    <div class="portrait">
+      {{#if portrait}}<img src="{{portrait}}" alt="{{name}}">{{else}}<span class="ph">{{initial}}</span>{{/if}}
+    </div>
+    {{/if}}
+    <div class="idblock">
+      <div class="eyebrow">{{#if system.rival}}{{localize "PROJECTANIME.Adversary.Rival"}}{{else}}{{localize "TYPES.Actor.adversary"}}{{/if}}</div>
+      {{#if editMode}}
+      <input class="ed-input ed-cname" type="text" name="name" value="{{name}}"
+        placeholder="{{localize "PROJECTANIME.Header.Name"}}" aria-label="{{localize "PROJECTANIME.Header.Name"}}">
+      {{else}}
+      <div class="cname">{{name}}</div>
+      {{/if}}
+    </div>
+    <div class="sealwrap">
+      <div class="seal" aria-label="{{localize "PROJECTANIME.Header.Grade"}}">
+        <span class="lbl">{{localize "PROJECTANIME.Header.Grade"}}</span>
+        <span class="g">{{grade.letter}}</span>
+        <span class="num">{{grade.number}}</span>
+      </div>
+      {{#if editMode}}
+      <div class="sealsteps">
+        <button type="button" class="smallbtn" data-action="stepRank" data-kind="grade" data-dir="-1"
+          aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}">−</button>
+        <button type="button" class="smallbtn" data-action="stepRank" data-kind="grade" data-dir="1"
+          aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}">＋</button>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+</header>
+{{> "systems/project-anime/templates/actor/vitals.hbs"}}
+</div>

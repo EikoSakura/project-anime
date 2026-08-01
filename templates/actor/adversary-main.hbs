@@ -1,0 +1,33 @@
+<section class="tab main active">
+  <div class="maingrid">
+    {{> "systems/project-anime/templates/actor/rail.hbs"}}
+    <div>
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.DesireFear"}}</span></div>
+        <div class="panel-b">
+          {{#if editMode}}
+          <div class="field">
+            <div class="flabel">{{localize "PROJECTANIME.Adversary.Desire"}}</div>
+            <input class="ed-input" type="text" name="system.desire" value="{{system.desire}}">
+          </div>
+          <div class="field">
+            <div class="flabel">{{localize "PROJECTANIME.Adversary.Fear"}}</div>
+            <input class="ed-input" type="text" name="system.fear" value="{{system.fear}}">
+          </div>
+          {{else}}
+          <div class="field">
+            <div class="flabel">{{localize "PROJECTANIME.Adversary.Desire"}}</div>
+            <div class="fval">{{#if system.desire}}{{system.desire}}{{else}}<span class="empty">·</span>{{/if}}</div>
+          </div>
+          <div class="field">
+            <div class="flabel">{{localize "PROJECTANIME.Adversary.Fear"}}</div>
+            <div class="fval">{{#if system.fear}}{{system.fear}}{{else}}<span class="empty">·</span>{{/if}}</div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+      {{> "systems/project-anime/templates/actor/traits-panel.hbs"}}
+      {{> "systems/project-anime/templates/actor/techniques-panel.hbs"}}
+    </div>
+  </div>
+</section>

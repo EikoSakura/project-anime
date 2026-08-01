@@ -18,7 +18,8 @@
   ],
   "documentTypes": {
     "Actor": {
-      "character": {}
+      "character": {},
+      "adversary": {}
     },
     "Item": {
       "trait": {},
