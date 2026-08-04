@@ -1377,13 +1377,19 @@
 }
 .pa-card .chead {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  gap: 5px;
   background: var(--ink);
   color: var(--paper);
   padding: 7px 10px 7px 15px;
   overflow: hidden;
+}
+.pa-card .cmeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 .pa-card .chead::after {
   content: "";
@@ -1401,7 +1407,6 @@
   font-weight: 700;
   font-size: 15px;
   line-height: 1.2;
-  flex: 1;
   min-width: 0;
   position: relative;
   z-index: 1;
