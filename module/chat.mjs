@@ -29,6 +29,23 @@ export async function postItemCard(item) {
   });
 }
 
+/* Post the blocked-roll card: a Technique the actor cannot pay for. */
+export async function postEnergyCard(actor, item) {
+  const step = LADDER[item.system.rank];
+  const context = {
+    name: item.name,
+    rank: step.rank,
+    cssVar: step.cssVar,
+    costLabel: game.i18n.format("PROJECTANIME.Technique.Energy", { n: step.mod }),
+    line: game.i18n.format("PROJECTANIME.Chat.NoEnergy", { left: actor.system.energy.value })
+  };
+  const content = await renderTemplate("systems/project-anime/templates/chat/energy-card.hbs", context);
+  return ChatMessage.implementation.create({
+    content,
+    speaker: ChatMessage.implementation.getSpeaker({ actor })
+  });
+}
+
 /* Post an Action Roll: two dice, one optional Trait bonus, one optional flat
    bonus, backed by a real Roll. first and second are { name, rank } with any
    die steps already applied; trait is { name, rank } or null; bonus is a

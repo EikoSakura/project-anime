@@ -87,7 +87,8 @@
     },
     "RuledInPlay": "Ruled in play:",
     "Chat": {
-      "Post": "Post"
+      "Post": "Post",
+      "NoEnergy": "Not Enough Energy · {left} Left"
     },
     "Splash": {
       "Combo": "COMBO!!",

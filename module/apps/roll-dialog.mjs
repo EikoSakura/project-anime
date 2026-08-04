@@ -1,5 +1,5 @@
 import { LADDER, ATTRIBUTES } from "../config.mjs";
-import { postActionRoll } from "../chat.mjs";
+import { postActionRoll, postEnergyCard } from "../chat.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -150,6 +150,13 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     return { name: item.name, rank: item.system.rank };
   }
 
+  /* The one Technique in the roll, first or second die, or null. */
+  #techniqueItem() {
+    if (this.#first.kind === "technique") return this.#actor.items.get(this.#first.id) ?? null;
+    const [kind, id] = this.#second.split(".");
+    return kind === "technique" ? this.#actor.items.get(id) ?? null : null;
+  }
+
   #resolveTrait() {
     if (!this.#trait) return null;
     const item = this.#actor.items.get(this.#trait);
@@ -195,6 +202,13 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     const first = this.#resolveFirst();
     const second = this.#resolveSecond();
     if (!first || !second) return this.close();
+    const technique = this.#techniqueItem();
+    if (technique) {
+      const cost = LADDER[technique.system.rank].mod;
+      const { value } = this.#actor.system.energy;
+      if (cost > value) return postEnergyCard(this.#actor, technique);
+      await this.#actor.update({ "system.energy.value": value - cost });
+    }
     const ranks = this.#effRanks();
     await postActionRoll(
       this.#actor,
