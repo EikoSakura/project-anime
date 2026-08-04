@@ -5,8 +5,11 @@ import TechniqueData from "./data/technique.mjs";
 import CharacterSheet from "./sheets/character-sheet.mjs";
 import AdversarySheet from "./sheets/adversary-sheet.mjs";
 import ProjectAnimeItemSheet from "./sheets/item-sheet.mjs";
+import { registerSplash } from "./apps/splash.mjs";
 
 Hooks.once("init", () => {
+  registerSplash();
+
   CONFIG.Actor.dataModels.character = CharacterData;
   CONFIG.Actor.dataModels.adversary = AdversaryData;
   CONFIG.Item.dataModels.trait = TraitData;

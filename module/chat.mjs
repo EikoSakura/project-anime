@@ -40,9 +40,15 @@ export async function postActionRoll(actor, first, second, trait, bonus = 0) {
   if (bonus > 0) formula += ` + ${bonus}`;
   else if (bonus < 0) formula += ` - ${-bonus}`;
   const roll = await new foundry.dice.Roll(formula).evaluate();
+  const faces = roll.dice.map(d => d.total);
+  let splash = null;
+  if (faces.length === 2 && faces[0] === faces[1]) {
+    if (faces[0] >= 6) splash = "combo";
+    else if (faces[0] === 1) splash = "fumble";
+  }
   const context = {
     title: `${first.name} + ${second.name}`,
-    faces: roll.dice.map(d => d.total),
+    faces,
     total: roll.total,
     trait: trait ? { name: trait.name, mod: LADDER[trait.rank].mod } : null,
     bonus: bonus ? `${bonus > 0 ? "+" : "−"}${Math.abs(bonus)}` : null
@@ -52,6 +58,7 @@ export async function postActionRoll(actor, first, second, trait, bonus = 0) {
     content,
     rolls: [roll],
     sound: CONFIG.sounds.dice,
-    speaker: ChatMessage.implementation.getSpeaker({ actor })
+    speaker: ChatMessage.implementation.getSpeaker({ actor }),
+    flags: splash ? { "project-anime": { splash } } : {}
   });
 }

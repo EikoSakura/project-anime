@@ -89,6 +89,10 @@
     "Chat": {
       "Post": "Post"
     },
+    "Splash": {
+      "Combo": "COMBO!!",
+      "Fumble": "FUMBLE"
+    },
     "Roll": {
       "Title": "Action Roll",
       "SecondDie": "Second Die",
