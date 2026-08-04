@@ -1548,18 +1548,20 @@
 .pa-card .opening {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 9px;
-  border-top: 1.5px dashed rgba(34, 26, 54, .22);
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  margin: 10px -12px -11px -16px;
+  padding: 6px 10px 6px 15px;
+  background: var(--ink);
 }
 .pa-card .oplab {
   flex: 1;
+  white-space: nowrap;
   font-size: 9px;
   font-weight: 900;
   letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: rgba(247, 242, 231, .65);
 }
 .pa-card .opbtn {
   flex: none;
@@ -1572,25 +1574,25 @@
   font-weight: 900;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: var(--ink);
-  background: #fffdf8;
-  border: 1.5px solid var(--ink);
+  color: var(--paper);
+  background: transparent;
+  border: 1.5px solid var(--paper);
   border-radius: 2px;
   padding: 1px 8px;
   box-shadow: none;
   cursor: pointer;
 }
 .pa-card .opbtn:hover {
-  background: var(--gold);
-  border-color: #a8771f;
+  background: var(--paper);
+  color: var(--ink);
 }
 .pa-card .opbtn.inert {
-  opacity: .45;
+  opacity: .4;
   cursor: default;
 }
 .pa-card .opbtn.inert:hover {
-  background: #fffdf8;
-  border-color: var(--ink);
+  background: transparent;
+  color: var(--paper);
 }
 .pa-card .rtotal {
   margin-left: auto;
