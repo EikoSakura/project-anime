@@ -1384,6 +1384,17 @@
   padding: 7px 10px 7px 15px;
   overflow: hidden;
 }
+.pa-card .ctitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+.pa-card .ctitle:not(:last-child) {
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid rgba(247, 242, 231, .3);
+}
 .pa-card .cmeta {
   display: flex;
   align-items: center;
