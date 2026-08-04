@@ -101,8 +101,8 @@
       "Label": "Opening",
       "Energy": "+1 Energy",
       "Luck": "Shift Luck",
-      "EnergyLine": "Opening · {name} · Energy +1",
-      "LuckLine": "Opening · {name} · Luck {from} ▸ {to}"
+      "EnergyLine": "Opening · Energy +1",
+      "LuckLine": "Opening · Luck {from} ▸ {to}"
     },
     "Roll": {
       "Title": "Action Roll",

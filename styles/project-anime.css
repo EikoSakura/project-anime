@@ -1526,25 +1526,6 @@
 .pa-card .rtrait.luck .rmark {
   color: var(--gold);
 }
-.pa-card .opdeclare {
-  display: block;
-  width: auto;
-  margin: 9px 0 0;
-  padding: 0;
-  border: none;
-  background: none;
-  box-shadow: none;
-  font-family: var(--f-ui);
-  font-size: 9.5px;
-  font-weight: 900;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--muted);
-  cursor: pointer;
-}
-.pa-card .opdeclare:hover {
-  color: var(--beni);
-}
 .pa-card .opening {
   display: flex;
   align-items: center;
@@ -1859,29 +1840,6 @@
   }
   .lpdie.static {
     cursor: default;
-  }
-  .opchar {
-    display: block;
-    width: 100%;
-    text-align: left;
-    font-family: var(--f-ui);
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--ink);
-    background: #fffdf8;
-    border: 1.5px solid var(--ink);
-    border-radius: 2px;
-    padding: 6px 9px;
-    cursor: pointer;
-  }
-  .opchar:hover {
-    background: var(--gold);
-    border-color: #a8771f;
-  }
-  .opval {
-    float: right;
-    font-weight: 900;
-    color: var(--muted);
   }
   .stepgrp {
     display: flex;

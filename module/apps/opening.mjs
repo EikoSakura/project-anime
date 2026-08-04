@@ -2,27 +2,18 @@ import { applyOpening } from "../chat.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/* Characters other than the roll's creator that can take the benefit. */
-function eligibleActors(message, kind) {
-  const creator = message.speaker?.actor;
-  return game.actors.filter(a => {
-    if (a.type !== "character" || !a.isOwner || a.id === creator) return false;
-    if (kind === "energy") return a.system.energy.value < a.system.energy.max;
-    return a.system.luck.some(d => !d.spent && d.value > 0);
-  });
-}
-
-/* Route an Opening state change: directly when this user may update the
-   message, else through the active GM over the system socket. */
-async function requestOpening(message, state) {
-  if (message.canUserModify(game.user, "update")) return applyOpening(message, state);
-  game.socket.emit("system.project-anime", { type: "opening", messageId: message.id, state });
+/* Route an Opening benefit: directly when this user may update the message,
+   else through the active GM over the system socket. */
+async function requestOpening(message, spent) {
+  if (message.canUserModify(game.user, "update")) return applyOpening(message, spent);
+  game.socket.emit("system.project-anime", { type: "opening", messageId: message.id, spent });
 }
 
 async function spendEnergy(message, actor) {
   const { value, max } = actor.system.energy;
-  await actor.update({ "system.energy.value": Math.min(value + 1, max) });
-  await requestOpening(message, { name: actor.name, kind: "energy" });
+  if (value >= max) return;
+  await actor.update({ "system.energy.value": value + 1 });
+  await requestOpening(message, { kind: "energy" });
 }
 
 async function spendLuck(message, actor, index, delta) {
@@ -33,23 +24,21 @@ async function spendLuck(message, actor, index, delta) {
   const luck = actor.system.luck.map(d => ({ ...d }));
   luck[index] = { ...luck[index], value: to };
   await actor.update({ "system.luck": luck });
-  await requestOpening(message, { name: actor.name, kind: "luck", from: die.value, to });
+  await requestOpening(message, { kind: "luck", from: die.value, to });
 }
 
-/* The Opening benefit picker: characters for Recover 1 Energy, per-die
-   steppers for Shift a Luck Die. */
+/* Die and direction for Shift Luck, the card actor's own dice. */
 export default class OpeningPicker extends HandlebarsApplicationMixin(ApplicationV2) {
-  constructor({ message, kind, ...options } = {}) {
+  constructor({ message, actor, ...options } = {}) {
     super(options);
     this.#message = message;
-    this.#kind = kind;
+    this.#actor = actor;
   }
 
   static DEFAULT_OPTIONS = {
     classes: ["project-anime", "sheet", "luck-picker"],
-    position: { width: 260, height: "auto" },
+    position: { width: 220, height: "auto" },
     actions: {
-      char: this.#onChar,
       shift: this.#onShift
     }
   };
@@ -62,31 +51,24 @@ export default class OpeningPicker extends HandlebarsApplicationMixin(Applicatio
 
   #message;
 
-  #kind;
+  #actor;
 
-  static open(message, kind) {
+  static open(message, actor) {
     this.#instance?.close();
-    this.#instance = new this({ message, kind });
+    this.#instance = new this({ message, actor });
     this.#instance.render(true);
   }
 
   get title() {
-    return game.i18n.localize(`PROJECTANIME.Opening.${this.#kind === "energy" ? "Energy" : "Luck"}`);
+    return game.i18n.localize("PROJECTANIME.Opening.Luck");
   }
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
-    context.isEnergy = this.#kind === "energy";
-    context.chars = eligibleActors(this.#message, this.#kind).map(a => ({
-      id: a.id,
-      name: a.name,
-      value: a.system.energy.value,
-      max: a.system.energy.max,
-      dice: a.system.luck
-        .map((d, index) => ({ index, value: d.value, spent: d.spent, die: d.die }))
-        .filter(d => !d.spent && d.value > 0)
-        .map(d => ({ ...d, upDisabled: d.value >= d.die, downDisabled: d.value <= 1 }))
-    }));
+    context.dice = this.#actor.system.luck
+      .map((d, index) => ({ index, value: d.value, spent: d.spent, die: d.die }))
+      .filter(d => !d.spent && d.value > 0)
+      .map(d => ({ ...d, upDisabled: d.value >= d.die, downDisabled: d.value <= 1 }));
     return context;
   }
 
@@ -95,54 +77,56 @@ export default class OpeningPicker extends HandlebarsApplicationMixin(Applicatio
     if (OpeningPicker.#instance === this) OpeningPicker.#instance = null;
   }
 
-  static async #onChar(event, target) {
-    const actor = game.actors.get(target.dataset.actor);
-    if (actor) await spendEnergy(this.#message, actor);
-    this.close();
-  }
-
   static async #onShift(event, target) {
-    const actor = game.actors.get(target.dataset.actor);
-    if (actor) await spendLuck(this.#message, actor, Number(target.dataset.die), Number(target.dataset.delta));
+    await spendLuck(this.#message, this.#actor, Number(target.dataset.die), Number(target.dataset.delta));
     this.close();
   }
 }
 
-/* The declare chip, the armed buttons, and the GM side of the relay. */
+/* The Opening band, injected on a character's roll cards for that
+   character's owner, and the GM side of the relay. Nothing tracks who
+   provided the Opening — that stays at the table. */
 export function registerOpenings() {
   Hooks.on("renderChatMessageHTML", (message, html) => {
     const card = message.getFlag("project-anime", "card");
     if (!card) return;
+    html.querySelector(".pa-card .opening")?.remove();
     const cbody = html.querySelector(".pa-card .cbody");
-    if (!cbody) return;
-    if (!card.opening && message.canUserModify(game.user, "update")) {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "opdeclare";
-      chip.textContent = `◆ ${game.i18n.localize("PROJECTANIME.Opening.Label")}`;
-      chip.addEventListener("click", () => requestOpening(message, "armed"));
-      cbody.append(chip);
-    }
-    if (card.opening === "armed") {
-      const capable = message.canUserModify(game.user, "update") || !!game.users.activeGM;
-      for (const btn of cbody.querySelectorAll(".opbtn")) {
-        const kind = btn.dataset.kind;
-        const eligible = capable ? eligibleActors(message, kind) : [];
-        if (!eligible.length) {
-          btn.classList.add("inert");
-          continue;
-        }
-        btn.addEventListener("click", () => {
-          if (kind === "energy" && eligible.length === 1) return spendEnergy(message, eligible[0]);
-          OpeningPicker.open(message, kind);
-        });
+    const actor = game.actors.get(message.speaker?.actor);
+    if (!cbody || !actor || actor.type !== "character" || !actor.isOwner) return;
+    const band = document.createElement("div");
+    band.className = "opening";
+    const label = document.createElement("span");
+    label.className = "oplab";
+    label.textContent = game.i18n.localize("PROJECTANIME.Opening.Label");
+    band.append(label);
+    const buttons = [
+      {
+        label: "PROJECTANIME.Opening.Energy",
+        inert: actor.system.energy.value >= actor.system.energy.max,
+        act: () => spendEnergy(message, actor)
+      },
+      {
+        label: "PROJECTANIME.Opening.Luck",
+        inert: !actor.system.luck.some(d => !d.spent && d.value > 0),
+        act: () => OpeningPicker.open(message, actor)
       }
+    ];
+    for (const b of buttons) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "opbtn";
+      btn.textContent = game.i18n.localize(b.label);
+      if (b.inert) btn.classList.add("inert");
+      else btn.addEventListener("click", b.act);
+      band.append(btn);
     }
+    cbody.append(band);
   });
   game.socket.on("system.project-anime", async data => {
     if (data?.type !== "opening") return;
     if (game.users.activeGM?.isSelf !== true) return;
     const message = game.messages.get(data.messageId);
-    if (message) await applyOpening(message, data.state);
+    if (message) await applyOpening(message, data.spent);
   });
 }
