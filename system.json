@@ -16,6 +16,7 @@
     "minimum": "14",
     "verified": "14.364"
   },
+  "socket": true,
   "esmodules": ["module/project-anime.mjs"],
   "styles": ["styles/project-anime.css"],
   "languages": [

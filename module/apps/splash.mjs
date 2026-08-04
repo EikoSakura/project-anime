@@ -28,6 +28,15 @@ export function registerSplash() {
       }, 8000);
     } else show();
   });
+  /* A Luck replacement re-reads Combos and Fumbles; the changed splash flag
+     arrives with the message update on every client. */
+  Hooks.on("updateChatMessage", (message, changes) => {
+    const kind = foundry.utils.getProperty(changes, "flags.project-anime.splash");
+    if (kind !== "combo" && kind !== "fumble") return;
+    const faces = message.getFlag("project-anime", "card")?.faces
+      ?? message.rolls[0]?.dice.map(d => d.total) ?? [];
+    showSplash(kind, faces, message.alias);
+  });
 }
 
 export function showSplash(kind, faces, name) {

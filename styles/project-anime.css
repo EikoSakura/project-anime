@@ -1512,6 +1512,20 @@
   font-weight: 800;
   font-size: 19px;
 }
+.pa-card .face.spendable {
+  cursor: pointer;
+}
+.pa-card .face.spendable:hover {
+  border-color: var(--beni);
+  color: var(--beni);
+}
+.pa-card .face.lucky {
+  background: var(--gold);
+  border-color: #a8771f;
+}
+.pa-card .rtrait.luck .rmark {
+  color: var(--gold);
+}
 .pa-card .rtotal {
   margin-left: auto;
   text-align: right;
@@ -1732,4 +1746,47 @@
 @media (prefers-reduced-motion: reduce) {
   .pa-splash * { animation-duration: .01s !important; animation-delay: 0s !important; }
   .pa-splash.closing .band { transition: opacity .2s ease; translate: 0 0; }
+}
+
+/* ===== spend luck picker ===== */
+.project-anime.luck-picker {
+  .lpick {
+    padding: 12px;
+    display: grid;
+    gap: 10px;
+  }
+  .lprow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .lpname {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .lpdice {
+    display: flex;
+    gap: 6px;
+  }
+  .lpdie {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 2px solid var(--ink);
+    border-radius: 6px;
+    background: #fffdf8;
+    color: var(--ink);
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .lpdie:hover {
+    background: var(--gold);
+    border-color: #a8771f;
+  }
 }

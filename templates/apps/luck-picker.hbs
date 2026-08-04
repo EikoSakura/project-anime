@@ -1,0 +1,12 @@
+<div class="lpick">
+  {{#each holders}}
+  <div class="lprow">
+    <span class="lpname">{{this.name}}</span>
+    <span class="lpdice">
+      {{#each this.dice}}
+      <button type="button" class="lpdie" data-action="pick" data-actor="{{../id}}" data-die="{{this.index}}">{{this.value}}</button>
+      {{/each}}
+    </span>
+  </div>
+  {{/each}}
+</div>

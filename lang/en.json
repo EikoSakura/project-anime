@@ -94,6 +94,9 @@
       "Combo": "COMBO!!",
       "Fumble": "FUMBLE"
     },
+    "Luck": {
+      "Title": "Spend Luck"
+    },
     "Roll": {
       "Title": "Action Roll",
       "SecondDie": "Second Die",
@@ -103,7 +106,8 @@
       "StepUp": "Step Up",
       "StepDown": "Step Down",
       "Roll": "Roll",
-      "Total": "Total"
+      "Total": "Total",
+      "Luck": "Luck · {name}"
     },
     "Advancement": {
       "Unspent": "Unspent",

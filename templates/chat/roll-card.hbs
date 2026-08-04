@@ -5,7 +5,7 @@
   <div class="cbody">
     <div class="dicerow">
       {{#each faces}}
-      <span class="face">{{this}}</span>
+      <span class="face{{#if this.lucky}} lucky{{/if}}" data-index="{{@index}}">{{this.value}}</span>
       {{/each}}
       <div class="rtotal">
         <span class="tlab">{{localize "PROJECTANIME.Roll.Total"}}</span>
@@ -18,5 +18,8 @@
     {{#if bonus}}
     <div class="rtrait"><span class="rmark">◆</span><span>{{localize "PROJECTANIME.Roll.Bonus"}} {{bonus}}</span></div>
     {{/if}}
+    {{#each luck}}
+    <div class="rtrait luck"><span class="rmark">◆</span><span>{{this}}</span></div>
+    {{/each}}
   </div>
 </div>

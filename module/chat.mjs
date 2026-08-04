@@ -46,10 +46,33 @@ export async function postEnergyCard(actor, item) {
   });
 }
 
+/* Combo or Fumble, read from two faces as they stand, or null. */
+export function readSplash(faces) {
+  if (faces.length !== 2 || faces[0] !== faces[1]) return null;
+  if (faces[0] >= 6) return "combo";
+  if (faces[0] === 1) return "fumble";
+  return null;
+}
+
+/* Template context from a roll card's stored state: { title, faces, lucky,
+   luck, trait, bonus }. The total is recomputed from the faces so Luck
+   replacements re-total. */
+function rollCardContext(card) {
+  return {
+    title: card.title,
+    faces: card.faces.map((value, i) => ({ value, lucky: card.lucky[i] })),
+    total: card.faces.reduce((a, b) => a + b, 0) + (card.trait?.mod ?? 0) + card.bonus,
+    trait: card.trait,
+    bonus: card.bonus ? `${card.bonus > 0 ? "+" : "−"}${Math.abs(card.bonus)}` : null,
+    luck: card.luck.map(name => game.i18n.format("PROJECTANIME.Roll.Luck", { name }))
+  };
+}
+
 /* Post an Action Roll: two dice, one optional Trait bonus, one optional flat
    bonus, backed by a real Roll. first and second are { name, rank } with any
    die steps already applied; trait is { name, rank } or null; bonus is a
-   signed integer. */
+   signed integer. The card's state rides the message as a flag so Luck
+   spends can re-render it. */
 export async function postActionRoll(actor, first, second, trait, bonus = 0) {
   const parts = [first, second].map(d => `1${LADDER[d.rank].die}`);
   if (trait) parts.push(String(LADDER[trait.rank].mod));
@@ -57,25 +80,44 @@ export async function postActionRoll(actor, first, second, trait, bonus = 0) {
   if (bonus > 0) formula += ` + ${bonus}`;
   else if (bonus < 0) formula += ` - ${-bonus}`;
   const roll = await new foundry.dice.Roll(formula).evaluate();
-  const faces = roll.dice.map(d => d.total);
-  let splash = null;
-  if (faces.length === 2 && faces[0] === faces[1]) {
-    if (faces[0] >= 6) splash = "combo";
-    else if (faces[0] === 1) splash = "fumble";
-  }
-  const context = {
+  const card = {
     title: `${first.name} + ${second.name}`,
-    faces,
-    total: roll.total,
+    faces: roll.dice.map(d => d.total),
+    lucky: [false, false],
+    luck: [],
     trait: trait ? { name: trait.name, mod: LADDER[trait.rank].mod } : null,
-    bonus: bonus ? `${bonus > 0 ? "+" : "−"}${Math.abs(bonus)}` : null
+    bonus
   };
-  const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", context);
+  const splash = readSplash(card.faces);
+  const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", rollCardContext(card));
   return ChatMessage.implementation.create({
     content,
     rolls: [roll],
     sound: CONFIG.sounds.dice,
     speaker: ChatMessage.implementation.getSpeaker({ actor }),
-    flags: splash ? { "project-anime": { splash } } : {}
+    flags: { "project-anime": splash ? { card, splash } : { card } }
   });
+}
+
+/* Replace one die of a roll card with a spent Luck Die's recorded number and
+   re-render. Runs on a client allowed to update the message; a spend that
+   lands on a card already standing on a Fumble is refused. The splash flag
+   updates when the Combo or Fumble state changes, and every client plays the
+   splash from the update. */
+export async function applyLuckSwap(message, dieIndex, value, spenderName) {
+  const card = foundry.utils.deepClone(message.getFlag("project-anime", "card"));
+  if (!card || !(dieIndex in card.faces)) return;
+  if (readSplash(card.faces) === "fumble") return;
+  card.faces[dieIndex] = value;
+  card.lucky[dieIndex] = true;
+  card.luck.push(spenderName);
+  const splash = readSplash(card.faces);
+  const prior = message.getFlag("project-anime", "splash") ?? null;
+  const flags = { "project-anime": { card } };
+  if (splash !== prior) {
+    if (splash) flags["project-anime"].splash = splash;
+    else flags["project-anime"]["-=splash"] = null;
+  }
+  const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", rollCardContext(card));
+  await message.update({ content, flags });
 }
