@@ -55,16 +55,24 @@ export function readSplash(faces) {
 }
 
 /* Template context from a roll card's stored state: { title, faces, lucky,
-   luck, trait, bonus }. The total is recomputed from the faces so Luck
-   replacements re-total. */
+   luck, trait, bonus, opening }. The total is recomputed from the faces so
+   Luck replacements re-total. */
 function rollCardContext(card) {
+  const opening = card.opening ?? null;
   return {
     title: card.title,
     faces: card.faces.map((value, i) => ({ value, lucky: card.lucky[i] })),
     total: card.faces.reduce((a, b) => a + b, 0) + (card.trait?.mod ?? 0) + card.bonus,
     trait: card.trait,
     bonus: card.bonus ? `${card.bonus > 0 ? "+" : "−"}${Math.abs(card.bonus)}` : null,
-    luck: card.luck.map(name => game.i18n.format("PROJECTANIME.Roll.Luck", { name }))
+    luck: card.luck.map(name => game.i18n.format("PROJECTANIME.Roll.Luck", { name })),
+    openingArmed: opening === "armed",
+    openingLine: opening && opening !== "armed"
+      ? game.i18n.format(
+          opening.kind === "energy" ? "PROJECTANIME.Opening.EnergyLine" : "PROJECTANIME.Opening.LuckLine",
+          opening
+        )
+      : null
   };
 }
 
@@ -86,7 +94,8 @@ export async function postActionRoll(actor, first, second, trait, bonus = 0) {
     lucky: [false, false],
     luck: [],
     trait: trait ? { name: trait.name, mod: LADDER[trait.rank].mod } : null,
-    bonus
+    bonus,
+    opening: null
   };
   const splash = readSplash(card.faces);
   const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", rollCardContext(card));
@@ -120,4 +129,16 @@ export async function applyLuckSwap(message, dieIndex, value, spenderName) {
   }
   const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", rollCardContext(card));
   await message.update({ content, flags });
+}
+
+/* Move a roll card's Opening: "armed" declares one (only where none stands),
+   a { name, kind, ... } object spends the armed one. Runs on a client
+   allowed to update the message. */
+export async function applyOpening(message, state) {
+  const card = foundry.utils.deepClone(message.getFlag("project-anime", "card"));
+  if (!card) return;
+  if (state === "armed" ? card.opening : card.opening !== "armed") return;
+  card.opening = state;
+  const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", rollCardContext(card));
+  await message.update({ content, flags: { "project-anime": { card } } });
 }

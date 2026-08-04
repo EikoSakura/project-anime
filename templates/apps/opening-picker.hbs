@@ -1,0 +1,23 @@
+<div class="lpick">
+  {{#if isEnergy}}
+  {{#each chars}}
+  <button type="button" class="opchar" data-action="char" data-actor="{{this.id}}">{{this.name}}
+    <span class="opval">{{this.value}}/{{this.max}}</span></button>
+  {{/each}}
+  {{else}}
+  {{#each chars}}
+  <div class="lprow">
+    <span class="lpname">{{this.name}}</span>
+    <span class="lpdice">
+      {{#each this.dice}}
+      <span class="stepgrp">
+        <button type="button" class="stepbtn" data-action="shift" data-actor="{{../id}}" data-die="{{this.index}}" data-delta="-1"{{#if this.downDisabled}} disabled{{/if}}>&#9660;</button>
+        <span class="lpdie static">{{this.value}}</span>
+        <button type="button" class="stepbtn" data-action="shift" data-actor="{{../id}}" data-die="{{this.index}}" data-delta="1"{{#if this.upDisabled}} disabled{{/if}}>&#9650;</button>
+      </span>
+      {{/each}}
+    </span>
+  </div>
+  {{/each}}
+  {{/if}}
+</div>

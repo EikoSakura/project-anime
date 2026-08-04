@@ -21,5 +21,15 @@
     {{#each luck}}
     <div class="rtrait luck"><span class="rmark">◆</span><span>{{this}}</span></div>
     {{/each}}
+    {{#if openingArmed}}
+    <div class="opening">
+      <span class="oplab">{{localize "PROJECTANIME.Opening.Label"}}</span>
+      <button type="button" class="opbtn" data-kind="energy">{{localize "PROJECTANIME.Opening.Energy"}}</button>
+      <button type="button" class="opbtn" data-kind="luck">{{localize "PROJECTANIME.Opening.Luck"}}</button>
+    </div>
+    {{/if}}
+    {{#if openingLine}}
+    <div class="rtrait"><span class="rmark">◆</span><span>{{openingLine}}</span></div>
+    {{/if}}
   </div>
 </div>

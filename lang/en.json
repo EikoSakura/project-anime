@@ -97,6 +97,13 @@
     "Luck": {
       "Title": "Spend Luck"
     },
+    "Opening": {
+      "Label": "Opening",
+      "Energy": "Recover 1 Energy",
+      "Luck": "Shift a Luck Die",
+      "EnergyLine": "Opening · {name} · Energy +1",
+      "LuckLine": "Opening · {name} · Luck {from} ▸ {to}"
+    },
     "Roll": {
       "Title": "Action Roll",
       "SecondDie": "Second Die",

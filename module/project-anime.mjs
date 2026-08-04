@@ -7,10 +7,12 @@ import AdversarySheet from "./sheets/adversary-sheet.mjs";
 import ProjectAnimeItemSheet from "./sheets/item-sheet.mjs";
 import { registerSplash } from "./apps/splash.mjs";
 import { registerLuck } from "./apps/luck-picker.mjs";
+import { registerOpenings } from "./apps/opening.mjs";
 
 Hooks.once("init", () => {
   registerSplash();
   registerLuck();
+  registerOpenings();
 
   CONFIG.Actor.dataModels.character = CharacterData;
   CONFIG.Actor.dataModels.adversary = AdversaryData;

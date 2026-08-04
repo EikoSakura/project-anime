@@ -1526,6 +1526,71 @@
 .pa-card .rtrait.luck .rmark {
   color: var(--gold);
 }
+.pa-card .opdeclare {
+  display: block;
+  width: auto;
+  margin: 9px 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font-family: var(--f-ui);
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pa-card .opdeclare:hover {
+  color: var(--beni);
+}
+.pa-card .opening {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1.5px dashed rgba(34, 26, 54, .22);
+}
+.pa-card .oplab {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pa-card .opbtn {
+  width: auto;
+  height: auto;
+  line-height: 1.2;
+  margin: 0;
+  font-family: var(--f-ui);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: #fffdf8;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  padding: 4px 9px;
+  box-shadow: none;
+  cursor: pointer;
+}
+.pa-card .opbtn:hover {
+  background: var(--gold);
+  border-color: #a8771f;
+}
+.pa-card .opbtn.inert {
+  opacity: .45;
+  cursor: default;
+}
+.pa-card .opbtn.inert:hover {
+  background: #fffdf8;
+  border-color: var(--ink);
+}
 .pa-card .rtotal {
   margin-left: auto;
   text-align: right;
@@ -1785,8 +1850,56 @@
     line-height: 1;
     cursor: pointer;
   }
-  .lpdie:hover {
+  .lpdie:not(.static):hover {
     background: var(--gold);
     border-color: #a8771f;
+  }
+  .lpdie.static {
+    cursor: default;
+  }
+  .opchar {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--f-ui);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    background: #fffdf8;
+    border: 1.5px solid var(--ink);
+    border-radius: 2px;
+    padding: 6px 9px;
+    cursor: pointer;
+  }
+  .opchar:hover {
+    background: var(--gold);
+    border-color: #a8771f;
+  }
+  .opval {
+    float: right;
+    font-weight: 900;
+    color: var(--muted);
+  }
+  .stepgrp {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .stepbtn {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    background: #fffdf8;
+    border: 1.5px solid var(--ink);
+    border-radius: 2px;
+    font-size: 9px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .stepbtn:disabled {
+    opacity: .35;
+    cursor: default;
   }
 }
