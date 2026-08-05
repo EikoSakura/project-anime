@@ -1,0 +1,152 @@
+<!--
+PROJECT: ANIME | TENSION METER MOCKUP (Foundry V14)
+
+Target
+- ApplicationV2 overlay docked top center over the canvas, visible to every client through play
+- Rebuilds the display of the existing world Tension counter; the counter value stays as implemented
+
+Data
+- world Tension value, 0 to 6
+
+Interactions
+- Storyteller only: click a slot to set Tension to it; click the current top slot to drop it by one
+- Player clients render the same meter and ignore clicks
+
+Display rules
+- Six slots; filled slots glow beni
+- The label reads TENSION and nothing else; no rules text on the meter
+
+Design notes
+- Same glass skin as the party HUD: ink glass, light edge, soft blur, beni tab
+- Slots are beni diamonds, larger than and distinct from the gold Energy diamonds
+- Tokens and fonts as the party HUD
+- Example state: 3 of 6 filled
+- Dark backdrop stands in for the Foundry canvas
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime | Tension Meter Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36;
+    --paper:#f7f2e7;
+    --beni:#d92b48;
+    --gold:#d9a13b;
+    --canvas:#171226;
+    --glass:rgba(28,21,48,0.84);
+    --glass2:rgba(17,12,32,0.82);
+    --edge:rgba(247,242,231,0.32);
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(247,242,231,0.045), transparent 60%),
+      linear-gradient(rgba(247,242,231,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(247,242,231,0.03) 1px, transparent 1px),
+      var(--canvas);
+    background-size:auto, 48px 48px, 48px 48px, auto;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+  }
+
+  button{font:inherit; border:none; background:none;}
+  button:focus-visible{outline:2px solid var(--beni); outline-offset:2px;}
+
+  .meter{
+    position:fixed;
+    top:14px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:9px 18px 9px 12px;
+    background:linear-gradient(160deg, var(--glass), var(--glass2));
+    border:1px solid var(--edge);
+    border-radius:8px;
+    box-shadow:
+      0 0 0 1px rgba(13,9,24,0.6),
+      0 4px 14px rgba(0,0,0,0.45),
+      inset 0 0 18px rgba(247,242,231,0.04);
+    backdrop-filter:blur(4px);
+  }
+
+  .tab{
+    width:4px; height:14px;
+    background:var(--beni);
+    border-radius:1px;
+    box-shadow:0 0 6px rgba(217,43,72,0.6);
+    flex:none;
+  }
+
+  .label{
+    color:var(--paper);
+    font-weight:900;
+    font-size:11px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+  }
+
+  .slots{
+    display:flex;
+    gap:13px;
+    padding:0 4px;
+  }
+
+  .slot{
+    width:20px; height:20px;
+    transform:rotate(45deg);
+    border-radius:4px;
+    border:1.5px solid rgba(247,242,231,0.25);
+    background:rgba(13,9,24,0.55);
+    cursor:pointer;
+    padding:0;
+    transition:background 80ms linear;
+  }
+  .slot.on{
+    background:linear-gradient(135deg, #e8455f, var(--beni));
+    border-color:rgba(233,86,110,0.9);
+    box-shadow:
+      0 0 10px rgba(217,43,72,0.55),
+      inset 0 0 6px rgba(247,242,231,0.25);
+  }
+</style>
+</head>
+<body>
+<div class="meter">
+  <i class="tab"></i>
+  <span class="label">Tension</span>
+  <div class="slots" id="slots"></div>
+</div>
+
+<script>
+  const MAX = 6;
+  let value = 3;
+
+  function render(){
+    const wrap = document.getElementById('slots');
+    wrap.innerHTML = '';
+    for(let i = 0; i < MAX; i++){
+      const s = document.createElement('button');
+      s.className = 'slot' + (i < value ? ' on' : '');
+      s.addEventListener('click', () => {
+        value = (i + 1 === value) ? i : i + 1;
+        render();
+      });
+      wrap.appendChild(s);
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>

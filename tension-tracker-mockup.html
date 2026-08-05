@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<!--
+SPEC — Project: Anime, Foundry V14. Change set: TENSION TRACKER. Revision 2: token-row display.
+
+TARGET
+Replaces the Difficulty change set's Tension counter panel with a screen-level tracker,
+modeled on the Foundryborne Daggerheart system's built-in Fear tracker: a chrome-less row of
+circular tokens sitting directly on the board, visible to every client, live sync, position
+set in system settings. Same world-scoped value, 0 to 6.
+
+DATA MODEL
+tension: world setting, integer 0 to 6. All clients render it; changes push live over the socket.
+Writers, and nothing else: the GM plus, minus, and Clear on the tracker, and the GM-only gain
+chip on roll cards.
+
+DISPLAY
+Six circular tokens in a row, no bar, no box, no label. Directly over the board.
+Filled token: beni coin, paper ring, paper ruling diamond in the center, halftone dots across
+the lower half. Empty token: dark coin at half opacity with a faint ring and diamond.
+A newly filled token pulses once (prefers-reduced-motion disables the pulse).
+Hover reveals the count (n / 6) above the row for every client.
+Position: System Settings, Appearance. Two options: above the hotbar (default) or top center.
+
+CONTROLS (GM only, hidden from players)
+Ghost buttons fade in on hover or keyboard focus: minus at the row's left end, plus and CLEAR
+at the right end. Plus: gain 1, clamped at 6. Minus: spend 1, clamped at 0. Clear: set to 0,
+for Episode end; the build asks for confirmation.
+Announce setting on (default): plus posts "The Storyteller gains 1 Tension." and minus posts
+"The Storyteller spends 1 Tension." to chat; Clear posts "Tension clears."
+Shift-click on plus or minus adjusts silently. Token clicks do nothing.
+
+ROLL CARD WIRING
+The Tension rider on Success, Failure, and Fumble cards renders for the GM as a
+GAIN 1 TENSION chip. Clicking it applies the gain once; the chip then reads GAINED and stays
+inert. While Tension sits at 6, an unspent chip is disabled and reads TENSION FULL.
+Players see the plain text rider. Band evaluation is unchanged from the Difficulty change set.
+
+MODES
+GM view: hover controls and card chips. Player view: tokens and hover count only, riders as
+plain text.
+
+DESIGN NOTES
+Tokens: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48, gold #d9a13b.
+The coin is the seal motif flattened: beni fill, paper ring, the beni ruling diamond inverted
+to paper, halftone on the lower half. Fonts: Shippori Mincho B1 (display), Zen Kaku Gothic New
+(UI). No Japanese text.
+
+SIM ONLY (not part of the build)
+The GM / Player view toggle, the board canvas, the hotbar strip, the preloaded cards.
+The position select and announce checkbox stand in for the real system settings.
+
+EXAMPLE DATA (V3 doc)
+Kaito. Agility d8 + Mind d8, Cursed Left Eye +2.
+Card 1: faces 5 and 3, total 10 vs C = Success. Card 2: faces 1 and 1, total 4 vs D = Fumble.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime — Tension Tracker Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36; --ink2:#171126; --paper:#f7f2e7; --paper2:#ece4d1; --beni:#d92b48; --gold:#d9a13b;
+    --disp:'Shippori Mincho B1',serif; --ui:'Zen Kaku Gothic New',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:14px}
+  button{font-family:var(--ui);cursor:pointer}
+  button:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+
+  /* title bar */
+  .tbar{background:var(--ink);color:var(--paper)}
+  .tbar-in{max-width:1140px;margin:0 auto;padding:10px 18px;display:flex;align-items:center;gap:12px}
+  .dots{display:flex;gap:5px}
+  .dots i{width:9px;height:9px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:var(--beni)} .dots i:nth-child(2){background:var(--gold)} .dots i:nth-child(3){background:var(--paper)}
+  .tbar .name{font-family:var(--disp);font-weight:800;letter-spacing:.14em;font-size:14px}
+  .tbar .right{margin-left:auto;font-size:11px;letter-spacing:.22em;opacity:.85}
+
+  .wrap{max-width:1140px;margin:0 auto;padding:20px 18px;display:grid;grid-template-columns:1fr 350px;gap:22px;align-items:start}
+  @media (max-width:960px){.wrap{grid-template-columns:1fr}}
+
+  .panel{border:2px solid var(--ink);background:var(--paper);box-shadow:6px 6px 0 var(--ink);margin-bottom:22px}
+  .panel-h{position:relative;background:var(--ink);color:var(--paper);font-family:var(--disp);font-weight:800;
+    letter-spacing:.18em;font-size:12px;padding:8px 12px;overflow:hidden}
+  .panel-h::after{content:"";position:absolute;top:0;right:0;bottom:0;width:90px;
+    background-image:radial-gradient(circle,rgba(247,242,231,.35) 1.2px,transparent 1.2px);background-size:7px 7px}
+  .panel-b{padding:14px}
+  .lbl{font-size:10px;letter-spacing:.2em;font-weight:700;margin:0 0 6px}
+
+  /* board sim */
+  .board{position:relative;height:560px;background:var(--ink2);overflow:hidden;
+    background-image:linear-gradient(rgba(247,242,231,.045) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(247,242,231,.045) 1px,transparent 1px);
+    background-size:100px 100px}
+  .hotbar{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;gap:4px;opacity:.55}
+  .hotbar i{width:38px;height:38px;border:1px solid rgba(247,242,231,.35);background:rgba(34,26,54,.8);display:block}
+
+  /* tension token row */
+  .trow{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:14px 6px 6px}
+  .trow.pos-bottom{bottom:58px}
+  .trow.pos-top{top:12px}
+  .coin{width:36px;height:36px;border-radius:50%;position:relative;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    background:#2a2140;border:2px solid rgba(236,228,209,.22);opacity:.5}
+  .coin .d{width:11px;height:11px;transform:rotate(45deg);background:rgba(236,228,209,.18)}
+  .coin.on{opacity:1;background:var(--beni);border-color:var(--paper);
+    box-shadow:0 0 0 1px var(--ink),0 2px 8px rgba(0,0,0,.55)}
+  .coin.on .d{background:var(--paper)}
+  .coin.on::after{content:"";position:absolute;inset:2px;border-radius:50%;
+    background-image:radial-gradient(circle,rgba(247,242,231,.3) 1px,transparent 1px);background-size:5px 5px;
+    -webkit-mask-image:linear-gradient(to top,#000 42%,transparent 62%);
+    mask-image:linear-gradient(to top,#000 42%,transparent 62%)}
+  @keyframes cpulse{0%{transform:scale(1)}45%{transform:scale(1.35)}100%{transform:scale(1)}}
+  .coin.pulse{animation:cpulse .45s ease}
+  @media (prefers-reduced-motion: reduce){.coin.pulse{animation:none}}
+
+  .tcount{position:absolute;top:-10px;left:50%;transform:translateX(-50%);
+    font-family:var(--disp);font-weight:800;font-size:12px;color:var(--paper);
+    text-shadow:0 1px 3px rgba(0,0,0,.7);opacity:0;transition:opacity .15s;pointer-events:none;white-space:nowrap}
+  .trow:hover .tcount,.trow:focus-within .tcount{opacity:.95}
+
+  .gbtn{width:26px;height:26px;border-radius:50%;border:1px solid rgba(247,242,231,.55);
+    background:rgba(247,242,231,.1);color:var(--paper);font-size:14px;font-weight:700;line-height:1;
+    opacity:0;transition:opacity .15s}
+  .gbtn.clr{width:auto;border-radius:13px;font-size:9px;letter-spacing:.14em;padding:0 10px}
+  .trow:hover .gbtn,.trow:focus-within .gbtn{opacity:1}
+  .gbtn:hover{background:rgba(247,242,231,.22)}
+  body.player .gbtn{display:none}
+
+  /* chat */
+  .chat{max-height:600px;overflow-y:auto;padding:14px;background:var(--paper2)}
+  .card{border:2px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);padding:10px 12px;margin-bottom:14px}
+  .card .head{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.18em;font-weight:700;margin-bottom:8px}
+  .card .head .who{opacity:.6}
+  .dice{display:flex;justify-content:center;gap:10px;margin:6px 0}
+  .die{width:48px;height:48px;border:2px solid var(--ink);background:var(--paper);box-shadow:3px 3px 0 var(--ink);
+    display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:800;font-size:22px}
+  .tline{text-align:center;font-size:12px;margin:4px 0 2px}
+  .total{display:flex;justify-content:center;align-items:baseline;gap:8px;margin:4px 0 2px}
+  .total small{font-size:10px;letter-spacing:.2em;font-weight:700}
+  .total b{font-family:var(--disp);font-weight:800;font-size:26px}
+  .band{display:flex;align-items:center;justify-content:center;gap:10px;border-top:1px dashed var(--ink);margin-top:8px;padding-top:8px}
+  .gtag{display:inline-flex;align-items:center;gap:4px;border:2px solid var(--ink);background:var(--gc);color:var(--paper);
+    padding:2px 7px;font-family:var(--disp);font-weight:800;font-size:13px}
+  .gtag small{font-family:var(--ui);font-size:9px;font-weight:700}
+  .bword{font-family:var(--disp);font-weight:800;font-size:18px;letter-spacing:.04em}
+  .bword.fumble{color:var(--beni)}
+  .riders{margin-top:6px;text-align:center;font-size:11px;line-height:1.7;opacity:.9}
+
+  /* tension chip on cards */
+  .tchip{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--ink);background:var(--beni);color:var(--paper);
+    padding:3px 10px;font-size:10px;font-weight:700;letter-spacing:.14em;box-shadow:2px 2px 0 var(--ink);margin:2px 0}
+  .tchip:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+  .tchip.done{background:var(--paper2);color:var(--ink);box-shadow:none;cursor:default}
+  .tchip.full{background:var(--paper2);color:var(--ink);opacity:.55;box-shadow:none;cursor:default}
+  .rtext{display:none}
+  body.player .tchip{display:none}
+  body.player .rtext{display:block}
+
+  /* announce lines */
+  .sysline{font-size:11px;padding:5px 8px;margin-bottom:10px;background:var(--paper);border:1px solid var(--ink)}
+  .sysline::before{content:"◆ ";color:var(--beni)}
+
+  /* sim panel */
+  .sim{border:2px dashed var(--ink);box-shadow:none}
+  .seg{display:flex;gap:0;border:2px solid var(--ink);width:max-content}
+  .seg button{border:0;background:var(--paper2);color:var(--ink);padding:7px 16px;font-size:11px;font-weight:700;letter-spacing:.12em}
+  .seg button+button{border-left:2px solid var(--ink)}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .ck{display:flex;align-items:center;gap:8px;font-size:13px}
+  .row{margin-bottom:14px}
+</style>
+</head>
+<body>
+
+<div class="tbar"><div class="tbar-in">
+  <div class="dots"><i></i><i></i><i></i></div>
+  <span class="name">PROJECT: ANIME</span>
+  <span class="right">FOUNDRY UPDATES · TENSION TRACKER</span>
+</div></div>
+
+<div class="wrap">
+<div>
+  <!-- BOARD -->
+  <section class="panel">
+    <div class="panel-h">BOARD</div>
+    <div class="board" id="board">
+      <div class="trow pos-bottom" id="trow">
+        <span class="tcount" id="tcount">0 / 6</span>
+        <button class="gbtn" id="tMinus" aria-label="Spend 1 Tension">−</button>
+        <div style="display:flex;gap:4px" id="coins"></div>
+        <button class="gbtn" id="tPlus" aria-label="Gain 1 Tension">+</button>
+        <button class="gbtn clr" id="tClear" aria-label="Clear Tension">CLEAR</button>
+      </div>
+      <div class="hotbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </section>
+
+  <!-- SIM -->
+  <section class="panel sim">
+    <div class="panel-h">MOCKUP CONTROLS</div>
+    <div class="panel-b" style="display:flex;gap:28px;flex-wrap:wrap">
+      <div class="row">
+        <p class="lbl">VIEW — SIM ONLY</p>
+        <div class="seg">
+          <button id="vGM" class="on">STORYTELLER</button>
+          <button id="vPL">PLAYER</button>
+        </div>
+      </div>
+      <div class="row">
+        <p class="lbl">POSITION — SYSTEM SETTING</p>
+        <div class="seg">
+          <button id="pBottom" class="on">ABOVE HOTBAR</button>
+          <button id="pTop">TOP CENTER</button>
+        </div>
+      </div>
+      <div class="row">
+        <p class="lbl">ANNOUNCE — SYSTEM SETTING</p>
+        <label class="ck"><input type="checkbox" id="announce" checked> Post gains and spends to chat</label>
+      </div>
+    </div>
+  </section>
+</div>
+
+  <!-- CHAT -->
+  <section class="panel">
+    <div class="panel-h">CHAT</div>
+    <div class="chat" id="chat"></div>
+  </section>
+</div>
+
+<script>
+let tension=2;
+const CAP=6;
+const $=id=>document.getElementById(id);
+
+/* coins */
+const coins=$('coins');
+for(let i=0;i<CAP;i++){
+  const c=document.createElement('div');c.className='coin';
+  const d=document.createElement('div');d.className='d';
+  c.appendChild(d);coins.appendChild(c);
+}
+function renderTrack(pulseIdx){
+  [...coins.children].forEach((c,i)=>{
+    c.classList.toggle('on',i<tension);
+    if(i===pulseIdx){c.classList.remove('pulse');void c.offsetWidth;c.classList.add('pulse');}
+  });
+  $('tcount').textContent=tension+' / '+CAP;
+  refreshChips();
+}
+
+/* announce */
+function announceLine(text){
+  if(!$('announce').checked)return;
+  const l=document.createElement('div');l.className='sysline';l.textContent=text;
+  const chat=$('chat');chat.appendChild(l);chat.scrollTop=chat.scrollHeight;
+}
+
+/* changes */
+function gain(silent){
+  if(tension>=CAP)return false;
+  tension++;renderTrack(tension-1);
+  if(!silent)announceLine('The Storyteller gains 1 Tension.');
+  return true;
+}
+function spend(silent){
+  if(tension<=0)return;
+  tension--;renderTrack();
+  if(!silent)announceLine('The Storyteller spends 1 Tension.');
+}
+$('tPlus').addEventListener('click',e=>gain(e.shiftKey));
+$('tMinus').addEventListener('click',e=>spend(e.shiftKey));
+$('tClear').addEventListener('click',()=>{tension=0;renderTrack();announceLine('Tension clears.');});
+
+/* cards */
+const LADDER={C:{n:10,c:'#3c78d8'},D:{n:7,c:'#3ba55d'}};
+function card(p){
+  const c=document.createElement('div');c.className='card';
+  let html='<div class="head"><span>'+p.name+'</span><span class="who">KAITO</span></div>';
+  html+='<div class="dice"><div class="die">'+p.f1+'</div><div class="die">'+p.f2+'</div></div>';
+  html+='<div class="tline">Cursed Left Eye +2</div>';
+  html+='<div class="total"><small>TOTAL</small><b>'+p.total+'</b></div>';
+  const g=LADDER[p.g];
+  html+='<div class="band"><span class="gtag" style="--gc:'+g.c+'">'+p.g+' <small>'+g.n+'</small></span>';
+  html+='<span class="bword'+(p.band==='Fumble'?' fumble':'')+'">'+p.band+'</span></div>';
+  html+='<div class="riders">';
+  html+='<div><button class="tchip" data-state="fresh">GAIN 1 TENSION</button>';
+  html+='<span class="rtext">The Storyteller gains 1 Tension.</span></div>';
+  p.riders.forEach(r=>{html+='<div>'+r+'</div>';});
+  html+='</div>';
+  c.innerHTML=html;
+  $('chat').appendChild(c);
+}
+card({name:'AGILITY + MIND',f1:5,f2:3,total:10,g:'C',band:'Success',riders:[]});
+card({name:'AGILITY + MIND',f1:1,f2:1,total:4,g:'D',band:'Fumble',
+      riders:['The Spotlight passes.','Luck Dice cannot change this roll.']});
+
+document.querySelectorAll('.tchip').forEach(ch=>{
+  ch.addEventListener('click',()=>{
+    if(ch.dataset.state!=='fresh')return;
+    if(tension>=CAP)return;
+    gain(true);
+    announceLine('The Storyteller gains 1 Tension.');
+    ch.dataset.state='done';ch.textContent='GAINED';ch.className='tchip done';
+  });
+});
+function refreshChips(){
+  document.querySelectorAll('.tchip').forEach(ch=>{
+    if(ch.dataset.state!=='fresh'&&ch.dataset.state!=='full')return;
+    if(tension>=CAP){ch.dataset.state='full';ch.textContent='TENSION FULL';ch.className='tchip full';}
+    else{ch.dataset.state='fresh';ch.textContent='GAIN 1 TENSION';ch.className='tchip';}
+  });
+}
+
+/* sim controls */
+$('vGM').addEventListener('click',()=>{document.body.classList.remove('player');$('vGM').classList.add('on');$('vPL').classList.remove('on');});
+$('vPL').addEventListener('click',()=>{document.body.classList.add('player');$('vPL').classList.add('on');$('vGM').classList.remove('on');});
+$('pBottom').addEventListener('click',()=>{$('trow').classList.add('pos-bottom');$('trow').classList.remove('pos-top');$('pBottom').classList.add('on');$('pTop').classList.remove('on');});
+$('pTop').addEventListener('click',()=>{$('trow').classList.add('pos-top');$('trow').classList.remove('pos-bottom');$('pTop').classList.add('on');$('pBottom').classList.remove('on');});
+
+renderTrack();
+$('chat').scrollTop=0;
+</script>
+</body>
+</html>

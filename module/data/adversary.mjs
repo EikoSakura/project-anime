@@ -1,4 +1,4 @@
-import { attributesField, luckField, pointsField, rankField, textField } from "./fields.mjs";
+import { attributesField, hotbarField, luckField, pointsField, rankField, textField } from "./fields.mjs";
 
 const { BooleanField } = foundry.data.fields;
 
@@ -12,7 +12,8 @@ export default class AdversaryData extends foundry.abstract.TypeDataModel {
       hearts: pointsField(),
       energy: pointsField(),
       rival: new BooleanField(),
-      luck: luckField()
+      luck: luckField(),
+      hotbar: hotbarField()
     };
   }
 }

@@ -1,0 +1,405 @@
+<!--
+PROJECT: ANIME | TRACKS BOARD MOCKUP (Foundry V14)
+
+Target
+- ApplicationV2 board panel, draggable per client, default docked under the Tension meter top center
+- Lists every open Track in plain sight; collapse and hide per client
+- Storyteller creates, fills, and removes; players see the same board and cannot edit
+
+Data
+- World-level list of Tracks: name, length, filled cells, Escalation positions
+- Contests: a label and a side per row entry, each side with its own name, length, and fill
+
+Interactions (Storyteller)
+- The + control creates a named Track with a chosen length; a Contest gets a label and its sides
+- Cell click: set the fill to that cell; click the current top cell to drop it by one
+- Shift-click a Track cell: toggle an Escalation under it
+- Row right-click: remove the Track
+- Filling from rolls happens on the roll card's Track chips by band; the board takes direct edits only
+
+Interactions (every client)
+- Drag the header to move; the position is per client
+- Collapse and hide from the header; hidden reopens from scene controls
+
+Display rules
+- Cells render individually, no n over max numbers
+- Filled cells glow paper
+- An Escalation is a beni diamond under its cell: dim and Storyteller-only until the fill reaches it, then shown to everyone, and it stays; the board blocks nothing
+- A two sided Contest draws as the doc does, one line: the first side's cells fill left to right toward the center beni diamond, the second side's fill right to left toward it, side names beneath the ends; cells size down to keep the line whole
+- A Contest with three or more sides falls back to stacked side rows under the label
+- No rules text on the board
+
+Design notes
+- Same glass skin as the party HUD: ink glass, light edge, soft blur, beni tab, TRACKS label, collapse and hide in the header
+- Tokens and fonts as the party HUD
+- Example data from the V3 doc: English Test, 5 cells with 2 filled; Beach Episode, 8 cells with 4 filled and the crab Escalation triggered at 3; Demon General's Ritual as a Desire Track, 6 cells with 2 filled and an unreached Escalation at 5; Cook-Off as a Contest on the diamond line, Party at 3 of 6 against Rival Chef at 4 of 6
+- The mockup renders the Storyteller view; stubs: drag, collapse, hide, cell clicks, shift-click Escalations, + adds a blank 6 cell Track, right-click removes; the three plus side fallback is not mocked
+- Dark backdrop stands in for the Foundry canvas
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime | Tracks Board Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36;
+    --paper:#f7f2e7;
+    --beni:#d92b48;
+    --gold:#d9a13b;
+    --canvas:#171226;
+    --glass:rgba(28,21,48,0.84);
+    --glass2:rgba(17,12,32,0.82);
+    --edge:rgba(247,242,231,0.32);
+    --edge-dim:rgba(247,242,231,0.12);
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(247,242,231,0.045), transparent 60%),
+      linear-gradient(rgba(247,242,231,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(247,242,231,0.03) 1px, transparent 1px),
+      var(--canvas);
+    background-size:auto, 48px 48px, 48px 48px, auto;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+  }
+
+  button{font:inherit; border:none; background:none; padding:0;}
+  button:focus-visible{outline:2px solid var(--beni); outline-offset:2px;}
+
+  .board{
+    position:fixed;
+    top:76px;
+    left:50%;
+    transform:translateX(-50%);
+    width:264px;
+    background:linear-gradient(160deg, var(--glass), var(--glass2));
+    border:1px solid var(--edge);
+    border-radius:8px;
+    box-shadow:
+      0 0 0 1px rgba(13,9,24,0.6),
+      0 4px 14px rgba(0,0,0,0.45),
+      inset 0 0 18px rgba(247,242,231,0.04);
+    backdrop-filter:blur(4px);
+  }
+
+  .bhead{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 10px 6px;
+    border-bottom:1px solid var(--edge-dim);
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+  }
+  .bhead:active{cursor:grabbing;}
+
+  .tab{
+    width:4px; height:12px;
+    background:var(--beni);
+    border-radius:1px;
+    box-shadow:0 0 6px rgba(217,43,72,0.6);
+    flex:none;
+  }
+
+  .label{
+    flex:1;
+    color:var(--paper);
+    font-weight:900;
+    font-size:9px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    opacity:0.7;
+  }
+
+  .bhead button{
+    color:rgba(247,242,231,0.55);
+    font-size:11px;
+    line-height:1;
+    cursor:pointer;
+    padding:2px 4px;
+  }
+  .bhead button:hover{color:var(--paper);}
+
+  .bbody{padding:8px 10px 10px;}
+  .board.collapsed .bbody{display:none;}
+
+  .row{
+    padding:6px 2px 10px;
+  }
+  .row + .row{border-top:1px solid var(--edge-dim);}
+
+  .tname{
+    color:var(--paper);
+    font-weight:700;
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    margin-bottom:6px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .cells{
+    display:flex;
+    gap:3px;
+    flex-wrap:wrap;
+  }
+
+  .cell{
+    width:14px; height:14px;
+    border-radius:3px;
+    border:1px solid rgba(247,242,231,0.14);
+    background:rgba(13,9,24,0.5);
+    cursor:pointer;
+    position:relative;
+  }
+  .cell.on{
+    background:linear-gradient(180deg, #fff9ea, var(--paper));
+    border-color:rgba(247,242,231,0.85);
+    box-shadow:0 0 6px rgba(247,242,231,0.4);
+  }
+  .cell .esc{
+    position:absolute;
+    left:50%;
+    bottom:-6px;
+    width:5px; height:5px;
+    transform:translateX(-50%) rotate(45deg);
+    background:var(--beni);
+    border-radius:1px;
+    opacity:0.35;
+    pointer-events:none;
+  }
+  .cell .esc.hit{
+    opacity:1;
+    box-shadow:0 0 6px rgba(217,43,72,0.7);
+  }
+
+  .cline{
+    display:flex;
+    align-items:center;
+    gap:3px;
+  }
+  .ccells{
+    display:flex;
+    gap:3px;
+    flex:1;
+    min-width:0;
+  }
+  .ccells.rev{flex-direction:row-reverse;}
+  .cell.ccell{
+    width:12px; height:12px;
+    flex:0 1 12px;
+    min-width:7px;
+  }
+  .cdia{
+    width:10px; height:10px;
+    transform:rotate(45deg);
+    background:var(--beni);
+    border-radius:2px;
+    box-shadow:0 0 8px rgba(217,43,72,0.6);
+    flex:none;
+    margin:0 3px;
+  }
+  .cnames{
+    display:flex;
+    justify-content:space-between;
+    margin-top:5px;
+  }
+  .cnames span{
+    color:var(--paper);
+    opacity:0.75;
+    font-weight:700;
+    font-size:9px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+  }
+
+  .side{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .side + .side{margin-top:7px;}
+  .sname{
+    width:72px;
+    flex:none;
+    color:var(--paper);
+    opacity:0.75;
+    font-weight:700;
+    font-size:9px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+</style>
+</head>
+<body>
+<div class="board" id="board">
+  <div class="bhead" id="bhead">
+    <i class="tab"></i>
+    <span class="label">Tracks</span>
+    <button id="add" title="New Track">+</button>
+    <button id="collapse" title="Collapse">&#9650;</button>
+    <button id="hide" title="Hide">&#10005;</button>
+  </div>
+  <div class="bbody" id="bbody"></div>
+</div>
+
+<script>
+  const TRACKS = [
+    { kind:'track', name:'English Test', len:5, fill:2, escs:[] },
+    { kind:'track', name:'Beach Episode', len:8, fill:4, escs:[3] },
+    { kind:'track', name:"Demon General's Ritual", len:6, fill:2, escs:[5] },
+    { kind:'contest', name:'Cook-Off', sides:[
+      { name:'Party', len:6, fill:3 },
+      { name:'Rival Chef', len:6, fill:4 }
+    ]}
+  ];
+
+  function cellClick(t, i, ev){
+    if(ev.shiftKey && t.escs){
+      const at = i + 1;
+      const idx = t.escs.indexOf(at);
+      if(idx === -1) t.escs.push(at); else t.escs.splice(idx, 1);
+    } else {
+      t.fill = (i + 1 === t.fill) ? i : i + 1;
+    }
+    render();
+  }
+
+  function buildCells(t){
+    const cells = document.createElement('div');
+    cells.className = 'cells';
+    for(let i = 0; i < t.len; i++){
+      const c = document.createElement('button');
+      c.className = 'cell' + (i < t.fill ? ' on' : '');
+      if(t.escs && t.escs.indexOf(i + 1) !== -1){
+        const e = document.createElement('i');
+        e.className = 'esc' + (t.fill >= i + 1 ? ' hit' : '');
+        c.appendChild(e);
+      }
+      c.addEventListener('click', (ev) => cellClick(t, i, ev));
+      cells.appendChild(c);
+    }
+    return cells;
+  }
+
+  function buildContestCells(s, reversed){
+    const cells = document.createElement('div');
+    cells.className = 'ccells' + (reversed ? ' rev' : '');
+    for(let i = 0; i < s.len; i++){
+      const c = document.createElement('button');
+      c.className = 'cell ccell' + (i < s.fill ? ' on' : '');
+      c.addEventListener('click', (ev) => cellClick(s, i, ev));
+      cells.appendChild(c);
+    }
+    return cells;
+  }
+
+  function render(){
+    const body = document.getElementById('bbody');
+    body.innerHTML = '';
+
+    TRACKS.forEach((t, ti) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const name = document.createElement('div');
+      name.className = 'tname';
+      name.textContent = t.name;
+      row.appendChild(name);
+
+      if(t.kind === 'track'){
+        row.appendChild(buildCells(t));
+      } else if(t.sides.length === 2){
+        const line = document.createElement('div');
+        line.className = 'cline';
+        line.appendChild(buildContestCells(t.sides[0], false));
+        const dia = document.createElement('i');
+        dia.className = 'cdia';
+        line.appendChild(dia);
+        line.appendChild(buildContestCells(t.sides[1], true));
+        row.appendChild(line);
+
+        const names = document.createElement('div');
+        names.className = 'cnames';
+        const a = document.createElement('span');
+        a.textContent = t.sides[0].name;
+        const b = document.createElement('span');
+        b.textContent = t.sides[1].name;
+        names.appendChild(a);
+        names.appendChild(b);
+        row.appendChild(names);
+      } else {
+        t.sides.forEach(s => {
+          const side = document.createElement('div');
+          side.className = 'side';
+          const sn = document.createElement('span');
+          sn.className = 'sname';
+          sn.textContent = s.name;
+          side.appendChild(sn);
+          side.appendChild(buildCells(s));
+          row.appendChild(side);
+        });
+      }
+
+      row.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        TRACKS.splice(ti, 1);
+        render();
+      });
+
+      body.appendChild(row);
+    });
+  }
+
+  document.getElementById('add').addEventListener('click', () => {
+    TRACKS.push({ kind:'track', name:'New Track', len:6, fill:0, escs:[] });
+    render();
+  });
+
+  document.getElementById('collapse').addEventListener('click', () => {
+    document.getElementById('board').classList.toggle('collapsed');
+  });
+
+  document.getElementById('hide').addEventListener('click', () => {
+    document.getElementById('board').style.display = 'none';
+  });
+
+  const board = document.getElementById('board');
+  const head = document.getElementById('bhead');
+  let drag = null;
+
+  head.addEventListener('pointerdown', (ev) => {
+    if(ev.target.tagName === 'BUTTON') return;
+    const r = board.getBoundingClientRect();
+    board.style.left = r.left + 'px';
+    board.style.top = r.top + 'px';
+    board.style.transform = 'none';
+    drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+    head.setPointerCapture(ev.pointerId);
+  });
+  head.addEventListener('pointermove', (ev) => {
+    if(!drag) return;
+    board.style.left = (ev.clientX - drag.dx) + 'px';
+    board.style.top = (ev.clientY - drag.dy) + 'px';
+  });
+  head.addEventListener('pointerup', () => { drag = null; });
+
+  render();
+</script>
+</body>
+</html>

@@ -24,5 +24,17 @@
     {{#each openings}}
     <div class="rtrait"><span class="rmark">◆</span><span>{{this}}</span></div>
     {{/each}}
+    {{#if band}}
+    <div class="dband">
+      <span class="gtag" style="--gc: var({{band.cssVar}})"><b>{{band.rank}}</b><small>{{band.number}}</small></span>
+      <span class="bword{{#if band.fumble}} fumble{{/if}}">{{band.word}}</span>
+      {{#if band.limitBreak}}<span class="lbtag">{{band.limitBreak}}</span>{{/if}}
+    </div>
+    {{/if}}
+    {{#if band.riders.length}}
+    <div class="riders">
+      {{#each band.riders}}<div data-rider="{{this.key}}">{{this.text}}</div>{{/each}}
+    </div>
+    {{/if}}
   </div>
 </div>

@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<!--
+SPEC — Project: Anime, Foundry V14. Change set: TRACKS. Revision 3: panel with Segment cells.
+
+TARGET
+Tracks display in a compact overlay panel on the board, shaped like the Foundryborne
+Daggerheart Countdowns window, with the Segment cells inside each row. The Storyteller
+creates, fills, erases, and deletes Tracks. Roll cards aimed at a Track carry fill and erase
+chips keyed to the band and Limit Break count already stored in the message flags by the
+Difficulty change set. A Contest is two side rows under one label, first to fill.
+Escalations and softlock stay manual.
+
+DATA MODEL
+tracks: world setting, array of
+  { id, name, len (2 to 12, default 6), contest: boolean,
+    a { name | null, filled }, b { name, filled } (contest only) }
+GM writes, socket sync, all clients render. Solo Tracks use side a only.
+Panel position, collapsed, and hidden are per-client display state, not world data.
+Roll message flags gain: aimedTrackId, aimedSide. Band and limitBreak are already there.
+
+DISPLAY
+A panel anchored top-left of the board, draggable by its header, position remembered per
+client. Header: a collapse caret, the TRACKS title, a GM-only plus that opens the New Track
+dialog, and a hide button. Hidden, the panel reopens from a toggle in the scene controls;
+the mockup stands that in with a ghost TRACKS pill.
+Solo Track row: line one is the beni diamond icon and the name, with a delete on row hover;
+line two is minus, the Segment cells, plus. Contest: the Track name as a small group label
+with a beni spine and the delete, then one two-line block per side (no icon).
+Cell: filled = gold, paper ring, halftone across the lower half; empty = dark at half
+opacity. A newly filled cell pulses once (prefers-reduced-motion disables it). Both Contest
+sides fill left to right. A filled side shows a beni diamond beside its name.
+Players see the panel without edit controls; collapse and hide work for every client.
+The Tension row keeps its own display and position setting from its change set.
+
+CONTROLS (GM only, hidden from players)
+Plus fills 1, minus erases 1, clamped to 0 and len. Shift-click skips the chat line.
+Delete removes the Track; the build asks for confirmation. New Track dialog: name, Segments,
+Contest toggle with a second side name. Contest sides share one length.
+Announce setting on (default, shared with Tension): fills post "<name> fills n Segments.",
+erases post "<name> erases 1 Segment.", a filled side posts "<name> is filled." and, in a
+Contest, "<side> fills <track> first."
+
+ROLL DIALOG ADDITION
+A TRACK row slots below DIFFICULTY, only while at least one Track exists. One chip per
+fillable side (solo Track, or each Contest side). None selected by default; clicking the
+selected chip clears it. Picking one writes aimedTrackId and aimedSide into the roll.
+
+ROLL CARD WIRING (GM-only chips; players see plain text; applied state stored in flags)
+On a card aimed at a Track, by band, with Limit Break count n:
+  Clean    — FILL 2+n on the aimed side.
+  Success  — FILL 1+n on the aimed side.
+  Failure  — nothing. With n above 0 in a Contest: FILL OPPOSING n. Solo Tracks get nothing.
+  Fumble   — ERASE 1 on the aimed side. With n above 0 in a Contest, also FILL OPPOSING n.
+A chip applies once, then reads FILLED or ERASED and stays inert. An unapplied fill chip on a
+full side is disabled and reads TRACK FILLED; an unapplied erase chip at 0 reads TRACK EMPTY.
+Band evaluation is unchanged.
+
+MODES
+GM view: panel edit controls, New Track, card chips. Player view: panel read-only with
+collapse and hide, riders as plain text.
+
+DESIGN NOTES
+Tokens: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48, gold #d9a13b.
+Track cells are gold; Tension stays beni. The Track icon is the beni ruling diamond.
+Fonts: Shippori Mincho B1 (display), Zen Kaku Gothic New (UI). No Japanese text.
+
+SIM ONLY (not part of the build)
+The view toggle, announce checkbox, board canvas, hotbar, the context-only Tension row,
+the preloaded cards, the reopen pill standing in for the scene-controls toggle, and the
+ROLL DIALOG panel demonstrating the TRACK row.
+
+EXAMPLE DATA (V3 doc)
+Breach the Vault: solo, 6 Segments, 3 filled.
+Rooftop Chase: Contest, 6 each, Kaito 2, Rook Knight 4.
+Cards: Clean vs C fill 2; Success vs C Limit Break 1 fill 2; Failure vs C Limit Break 1 in the
+Contest, opposing fills 1; Fumble vs D erases 1.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime — Tracks Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36; --ink2:#171126; --paper:#f7f2e7; --paper2:#ece4d1; --beni:#d92b48; --gold:#d9a13b;
+    --disp:'Shippori Mincho B1',serif; --ui:'Zen Kaku Gothic New',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:14px}
+  button{font-family:var(--ui);cursor:pointer}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+
+  .tbar{background:var(--ink);color:var(--paper)}
+  .tbar-in{max-width:1140px;margin:0 auto;padding:10px 18px;display:flex;align-items:center;gap:12px}
+  .dots{display:flex;gap:5px}
+  .dots i{width:9px;height:9px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:var(--beni)} .dots i:nth-child(2){background:var(--gold)} .dots i:nth-child(3){background:var(--paper)}
+  .tbar .name{font-family:var(--disp);font-weight:800;letter-spacing:.14em;font-size:14px}
+  .tbar .right{margin-left:auto;font-size:11px;letter-spacing:.22em;opacity:.85}
+
+  .wrap{max-width:1140px;margin:0 auto;padding:20px 18px;display:grid;grid-template-columns:1fr 350px;gap:22px;align-items:start}
+  @media (max-width:960px){.wrap{grid-template-columns:1fr}}
+
+  .panel{border:2px solid var(--ink);background:var(--paper);box-shadow:6px 6px 0 var(--ink);margin-bottom:22px}
+  .panel-h{position:relative;background:var(--ink);color:var(--paper);font-family:var(--disp);font-weight:800;
+    letter-spacing:.18em;font-size:12px;padding:8px 12px;overflow:hidden}
+  .panel-h::after{content:"";position:absolute;top:0;right:0;bottom:0;width:90px;
+    background-image:radial-gradient(circle,rgba(247,242,231,.35) 1.2px,transparent 1.2px);background-size:7px 7px}
+  .panel-b{padding:14px}
+  .lbl{font-size:10px;letter-spacing:.2em;font-weight:700;margin:0 0 6px}
+  .row{margin-bottom:14px}
+
+  /* board */
+  .board{position:relative;height:600px;background:var(--ink2);overflow:hidden;
+    background-image:linear-gradient(rgba(247,242,231,.045) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(247,242,231,.045) 1px,transparent 1px);
+    background-size:100px 100px}
+  .hotbar{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;gap:4px;opacity:.55}
+  .hotbar i{width:38px;height:38px;border:1px solid rgba(247,242,231,.35);background:rgba(34,26,54,.8);display:block}
+
+  /* tension row (context only) */
+  .trow{position:absolute;left:50%;transform:translateX(-50%);bottom:64px;display:flex;gap:4px}
+  .coin{width:36px;height:36px;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;
+    background:#2a2140;border:2px solid rgba(236,228,209,.22);opacity:.5}
+  .coin .d{width:11px;height:11px;transform:rotate(45deg);background:rgba(236,228,209,.18)}
+  .coin.on{opacity:1;background:var(--beni);border-color:var(--paper);box-shadow:0 0 0 1px var(--ink),0 2px 8px rgba(0,0,0,.55)}
+  .coin.on .d{background:var(--paper)}
+  .coin.on::after{content:"";position:absolute;inset:2px;border-radius:50%;
+    background-image:radial-gradient(circle,rgba(247,242,231,.3) 1px,transparent 1px);background-size:5px 5px;
+    -webkit-mask-image:linear-gradient(to top,#000 42%,transparent 62%);
+    mask-image:linear-gradient(to top,#000 42%,transparent 62%)}
+
+  /* tracks panel */
+  .cdp{position:absolute;top:14px;left:14px;width:262px;background:rgba(23,17,38,.94);
+    border:1px solid rgba(247,242,231,.5);box-shadow:0 4px 16px rgba(0,0,0,.55)}
+  .cdp-h{display:flex;align-items:center;gap:8px;padding:7px 10px;
+    border-bottom:1px solid rgba(247,242,231,.25);cursor:grab;user-select:none;touch-action:none}
+  .cdp-h:active{cursor:grabbing}
+  .cdp-h .ti{font-family:var(--disp);font-weight:800;font-size:11px;letter-spacing:.2em;color:var(--paper);flex:1}
+  .hbtn{width:20px;height:20px;border:1px solid rgba(247,242,231,.5);background:rgba(247,242,231,.08);
+    color:var(--paper);font-size:11px;font-weight:700;line-height:1}
+  .hbtn:hover{background:rgba(247,242,231,.2)}
+  .cdp.closed .cdp-b{display:none}
+  .cdp-b{padding:5px 0 7px}
+
+  .cdside{padding:5px 10px}
+  .l1{display:flex;align-items:center;gap:6px}
+  .l1 .ic{width:12px;height:12px;transform:rotate(45deg);background:var(--beni);border:1px solid var(--paper);flex:0 0 auto}
+  .l1 .nm{font-size:12px;color:var(--paper);flex:1;display:flex;align-items:center;gap:5px;min-width:0}
+  .l1 .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .windia{width:7px;height:7px;transform:rotate(45deg);background:var(--beni);box-shadow:0 0 5px rgba(217,43,72,.8);flex:0 0 auto}
+  .l2{display:flex;align-items:center;gap:7px;margin-top:4px}
+  .cells{display:flex;gap:3px;flex:1;flex-wrap:wrap}
+  .cell{width:16px;height:12px;position:relative;border:1px solid rgba(236,228,209,.25);background:rgba(42,33,64,.8);opacity:.55}
+  .cell.on{opacity:1;background:var(--gold);border-color:var(--paper);box-shadow:0 0 0 1px var(--ink)}
+  .cell.on::after{content:"";position:absolute;inset:1px;
+    background-image:radial-gradient(circle,rgba(34,26,54,.4) 1px,transparent 1px);background-size:4px 4px;
+    -webkit-mask-image:linear-gradient(to top,#000 40%,transparent 65%);
+    mask-image:linear-gradient(to top,#000 40%,transparent 65%)}
+  @keyframes kpulse{0%{transform:scale(1)}45%{transform:scale(1.4)}100%{transform:scale(1)}}
+  .cell.pulse{animation:kpulse .4s ease}
+  @media (prefers-reduced-motion: reduce){.cell.pulse{animation:none}}
+  .sb{width:20px;height:20px;border:1px solid rgba(247,242,231,.5);background:rgba(247,242,231,.08);
+    color:var(--paper);font-size:12px;font-weight:700;line-height:1;flex:0 0 auto}
+  .sb:hover{background:rgba(247,242,231,.2)}
+  .xb{width:16px;height:16px;border:0;background:transparent;color:rgba(247,242,231,.6);
+    font-size:11px;line-height:1;opacity:0;transition:opacity .15s;flex:0 0 auto}
+  .cdside:hover .xb,.cdside:focus-within .xb,.cdgl:hover .xb,.cdgl:focus-within .xb{opacity:1}
+  .xb:hover{color:var(--beni)}
+  .cdgrp{border-left:3px solid var(--beni);margin:2px 0}
+  .cdgl{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.18em;font-weight:700;
+    color:rgba(247,242,231,.7);padding:4px 10px 0}
+  .cdgl .gt{flex:1}
+  .cdpShow{position:absolute;top:14px;left:14px;display:none;border:1px solid rgba(247,242,231,.55);border-radius:13px;
+    background:rgba(23,17,38,.85);color:var(--paper);font-size:9px;letter-spacing:.16em;font-weight:700;
+    padding:6px 12px;opacity:.7}
+  .cdpShow:hover{opacity:1}
+  body.player .sb,body.player .xb,body.player .hbtn.add{display:none}
+
+  /* new track dialog */
+  .dlg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(23,17,38,.6)}
+  .dlg.open{display:flex}
+  .dlg .box{width:300px;border:2px solid var(--ink);background:var(--paper);box-shadow:6px 6px 0 var(--ink)}
+  .dlg input[type=text],.dlg input[type=number]{width:100%;padding:7px;border:2px solid var(--ink);background:var(--paper2);font-size:13px}
+  .dlg .foot{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
+  .dlg .foot button{border:2px solid var(--ink);padding:7px 16px;font-weight:700;font-size:11px;letter-spacing:.12em}
+  .dlg .foot .go{background:var(--beni);color:var(--paper);box-shadow:3px 3px 0 var(--ink)}
+  .dlg .foot .no{background:var(--paper2);color:var(--ink)}
+  .ck{display:flex;align-items:center;gap:8px;font-size:13px}
+
+  /* dialog-addition demo */
+  .aimchips{display:flex;gap:6px;flex-wrap:wrap}
+  .aim{border:2px solid var(--ink);background:var(--paper2);color:var(--ink);padding:6px 10px;
+    font-size:10px;font-weight:700;letter-spacing:.12em}
+  .aim.sel{background:var(--ink);color:var(--paper)}
+
+  /* chat */
+  .chat{max-height:640px;overflow-y:auto;padding:14px;background:var(--paper2)}
+  .card{border:2px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);padding:10px 12px;margin-bottom:14px}
+  .card .head{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.18em;font-weight:700;margin-bottom:8px}
+  .card .head .who{opacity:.6}
+  .dice{display:flex;justify-content:center;gap:10px;margin:6px 0}
+  .die{width:48px;height:48px;border:2px solid var(--ink);background:var(--paper);box-shadow:3px 3px 0 var(--ink);
+    display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:800;font-size:22px}
+  .tline{text-align:center;font-size:12px;margin:4px 0 2px}
+  .total{display:flex;justify-content:center;align-items:baseline;gap:8px;margin:4px 0 2px}
+  .total small{font-size:10px;letter-spacing:.2em;font-weight:700}
+  .total b{font-family:var(--disp);font-weight:800;font-size:26px}
+  .band{display:flex;align-items:center;justify-content:center;gap:10px;border-top:1px dashed var(--ink);margin-top:8px;padding-top:8px}
+  .gtag{display:inline-flex;align-items:center;gap:4px;border:2px solid var(--ink);background:var(--gc);color:var(--paper);
+    padding:2px 7px;font-family:var(--disp);font-weight:800;font-size:13px}
+  .gtag small{font-family:var(--ui);font-size:9px;font-weight:700}
+  .bword{font-family:var(--disp);font-weight:800;font-size:18px;letter-spacing:.04em}
+  .bword.fumble{color:var(--beni)}
+  .lbtag{font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--beni)}
+  .aimline{text-align:center;font-size:10px;letter-spacing:.14em;font-weight:700;margin-top:6px;opacity:.7}
+  .riders{margin-top:6px;text-align:center;font-size:11px;line-height:1.7;opacity:.9}
+  .tchip{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--ink);background:var(--gold);color:var(--ink);
+    padding:3px 10px;font-size:10px;font-weight:700;letter-spacing:.14em;box-shadow:2px 2px 0 var(--ink);margin:2px 0}
+  .tchip:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+  .tchip.erase{background:var(--beni);color:var(--paper)}
+  .tchip.done{background:var(--paper2);color:var(--ink);box-shadow:none;cursor:default}
+  .tchip.full{background:var(--paper2);color:var(--ink);opacity:.55;box-shadow:none;cursor:default}
+  .rtext{display:none}
+  body.player .tchip{display:none}
+  body.player .rtext{display:block}
+  .sysline{font-size:11px;padding:5px 8px;margin-bottom:10px;background:var(--paper);border:1px solid var(--ink)}
+  .sysline::before{content:"◆ ";color:var(--beni)}
+
+  .sim{border:2px dashed var(--ink);box-shadow:none}
+  .seg{display:flex;gap:0;border:2px solid var(--ink);width:max-content}
+  .seg button{border:0;background:var(--paper2);color:var(--ink);padding:7px 16px;font-size:11px;font-weight:700;letter-spacing:.12em}
+  .seg button+button{border-left:2px solid var(--ink)}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+</style>
+</head>
+<body>
+
+<div class="tbar"><div class="tbar-in">
+  <div class="dots"><i></i><i></i><i></i></div>
+  <span class="name">PROJECT: ANIME</span>
+  <span class="right">FOUNDRY UPDATES · TRACKS</span>
+</div></div>
+
+<div class="wrap">
+<div>
+  <!-- BOARD -->
+  <section class="panel">
+    <div class="panel-h">BOARD</div>
+    <div class="board" id="board">
+
+      <div class="cdp" id="cdp">
+        <div class="cdp-h" id="cdpH">
+          <button class="hbtn" id="cdpCol" aria-label="Collapse">▾</button>
+          <span class="ti">TRACKS</span>
+          <button class="hbtn add" id="newTk" aria-label="New Track">+</button>
+          <button class="hbtn" id="cdpHide" aria-label="Hide">✕</button>
+        </div>
+        <div class="cdp-b" id="cdpB"></div>
+      </div>
+      <button class="cdpShow" id="cdpShow">TRACKS</button>
+
+      <div class="trow" id="trowEl"></div>
+      <div class="hotbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+      <div class="dlg" id="dlg">
+        <div class="box">
+          <div class="panel-h">NEW TRACK</div>
+          <div class="panel-b">
+            <div class="row"><p class="lbl">NAME</p><input type="text" id="nName" value=""></div>
+            <div class="row"><p class="lbl">SEGMENTS</p><input type="number" id="nLen" value="6" min="2" max="12"></div>
+            <div class="row"><label class="ck"><input type="checkbox" id="nContest"> Contest</label></div>
+            <div class="row" id="nBRow" style="display:none"><p class="lbl">SECOND SIDE</p><input type="text" id="nNameB" value=""></div>
+            <div class="foot">
+              <button class="no" id="nCancel">CANCEL</button>
+              <button class="go" id="nGo">CREATE</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIALOG ADDITION -->
+  <section class="panel">
+    <div class="panel-h">ROLL DIALOG — TRACK ROW</div>
+    <div class="panel-b">
+      <p class="lbl">TRACK</p>
+      <div class="aimchips" id="aimchips"></div>
+      <p style="font-size:11px;opacity:.7;margin-top:8px">Slots below DIFFICULTY. Appears only while a Track exists. Clicking the selected chip clears it.</p>
+    </div>
+  </section>
+
+  <!-- SIM -->
+  <section class="panel sim">
+    <div class="panel-h">MOCKUP CONTROLS</div>
+    <div class="panel-b" style="display:flex;gap:28px;flex-wrap:wrap">
+      <div class="row">
+        <p class="lbl">VIEW — SIM ONLY</p>
+        <div class="seg"><button id="vGM" class="on">STORYTELLER</button><button id="vPL">PLAYER</button></div>
+      </div>
+      <div class="row">
+        <p class="lbl">ANNOUNCE — SYSTEM SETTING</p>
+        <label class="ck"><input type="checkbox" id="announce" checked> Post fills and erases to chat</label>
+      </div>
+    </div>
+  </section>
+</div>
+
+  <!-- CHAT -->
+  <section class="panel">
+    <div class="panel-h">CHAT</div>
+    <div class="chat" id="chat"></div>
+  </section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+
+/* tension row, context only */
+const trowEl=$('trowEl');
+for(let i=0;i<6;i++){
+  const c=document.createElement('div');c.className='coin'+(i<2?' on':'');
+  const d=document.createElement('div');d.className='d';c.appendChild(d);trowEl.appendChild(c);
+}
+
+/* tracks */
+let seq=3;
+const tracks=[
+  {id:'t1',name:'Breach the Vault',len:6,contest:false,a:{name:null,filled:3}},
+  {id:'t2',name:'Rooftop Chase',len:6,contest:true,a:{name:'Kaito',filled:2},b:{name:'Rook Knight',filled:4}}
+];
+const findT=id=>tracks.find(t=>t.id===id);
+
+function announceLine(text){
+  if(!$('announce').checked)return;
+  const l=document.createElement('div');l.className='sysline';l.textContent=text;
+  const chat=$('chat');chat.appendChild(l);chat.scrollTop=chat.scrollHeight;
+}
+function sideLabel(t,side){return t.contest?t[side].name:t.name;}
+
+function fill(id,side,n,silent){
+  const t=findT(id);if(!t)return;
+  const s=t[side];const before=s.filled;
+  s.filled=Math.min(t.len,s.filled+n);
+  const added=s.filled-before;
+  render({id,side,from:before,to:s.filled});
+  if(added>0&&!silent)announceLine(sideLabel(t,side)+' fills '+added+' Segment'+(added===1?'':'s')+'.');
+  if(added>0&&s.filled===t.len){
+    if(t.contest)announceLine(s.name+' fills '+t.name+' first.');
+    else announceLine(t.name+' is filled.');
+  }
+}
+function erase(id,side,n,silent){
+  const t=findT(id);if(!t)return;
+  const s=t[side];const before=s.filled;
+  s.filled=Math.max(0,s.filled-n);
+  render();
+  if(s.filled<before&&!silent)announceLine(sideLabel(t,side)+' erases 1 Segment.');
+}
+
+function stepBtn(txt,label,fn){
+  const b=document.createElement('button');b.className='sb';b.textContent=txt;
+  b.setAttribute('aria-label',label);b.addEventListener('click',fn);return b;
+}
+function delBtn(t){
+  const x=document.createElement('button');x.className='xb';x.textContent='✕';
+  x.setAttribute('aria-label','Delete Track');
+  x.addEventListener('click',()=>{const i=tracks.indexOf(t);if(i>-1){tracks.splice(i,1);render();renderAims();}});
+  return x;
+}
+function sideBlock(t,side,pulse,withIcon,withDel){
+  const blk=document.createElement('div');blk.className='cdside';
+  const l1=document.createElement('div');l1.className='l1';
+  if(withIcon){const ic=document.createElement('div');ic.className='ic';l1.appendChild(ic);}
+  const nm=document.createElement('div');nm.className='nm';
+  const s=t[side];
+  if(s.filled===t.len){const w=document.createElement('span');w.className='windia';nm.appendChild(w);}
+  const label=document.createElement('span');label.textContent=t.contest?s.name:t.name;nm.appendChild(label);
+  l1.appendChild(nm);
+  if(withDel)l1.appendChild(delBtn(t));
+  blk.appendChild(l1);
+  const l2=document.createElement('div');l2.className='l2';
+  l2.appendChild(stepBtn('−','Erase 1',e=>erase(t.id,side,1,e.shiftKey)));
+  const cells=document.createElement('div');cells.className='cells';
+  for(let i=0;i<t.len;i++){
+    const c=document.createElement('div');c.className='cell'+(i<s.filled?' on':'');
+    if(pulse&&pulse.id===t.id&&pulse.side===side&&i>=pulse.from&&i<pulse.to)c.classList.add('pulse');
+    cells.appendChild(c);
+  }
+  l2.appendChild(cells);
+  l2.appendChild(stepBtn('+','Fill 1',e=>fill(t.id,side,1,e.shiftKey)));
+  blk.appendChild(l2);
+  return blk;
+}
+function render(pulse){
+  const body=$('cdpB');body.innerHTML='';
+  tracks.forEach(t=>{
+    if(!t.contest){
+      body.appendChild(sideBlock(t,'a',pulse,true,true));
+    }else{
+      const grp=document.createElement('div');grp.className='cdgrp';
+      const gl=document.createElement('div');gl.className='cdgl';
+      const gt=document.createElement('span');gt.className='gt';gt.textContent=t.name.toUpperCase();
+      gl.appendChild(gt);gl.appendChild(delBtn(t));
+      grp.appendChild(gl);
+      grp.appendChild(sideBlock(t,'a',pulse,false,false));
+      grp.appendChild(sideBlock(t,'b',pulse,false,false));
+      body.appendChild(grp);
+    }
+  });
+  refreshChips();
+}
+
+/* panel drag, collapse, hide */
+const cdp=$('cdp'),cdpH=$('cdpH'),board=$('board');
+let drag=null;
+cdpH.addEventListener('pointerdown',e=>{
+  if(e.target.closest('button'))return;
+  const r=cdp.getBoundingClientRect();
+  drag={dx:e.clientX-r.left,dy:e.clientY-r.top};
+  cdpH.setPointerCapture(e.pointerId);
+});
+cdpH.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const br=board.getBoundingClientRect();
+  let x=e.clientX-br.left-drag.dx, y=e.clientY-br.top-drag.dy;
+  x=Math.max(0,Math.min(br.width-cdp.offsetWidth,x));
+  y=Math.max(0,Math.min(br.height-34,y));
+  cdp.style.left=x+'px';cdp.style.top=y+'px';
+});
+cdpH.addEventListener('pointerup',()=>drag=null);
+$('cdpCol').addEventListener('click',()=>{
+  cdp.classList.toggle('closed');
+  $('cdpCol').textContent=cdp.classList.contains('closed')?'▸':'▾';
+});
+$('cdpHide').addEventListener('click',()=>{cdp.style.display='none';$('cdpShow').style.display='block';});
+$('cdpShow').addEventListener('click',()=>{cdp.style.display='block';$('cdpShow').style.display='none';});
+
+/* new track dialog */
+$('newTk').addEventListener('click',()=>{$('dlg').classList.add('open');$('nName').value='';$('nNameB').value='';$('nLen').value=6;$('nContest').checked=false;$('nBRow').style.display='none';});
+$('nContest').addEventListener('change',e=>{$('nBRow').style.display=e.target.checked?'block':'none';});
+$('nCancel').addEventListener('click',()=>$('dlg').classList.remove('open'));
+$('nGo').addEventListener('click',()=>{
+  const name=$('nName').value.trim();if(!name)return;
+  const len=Math.max(2,Math.min(12,parseInt($('nLen').value,10)||6));
+  const contest=$('nContest').checked;
+  const t={id:'t'+(++seq),name,len,contest,a:{name:contest?name:null,filled:0}};
+  if(contest){const nb=$('nNameB').value.trim()||'Opponent';t.b={name:nb,filled:0};}
+  tracks.push(t);
+  $('dlg').classList.remove('open');
+  render();renderAims();
+});
+
+/* dialog-addition demo chips */
+let aimSel=null;
+function renderAims(){
+  const box=$('aimchips');box.innerHTML='';
+  const opts=[];
+  tracks.forEach(t=>{
+    if(!t.contest)opts.push({k:t.id+':a',label:t.name});
+    else{opts.push({k:t.id+':a',label:t.name+' · '+t.a.name});opts.push({k:t.id+':b',label:t.name+' · '+t.b.name});}
+  });
+  opts.forEach(o=>{
+    const b=document.createElement('button');b.className='aim'+(aimSel===o.k?' sel':'');
+    b.textContent=o.label.toUpperCase();
+    b.addEventListener('click',()=>{aimSel=aimSel===o.k?null:o.k;renderAims();});
+    box.appendChild(b);
+  });
+}
+
+/* cards */
+const LADDER={C:{n:10,c:'#3c78d8'},B:{n:13,c:'#7d5cd6'},D:{n:7,c:'#3ba55d'}};
+function card(p){
+  const c=document.createElement('div');c.className='card';
+  let html='<div class="head"><span>'+p.name+'</span><span class="who">KAITO</span></div>';
+  html+='<div class="dice"><div class="die">'+p.f1+'</div><div class="die">'+p.f2+'</div></div>';
+  html+='<div class="tline">Cursed Left Eye +2</div>';
+  html+='<div class="total"><small>TOTAL</small><b>'+p.total+'</b></div>';
+  const g=LADDER[p.g];
+  html+='<div class="band"><span class="gtag" style="--gc:'+g.c+'">'+p.g+' <small>'+g.n+'</small></span>';
+  html+='<span class="bword'+(p.band==='Fumble'?' fumble':'')+'">'+p.band+'</span>';
+  if(p.lb)html+='<span class="lbtag">LIMIT BREAK '+p.lb+'</span>';
+  html+='</div>';
+  html+='<div class="aimline">TRACK: '+p.aimLabel.toUpperCase()+'</div>';
+  html+='<div class="riders">';
+  p.chips.forEach(ch=>{
+    html+='<div><button class="tchip'+(ch.action==='erase'?' erase':'')+'" data-state="fresh" '+
+      'data-tid="'+ch.tid+'" data-side="'+ch.side+'" data-action="'+ch.action+'" data-n="'+ch.n+'" data-label="'+ch.label+'">'+ch.label+'</button>'+
+      '<span class="rtext">'+ch.text+'</span></div>';
+  });
+  p.riders.forEach(r=>{html+='<div>'+r+'</div>';});
+  html+='</div>';
+  c.innerHTML=html;
+  $('chat').appendChild(c);
+}
+card({name:'AGILITY + MIND',f1:6,f2:5,total:13,g:'C',band:'Clean',lb:0,
+  aimLabel:'Breach the Vault',
+  chips:[{tid:'t1',side:'a',action:'fill',n:2,label:'FILL 2',text:'Breach the Vault fills 2 Segments.'}],
+  riders:[]});
+card({name:'AGILITY + MIND',f1:6,f2:5,total:13,g:'B',band:'Success',lb:1,
+  aimLabel:'Breach the Vault',
+  chips:[{tid:'t1',side:'a',action:'fill',n:2,label:'FILL 2',text:'Breach the Vault fills 2 Segments.'}],
+  riders:['The Storyteller gains 1 Tension.']});
+card({name:'AGILITY + MIND',f1:4,f2:3,total:9,g:'B',band:'Failure',lb:1,
+  aimLabel:'Rooftop Chase · Kaito',
+  chips:[{tid:'t2',side:'b',action:'fill',n:1,label:'FILL OPPOSING 1',text:"Rook Knight's side fills 1 Segment."}],
+  riders:['The Storyteller gains 1 Tension.','The Spotlight passes.']});
+card({name:'AGILITY + MIND',f1:1,f2:1,total:4,g:'D',band:'Fumble',lb:0,
+  aimLabel:'Rooftop Chase · Kaito',
+  chips:[{tid:'t2',side:'a',action:'erase',n:1,label:'ERASE 1',text:"Kaito's side erases 1 Segment."}],
+  riders:['The Storyteller gains 1 Tension.','The Spotlight passes.','Luck Dice cannot change this roll.']});
+
+document.querySelectorAll('.tchip').forEach(ch=>{
+  ch.addEventListener('click',()=>{
+    if(ch.dataset.state!=='fresh')return;
+    const t=findT(ch.dataset.tid);if(!t)return;
+    const side=ch.dataset.side,n=parseInt(ch.dataset.n,10);
+    if(ch.dataset.action==='fill'){
+      if(t[side].filled>=t.len)return;
+      fill(ch.dataset.tid,side,n,false);
+      ch.dataset.state='done';ch.textContent='FILLED';ch.className='tchip done';
+    }else{
+      if(t[side].filled<=0)return;
+      erase(ch.dataset.tid,side,n,false);
+      ch.dataset.state='done';ch.textContent='ERASED';ch.className='tchip done';
+    }
+  });
+});
+function refreshChips(){
+  document.querySelectorAll('.tchip').forEach(ch=>{
+    if(ch.dataset.state==='done')return;
+    const t=findT(ch.dataset.tid);
+    if(!t){ch.dataset.state='full';ch.textContent='TRACK GONE';ch.className='tchip full';return;}
+    const s=t[ch.dataset.side];
+    if(ch.dataset.action==='fill'){
+      if(s.filled>=t.len){ch.dataset.state='full';ch.textContent='TRACK FILLED';ch.className='tchip full';}
+      else{ch.dataset.state='fresh';ch.textContent=ch.dataset.label;ch.className='tchip';}
+    }else{
+      if(s.filled<=0){ch.dataset.state='full';ch.textContent='TRACK EMPTY';ch.className='tchip full';}
+      else{ch.dataset.state='fresh';ch.textContent=ch.dataset.label;ch.className='tchip erase';}
+    }
+  });
+}
+
+/* sim controls */
+$('vGM').addEventListener('click',()=>{document.body.classList.remove('player');$('vGM').classList.add('on');$('vPL').classList.remove('on');});
+$('vPL').addEventListener('click',()=>{document.body.classList.add('player');$('vPL').classList.add('on');$('vGM').classList.remove('on');});
+
+render();renderAims();
+$('chat').scrollTop=0;
+</script>
+</body>
+</html>

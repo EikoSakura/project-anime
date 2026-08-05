@@ -45,6 +45,26 @@
       <input type="number" class="dnum" name="bonus" value="{{bonus}}" step="1" aria-label="{{localize "PROJECTANIME.Roll.Bonus"}}">
     </div>
   </div>
+  <div class="slab">{{localize "PROJECTANIME.Roll.Difficulty"}}</div>
+  <div class="grades">
+    {{#each grades}}
+    <button type="button" class="gbtn{{#if this.selected}} sel{{/if}}" data-action="grade" data-index="{{this.index}}"
+            style="--gc: var({{this.cssVar}})"><b>{{this.rank}}</b><small>{{this.number}}</small></button>
+    {{/each}}
+  </div>
+  <div class="slab">{{localize "PROJECTANIME.Roll.LimitBreak"}}</div>
+  <div class="lbrow{{#unless hasGrade}} off{{/unless}}">
+    <span class="stepgrp">
+      <button type="button" class="stepbtn" data-action="limit" data-delta="-1"
+              aria-label="{{localize "PROJECTANIME.Roll.StepDown"}}"{{#if lbDownDisabled}} disabled{{/if}}>&minus;</button>
+      <span class="diebadge">{{limitBreak}}</span>
+      <button type="button" class="stepbtn" data-action="limit" data-delta="1"
+              aria-label="{{localize "PROJECTANIME.Roll.StepUp"}}"{{#if lbUpDisabled}} disabled{{/if}}>+</button>
+    </span>
+    {{#if effective}}
+    <span class="eff">&#9656; <span class="gtag" style="--gc: var({{effective.cssVar}})"><b>{{effective.rank}}</b><small>{{effective.number}}</small></span></span>
+    {{/if}}
+  </div>
 </div>
 <div class="dfoot">
   <span class="formula">{{formula}}</span>

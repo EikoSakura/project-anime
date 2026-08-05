@@ -1,0 +1,76 @@
+<div class="encounter-panel">
+  <header class="hdr">
+    <div class="eyebrow">{{localize "PROJECTANIME.Encounter.Label"}}</div>
+    {{#if name}}<h2 class="ename">{{name}}</h2>{{/if}}
+  </header>
+
+  {{#if hasCombat}}
+  {{#if started}}
+  <div class="plate{{#if plate.open}} open{{else if plate.st}} st{{else}} party{{/if}}">
+    <div class="eyebrow">{{localize "PROJECTANIME.Encounter.Spotlight"}}</div>
+    {{#if plate.open}}
+    <div class="who">
+      <div class="nm">{{localize "PROJECTANIME.Encounter.Open"}}</div>
+    </div>
+    <div class="hint">{{plate.hint}}</div>
+    {{else}}
+    <img class="pfp" src="{{plate.img}}" alt="">
+    <div class="who">
+      <div class="nm">{{plate.name}}</div>
+      <div class="side">{{plate.side}}</div>
+    </div>
+    {{#if plate.return}}
+    <button type="button" class="chip ret" data-action="returnSpotlight">{{localize "PROJECTANIME.Encounter.Return"}}</button>
+    {{/if}}
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <div class="ebody">
+    {{#if queue.length}}
+    <div class="sec">
+      <div class="sec-label">{{localize "PROJECTANIME.Encounter.UpNext"}}</div>
+      <div class="queue">
+        {{#each queue}}
+        <div class="q">
+          <div class="no">{{no}}</div>
+          <div class="qn">{{name}}</div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if party.length}}
+    <div class="sec">
+      <div class="sec-label">{{localize "PROJECTANIME.Encounter.Party"}}</div>
+      {{#each party}}
+      {{> "systems/project-anime/templates/apps/encounter-row.hbs"}}
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{#if storyteller.length}}
+    <div class="sec">
+      <div class="sec-label">{{localize "PROJECTANIME.Encounter.Storyteller"}}</div>
+      {{#each storyteller}}
+      {{> "systems/project-anime/templates/apps/encounter-row.hbs"}}
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  {{#if gm}}
+  <footer class="ftr">
+    {{#if started}}
+    <button type="button" class="combat-control end" data-action="endCombat">{{localize "PROJECTANIME.Encounter.End"}}</button>
+    {{else}}
+    <button type="button" class="combat-control begin" data-action="startCombat">{{localize "PROJECTANIME.Encounter.Begin"}}</button>
+    {{/if}}
+  </footer>
+  {{/if}}
+
+  {{else}}
+  <div class="empty">{{localize "PROJECTANIME.Encounter.None"}}</div>
+  {{/if}}
+</div>

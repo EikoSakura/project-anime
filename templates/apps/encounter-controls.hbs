@@ -1,0 +1,46 @@
+<header class="combat-tracker-header{{#unless user.isGM}} empty{{/unless}}">
+  {{#if user.isGM}}
+  <nav class="encounters {{css}}" aria-label="{{localize "COMBAT.NavLabel"}}">
+
+    {{#if displayCycle}}
+    <button type="button" class="inline-control icon fa-solid fa-plus" data-action="createCombat"
+            data-tooltip aria-label="{{localize "COMBAT.Create"}}"></button>
+    <div class="cycle-combats">
+      <button type="button" class="inline-control icon fa-solid fa-caret-left" data-action="cycleCombat"
+              {{#if previousId}}data-combat-id="{{previousId}}"{{else}}disabled{{/if}}
+              data-tooltip aria-label="{{localize "COMBAT.EncounterPrevious"}}"></button>
+      <div class="encounter-count">
+        <span class="value">{{currentIndex}}</span>
+        <span class="separator">&sol;</span>
+        <span class="max">{{combats.length}}</span>
+      </div>
+      <button type="button" class="inline-control icon fa-solid fa-caret-right" data-action="cycleCombat"
+              {{#if nextId}}data-combat-id="{{nextId}}"{{else}}disabled{{/if}}
+              data-tooltip aria-label="{{localize "COMBAT.EncounterNext"}}"></button>
+    </div>
+    <button type="button" class="inline-control icon fa-solid fa-gear" data-action="trackerSettings"
+            data-tooltip aria-label="{{localize "COMBAT.Settings"}}"></button>
+
+    {{else if combats.length}}
+    <button type="button" class="inline-control icon fa-solid fa-plus" data-action="createCombat"
+            data-tooltip aria-label="{{localize "COMBAT.Create"}}"></button>
+    {{#each combats}}
+    <button type="button" class="inline-control {{#if active}}active{{/if}}" data-action="cycleCombat"
+            data-combat-id="{{id}}" {{#if name}}data-tooltip aria-label="{{name}}"{{/if}}>{{label}}</button>
+    {{/each}}
+    <button type="button" class="inline-control icon fa-solid fa-gear" data-action="trackerSettings"
+            data-tooltip aria-label="{{localize "COMBAT.Settings"}}"></button>
+
+    {{else}}
+    <button type="button" class="combat-control-lg" data-action="createCombat">
+      <i class="fa-solid fa-plus" inert></i>
+      <span>{{localize "COMBAT.Create"}}</span>
+    </button>
+    {{/if}}
+
+    {{#if hasCombat}}
+    <button type="button" class="encounter-context-menu inline-control icon fa-solid fa-ellipsis-vertical"></button>
+    {{/if}}
+  </nav>
+  {{/if}}
+</header>

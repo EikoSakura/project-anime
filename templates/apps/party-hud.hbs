@@ -1,0 +1,44 @@
+<div class="cards">
+  {{#each members}}
+  <article class="member{{#if overwhelmed}} overwhelmed{{/if}}" data-actor-id="{{id}}">
+    <div class="mtop">
+      <i class="tab"></i>
+      <span class="name">{{name}}</span>
+      <button type="button" class="plate{{#if plate.flipped}} die{{/if}}" data-action="flipPlate"
+        style="--rkc: var({{plate.cssVar}})" aria-label="{{localize "PROJECTANIME.Header.Grade"}}">
+        <span class="txt">{{plate.text}}</span>
+      </button>
+    </div>
+    <div class="mbody">
+      <button type="button" class="portrait" data-action="openSheet" aria-label="{{name}}">
+        <img src="{{img}}" alt="">
+      </button>
+      <div class="stats">
+        <div class="barrow">
+          <div class="bar">
+            {{#each hearts}}
+            <button type="button" class="seg hseg{{#if this}} on{{/if}}" data-action="setSegment" data-kind="hearts"
+              data-i="{{@index}}" aria-label="{{localize "PROJECTANIME.Vitals.Hearts"}}"></button>
+            {{/each}}
+          </div>
+        </div>
+        <div class="barrow">
+          <div class="bar">
+            {{#each energy}}
+            <button type="button" class="seg eseg{{#if this}} on{{/if}}" data-action="setSegment" data-kind="energy"
+              data-i="{{@index}}" aria-label="{{localize "PROJECTANIME.Vitals.Energy"}}"></button>
+            {{/each}}
+          </div>
+        </div>
+        <div class="luck">
+          {{#each luck}}
+          <button type="button" class="chip{{#if spent}} spent{{/if}}" data-action="toggleLuck" data-i="{{@index}}"
+            aria-label="{{localize "PROJECTANIME.Vitals.LuckDice"}}">{{value}}</button>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+    <div class="owband">{{localize "PROJECTANIME.PartyHud.Overwhelmed"}}</div>
+  </article>
+  {{/each}}
+</div>

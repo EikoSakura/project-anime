@@ -1,0 +1,10 @@
+<div class="meter">
+  <i class="tab"></i>
+  <span class="label">{{localize "PROJECTANIME.Tension.Label"}}</span>
+  <div class="slots">
+    {{#each slots}}
+    <button type="button" class="slot{{#if this}} on{{/if}}" data-action="setSlot" data-i="{{@index}}"
+      aria-label="{{localize "PROJECTANIME.Tension.Label"}}"></button>
+    {{/each}}
+  </div>
+</div>

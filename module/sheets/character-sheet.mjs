@@ -1,5 +1,6 @@
 import BaseActorSheet from "./base-actor-sheet.mjs";
 import { STANDARD_ADVANCEMENTS, SPECIAL_ADVANCEMENTS } from "../config.mjs";
+import CharacterCreator from "../apps/character-creator.mjs";
 
 export default class CharacterSheet extends BaseActorSheet {
   static DEFAULT_OPTIONS = {
@@ -8,7 +9,8 @@ export default class CharacterSheet extends BaseActorSheet {
       toggleBox: this.#onToggleBox,
       stepUnspent: this.#onStepUnspent,
       addBond: this.#onAddBond,
-      deleteBond: this.#onDeleteBond
+      deleteBond: this.#onDeleteBond,
+      openCreator: this.#onOpenCreator
     }
   };
 
@@ -29,6 +31,25 @@ export default class CharacterSheet extends BaseActorSheet {
   };
 
   static FORM_ARRAYS = ["bonds", "luck"];
+
+  /* The Character Creator button in the title bar, beside the mode toggle. */
+  async _renderFrame(options) {
+    const frame = await super._renderFrame(options);
+    if (this.isEditable) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "creatorbtn";
+      button.dataset.action = "openCreator";
+      button.dataset.tooltip = "PROJECTANIME.Creator.Title";
+      button.setAttribute("aria-label", game.i18n.localize("PROJECTANIME.Creator.Title"));
+      const icon = document.createElement("i");
+      icon.className = "fa-solid fa-user-plus";
+      icon.inert = true;
+      button.append(icon);
+      this.window.title.after(button);
+    }
+    return frame;
+  }
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
@@ -81,5 +102,10 @@ export default class CharacterSheet extends BaseActorSheet {
     const bonds = this.document.system.toObject().bonds;
     bonds.splice(Number(target.dataset.i), 1);
     await this.document.update({ "system.bonds": bonds });
+  }
+
+  static #onOpenCreator() {
+    if (!this.isEditable) return;
+    CharacterCreator.open(this.document);
   }
 }

@@ -2,7 +2,7 @@
   <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Traits"}}</span></div>
   <div class="panel-b">
     {{#each traits}}
-    <div class="card" data-item-id="{{this.id}}">
+    <div class="card draggable" data-item-id="{{this.id}}">
       <div class="card-h">
         {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
         {{#if @root.editMode}}

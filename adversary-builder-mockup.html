@@ -1,0 +1,780 @@
+<!--
+ADVERSARY BUILDER, mockup
+Project: Anime, Foundry V14 system
+
+TARGET
+- ApplicationV2 wizard, Storyteller only. Opens from a Create Adversary button in the
+  Actors tab header, beside Create Character.
+- Create Adversary builds one adversary Actor and its embedded Trait and Technique
+  Items on the system's existing schemas, then opens the new actor's sheet.
+
+ADVERSARY ENTRY ENCODED
+- Desire and Fear: text. Fear is discovered through play; both are Storyteller-facing.
+- Grade: one Rank, E to S, public. Its Ladder number is the Difficulty to act
+  against the adversary.
+- Attributes: Might, Agility, Mind, Spirit, Charm, each E to S. Storyteller-set,
+  no budget, no cap below S.
+- Hearts and Energy: Storyteller-set. Character 6 is the reference, not a rule.
+- Traits and Techniques: per character rules, any count. Technique Energy cost is
+  the Rank number, E 1 to S 6, read from the Ladder.
+- Desire Track: optional. Segments Storyteller-set.
+- Rival: optional. A Rival carries Luck Dice, 3d6 rolled and recorded.
+
+DATA WRITTEN ON CREATE
+- Actor: name, desire, fear, grade, attribute Ranks, hearts n/n, energy n/n.
+- Items: one Trait per card (rank, description), one Technique per card
+  (rank, type, description).
+- Desire Track on: one Track on the Tracks board, named after the adversary, at the
+  set Segments, unfilled.
+- Rival on: Luck [3 x {size d6, value as rolled, spent false}].
+
+MODES
+- Five steps: Adversary, Stats, Traits, Techniques, Finishing Touches.
+- Step rail is clickable. A beni check marks a completed step. Edit-only, no View mode.
+
+INTERACTIONS
+- Stats: Grade seal with steppers under it, E to S; seal click flips letter and
+  Difficulty (E 4 to S 19). Attribute steppers E to S; rank badge click flips letter
+  and die. Hearts and Energy steppers render their icon rows live.
+- Traits: Add Trait and per-card remove. Name, rank steppers E to S, badge flips
+  letter and +N, Description.
+- Techniques: Add Technique and per-card remove. Name, Activated/Triggered toggle,
+  rank steppers E to S, badge flips letter and die, Energy chip from the Ladder,
+  Description.
+- Finishing Touches: Desire Track toggle reveals a Segments stepper, 1 to 12, with a
+  Segment cell preview. Rival toggle reveals the Luck slots and ROLL 3D6. Rerolling
+  is mockup only; the build rolls once through the Foundry Roll API, then disables.
+  No chat message.
+- BACK and NEXT walk the steps. CREATE ADVERSARY enables when every check passes.
+
+CHECKS
+- Adversary: Name and Desire filled. Fear optional.
+- Stats: always passes.
+- Traits, Techniques: every present card named. Zero cards passes.
+- Finishing Touches: Luck rolled when Rival is on.
+
+DESIGN NOTES
+- Tokens: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48, gold #d9a13b.
+  Rank colors E #8a8fa0, D #3ba55d, C #3c78d8, B #7d5cd6, A #e2632e, S gold.
+- Fonts: Shippori Mincho B1 display, Zen Kaku Gothic New UI. No Japanese text.
+- Shared chrome: title bar (ink, dots left, Project: Anime, sheet name right), obi
+  header (ink band, halftone dots, 10px beni spine with paper hairline), panels
+  (2px ink border, hard offset shadow, ink header with screentone corner), seal
+  (paper circle, beni ring, rotated -5deg).
+- Opens blank: Grade E, all Attributes E, Hearts 6, Energy 6, no cards, Desire Track
+  off, Rival off.
+- Description fields are plain textareas here; the system uses ProseMirror.
+- Example data: The Crab Army, from the V3 doc.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime, Adversary Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#221a36; --paper:#f7f2e7; --paper2:#ece4d1; --beni:#d92b48; --gold:#d9a13b;
+  --rE:#8a8fa0; --rD:#3ba55d; --rC:#3c78d8; --rB:#7d5cd6; --rA:#e2632e; --rS:#d9a13b;
+  --disp:'Shippori Mincho B1',serif; --ui:'Zen Kaku Gothic New',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:var(--paper2); font-family:var(--ui); color:var(--ink);
+  padding:28px 16px 48px;
+}
+.app{
+  max-width:880px; margin:0 auto; background:var(--paper);
+  border:2px solid var(--ink); box-shadow:6px 6px 0 var(--ink);
+}
+button{font-family:var(--ui); cursor:pointer;}
+button:focus-visible, input:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--beni); outline-offset:2px;
+}
+
+/* ---------- title bar ---------- */
+.titlebar{
+  background:var(--ink); color:var(--paper);
+  display:flex; align-items:center; gap:12px; padding:0 14px; height:42px;
+}
+.dots{display:flex; gap:6px;}
+.dots span{width:10px; height:10px; border-radius:50%;}
+.dots span:nth-child(1){background:var(--beni);}
+.dots span:nth-child(2){background:var(--gold);}
+.dots span:nth-child(3){background:var(--paper);}
+.titlebar .brand{
+  font-weight:900; font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+}
+.titlebar .sheetname{
+  margin-left:auto; font-weight:700; font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; opacity:.85;
+}
+
+/* ---------- obi header ---------- */
+.obi{
+  position:relative; background:var(--ink); color:var(--paper);
+  padding:20px 24px 22px 34px; overflow:hidden;
+}
+.obi::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:10px; background:var(--beni);
+}
+.obi::after{
+  content:""; position:absolute; left:10px; top:0; bottom:0; width:1px; background:var(--paper);
+}
+.obi .tone{
+  position:absolute; right:-20px; top:-20px; width:240px; height:140px;
+  background-image:radial-gradient(rgba(247,242,231,.28) 1.6px, transparent 1.6px);
+  background-size:11px 11px; transform:rotate(-8deg); pointer-events:none;
+}
+.obi .eyebrow{
+  font-size:10px; font-weight:900; letter-spacing:.3em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:6px;
+}
+.obi h1{
+  font-family:var(--disp); font-weight:800; font-size:34px; line-height:1.05;
+  letter-spacing:.02em;
+}
+
+/* ---------- step rail ---------- */
+.rail{
+  display:flex; background:var(--paper2); border-bottom:2px solid var(--ink);
+}
+.rail button{
+  flex:1; background:none; border:none; border-right:1px solid rgba(34,26,54,.25);
+  padding:10px 6px 8px; font-size:10px; font-weight:900; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink); opacity:.55; position:relative;
+}
+.rail button:last-child{border-right:none;}
+.rail button .num{
+  display:block; font-family:var(--disp); font-size:15px; font-weight:800;
+  letter-spacing:0; margin-bottom:2px;
+}
+.rail button .check{
+  position:absolute; top:6px; right:8px; color:var(--beni); font-size:12px;
+  font-weight:900; display:none;
+}
+.rail button.done .check{display:block;}
+.rail button.active{opacity:1; background:var(--paper); box-shadow:inset 0 -4px 0 var(--beni);}
+
+/* ---------- stage & panels ---------- */
+.stage{padding:24px;}
+.pane{display:none;}
+.pane.active{display:block;}
+.panel{
+  border:2px solid var(--ink); background:var(--paper); box-shadow:5px 5px 0 var(--ink);
+}
+.panel-head{
+  position:relative; background:var(--ink); color:var(--paper);
+  padding:8px 14px; font-weight:900; font-size:12px; letter-spacing:.2em;
+  text-transform:uppercase; overflow:hidden;
+}
+.panel-head::after{
+  content:""; position:absolute; right:-8px; top:-8px; width:90px; height:44px;
+  background-image:radial-gradient(rgba(247,242,231,.3) 1.3px, transparent 1.3px);
+  background-size:8px 8px; transform:rotate(-8deg);
+}
+.panel-head .side{
+  position:absolute; right:14px; top:50%; transform:translateY(-50%);
+  font-size:10px; letter-spacing:.14em; color:var(--gold); z-index:1;
+}
+.panel-body{padding:18px;}
+
+/* ---------- fields ---------- */
+.field{margin-bottom:16px;}
+.field:last-child{margin-bottom:0;}
+label{
+  display:block; font-size:10px; font-weight:900; letter-spacing:.2em;
+  text-transform:uppercase; margin-bottom:5px;
+}
+input[type=text], textarea{
+  width:100%; background:var(--paper); border:2px solid var(--ink);
+  padding:8px 10px; font-family:var(--ui); font-size:14px; color:var(--ink);
+}
+textarea{resize:vertical; min-height:56px; line-height:1.45;}
+
+/* ---------- rank badges & steppers ---------- */
+.badge{
+  width:38px; height:38px; border:2px solid var(--ink); color:var(--paper);
+  font-family:var(--disp); font-weight:800; font-size:18px;
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  background:var(--rE); padding:0;
+}
+.badge.small-text{font-family:var(--ui); font-weight:900; font-size:12px;}
+.badge[data-rank="0"]{background:var(--rE);}
+.badge[data-rank="1"]{background:var(--rD);}
+.badge[data-rank="2"]{background:var(--rC);}
+.badge[data-rank="3"]{background:var(--rB);}
+.badge[data-rank="4"]{background:var(--rA);}
+.badge[data-rank="5"]{background:var(--rS);}
+.stepper{display:flex; gap:6px;}
+.stepper button{
+  width:30px; height:30px; border:2px solid var(--ink); background:var(--paper);
+  font-weight:900; font-size:15px; line-height:1; color:var(--ink);
+}
+.stepper button:disabled{opacity:.3; cursor:default;}
+.vstep{display:flex; flex-direction:column; gap:4px;}
+.vstep button{
+  width:22px; height:17px; border:2px solid var(--ink); background:var(--paper);
+  font-weight:900; font-size:10px; line-height:1; color:var(--ink); padding:0;
+}
+.vstep button:disabled{opacity:.3; cursor:default;}
+
+/* ---------- stats ---------- */
+.statgrid{display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap;}
+.sealblock{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:12px; padding-top:4px;}
+.seal{
+  width:104px; height:104px; border-radius:50%; background:var(--paper);
+  border:3px solid var(--beni); box-shadow:0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+  transform:rotate(-5deg); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer;
+  margin:6px 6px 0 2px; padding:0;
+}
+.seal .g{font-family:var(--disp); font-weight:800; font-size:40px; color:var(--beni); line-height:1;}
+.seal .l{font-size:8px; font-weight:900; letter-spacing:.24em; text-transform:uppercase; color:var(--ink); margin-top:2px;}
+.attrcol{flex:1; min-width:300px;}
+.attr-row{
+  display:flex; align-items:center; gap:12px; padding:9px 4px;
+  border-bottom:1px solid rgba(34,26,54,.2);
+}
+.attr-row:last-child{border-bottom:none;}
+.attr-row .name{
+  flex:1; font-weight:900; font-size:14px; letter-spacing:.14em; text-transform:uppercase;
+}
+.pools{
+  border-top:2px solid var(--ink); margin-top:18px; padding-top:16px;
+  display:flex; flex-direction:column; gap:14px;
+}
+.pool-row{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.pool-row label{margin:0; min-width:64px;}
+.pool-row .val{
+  width:38px; height:30px; border:2px solid var(--ink); background:var(--paper2);
+  font-family:var(--disp); font-weight:800; font-size:17px;
+  display:flex; align-items:center; justify-content:center;
+}
+.icons{display:flex; gap:6px; flex-wrap:wrap;}
+.heart{width:22px; height:22px; color:var(--beni); font-size:21px; line-height:22px; text-align:center;}
+.bolt{
+  width:16px; height:22px; background:var(--gold);
+  clip-path:polygon(62% 0, 12% 56%, 44% 56%, 34% 100%, 88% 40%, 54% 40%);
+}
+
+/* ---------- cards (traits / techniques) ---------- */
+.cards{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
+.cards:empty{margin-bottom:0;}
+.card{
+  position:relative; border:2px solid var(--ink); background:var(--paper);
+  box-shadow:3px 3px 0 var(--ink); padding:14px;
+}
+.card .x{
+  position:absolute; top:-2px; right:-2px; width:24px; height:24px;
+  border:2px solid var(--ink); background:var(--paper2); color:var(--ink);
+  font-weight:900; font-size:12px; line-height:1;
+}
+.card .toprow{display:flex; gap:10px; align-items:flex-end; margin-bottom:12px; padding-right:18px;}
+.card .toprow .field{flex:1; margin-bottom:0;}
+.seg{display:flex; border:2px solid var(--ink); width:max-content; margin-bottom:12px;}
+.seg button{
+  background:var(--paper); border:none; padding:6px 12px; font-size:10px;
+  font-weight:900; letter-spacing:.16em; text-transform:uppercase; color:var(--ink);
+}
+.seg button.on{background:var(--ink); color:var(--paper);}
+.chip{
+  display:inline-block; border:2px solid var(--gold); color:var(--ink); background:var(--paper);
+  font-size:10px; font-weight:900; letter-spacing:.16em; text-transform:uppercase;
+  padding:4px 8px;
+}
+.addbtn{
+  border:2px solid var(--ink); background:var(--paper2); color:var(--ink);
+  font-weight:900; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  padding:9px 14px; box-shadow:3px 3px 0 var(--ink);
+}
+.addbtn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink);}
+
+/* ---------- finishing touches ---------- */
+.tog{
+  display:flex; align-items:center; gap:10px; background:none; border:none;
+  font-weight:900; font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--ink); padding:0;
+}
+.tog .box{
+  width:22px; height:22px; border:2px solid var(--ink); background:var(--paper);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--beni); font-size:14px; font-weight:900;
+}
+.tog .box span{display:none;}
+.tog[aria-pressed="true"] .box span{display:block;}
+.opt{border-bottom:1px solid rgba(34,26,54,.2); padding:14px 2px;}
+.opt:last-child{border-bottom:none;}
+.opt .body{margin-top:12px; padding-left:32px; display:none;}
+.opt.on .body{display:block;}
+.segrow{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.segrow .val{
+  width:38px; height:30px; border:2px solid var(--ink); background:var(--paper2);
+  font-family:var(--disp); font-weight:800; font-size:17px;
+  display:flex; align-items:center; justify-content:center;
+}
+.cells{display:flex; gap:5px; flex-wrap:wrap;}
+.cells span{width:15px; height:15px; border:2px solid var(--ink); background:var(--paper);}
+.luck-slots{display:flex; gap:10px; align-items:center;}
+.luck{
+  width:52px; height:52px; border:2px dashed var(--ink); background:var(--paper2);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--disp); font-weight:800; font-size:24px; color:var(--ink);
+}
+.luck.filled{border-style:solid; background:var(--paper);}
+.luck .dot{width:6px; height:6px; border-radius:50%; background:rgba(34,26,54,.35);}
+.rollbtn{
+  border:2px solid var(--ink); background:var(--beni); color:var(--paper);
+  font-weight:900; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  padding:10px 14px; box-shadow:3px 3px 0 var(--ink); margin-left:6px;
+}
+.rollbtn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink);}
+
+/* ---------- footer ---------- */
+.footer{
+  display:flex; align-items:center; gap:12px; padding:14px 24px;
+  background:var(--paper2); border-top:2px solid var(--ink);
+}
+.footer .pos{font-size:10px; font-weight:900; letter-spacing:.2em; text-transform:uppercase; opacity:.6;}
+.btn{
+  border:2px solid var(--ink); padding:10px 18px; font-weight:900; font-size:11px;
+  letter-spacing:.18em; text-transform:uppercase; box-shadow:3px 3px 0 var(--ink);
+}
+.btn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink);}
+.btn.ghost{background:var(--paper); color:var(--ink);}
+.btn.main{background:var(--ink); color:var(--paper); margin-left:auto;}
+.btn.create{background:var(--beni); color:var(--paper); margin-left:auto;}
+.btn:disabled{opacity:.35; cursor:default;}
+.btn:disabled:active{transform:none; box-shadow:3px 3px 0 var(--ink);}
+.created{
+  margin-left:auto; display:flex; align-items:center; gap:8px;
+  font-weight:900; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--beni);
+}
+.hidden{display:none !important;}
+
+@media (max-width:640px){
+  .cards{grid-template-columns:1fr;}
+  .rail button{font-size:8px;}
+  .obi h1{font-size:26px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="titlebar">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="brand">Project: Anime</div>
+    <div class="sheetname">Adversary Builder</div>
+  </div>
+
+  <div class="obi">
+    <div class="tone"></div>
+    <div class="eyebrow">Adversary Builder</div>
+    <h1 id="obiName">New Adversary</h1>
+  </div>
+
+  <div class="rail" id="rail"></div>
+
+  <div class="stage">
+
+    <!-- STEP 1 : ADVERSARY -->
+    <section class="pane" data-step="0">
+      <div class="panel">
+        <div class="panel-head">Adversary</div>
+        <div class="panel-body">
+          <div class="field">
+            <label for="fName">Name</label>
+            <input type="text" id="fName" value="The Crab Army">
+          </div>
+          <div class="field">
+            <label for="fDesire">Desire</label>
+            <input type="text" id="fDesire" value="Carry off the feast">
+          </div>
+          <div class="field">
+            <label for="fFear">Fear</label>
+            <input type="text" id="fFear" value="Seagulls">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2 : STATS -->
+    <section class="pane" data-step="1">
+      <div class="panel">
+        <div class="panel-head">Stats<span class="side">Storyteller-set</span></div>
+        <div class="panel-body">
+          <div class="statgrid">
+            <div class="sealblock">
+              <button class="seal" id="seal" aria-label="Grade seal">
+                <span class="g" id="sealG">E</span>
+                <span class="l" id="sealL">Grade</span>
+              </button>
+              <div class="stepper">
+                <button id="gradeDown" aria-label="Grade down">&minus;</button>
+                <button id="gradeUp" aria-label="Grade up">+</button>
+              </div>
+            </div>
+            <div class="attrcol" id="attrList"></div>
+          </div>
+          <div class="pools">
+            <div class="pool-row">
+              <label>Hearts</label>
+              <div class="stepper"><button id="heartsDown" aria-label="Hearts down">&minus;</button></div>
+              <div class="val" id="heartsVal">4</div>
+              <div class="stepper"><button id="heartsUp" aria-label="Hearts up">+</button></div>
+              <div class="icons" id="hearts"></div>
+            </div>
+            <div class="pool-row">
+              <label>Energy</label>
+              <div class="stepper"><button id="energyDown" aria-label="Energy down">&minus;</button></div>
+              <div class="val" id="energyVal">2</div>
+              <div class="stepper"><button id="energyUp" aria-label="Energy up">+</button></div>
+              <div class="icons" id="energy"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 3 : TRAITS -->
+    <section class="pane" data-step="2">
+      <div class="panel">
+        <div class="panel-head">Traits</div>
+        <div class="panel-body">
+          <div class="cards" id="traitCards"></div>
+          <button class="addbtn" id="addTrait">Add Trait</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 4 : TECHNIQUES -->
+    <section class="pane" data-step="3">
+      <div class="panel">
+        <div class="panel-head">Techniques</div>
+        <div class="panel-body">
+          <div class="cards" id="techCards"></div>
+          <button class="addbtn" id="addTech">Add Technique</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 5 : FINISHING TOUCHES -->
+    <section class="pane" data-step="4">
+      <div class="panel">
+        <div class="panel-head">Finishing Touches</div>
+        <div class="panel-body">
+          <div class="opt" id="optTrack">
+            <button class="tog" id="togTrack" aria-pressed="true">
+              <span class="box"><span>&#10003;</span></span>Desire Track
+            </button>
+            <div class="body">
+              <div class="segrow">
+                <label style="margin:0;">Segments</label>
+                <div class="stepper"><button id="segDown" aria-label="Segments down">&minus;</button></div>
+                <div class="val" id="segVal">5</div>
+                <div class="stepper"><button id="segUp" aria-label="Segments up">+</button></div>
+                <div class="cells" id="segCells"></div>
+              </div>
+            </div>
+          </div>
+          <div class="opt" id="optRival">
+            <button class="tog" id="togRival" aria-pressed="false">
+              <span class="box"><span>&#10003;</span></span>Rival
+            </button>
+            <div class="body">
+              <label>Luck Dice</label>
+              <div class="luck-slots" id="luckSlots" style="margin-top:5px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <button class="btn ghost" id="btnBack">Back</button>
+    <span class="pos" id="pos">Step 1 of 5</span>
+    <button class="btn main" id="btnNext">Next</button>
+    <button class="btn create hidden" id="btnCreate">Create Adversary</button>
+    <span class="created hidden" id="createdMsg">&#10003; Adversary Created</span>
+  </div>
+
+</div>
+
+<script>
+const LADDER = {
+  rank:["E","D","C","B","A","S"],
+  die:["d4","d6","d8","d10","d12","d12+1"],
+  trait:["+1","+2","+3","+4","+5","+6"],
+  diff:[4,7,10,13,16,19]
+};
+const STEPS = ["Adversary","Stats","Traits","Techniques","Finishing Touches"];
+
+const state = {
+  step:0,
+  name:"The Crab Army",
+  desire:"Carry off the feast",
+  fear:"Seagulls",
+  grade:0, sealFlip:false,
+  attrs:{Might:1, Agility:1, Mind:0, Spirit:0, Charm:0},
+  attrFlip:{},
+  hearts:4, energy:2,
+  traits:[
+    {name:"Tide of Claws", rank:1,
+     text:"They come in from every side at once.", flip:false}
+  ],
+  techs:[
+    {name:"Drag Under", type:"triggered", rank:0,
+     text:"When a hero Fumbles near the swarm, it pulls them off their feet.", flip:false}
+  ],
+  track:true, segments:5,
+  rival:false, luck:[null,null,null],
+  created:false
+};
+
+/* ---------- rail ---------- */
+const rail = document.getElementById("rail");
+STEPS.forEach((s,i)=>{
+  const b = document.createElement("button");
+  b.innerHTML = `<span class="num">${i+1}</span>${s}<span class="check">&#10003;</span>`;
+  b.addEventListener("click", ()=>goto(i));
+  rail.appendChild(b);
+});
+
+/* ---------- stats ---------- */
+function renderSeal(){
+  document.getElementById("sealG").textContent =
+    state.sealFlip ? LADDER.diff[state.grade] : LADDER.rank[state.grade];
+  document.getElementById("sealL").textContent = state.sealFlip ? "Difficulty" : "Grade";
+  document.getElementById("gradeDown").disabled = state.grade===0;
+  document.getElementById("gradeUp").disabled = state.grade===5;
+}
+document.getElementById("seal").addEventListener("click", ()=>{state.sealFlip=!state.sealFlip; renderSeal();});
+document.getElementById("gradeDown").addEventListener("click", ()=>{if(state.grade>0){state.grade--; renderSeal();}});
+document.getElementById("gradeUp").addEventListener("click", ()=>{if(state.grade<5){state.grade++; renderSeal();}});
+
+const attrList = document.getElementById("attrList");
+function renderAttrs(){
+  attrList.innerHTML = "";
+  Object.keys(state.attrs).forEach(k=>{
+    const r = state.attrs[k];
+    const flipped = !!state.attrFlip[k];
+    const row = document.createElement("div");
+    row.className = "attr-row";
+    row.innerHTML = `
+      <span class="name">${k}</span>
+      <button class="badge ${flipped?"small-text":""}" data-rank="${r}" aria-label="${k} rank">
+        ${flipped?LADDER.die[r]:LADDER.rank[r]}
+      </button>
+      <div class="stepper">
+        <button data-d="-1" ${r===0?"disabled":""} aria-label="${k} down">&minus;</button>
+        <button data-d="1" ${r===5?"disabled":""} aria-label="${k} up">+</button>
+      </div>`;
+    row.querySelector(".badge").addEventListener("click", ()=>{
+      state.attrFlip[k]=!state.attrFlip[k]; renderAttrs();
+    });
+    row.querySelectorAll(".stepper button").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.attrs[k]+=Number(btn.dataset.d); renderAttrs();
+      });
+    });
+    attrList.appendChild(row);
+  });
+}
+
+const hearts = document.getElementById("hearts");
+const energy = document.getElementById("energy");
+function renderPools(){
+  document.getElementById("heartsVal").textContent = state.hearts;
+  document.getElementById("energyVal").textContent = state.energy;
+  hearts.innerHTML = ""; energy.innerHTML = "";
+  for(let i=0;i<state.hearts;i++){
+    const h = document.createElement("span"); h.className="heart"; h.innerHTML="&#9829;";
+    hearts.appendChild(h);
+  }
+  for(let i=0;i<state.energy;i++){
+    const e = document.createElement("span"); e.className="bolt";
+    energy.appendChild(e);
+  }
+  document.getElementById("heartsDown").disabled = state.hearts<=1;
+  document.getElementById("heartsUp").disabled = state.hearts>=12;
+  document.getElementById("energyDown").disabled = state.energy<=0;
+  document.getElementById("energyUp").disabled = state.energy>=12;
+}
+document.getElementById("heartsDown").addEventListener("click", ()=>{if(state.hearts>1){state.hearts--; renderPools();}});
+document.getElementById("heartsUp").addEventListener("click", ()=>{if(state.hearts<12){state.hearts++; renderPools();}});
+document.getElementById("energyDown").addEventListener("click", ()=>{if(state.energy>0){state.energy--; renderPools();}});
+document.getElementById("energyUp").addEventListener("click", ()=>{if(state.energy<12){state.energy++; renderPools();}});
+
+/* ---------- traits ---------- */
+const traitCards = document.getElementById("traitCards");
+function renderTraits(){
+  traitCards.innerHTML = "";
+  state.traits.forEach((t,i)=>{
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML = `
+      <button class="x" aria-label="Remove trait">&#10005;</button>
+      <div class="toprow">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" class="tname" value="${t.name}">
+        </div>
+        <button class="badge ${t.flip?"small-text":""}" data-rank="${t.rank}" aria-label="Trait rank">
+          ${t.flip?LADDER.trait[t.rank]:LADDER.rank[t.rank]}
+        </button>
+        <div class="vstep">
+          <button data-d="1" ${t.rank===5?"disabled":""} aria-label="Trait rank up">+</button>
+          <button data-d="-1" ${t.rank===0?"disabled":""} aria-label="Trait rank down">&minus;</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea class="ttext" rows="2">${t.text}</textarea>
+      </div>`;
+    c.querySelector(".x").addEventListener("click", ()=>{state.traits.splice(i,1); renderTraits(); refresh();});
+    c.querySelector(".badge").addEventListener("click", ()=>{t.flip=!t.flip; renderTraits();});
+    c.querySelectorAll(".vstep button").forEach(btn=>{
+      btn.addEventListener("click", ()=>{t.rank+=Number(btn.dataset.d); renderTraits();});
+    });
+    c.querySelector(".tname").addEventListener("input", e=>{t.name=e.target.value; refresh();});
+    c.querySelector(".ttext").addEventListener("input", e=>{t.text=e.target.value;});
+    traitCards.appendChild(c);
+  });
+}
+document.getElementById("addTrait").addEventListener("click", ()=>{
+  state.traits.push({name:"", rank:0, text:"", flip:false});
+  renderTraits(); refresh();
+});
+
+/* ---------- techniques ---------- */
+const techCards = document.getElementById("techCards");
+function renderTechs(){
+  techCards.innerHTML = "";
+  state.techs.forEach((t,i)=>{
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML = `
+      <button class="x" aria-label="Remove technique">&#10005;</button>
+      <div class="toprow">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" class="kname" value="${t.name}">
+        </div>
+        <button class="badge ${t.flip?"small-text":""}" data-rank="${t.rank}" aria-label="Technique rank">
+          ${t.flip?LADDER.die[t.rank]:LADDER.rank[t.rank]}
+        </button>
+        <div class="vstep">
+          <button data-d="1" ${t.rank===5?"disabled":""} aria-label="Technique rank up">+</button>
+          <button data-d="-1" ${t.rank===0?"disabled":""} aria-label="Technique rank down">&minus;</button>
+        </div>
+      </div>
+      <div class="seg">
+        <button class="${t.type==="activated"?"on":""}" data-t="activated">Activated</button>
+        <button class="${t.type==="triggered"?"on":""}" data-t="triggered">Triggered</button>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Description</label>
+        <textarea class="ktext" rows="3">${t.text}</textarea>
+      </div>
+      <span class="chip">${t.rank+1} Energy</span>`;
+    c.querySelector(".x").addEventListener("click", ()=>{state.techs.splice(i,1); renderTechs(); refresh();});
+    c.querySelector(".badge").addEventListener("click", ()=>{t.flip=!t.flip; renderTechs();});
+    c.querySelectorAll(".vstep button").forEach(btn=>{
+      btn.addEventListener("click", ()=>{t.rank+=Number(btn.dataset.d); renderTechs();});
+    });
+    c.querySelectorAll(".seg button").forEach(b=>{
+      b.addEventListener("click", ()=>{t.type=b.dataset.t; renderTechs();});
+    });
+    c.querySelector(".kname").addEventListener("input", e=>{t.name=e.target.value; refresh();});
+    c.querySelector(".ktext").addEventListener("input", e=>{t.text=e.target.value;});
+    techCards.appendChild(c);
+  });
+}
+document.getElementById("addTech").addEventListener("click", ()=>{
+  state.techs.push({name:"", type:"activated", rank:0, text:"", flip:false});
+  renderTechs(); refresh();
+});
+
+/* ---------- finishing touches ---------- */
+function renderFinish(){
+  document.getElementById("optTrack").classList.toggle("on", state.track);
+  document.getElementById("togTrack").setAttribute("aria-pressed", state.track);
+  document.getElementById("optRival").classList.toggle("on", state.rival);
+  document.getElementById("togRival").setAttribute("aria-pressed", state.rival);
+  document.getElementById("segVal").textContent = state.segments;
+  document.getElementById("segDown").disabled = state.segments<=1;
+  document.getElementById("segUp").disabled = state.segments>=12;
+  const cells = document.getElementById("segCells");
+  cells.innerHTML = "";
+  for(let i=0;i<state.segments;i++){ cells.appendChild(document.createElement("span")); }
+  const slots = document.getElementById("luckSlots");
+  slots.innerHTML = "";
+  state.luck.forEach(v=>{
+    const s = document.createElement("div");
+    s.className = "luck"+(v?" filled":"");
+    s.innerHTML = v ? v : `<span class="dot"></span>`;
+    slots.appendChild(s);
+  });
+  const btn = document.createElement("button");
+  btn.className = "rollbtn";
+  btn.textContent = "Roll 3d6";
+  btn.addEventListener("click", ()=>{
+    state.luck = state.luck.map(()=>1+Math.floor(Math.random()*6));
+    renderFinish(); refresh();
+  });
+  slots.appendChild(btn);
+}
+document.getElementById("togTrack").addEventListener("click", ()=>{state.track=!state.track; renderFinish(); refresh();});
+document.getElementById("togRival").addEventListener("click", ()=>{state.rival=!state.rival; renderFinish(); refresh();});
+document.getElementById("segDown").addEventListener("click", ()=>{if(state.segments>1){state.segments--; renderFinish();}});
+document.getElementById("segUp").addEventListener("click", ()=>{if(state.segments<12){state.segments++; renderFinish();}});
+
+/* ---------- adversary fields ---------- */
+document.getElementById("fName").addEventListener("input", e=>{state.name=e.target.value; refresh();});
+document.getElementById("fDesire").addEventListener("input", e=>{state.desire=e.target.value; refresh();});
+document.getElementById("fFear").addEventListener("input", e=>{state.fear=e.target.value;});
+
+/* ---------- checks, nav, footer ---------- */
+function checks(){
+  return [
+    state.name.trim().length>0 && state.desire.trim().length>0,
+    true,
+    state.traits.every(t=>t.name.trim().length>0),
+    state.techs.every(t=>t.name.trim().length>0),
+    !state.rival || state.luck.every(v=>v!==null)
+  ];
+}
+function refresh(){
+  const ck = checks();
+  [...rail.children].forEach((b,i)=>{
+    b.classList.toggle("done", ck[i]);
+    b.classList.toggle("active", i===state.step);
+  });
+  document.getElementById("obiName").textContent = state.name.trim() || "New Adversary";
+  document.getElementById("pos").textContent = `Step ${state.step+1} of 5`;
+  document.getElementById("btnBack").disabled = state.step===0;
+  const last = state.step===4;
+  document.getElementById("btnNext").classList.toggle("hidden", last);
+  const createBtn = document.getElementById("btnCreate");
+  createBtn.classList.toggle("hidden", !last || state.created);
+  createBtn.disabled = !ck.every(Boolean);
+  document.getElementById("createdMsg").classList.toggle("hidden", !state.created);
+}
+function goto(i){ state.step=i; document.querySelectorAll(".pane").forEach((p,j)=>p.classList.toggle("active", j===i)); refresh(); }
+document.getElementById("btnBack").addEventListener("click", ()=>goto(Math.max(0,state.step-1)));
+document.getElementById("btnNext").addEventListener("click", ()=>goto(Math.min(4,state.step+1)));
+document.getElementById("btnCreate").addEventListener("click", ()=>{
+  if(checks().every(Boolean)){ state.created=true; refresh(); }
+});
+
+renderSeal(); renderAttrs(); renderPools(); renderTraits(); renderTechs(); renderFinish(); goto(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<div class="combatant row{{#if active}} active{{/if}}{{#if down}} down{{/if}}{{#if hidden}} ghost{{/if}}"
+     data-combatant-id="{{id}}" data-action="activateCombatant">
+  {{#if grade}}
+  <button type="button" class="gplate{{#if grade.flipped}} num{{/if}}" data-action="flipGrade"
+          style="--rkc: var({{grade.cssVar}})" data-tooltip aria-label="{{grade.title}}">
+    <span>{{grade.text}}</span>
+  </button>
+  {{/if}}
+  <img class="pfp" src="{{img}}" alt="">
+  <div class="nm">{{name}}</div>
+  {{#if state}}<div class="state">{{state}}</div>{{/if}}
+  {{#if badge}}<div class="badge">{{badge}}</div>{{/if}}
+  {{#if eye}}
+  <button type="button" class="iconbtn{{#if hidden}} on{{/if}}" data-action="toggleHidden"
+          data-tooltip aria-label="{{eyeLabel}}">
+    {{#if hidden}}
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M4 20 20 4" stroke="currentColor" stroke-width="2"/></svg>
+    {{else}}
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>
+    {{/if}}
+  </button>
+  {{/if}}
+  {{#if skull}}
+  <button type="button" class="iconbtn{{#if down}} on{{/if}}" data-action="toggleDefeated"
+          data-tooltip aria-label="{{skullLabel}}">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8c0 2.6 1.3 4.9 3.3 6.3V21h9.4v-3.7A7.98 7.98 0 0 0 20 11a8 8 0 0 0-8-8Z" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="15" cy="11" r="1.5" fill="currentColor"/><path d="M10.5 21v-2.5M13.5 21v-2.5" stroke="currentColor" stroke-width="2"/></svg>
+  </button>
+  {{/if}}
+  {{#if hand}}
+  <button type="button" class="iconbtn hand" data-action="giveSpotlight"
+          data-tooltip aria-label="{{localize "PROJECTANIME.Encounter.Give"}}">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.51-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  {{/if}}
+  {{#if take}}
+  <button type="button" class="chip take" data-action="takeSpotlight"
+          {{#if takeLocked}}disabled{{/if}}>{{localize "PROJECTANIME.Encounter.Take"}}</button>
+  {{/if}}
+  {{#if next}}
+  <button type="button" class="chip next{{#if raised}} on{{/if}}" data-action="toggleHand">{{nextLabel}}</button>
+  {{/if}}
+</div>

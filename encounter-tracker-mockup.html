@@ -1,0 +1,516 @@
+<!--
+ENCOUNTER TRACKER MOCKUP - Project: Anime, Foundry V14
+
+TARGET
+- Replaces the Combat sidebar tab (CombatTracker ApplicationV2) for the V14 system.
+- Glass HUD skin. Sheets keep their paper chrome.
+- No initiative, no rounds, no action tokens. Core encounter create/cycle controls stay above the panel. Begin and End are the only encounter controls.
+
+DATA MODEL
+- Combat.turn marks the Spotlight holder. Null turn on a started encounter means the Spotlight is open on the party side.
+- Combatant.system.hand: { raised: Boolean, order: Number }. Order is the raise sequence.
+- Overwhelmed and Defeated use the core defeated flag. The label reads OVERWHELMED on party rows and DEFEATED on Storyteller rows.
+- Sort: party first, then Storyteller side, alphabetical inside each. Rolls never move the Spotlight; clicks record it.
+
+SPOTLIGHT PLATE (top of panel)
+- Shows the holder: portrait, name, side line.
+- Party holder: gold ring on the portrait.
+- Storyteller-side holder: beni flood on the plate and a RETURN button. RETURN moves the Spotlight to the first raised hand and lowers it, or to open when no hand is raised. Storyteller only.
+- Open: dashed slot with a one-line hint per view.
+
+UP NEXT
+- Raised hands in raise order, numbered. Section hides when empty.
+
+ROWS
+- Portrait (initial monogram in the mockup; token image in Foundry), name.
+- Storyteller-side rows carry the Grade plate. Click flips the rank letter and its Difficulty number: E 4, D 7, C 10, B 13, A 16, S 19. Party rows carry no Grade plate.
+- The holder's row gets the beni spine and glow.
+
+PERMISSIONS
+- Storyteller view: every row ends in a hand icon. Tapping a hand gives the Spotlight to that row and lowers its raised hand. The hand on a hidden row reveals it. Eye toggles hidden on Storyteller-side rows. Skull toggles Overwhelmed or Defeated; a marked row loses its hand, its controls, and the Spotlight if it held it. END THE ENCOUNTER in the footer.
+- Player view: NEXT on your character raises or lowers your hand. TAKE on your character claims the Spotlight while no Storyteller-side combatant holds it, and lowers your hand. Other rows are read-only. Hidden rows do not render.
+
+CANVAS
+- The spotlit token wears Foundry's native turn marker. No separate overlay element.
+
+DESIGN NOTES
+- Tokens: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48, gold #d9a13b. Rank colors E #8a8fa0, D #3ba55d, C #3c78d8, B #7d5cd6, A #e2632e, S #d9a13b.
+- Fonts: Shippori Mincho B1 display, Zen Kaku Gothic New UI. No Japanese text.
+- Panel: 300px sidebar width, ink glass at ~82% with blur, paper hairline border, halftone in the header band, 10px beni spine with a paper hairline.
+
+DEMO ONLY
+- The view toggle above the panel and the example data are demo scaffolding, not part of the build.
+- Example data: party Aoi, Renji, Mio, Hikaru; Storyteller side The Crab Army (Grade E), The Crab King (Grade C, hidden at load). Renji holds the Spotlight; Mio and Hikaru have raised hands.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encounter Tracker Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36; --paper:#f7f2e7; --paper2:#ece4d1;
+    --beni:#d92b48; --gold:#d9a13b;
+    --rE:#8a8fa0; --rD:#3ba55d; --rC:#3c78d8; --rB:#7d5cd6; --rA:#e2632e; --rS:#d9a13b;
+    --hairline:rgba(247,242,231,.16);
+    --dim:rgba(247,242,231,.55);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    min-height:100vh;
+    background:#120d1c;
+    background-image:radial-gradient(rgba(247,242,231,.05) 1px, transparent 1px);
+    background-size:22px 22px;
+    font-family:'Zen Kaku Gothic New',sans-serif;
+    color:var(--paper);
+    display:flex; flex-direction:column; align-items:center;
+    padding:28px 16px 48px;
+  }
+
+  /* demo scaffolding */
+  .demo-bar{display:flex; align-items:center; gap:8px; margin-bottom:22px;}
+  .demo-bar span{font-size:9px; font-weight:700; letter-spacing:.22em; color:var(--dim); text-transform:uppercase;}
+  .demo-bar button{
+    font-family:inherit; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--dim); background:transparent; border:1px solid var(--hairline);
+    padding:6px 12px; cursor:pointer; border-radius:2px; transition:background .15s,color .15s;
+  }
+  .demo-bar button.on{color:var(--ink); background:var(--paper); border-color:var(--paper);}
+  .demo-bar button:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+
+  /* panel */
+  .tracker{
+    width:300px;
+    background:linear-gradient(180deg, rgba(34,26,54,.88), rgba(34,26,54,.78));
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    border:1px solid var(--hairline);
+    box-shadow:0 10px 30px rgba(0,0,0,.55);
+    display:flex; flex-direction:column;
+  }
+
+  .hdr{
+    position:relative;
+    padding:12px 14px 12px 24px;
+    border-bottom:1px solid var(--hairline);
+    background-image:radial-gradient(rgba(247,242,231,.10) 1px, transparent 1px);
+    background-size:7px 7px;
+  }
+  .hdr::before{content:''; position:absolute; left:0; top:0; bottom:0; width:10px; background:var(--beni);}
+  .hdr::after{content:''; position:absolute; left:10px; top:0; bottom:0; width:1px; background:var(--paper);}
+  .hdr .eyebrow{font-size:9px; font-weight:700; letter-spacing:.26em; color:var(--dim); text-transform:uppercase;}
+  .hdr h1{font-family:'Shippori Mincho B1',serif; font-weight:800; font-size:18px; letter-spacing:.04em; color:var(--paper); margin-top:2px;}
+
+  .sec{padding:10px 12px 4px;}
+  .sec-label{
+    display:flex; align-items:center; gap:8px;
+    font-size:9px; font-weight:700; letter-spacing:.24em; color:var(--dim); text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  .sec-label::after{content:''; flex:1; height:1px; background:var(--hairline);}
+
+  /* spotlight plate */
+  .plate{
+    margin:12px 12px 2px;
+    border:1px solid rgba(247,242,231,.25);
+    padding:10px 12px;
+    display:flex; align-items:center; gap:10px;
+    position:relative;
+    transition:background .15s, border-color .15s, box-shadow .15s;
+  }
+  .plate .eyebrow{position:absolute; top:-7px; left:10px; padding:0 6px; background:var(--ink);
+    font-size:8px; font-weight:700; letter-spacing:.26em; color:var(--gold); text-transform:uppercase;}
+  .plate.st{background:rgba(217,43,72,.16); border-color:rgba(217,43,72,.6); box-shadow:inset 4px 0 0 var(--beni), 0 0 14px rgba(217,43,72,.30);}
+  .plate.open{border-style:dashed; border-color:rgba(247,242,231,.35);}
+  .plate .who{flex:1; min-width:0;}
+  .plate .who .nm{font-family:'Shippori Mincho B1',serif; font-weight:700; font-size:16px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .plate .who .side{font-size:9px; font-weight:700; letter-spacing:.2em; color:var(--dim); text-transform:uppercase; margin-top:2px;}
+  .plate .hint{font-size:11px; color:var(--dim); line-height:1.4;}
+
+  .pfp{
+    width:44px; height:44px; border-radius:50%; flex:none;
+    background:rgba(247,242,231,.10); border:2px solid rgba(247,242,231,.35);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Shippori Mincho B1',serif; font-weight:800; font-size:18px;
+  }
+  .plate.party .pfp{border-color:var(--gold); box-shadow:0 0 10px rgba(217,161,59,.45);}
+  .plate.st .pfp{border-color:var(--beni);}
+
+  /* queue */
+  .queue{display:flex; flex-direction:column; gap:4px;}
+  .queue .q{display:flex; align-items:center; gap:8px; padding:2px 2px;}
+  .queue .q .no{
+    width:16px; height:16px; flex:none; display:flex; align-items:center; justify-content:center;
+    background:var(--gold); color:var(--ink); font-size:10px; font-weight:700;
+  }
+  .queue .q .qn{font-size:12px; font-weight:500; color:var(--paper2);}
+
+  /* rows */
+  .row{
+    display:flex; align-items:center; gap:8px;
+    padding:6px 8px; margin:0 0 4px;
+    border:1px solid transparent; border-radius:2px;
+    transition:background .15s, border-color .15s, box-shadow .15s;
+  }
+  .row.active{
+    border-color:rgba(217,43,72,.55);
+    background:rgba(217,43,72,.08);
+    box-shadow:inset 3px 0 0 var(--beni), 0 0 12px rgba(217,43,72,.30);
+  }
+  .row.ghost{opacity:.4;}
+  .row .pfp{width:30px; height:30px; font-size:13px; border-width:1px;}
+  .row .nm{flex:1; min-width:0; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row.down .nm{text-decoration:line-through; color:var(--dim);}
+  .row.down .pfp{opacity:.5;}
+  .state{font-size:7px; font-weight:700; letter-spacing:.14em; color:var(--beni); border:1px solid rgba(217,43,72,.6); padding:2px 4px; flex:none;}
+
+  .gplate{
+    width:20px; height:20px; flex:none; transform:rotate(45deg); margin:0 4px;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid; cursor:pointer; background:rgba(0,0,0,.25);
+    transition:box-shadow .15s;
+  }
+  .gplate span{transform:rotate(-45deg); font-family:'Shippori Mincho B1',serif; font-weight:800; font-size:11px; line-height:1;}
+  .gplate.num span{font-family:'Zen Kaku Gothic New',sans-serif; font-weight:700; font-size:10px;}
+  .gplate:hover{box-shadow:0 0 8px currentColor;}
+  .gplate:focus-visible{outline:2px solid var(--gold); outline-offset:3px;}
+
+  .badge{
+    width:16px; height:16px; flex:none; display:flex; align-items:center; justify-content:center;
+    background:var(--gold); color:var(--ink); font-size:10px; font-weight:700;
+  }
+
+  .chip{
+    font-family:inherit; font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+    padding:5px 8px; flex:none; cursor:pointer; border-radius:2px;
+    background:transparent; border:1px solid; transition:background .15s, color .15s;
+  }
+  .chip:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+  .chip.next{color:rgba(247,242,231,.75); border-color:rgba(247,242,231,.4);}
+  .chip.next:hover{color:var(--paper); border-color:var(--paper);}
+  .chip.next.on{color:var(--ink); background:var(--gold); border-color:var(--gold);}
+  .chip.take{color:var(--gold); border-color:var(--gold);}
+  .chip.take:hover{color:var(--ink); background:var(--gold);}
+  .chip.ret{color:var(--paper); background:var(--beni); border-color:var(--beni);}
+  .chip.ret:hover{background:#b81f39;}
+
+  .iconbtn{
+    width:22px; height:22px; flex:none; display:flex; align-items:center; justify-content:center;
+    background:transparent; border:none; cursor:pointer; color:rgba(247,242,231,.4); border-radius:2px;
+    transition:color .15s;
+  }
+  .iconbtn:hover{color:var(--paper);}
+  .iconbtn.on{color:var(--beni);}
+  .iconbtn:focus-visible{outline:2px solid var(--gold); outline-offset:1px;}
+  .iconbtn svg{width:14px; height:14px; display:block;}
+  .iconbtn.hand{color:rgba(247,242,231,.55);}
+  .iconbtn.hand:hover{color:var(--beni);}
+
+  .ftr{padding:12px; border-top:1px solid var(--hairline); margin-top:6px;}
+  .ftr button{
+    width:100%; font-family:inherit; font-size:10px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
+    padding:9px 0; cursor:pointer; border-radius:2px; transition:background .15s, color .15s;
+  }
+  .ftr .end{color:var(--beni); background:transparent; border:1px solid rgba(217,43,72,.6);}
+  .ftr .end:hover{color:var(--paper); background:var(--beni);}
+  .ftr .begin{color:var(--paper); background:var(--beni); border:1px solid var(--beni);}
+  .ftr .begin:hover{background:#b81f39;}
+  .ftr button:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+
+  .empty{padding:26px 14px; text-align:center; font-size:11px; color:var(--dim);}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-bar" role="group" aria-label="Demo view">
+  <span>Demo view</span>
+  <button id="v-st" class="on">Storyteller</button>
+  <button id="v-pl">Player &middot; Aoi</button>
+</div>
+
+<aside class="tracker" aria-label="Encounter tracker">
+  <header class="hdr">
+    <div class="eyebrow">Encounter</div>
+    <h1 id="enc-name">Beach Episode</h1>
+  </header>
+  <div id="body"></div>
+</aside>
+
+<script>
+  const LADDER = { E:4, D:7, C:10, B:13, A:16, S:19 };
+  const RANKC  = { E:'var(--rE)', D:'var(--rD)', C:'var(--rC)', B:'var(--rB)', A:'var(--rA)', S:'var(--rS)' };
+
+  const state = {
+    view: 'st',           // 'st' | 'pl'
+    me: 'aoi',            // owned character in player view
+    started: true,
+    spotlight: 'renji',   // combatant id | 'open'
+    list: [
+      { id:'aoi',      name:'Aoi',           side:'party', raised:false, order:0, down:false, hidden:false },
+      { id:'renji',    name:'Renji',         side:'party', raised:false, order:0, down:false, hidden:false },
+      { id:'mio',      name:'Mio',           side:'party', raised:true,  order:1, down:false, hidden:false },
+      { id:'hikaru',   name:'Hikaru',        side:'party', raised:true,  order:2, down:false, hidden:false },
+      { id:'crabarmy', name:'The Crab Army', side:'st', grade:'E', showNum:false, raised:false, order:0, down:false, hidden:false },
+      { id:'crabking', name:'The Crab King', side:'st', grade:'C', showNum:false, raised:false, order:0, down:false, hidden:true  }
+    ]
+  };
+
+  const ICONS = {
+    eye: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>',
+    eyeoff: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M4 20 20 4" stroke="currentColor" stroke-width="2"/></svg>',
+    skull: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8c0 2.6 1.3 4.9 3.3 6.3V21h9.4v-3.7A7.98 7.98 0 0 0 20 11a8 8 0 0 0-8-8Z" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="15" cy="11" r="1.5" fill="currentColor"/><path d="M10.5 21v-2.5M13.5 21v-2.5" stroke="currentColor" stroke-width="2"/></svg>',
+    hand: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.51-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  };
+
+  const byId = id => state.list.find(c => c.id === id);
+  const raisedQueue = () => state.list.filter(c => c.raised && !c.down && !c.hidden).sort((a,b) => a.order - b.order);
+  const holder = () => state.spotlight === 'open' ? null : byId(state.spotlight);
+  const isST = () => state.view === 'st';
+
+  function lower(c){ c.raised = false; c.order = 0; }
+
+  function raise(id){
+    const c = byId(id);
+    if (c.raised) { lower(c); }
+    else { c.raised = true; c.order = Math.max(0, ...state.list.map(x => x.order)) + 1; }
+    render();
+  }
+
+  function take(id){
+    const h = holder();
+    if (h && h.side === 'st') return;
+    state.spotlight = id;
+    lower(byId(id));
+    render();
+  }
+
+  function give(id){
+    const c = byId(id);
+    c.hidden = false;
+    state.spotlight = id;
+    lower(c);
+    render();
+  }
+
+  function ret(){
+    const q = raisedQueue();
+    if (q.length) { state.spotlight = q[0].id; lower(q[0]); }
+    else { state.spotlight = 'open'; }
+    render();
+  }
+
+  function toggleDown(id){
+    const c = byId(id);
+    c.down = !c.down;
+    if (c.down) { lower(c); if (state.spotlight === id) state.spotlight = 'open'; }
+    render();
+  }
+
+  function toggleHidden(id){
+    const c = byId(id);
+    c.hidden = !c.hidden;
+    if (c.hidden) { lower(c); if (state.spotlight === id) state.spotlight = 'open'; }
+    render();
+  }
+
+  function flip(id){
+    const c = byId(id);
+    c.showNum = !c.showNum;
+    render();
+  }
+
+  function initials(name){
+    return name.replace(/^The /,'').split(' ').map(w => w[0]).slice(0,2).join('');
+  }
+
+  function el(tag, cls, text){
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function gradePlate(c){
+    const g = el('button', 'gplate' + (c.showNum ? ' num' : ''));
+    g.style.borderColor = RANKC[c.grade];
+    g.style.color = RANKC[c.grade];
+    g.title = 'Grade ' + c.grade + ' \u00b7 Difficulty ' + LADDER[c.grade];
+    const s = el('span', null, c.showNum ? String(LADDER[c.grade]) : c.grade);
+    s.style.color = RANKC[c.grade];
+    g.appendChild(s);
+    g.addEventListener('click', () => flip(c.id));
+    return g;
+  }
+
+  function iconBtn(svg, on, title, fn){
+    const b = el('button', 'iconbtn' + (on ? ' on' : ''));
+    b.innerHTML = svg;
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function chip(cls, label, fn){
+    const b = el('button', 'chip ' + cls, label);
+    if (fn) b.addEventListener('click', fn);
+    return b;
+  }
+
+  function renderPlate(root){
+    const h = holder();
+    const plate = el('div', 'plate');
+    plate.appendChild(el('div', 'eyebrow', 'Spotlight'));
+
+    if (!h){
+      plate.classList.add('open');
+      const hint = el('div', 'hint',
+        isST() ? 'Open. Tap a hand to place it.' : 'Open. TAKE claims it for your character.');
+      const who = el('div', 'who');
+      who.appendChild(el('div', 'nm', 'Open'));
+      plate.appendChild(who);
+      plate.appendChild(hint);
+    } else {
+      plate.classList.add(h.side === 'st' ? 'st' : 'party');
+      const p = el('div', 'pfp', initials(h.name));
+      plate.appendChild(p);
+      const who = el('div', 'who');
+      who.appendChild(el('div', 'nm', h.name));
+      who.appendChild(el('div', 'side', h.side === 'st' ? 'Storyteller' : 'Party'));
+      plate.appendChild(who);
+      if (h.side === 'st' && isST()){
+        plate.appendChild(chip('ret', 'Return', ret));
+      }
+    }
+    root.appendChild(plate);
+  }
+
+  function renderQueue(root){
+    const q = raisedQueue();
+    if (!q.length) return;
+    const sec = el('div', 'sec');
+    sec.appendChild(el('div', 'sec-label', 'Up next'));
+    const wrap = el('div', 'queue');
+    q.forEach((c, i) => {
+      const r = el('div', 'q');
+      r.appendChild(el('div', 'no', String(i + 1)));
+      r.appendChild(el('div', 'qn', c.name));
+      wrap.appendChild(r);
+    });
+    sec.appendChild(wrap);
+    root.appendChild(sec);
+  }
+
+  function renderRow(c){
+    const row = el('div', 'row');
+    if (state.spotlight === c.id) row.classList.add('active');
+    if (c.down) row.classList.add('down');
+    if (c.hidden) row.classList.add('ghost');
+
+    if (c.side === 'st') row.appendChild(gradePlate(c));
+    row.appendChild(el('div', 'pfp', initials(c.name)));
+    row.appendChild(el('div', 'nm', c.name));
+
+    if (c.down){
+      row.appendChild(el('div', 'state', c.side === 'st' ? 'DEFEATED' : 'OVERWHELMED'));
+    }
+
+    const q = raisedQueue();
+    const pos = q.findIndex(x => x.id === c.id) + 1;
+
+    if (isST()){
+      if (c.raised && !c.down) row.appendChild(el('div', 'badge', String(pos)));
+      if (c.side === 'st') row.appendChild(iconBtn(c.hidden ? ICONS.eyeoff : ICONS.eye, c.hidden, c.hidden ? 'Reveal' : 'Hide', () => toggleHidden(c.id)));
+      row.appendChild(iconBtn(ICONS.skull, c.down, c.side === 'st' ? 'Defeated' : 'Overwhelmed', () => toggleDown(c.id)));
+      if (!c.down){
+        const hb = iconBtn(ICONS.hand, false, 'Give the Spotlight', () => give(c.id));
+        hb.classList.add('hand');
+        row.appendChild(hb);
+      }
+    } else {
+      const mine = c.id === state.me;
+      const h = holder();
+      if (mine && !c.down){
+        if ((!h || h.side !== 'st') && state.spotlight !== c.id){
+          row.appendChild(chip('take', 'Take', () => take(c.id)));
+        }
+        const nx = chip('next' + (c.raised ? ' on' : ''), c.raised ? 'Next \u00b7 ' + pos : 'Next', () => raise(c.id));
+        row.appendChild(nx);
+      } else if (c.raised && !c.down){
+        row.appendChild(el('div', 'badge', String(pos)));
+      }
+    }
+    return row;
+  }
+
+  function renderSection(root, label, rows){
+    if (!rows.length) return;
+    const sec = el('div', 'sec');
+    sec.appendChild(el('div', 'sec-label', label));
+    rows.forEach(c => sec.appendChild(renderRow(c)));
+    root.appendChild(sec);
+  }
+
+  function render(){
+    const root = document.getElementById('body');
+    root.innerHTML = '';
+
+    if (!state.started){
+      if (isST()){
+        const f = el('div', 'ftr');
+        const b = el('button', 'begin', 'Begin the Encounter');
+        b.addEventListener('click', () => { state.started = true; state.spotlight = 'open'; render(); });
+        f.appendChild(b);
+        root.appendChild(f);
+      } else {
+        root.appendChild(el('div', 'empty', 'No encounter.'));
+      }
+      return;
+    }
+
+    renderPlate(root);
+    renderQueue(root);
+
+    const visible = c => isST() || !c.hidden;
+    const sortName = (a,b) => a.name.localeCompare(b.name);
+    renderSection(root, 'Party', state.list.filter(c => c.side === 'party' && visible(c)).sort(sortName));
+    renderSection(root, 'Storyteller', state.list.filter(c => c.side === 'st' && visible(c)).sort(sortName));
+
+    if (isST()){
+      const f = el('div', 'ftr');
+      const b = el('button', 'end', 'End the Encounter');
+      b.addEventListener('click', () => {
+        state.started = false;
+        state.spotlight = 'open';
+        state.list.forEach(c => { lower(c); });
+        render();
+      });
+      f.appendChild(b);
+      root.appendChild(f);
+    }
+  }
+
+  document.getElementById('v-st').addEventListener('click', () => {
+    state.view = 'st';
+    document.getElementById('v-st').classList.add('on');
+    document.getElementById('v-pl').classList.remove('on');
+    render();
+  });
+  document.getElementById('v-pl').addEventListener('click', () => {
+    state.view = 'pl';
+    document.getElementById('v-pl').classList.add('on');
+    document.getElementById('v-st').classList.remove('on');
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

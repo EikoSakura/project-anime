@@ -1,0 +1,421 @@
+<!--
+PROJECT: ANIME | PARTY HUD MOCKUP (Foundry V14)
+
+Target
+- ApplicationV2 HUD docked to the left edge over the canvas, cards stacked top to bottom, visible through play
+- One card per player character actor
+- Play controls only, no edit mode
+
+Data read per actor
+- name, img
+- system.grade: rank letter E to S
+- system.hearts: value, max
+- system.energy: value, max
+- system.luck: three slots, each die (d6 to d12) + recorded value + spent
+
+Interactions
+- Heart and Energy segments: click a segment to set the value to it; click the current top segment to drop it by one
+- Luck chips: click toggles spent
+- Grade plate: click flips letter to die (Ladder lookup)
+- Portrait: click opens the actor sheet (stub in this mockup)
+
+Display rules
+- Overwhelmed band shows while Hearts sit at 0 and clears when they rise
+- Computed display stays a Ladder lookup only: the plate's die face
+- No die labels on Luck chips, no rules text anywhere on the HUD
+
+Design notes
+- HUD skin: translucent ink-glass status windows in the style of MMO overlay HUDs in anime (Log Horizon and the like); the paper chrome stays on the sheets
+- Tokens carried over: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48, gold #d9a13b
+- Rank colors: E #8a8fa0, D #3ba55d, C #3c78d8, B #7d5cd6, A #e2632e, S gold
+- Fonts: Shippori Mincho B1 display, Zen Kaku Gothic New UI
+- Hearts and Energy render as glowing segmented bars, one clickable segment per point, beni for Hearts and gold for Energy
+- Grade renders as a rank-colored diamond plate; Luck as glass chips
+- Beni tab on each window's title row; 1px light edge, soft blur, faint inner glow
+- Example data: three starting characters at Grade D with d6 Luck, one at Grade C with d8 Luck, one member Overwhelmed at 0 Hearts
+- Dark backdrop below stands in for the Foundry canvas
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime | Party HUD Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36;
+    --paper:#f7f2e7;
+    --paper2:#ece4d1;
+    --beni:#d92b48;
+    --gold:#d9a13b;
+    --rank-E:#8a8fa0;
+    --rank-D:#3ba55d;
+    --rank-C:#3c78d8;
+    --rank-B:#7d5cd6;
+    --rank-A:#e2632e;
+    --rank-S:#d9a13b;
+    --canvas:#171226;
+    --glass:rgba(28,21,48,0.84);
+    --glass2:rgba(17,12,32,0.82);
+    --edge:rgba(247,242,231,0.32);
+    --edge-dim:rgba(247,242,231,0.12);
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(247,242,231,0.045), transparent 60%),
+      linear-gradient(rgba(247,242,231,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(247,242,231,0.03) 1px, transparent 1px),
+      var(--canvas);
+    background-size:auto, 48px 48px, 48px 48px, auto;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+  }
+
+  button{font:inherit; border:none; background:none;}
+  button:focus-visible{outline:2px solid var(--beni); outline-offset:2px;}
+
+  .hud{
+    position:fixed;
+    left:16px;
+    top:76px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .member{
+    width:232px;
+    background:linear-gradient(160deg, var(--glass), var(--glass2));
+    border:1px solid var(--edge);
+    border-radius:8px;
+    box-shadow:
+      0 0 0 1px rgba(13,9,24,0.6),
+      0 4px 14px rgba(0,0,0,0.45),
+      inset 0 0 18px rgba(247,242,231,0.04);
+    backdrop-filter:blur(4px);
+    position:relative;
+  }
+
+  .mtop{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 10px 5px;
+    border-bottom:1px solid var(--edge-dim);
+  }
+
+  .tab{
+    width:4px; height:12px;
+    background:var(--beni);
+    border-radius:1px;
+    box-shadow:0 0 6px rgba(217,43,72,0.6);
+    flex:none;
+  }
+
+  .name{
+    flex:1;
+    color:var(--paper);
+    font-weight:700;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .plate{
+    width:20px; height:20px;
+    transform:rotate(45deg);
+    border-radius:3px;
+    background:rgba(13,9,24,0.6);
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+    padding:0;
+    flex:none;
+    margin-right:4px;
+  }
+  .plate .txt{
+    transform:rotate(-45deg);
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:11px;
+    line-height:1;
+  }
+  .plate.die .txt{font-size:7.5px;}
+
+  .mbody{
+    display:flex;
+    gap:9px;
+    padding:8px 10px 9px;
+  }
+
+  .portrait{
+    width:42px; height:42px;
+    border-radius:6px;
+    border:1px solid var(--edge);
+    background:
+      radial-gradient(rgba(247,242,231,0.08) 1px, transparent 1.3px),
+      rgba(247,242,231,0.05);
+    background-size:4px 4px, auto;
+    display:grid;
+    place-items:center;
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:18px;
+    color:var(--paper);
+    cursor:pointer;
+    padding:0;
+    flex:none;
+    align-self:center;
+  }
+
+  .stats{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    justify-content:center;
+    min-width:0;
+  }
+
+  .barrow{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  .icon{
+    width:12px;
+    text-align:center;
+    font-size:10px;
+    line-height:1;
+    flex:none;
+  }
+  .icon.h{color:var(--beni); text-shadow:0 0 5px rgba(217,43,72,0.6);}
+  .icon.e{color:var(--gold); text-shadow:0 0 5px rgba(217,161,59,0.55); font-size:9px;}
+
+  .bar{
+    display:flex;
+    gap:2px;
+    flex:1;
+  }
+  .seg{
+    flex:1;
+    height:10px;
+    transform:skewX(-12deg);
+    border-radius:2px;
+    background:rgba(247,242,231,0.07);
+    border:1px solid rgba(247,242,231,0.10);
+    cursor:pointer;
+    padding:0;
+    transition:background 80ms linear;
+  }
+  .seg.on.hseg{
+    background:linear-gradient(180deg, #e8455f, var(--beni));
+    border-color:rgba(233,86,110,0.85);
+    box-shadow:0 0 6px rgba(217,43,72,0.45);
+  }
+  .seg.on.eseg{
+    background:linear-gradient(180deg, #ecc06a, var(--gold));
+    border-color:rgba(236,192,106,0.85);
+    box-shadow:0 0 6px rgba(217,161,59,0.4);
+  }
+
+  .luck{
+    display:flex;
+    gap:5px;
+    padding-left:18px;
+    margin-top:1px;
+  }
+  .chip{
+    width:18px; height:18px;
+    border-radius:4px;
+    border:1px solid var(--edge);
+    background:rgba(13,9,24,0.55);
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:10px;
+    color:var(--paper);
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+    position:relative;
+    padding:0;
+  }
+  .chip.spent{opacity:0.38;}
+  .chip.spent::after{
+    content:'';
+    position:absolute;
+    left:-3px; right:-3px; top:50%;
+    height:1.5px;
+    background:var(--paper);
+    transform:rotate(-24deg);
+  }
+
+  .owband{
+    display:none;
+    position:absolute;
+    left:-1px; right:-1px;
+    top:58%;
+    transform:translateY(-50%);
+    background:rgba(13,9,24,0.88);
+    color:var(--paper);
+    font-weight:900;
+    font-size:9px;
+    letter-spacing:0.32em;
+    text-indent:0.32em;
+    text-align:center;
+    padding:5px 0 4px;
+    border-top:1px solid rgba(217,43,72,0.7);
+    border-bottom:1px solid rgba(217,43,72,0.7);
+    box-shadow:0 0 10px rgba(217,43,72,0.35);
+    z-index:2;
+  }
+  .member.overwhelmed .mtop,
+  .member.overwhelmed .mbody{filter:grayscale(0.8); opacity:0.62;}
+  .member.overwhelmed .owband{display:block;}
+</style>
+</head>
+<body>
+<div class="hud" id="hud"></div>
+
+<script>
+  const LADDER = { E:'d4', D:'d6', C:'d8', B:'d10', A:'d12', S:'d12+1' };
+  const RANK_COLOR = {
+    E:'var(--rank-E)', D:'var(--rank-D)', C:'var(--rank-C)',
+    B:'var(--rank-B)', A:'var(--rank-A)', S:'var(--rank-S)'
+  };
+
+  const MEMBERS = [
+    { name:'Akira', grade:'D', showDie:false,
+      hearts:{value:4, max:6}, energy:{value:2, max:6},
+      luck:[ {die:'d6', value:5, spent:false}, {die:'d6', value:3, spent:true}, {die:'d6', value:1, spent:false} ] },
+    { name:'Mio', grade:'D', showDie:false,
+      hearts:{value:6, max:6}, energy:{value:6, max:6},
+      luck:[ {die:'d6', value:6, spent:false}, {die:'d6', value:2, spent:false}, {die:'d6', value:2, spent:false} ] },
+    { name:'Kenji', grade:'D', showDie:false,
+      hearts:{value:0, max:6}, energy:{value:1, max:6},
+      luck:[ {die:'d6', value:4, spent:true}, {die:'d6', value:4, spent:true}, {die:'d6', value:2, spent:false} ] },
+    { name:'Sora', grade:'C', showDie:false,
+      hearts:{value:5, max:6}, energy:{value:5, max:6},
+      luck:[ {die:'d8', value:7, spent:false}, {die:'d8', value:5, spent:false}, {die:'d8', value:2, spent:false} ] }
+  ];
+
+  function segClick(res, i){
+    res.value = (i + 1 === res.value) ? i : i + 1;
+    render();
+  }
+
+  function buildBar(res, segClass){
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    for(let i = 0; i < res.max; i++){
+      const s = document.createElement('button');
+      s.className = 'seg ' + segClass + (i < res.value ? ' on' : '');
+      s.addEventListener('click', () => segClick(res, i));
+      bar.appendChild(s);
+    }
+    return bar;
+  }
+
+  function render(){
+    const hud = document.getElementById('hud');
+    hud.innerHTML = '';
+
+    MEMBERS.forEach(m => {
+      const card = document.createElement('article');
+      card.className = 'member' + (m.hearts.value === 0 ? ' overwhelmed' : '');
+
+      const top = document.createElement('div');
+      top.className = 'mtop';
+
+      const tab = document.createElement('i');
+      tab.className = 'tab';
+      top.appendChild(tab);
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = m.name;
+      top.appendChild(name);
+
+      const plate = document.createElement('button');
+      plate.className = 'plate' + (m.showDie ? ' die' : '');
+      plate.title = 'Grade';
+      plate.style.border = '1.5px solid ' + RANK_COLOR[m.grade];
+      plate.style.boxShadow = '0 0 6px ' + RANK_COLOR[m.grade];
+      const txt = document.createElement('span');
+      txt.className = 'txt';
+      txt.style.color = RANK_COLOR[m.grade];
+      txt.textContent = m.showDie ? LADDER[m.grade] : m.grade;
+      plate.appendChild(txt);
+      plate.addEventListener('click', () => { m.showDie = !m.showDie; render(); });
+      top.appendChild(plate);
+
+      card.appendChild(top);
+
+      const body = document.createElement('div');
+      body.className = 'mbody';
+
+      const portrait = document.createElement('button');
+      portrait.className = 'portrait';
+      portrait.title = 'Open sheet';
+      portrait.textContent = m.name.charAt(0);
+      body.appendChild(portrait);
+
+      const stats = document.createElement('div');
+      stats.className = 'stats';
+
+      const hrow = document.createElement('div');
+      hrow.className = 'barrow';
+      const hicon = document.createElement('span');
+      hicon.className = 'icon h';
+      hicon.textContent = '\u2665';
+      hrow.appendChild(hicon);
+      hrow.appendChild(buildBar(m.hearts, 'hseg'));
+      stats.appendChild(hrow);
+
+      const erow = document.createElement('div');
+      erow.className = 'barrow';
+      const eicon = document.createElement('span');
+      eicon.className = 'icon e';
+      eicon.textContent = '\u25C6';
+      erow.appendChild(eicon);
+      erow.appendChild(buildBar(m.energy, 'eseg'));
+      stats.appendChild(erow);
+
+      const luck = document.createElement('div');
+      luck.className = 'luck';
+      m.luck.forEach(slot => {
+        const c = document.createElement('button');
+        c.className = 'chip' + (slot.spent ? ' spent' : '');
+        c.textContent = slot.value;
+        c.addEventListener('click', () => { slot.spent = !slot.spent; render(); });
+        luck.appendChild(c);
+      });
+      stats.appendChild(luck);
+
+      body.appendChild(stats);
+      card.appendChild(body);
+
+      const ow = document.createElement('div');
+      ow.className = 'owband';
+      ow.textContent = 'OVERWHELMED';
+      card.appendChild(ow);
+
+      hud.appendChild(card);
+    });
+  }
+
+  render();
+</script>
+</body>
+</html>

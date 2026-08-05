@@ -1,0 +1,31 @@
+<div class="bar{{#unless actor}} empty{{/unless}}">
+  {{#if actor}}
+  <i class="tab"></i>
+  <span class="label">{{localize "PROJECTANIME.TechBar.Label"}}</span>
+  <div class="slots">
+    {{#each slots}}
+    {{#if id}}
+    <button type="button" class="slot filled{{#if triggered}} triggered{{/if}}{{#if drained}} drained{{/if}}"
+      style="border-color: var({{cssVar}})" data-action="useSlot" data-i="{{i}}" data-item-id="{{id}}"
+      draggable="true" data-tooltip="{{name}}" aria-label="{{name}}">
+      <img src="{{img}}" alt="">
+      <span class="key">{{key}}</span>
+      <span class="badge {{#if technique}}energy{{else}}bonus{{/if}}">
+        {{#if technique}}<span class="dia">&#9670;</span>{{/if}}
+        <span class="num">{{#if technique}}{{n}}{{else}}+{{n}}{{/if}}</span>
+      </span>
+    </button>
+    {{else}}
+    <div class="slot" data-i="{{i}}"><span class="key">{{key}}</span></div>
+    {{/if}}
+    {{/each}}
+  </div>
+  <div class="pager">
+    <button type="button" data-action="page" data-dir="-1" data-tooltip="PROJECTANIME.TechBar.PageUp"
+      aria-label="{{localize "PROJECTANIME.TechBar.PageUp"}}">&#9650;</button>
+    <span class="pnum">{{page}}</span>
+    <button type="button" data-action="page" data-dir="1" data-tooltip="PROJECTANIME.TechBar.PageDown"
+      aria-label="{{localize "PROJECTANIME.TechBar.PageDown"}}">&#9660;</button>
+  </div>
+  {{/if}}
+</div>

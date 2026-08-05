@@ -1,0 +1,29 @@
+<div class="form-group">
+    <label for="{{rootId}}-actorId">{{localize "COMBATANT.FIELDS.actorId.label"}}</label>
+    <div class="form-fields">
+        <input type="text" name="actorId" id="{{rootId}}-actorId" value="{{document.actor.name}}" disabled>
+    </div>
+</div>
+<div class="form-group">
+    <label for="{{rootId}}-tokenId">{{localize "COMBATANT.FIELDS.tokenId.label"}}</label>
+    <div class="form-fields">
+        <input type="text" name="tokenId" id="{{rootId}}-tokenId" value="{{document.actor.name}}" disabled>
+    </div>
+</div>
+
+{{formGroup fields.name value=source.name rootId=rootId placeholder=document.name}}
+{{formGroup fields.img value=source.img rootId=rootId placeholder=document.img}}
+
+<div class="form-group">
+    <span class="label">{{localize "COMBATANT.Status"}}</span>
+    <div class="form-fields">
+        <label class="checkbox">
+            {{formInput fields.hidden value=source.hidden}}
+            {{localize "COMBATANT.FIELDS.hidden.label"}}
+        </label>
+        <label class="checkbox">
+            {{formInput fields.defeated value=source.defeated}}
+            {{localize "COMBATANT.FIELDS.defeated.label"}}
+        </label>
+    </div>
+</div>

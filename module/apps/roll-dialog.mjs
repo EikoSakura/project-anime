@@ -1,4 +1,4 @@
-import { LADDER, ATTRIBUTES } from "../config.mjs";
+import { DIFFICULTY, LADDER, ATTRIBUTES } from "../config.mjs";
 import { postActionRoll, postEnergyCard } from "../chat.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -6,10 +6,15 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 /* The Action Roll picker. Opened from an Attribute or Technique name on an
    actor sheet; that die is locked as the first die. One dialog per actor. */
 export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2) {
-  constructor({ actor, first, ...options } = {}) {
+  constructor({ actor, first, trait, ...options } = {}) {
     super(options);
     this.#actor = actor;
     this.#first = first;
+    if (trait) this.#trait = trait;
+    if (game.user.targets.size === 1) {
+      const grade = game.user.targets.first().actor?.system.grade;
+      if (typeof grade === "number") this.#grade = grade;
+    }
   }
 
   static DEFAULT_OPTIONS = {
@@ -17,6 +22,8 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     position: { width: 380, height: "auto" },
     actions: {
       step: this.#onStep,
+      grade: this.#onGrade,
+      limit: this.#onLimit,
       roll: this.#onRoll
     }
   };
@@ -41,9 +48,14 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
 
   #bonus = 0;
 
-  static open(actor, first) {
+  /* Difficulty: a DIFFICULTY index or null, plus the Limit Break raise. */
+  #grade = null;
+
+  #limitBreak = 0;
+
+  static open(actor, first, trait) {
     this.#instances.get(actor.uuid)?.close();
-    const dialog = new this({ actor, first });
+    const dialog = new this({ actor, first, trait });
     this.#instances.set(actor.uuid, dialog);
     dialog.render(true);
   }
@@ -91,6 +103,12 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     context.seconds = seconds.map(s => ({ ...s, selected: s.value === this.#second }));
     context.traits = traits.map(t => ({ ...t, selected: t.value === this.#trait }));
     context.bonus = this.#bonus;
+    context.grades = DIFFICULTY.map((g, index) => ({ ...g, index, selected: this.#grade === index }));
+    context.hasGrade = this.#grade !== null;
+    context.limitBreak = this.#limitBreak;
+    context.lbDownDisabled = this.#limitBreak <= 0;
+    context.lbUpDisabled = this.#grade === null || this.#limitBreak >= 6 - this.#grade;
+    context.effective = this.#limitBreak > 0 ? DIFFICULTY[Math.min(this.#grade + this.#limitBreak, 6)] : null;
     context.formula = this.#formula();
     return context;
   }
@@ -198,6 +216,19 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
     this.render();
   }
 
+  static #onGrade(event, target) {
+    const index = Number(target.dataset.index);
+    this.#grade = this.#grade === index ? null : index;
+    this.#limitBreak = this.#grade === null ? 0 : Math.min(this.#limitBreak, 6 - this.#grade);
+    this.render();
+  }
+
+  static #onLimit(event, target) {
+    if (this.#grade === null) return;
+    this.#limitBreak = Math.clamp(this.#limitBreak + Number(target.dataset.delta), 0, 6 - this.#grade);
+    this.render();
+  }
+
   static async #onRoll() {
     const first = this.#resolveFirst();
     const second = this.#resolveSecond();
@@ -215,7 +246,9 @@ export default class RollDialog extends HandlebarsApplicationMixin(ApplicationV2
       { name: first.name, rank: ranks[0] },
       { name: second.name, rank: ranks[1] },
       this.#resolveTrait(),
-      this.#bonus
+      this.#bonus,
+      this.#grade,
+      this.#limitBreak
     );
     this.close();
   }

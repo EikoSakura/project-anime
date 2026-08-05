@@ -1,4 +1,4 @@
-import { LADDER } from "./config.mjs";
+import { DIFFICULTY, LADDER } from "./config.mjs";
 
 const { renderTemplate } = foundry.applications.handlebars;
 
@@ -46,6 +46,23 @@ export async function postEnergyCard(actor, item) {
   });
 }
 
+/* Post a Zone card: the Region's name and its Zone effects, one line
+   each. Any client can post. */
+export async function postZoneCard(region) {
+  const zone = region.behaviors.find(b => (b.type === "project-anime.zone") && !b.disabled);
+  if (!zone) return;
+  const context = {
+    name: region.name,
+    effects: zone.system.effects.map(e => ({
+      keyword: game.i18n.localize(`PROJECTANIME.Zone.${e.keyword}`),
+      name: e.name,
+      text: e.text
+    }))
+  };
+  const content = await renderTemplate("systems/project-anime/templates/chat/zone-card.hbs", context);
+  return ChatMessage.implementation.create({ content });
+}
+
 /* Combo or Fumble, read from two faces as they stand, or null. */
 export function readSplash(faces) {
   if (faces.length !== 2 || faces[0] !== faces[1]) return null;
@@ -54,11 +71,43 @@ export function readSplash(faces) {
   return null;
 }
 
+/* Band of a roll against an effective Difficulty Grade, in rules order:
+   Fumble, then the SS rule, then the next-Grade and own-Grade numbers. */
+export function evaluateBand(faces, total, effective) {
+  if (faces.length === 2 && faces[0] === 1 && faces[1] === 1) return "Fumble";
+  if (effective >= 6) return total >= DIFFICULTY[6].number ? "Clean" : "Failure";
+  if (total >= DIFFICULTY[effective + 1].number) return "Clean";
+  if (total >= DIFFICULTY[effective].number) return "Success";
+  return "Failure";
+}
+
+const RIDERS = {
+  Clean: [],
+  Success: ["Tension"],
+  Failure: ["Tension", "Spotlight"],
+  Fumble: ["Tension", "Spotlight", "Luck"]
+};
+
 /* Template context from a roll card's stored state: { title, faces, lucky,
    luck, trait, bonus, opening }. The total is recomputed from the faces so
    Luck replacements re-total. */
 function rollCardContext(card) {
+  let band = null;
+  if (card.difficulty) {
+    const d = card.difficulty;
+    const step = DIFFICULTY[d.effective];
+    band = {
+      rank: step.rank,
+      number: step.number,
+      cssVar: step.cssVar,
+      word: game.i18n.localize(`PROJECTANIME.Band.${d.band}`),
+      fumble: d.band === "Fumble",
+      limitBreak: d.limitBreak > 0 ? game.i18n.format("PROJECTANIME.Roll.LimitBreakTag", { n: d.limitBreak }) : null,
+      riders: RIDERS[d.band].map(k => ({ key: k, text: game.i18n.localize(`PROJECTANIME.Rider.${k}`) }))
+    };
+  }
   return {
+    band,
     title: card.title,
     faces: card.faces.map((value, i) => ({ value, lucky: card.lucky[i] })),
     total: card.faces.reduce((a, b) => a + b, 0) + (card.trait?.mod ?? 0) + card.bonus,
@@ -73,9 +122,10 @@ function rollCardContext(card) {
 /* Post an Action Roll: two dice, one optional Trait bonus, one optional flat
    bonus, backed by a real Roll. first and second are { name, rank } with any
    die steps already applied; trait is { name, rank } or null; bonus is a
-   signed integer. The card's state rides the message as a flag so Luck
-   spends can re-render it. */
-export async function postActionRoll(actor, first, second, trait, bonus = 0) {
+   signed integer; grade is a DIFFICULTY index or null, raised by limitBreak
+   steps and capped at SS. The card's state rides the message as a flag so
+   Luck spends can re-render it. */
+export async function postActionRoll(actor, first, second, trait, bonus = 0, grade = null, limitBreak = 0) {
   const parts = [first, second].map(d => `1${LADDER[d.rank].die}`);
   if (trait) parts.push(String(LADDER[trait.rank].mod));
   let formula = parts.join(" + ");
@@ -91,6 +141,10 @@ export async function postActionRoll(actor, first, second, trait, bonus = 0) {
     bonus,
     openings: []
   };
+  if (grade !== null) {
+    const effective = Math.min(grade + limitBreak, 6);
+    card.difficulty = { grade, limitBreak, effective, band: evaluateBand(card.faces, roll.total, effective) };
+  }
   const splash = readSplash(card.faces);
   const content = await renderTemplate("systems/project-anime/templates/chat/roll-card.hbs", rollCardContext(card));
   return ChatMessage.implementation.create({
@@ -114,6 +168,10 @@ export async function applyLuckSwap(message, dieIndex, value, spenderName) {
   card.faces[dieIndex] = value;
   card.lucky[dieIndex] = true;
   card.luck.push(spenderName);
+  if (card.difficulty) {
+    const total = card.faces.reduce((a, b) => a + b, 0) + (card.trait?.mod ?? 0) + card.bonus;
+    card.difficulty.band = evaluateBand(card.faces, total, card.difficulty.effective);
+  }
   const splash = readSplash(card.faces);
   const prior = message.getFlag("project-anime", "splash") ?? null;
   const flags = { "project-anime": { card } };

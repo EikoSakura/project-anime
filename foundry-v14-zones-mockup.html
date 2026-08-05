@@ -1,0 +1,415 @@
+<!--
+PROJECT: ANIME · FOUNDRY V14 MOCKUP
+CHANGE SET: Zones on the scene canvas
+
+TARGET
+- Foundry VTT v14. A Zone is one core Region document carrying one system
+  RegionBehavior of type "project-anime.zone".
+- Zone name = the Region document's name. Shapes, holes, elevation, and the
+  on-canvas editing handles are core Region features, used unchanged.
+- V14 notes: Measured Templates are removed and folded into Regions. Regions
+  gain Ring and Emanation shapes, resize/rotate/drag handles (circle = drag,
+  square = resize, triangle = rotate), and can attach to a token and move with
+  it. The Placeables sidebar tab lists Regions per scene. The system adds only
+  the Zone behavior and its presentation, nothing core is re-implemented.
+
+DATA MODEL
+- RegionBehavior "project-anime.zone", system data:
+  - effects: array of { keyword, name, text }
+    - keyword: Defensive | Elevated | Energizing | Harmful | Hindering |
+      Obscured | Restorative | Tight | Unstable | Volatile
+    - name: the skin, e.g. "Tower Deck"
+    - text: one concrete sentence in defined game terms
+  - tint: color string, defaults drawn from the Rank palette
+  - showPlate: boolean, default true
+- No automation. Effects are text. Nothing rolls or applies itself.
+
+MODES (toggle, top right of the mock)
+- Storyteller: region handles and vertices, region sub-tools, the Zone
+  behavior sheet.
+- Player: fills and plates only. No handles, no tools, no sheet.
+
+INTERACTIONS
+- Click a plate or a zone shape: posts that Zone's card to chat. Any client.
+  Wired in the mock.
+- Hover a zone shape: fill brightens.
+- Zone behavior sheet: keyword select, name, and text per row; add and remove
+  rows; tint swatches; Show Plate toggle. Edits update plates and future cards.
+- Token drag across a Zone border: the ruler renders beni past the border with
+  a diamond at each crossing. Display only, no prompt.
+- Zone membership from tokenEnter and tokenExit, kept as a display flag only.
+- Plates and fills render for every client from the Region shapes, independent
+  of the core region visibility setting.
+
+EXAMPLE DATA (V3 doc, the crab army beach)
+- Shoreline: Hindering (Deep Sand)
+- Food Stands: Defensive (Overturned Stalls), Restorative (Snack Supplies)
+- Lifeguard Tower: Elevated (Tower Deck), Unstable (Creaking Frame)
+- Tokens: Kaito, The Crab Army, Crab King. Tension 2 of 6.
+
+DESIGN NOTES
+- Tokens: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48,
+  gold #d9a13b. Zone tints here: C blue, D green, A orange.
+- Fonts: Shippori Mincho B1 (display), Zen Kaku Gothic New (UI).
+- Plate: ink, 6px beni spine with paper hairline, display-face name, keyword
+  chips. Sheet and card follow the shared chrome. Other HUD elements omitted
+  except a Tension meter placeholder.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project: Anime · Zones Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#221a36; --paper:#f7f2e7; --paper2:#ece4d1; --beni:#d92b48; --gold:#d9a13b;
+  --rankE:#8a8fa0; --rankD:#3ba55d; --rankC:#3c78d8; --rankB:#7d5cd6; --rankA:#e2632e;
+  --app:#181a21; --app2:#20222b; --line:#343640;
+  --disp:'Shippori Mincho B1',serif; --ui:'Zen Kaku Gothic New',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--app);color:var(--paper);font-family:var(--ui);overflow:hidden}
+#app{display:grid;grid-template-columns:58px 1fr 324px;height:100vh}
+
+/* ---------- scene controls rail ---------- */
+#rail{background:var(--app2);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:12px;gap:8px}
+.railbtn{width:38px;height:38px;border:1px solid var(--line);border-radius:5px;background:transparent;color:#8d92a1;font-size:17px;line-height:36px;text-align:center;cursor:pointer}
+.railbtn.active{border-color:var(--beni);color:var(--paper);background:#2a2330;box-shadow:inset 0 0 0 1px var(--beni)}
+.subtools{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.subtools .railbtn{width:32px;height:32px;font-size:14px;line-height:30px}
+
+/* ---------- canvas ---------- */
+#stage{position:relative;overflow:hidden;background:#e6d8b6}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+.zoneShape{stroke-width:2.5;stroke-dasharray:7 5;fill-opacity:.13;transition:fill-opacity .15s;cursor:pointer}
+.zoneShape:hover{fill-opacity:.27}
+.plate{cursor:pointer}
+.plate .platebg{filter:drop-shadow(3px 3px 0 rgba(34,26,54,.45))}
+.plate:hover .platebg{filter:drop-shadow(3px 3px 0 rgba(217,43,72,.55))}
+.chip-t{font-family:var(--ui);font-weight:700;font-size:10px;letter-spacing:1.5px;fill:var(--gold)}
+.plname{font-family:var(--disp);font-weight:700;letter-spacing:1px;fill:var(--paper)}
+.tokname{font-family:var(--ui);font-weight:700;font-size:10px;letter-spacing:1.2px;fill:var(--paper)}
+.mono{font-family:var(--disp);font-weight:800;fill:var(--ink)}
+.st-only{display:initial}
+body.player .st-only{display:none}
+
+/* ---------- tension meter ---------- */
+#tension{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--ink);border:1px solid #3a3152;border-radius:5px;padding:6px 14px;display:flex;align-items:center;gap:10px;box-shadow:3px 3px 0 rgba(0,0,0,.35)}
+#tension .lbl{font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:3px;color:var(--gold)}
+#tension .pip{width:12px;height:12px;transform:rotate(45deg);border:1.5px solid var(--paper);opacity:.45}
+#tension .pip.on{background:var(--beni);border-color:var(--beni);opacity:1}
+
+/* ---------- mode toggle ---------- */
+#modes{position:absolute;top:10px;right:14px;display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+#modes button{border:0;background:var(--app2);color:#9aa0ae;font-family:var(--ui);font-weight:700;font-size:11px;letter-spacing:1.5px;padding:7px 12px;cursor:pointer}
+#modes button.on{background:var(--beni);color:var(--paper)}
+
+/* ---------- zone behavior sheet ---------- */
+#sheet{position:absolute;left:22px;bottom:22px;width:434px;border:1px solid #3a3d48;border-radius:6px;overflow:hidden;box-shadow:0 14px 34px rgba(0,0,0,.5)}
+#sheet .win{background:var(--app2);display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line)}
+#sheet .win .t{flex:1;font-size:12px;font-weight:700;letter-spacing:.6px;color:#c8ccd8}
+#sheet .win .ic{color:#8d92a1;font-size:12px;cursor:pointer}
+#sheet .body{background:var(--paper);color:var(--ink);padding:0 0 12px}
+.obi{position:relative;background:var(--ink);color:var(--paper);padding:12px 14px 12px 24px;border-left:10px solid var(--beni);box-shadow:inset 2px 0 0 var(--paper);background-image:radial-gradient(rgba(247,242,231,.14) 1.1px,transparent 1.2px);background-size:9px 9px;display:flex;align-items:center}
+.obi .zn{font-family:var(--disp);font-weight:700;font-size:19px;letter-spacing:1.5px;flex:1}
+.obi .tintdot{width:16px;height:16px;border-radius:50%;background:var(--rankA);box-shadow:0 0 0 2px var(--paper)}
+.sec{font-size:10px;font-weight:700;letter-spacing:2.5px;color:var(--ink);opacity:.75;padding:12px 16px 6px}
+.fx{margin:0 14px 10px;border:2px solid var(--ink);background:var(--paper2);box-shadow:3px 3px 0 var(--ink)}
+.fx .r1{display:grid;grid-template-columns:118px 1fr 26px;gap:0;border-bottom:1px solid var(--ink)}
+.fx select{border:0;border-right:1px solid var(--ink);background:var(--ink);color:var(--paper);font-family:var(--ui);font-weight:700;font-size:11px;letter-spacing:1px;padding:6px 8px}
+.fx input{border:0;background:transparent;font-family:var(--disp);font-weight:700;font-size:13.5px;color:var(--ink);padding:6px 9px;min-width:0}
+.fx .del{border:0;background:transparent;color:var(--beni);font-weight:700;cursor:pointer}
+.fx textarea{display:block;width:100%;border:0;background:transparent;resize:none;font-family:var(--ui);font-size:12.5px;color:#3a3050;padding:7px 9px;height:34px}
+.addfx{margin:2px 14px 4px;border:0;background:var(--beni);color:var(--paper);font-family:var(--ui);font-weight:700;font-size:11px;letter-spacing:2px;padding:8px 14px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+.foot{display:flex;align-items:center;gap:14px;padding:12px 16px 0}
+.foot label{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--ink)}
+.foot input[type=checkbox]{accent-color:var(--beni)}
+.tints{display:flex;align-items:center;gap:7px;margin-left:auto}
+.tints .tl{font-size:10px;font-weight:700;letter-spacing:2px;opacity:.7}
+.tints .d{width:14px;height:14px;border-radius:50%;cursor:pointer}
+.tints .d.sel{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+
+/* ---------- chat ---------- */
+#chat{background:#14151b;border-left:1px solid var(--line);display:flex;flex-direction:column}
+#chat .hd{padding:12px 14px;font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:3px;color:var(--paper);border-bottom:2px solid var(--beni)}
+#log{flex:1;overflow-y:auto;padding:12px 12px 16px;display:flex;flex-direction:column;gap:12px}
+.msg .who{font-size:10.5px;letter-spacing:1px;color:#8d92a1;margin:0 2px 4px}
+.zcard{background:var(--paper);border:2px solid var(--ink);border-radius:4px;box-shadow:4px 4px 0 var(--ink);overflow:hidden;color:var(--ink)}
+.zcard .obi{padding:8px 12px 8px 18px;border-left-width:6px}
+.zcard .obi .zn{font-size:15px}
+.zcard .fxl{padding:8px 12px;font-size:12px;line-height:1.45;border-top:1px solid var(--paper2)}
+.zcard .fxl:first-of-type{border-top:0}
+.zcard .kw{font-weight:700;letter-spacing:1px;font-size:10.5px;color:var(--beni)}
+.zcard .skin{font-family:var(--disp);font-weight:700}
+</style>
+</head>
+<body class="storyteller">
+<div id="app">
+
+  <!-- scene controls -->
+  <div id="rail">
+    <button class="railbtn" title="Tokens">&#9679;</button>
+    <button class="railbtn active" title="Regions">&#9671;</button>
+    <button class="railbtn" title="Tiles">&#9638;</button>
+    <button class="railbtn" title="Lighting">&#9788;</button>
+    <div class="subtools st-only">
+      <button class="railbtn active" title="Select">&#10148;</button>
+      <button class="railbtn" title="Rectangle">&#9645;</button>
+      <button class="railbtn" title="Ellipse">&#9675;</button>
+      <button class="railbtn" title="Polygon">&#11041;</button>
+      <button class="railbtn" title="Ring">&#9678;</button>
+    </div>
+  </div>
+
+  <!-- canvas -->
+  <div id="stage">
+    <svg id="scene" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#23304e"/><stop offset="1" stop-color="#38587f"/>
+        </linearGradient>
+        <pattern id="sanddots" width="26" height="26" patternUnits="userSpaceOnUse">
+          <circle cx="6" cy="7" r="1.8" fill="#cdbb8f"/><circle cx="19" cy="19" r="1.4" fill="#cdbb8f"/>
+        </pattern>
+        <pattern id="awnB" width="22" height="22" patternUnits="userSpaceOnUse">
+          <rect width="22" height="22" fill="#d92b48"/><rect width="11" height="22" fill="#f7f2e7"/>
+        </pattern>
+        <pattern id="awnG" width="22" height="22" patternUnits="userSpaceOnUse">
+          <rect width="22" height="22" fill="#d9a13b"/><rect width="11" height="22" fill="#f7f2e7"/>
+        </pattern>
+      </defs>
+
+      <!-- backdrop -->
+      <rect x="0" y="0" width="1200" height="170" fill="url(#sea)"/>
+      <rect x="0" y="164" width="1200" height="6" fill="#f7f2e7" opacity=".55"/>
+      <rect x="0" y="170" width="1200" height="590" fill="#e6d8b6"/>
+      <rect x="0" y="170" width="1200" height="590" fill="url(#sanddots)" opacity=".5"/>
+      <rect x="0" y="662" width="1200" height="98" fill="#b98d5e"/>
+      <g stroke="#9a734b" stroke-width="2">
+        <line x1="0" y1="662" x2="1200" y2="662"/><line x1="80" y1="662" x2="80" y2="760"/><line x1="200" y1="662" x2="200" y2="760"/>
+        <line x1="320" y1="662" x2="320" y2="760"/><line x1="440" y1="662" x2="440" y2="760"/><line x1="560" y1="662" x2="560" y2="760"/>
+        <line x1="680" y1="662" x2="680" y2="760"/><line x1="800" y1="662" x2="800" y2="760"/><line x1="920" y1="662" x2="920" y2="760"/>
+        <line x1="1040" y1="662" x2="1040" y2="760"/><line x1="1160" y1="662" x2="1160" y2="760"/>
+      </g>
+
+      <!-- food stands -->
+      <g stroke="#221a36" stroke-width="2">
+        <rect x="150" y="512" width="118" height="86" fill="#c9a15f"/>
+        <rect x="140" y="492" width="138" height="24" fill="url(#awnB)"/>
+        <rect x="312" y="530" width="126" height="76" fill="#c9a15f"/>
+        <rect x="302" y="510" width="146" height="24" fill="url(#awnG)"/>
+        <rect x="472" y="506" width="106" height="92" fill="#c9a15f"/>
+        <rect x="462" y="486" width="126" height="24" fill="url(#awnB)"/>
+        <rect x="386" y="612" width="96" height="52" fill="#c9a15f" transform="rotate(-16 434 638)"/>
+      </g>
+
+      <!-- umbrella -->
+      <g stroke="#221a36" stroke-width="2">
+        <line x1="770" y1="404" x2="770" y2="466"/>
+        <path d="M 722 416 A 48 42 0 0 1 818 416 Z" fill="#d92b48"/>
+        <path d="M 746 416 A 24 42 0 0 1 794 416 Z" fill="#f7f2e7"/>
+      </g>
+
+      <!-- lifeguard tower -->
+      <g stroke="#221a36" stroke-width="2">
+        <line x1="890" y1="300" x2="890" y2="430"/><line x1="972" y1="300" x2="972" y2="430"/>
+        <line x1="890" y1="360" x2="972" y2="392"/><line x1="972" y1="360" x2="890" y2="392"/>
+        <rect x="872" y="282" width="120" height="18" fill="#a97f52"/>
+        <rect x="884" y="232" width="96" height="50" fill="#e6d8b6"/>
+        <polygon points="872,232 992,232 932,198" fill="#d92b48"/>
+        <line x1="852" y1="300" x2="852" y2="430"/><line x1="852" y1="330" x2="872" y2="330"/>
+        <line x1="852" y1="366" x2="872" y2="366"/><line x1="852" y1="402" x2="872" y2="402"/>
+      </g>
+
+      <!-- ZONES -->
+      <polygon class="zoneShape" data-zone="shoreline" points="30,182 1170,182 1170,338 900,352 620,332 300,352 30,336"
+               fill="#3c78d8" stroke="#3c78d8"/>
+      <polygon class="zoneShape" data-zone="foodstands" points="96,452 644,462 638,700 90,692"
+               fill="#3ba55d" stroke="#3ba55d"/>
+      <polygon class="zoneShape" data-zone="tower" points="802,216 1052,216 1062,470 792,478"
+               fill="#e2632e" stroke="#e2632e"/>
+
+      <!-- drag ruler: Kaito crossing toward the Shoreline -->
+      <g fill="none" stroke-linecap="round">
+        <polyline points="330,514 352,455" stroke="#d9a13b" stroke-width="3" stroke-dasharray="8 7"/>
+        <polyline points="352,455 376,344 392,300" stroke="#d92b48" stroke-width="3" stroke-dasharray="8 7"/>
+      </g>
+      <rect x="346" y="449" width="12" height="12" transform="rotate(45 352 455)" fill="#d92b48" stroke="#f7f2e7" stroke-width="1.5"/>
+      <rect x="370" y="338" width="12" height="12" transform="rotate(45 376 344)" fill="#d92b48" stroke="#f7f2e7" stroke-width="1.5"/>
+      <circle cx="392" cy="300" r="8" fill="none" stroke="#d92b48" stroke-width="2.5"/>
+      <circle cx="392" cy="300" r="2.5" fill="#d92b48"/>
+
+      <!-- region handles (Storyteller only) -->
+      <g class="st-only">
+        <rect x="797.5" y="211.5" width="9" height="9" fill="#f7f2e7" stroke="#221a36" stroke-width="1.5"/>
+        <rect x="1047.5" y="211.5" width="9" height="9" fill="#f7f2e7" stroke="#221a36" stroke-width="1.5"/>
+        <rect x="1057.5" y="465.5" width="9" height="9" fill="#f7f2e7" stroke="#221a36" stroke-width="1.5"/>
+        <rect x="787.5" y="473.5" width="9" height="9" fill="#f7f2e7" stroke="#221a36" stroke-width="1.5"/>
+        <circle cx="927" cy="345" r="7" fill="#f7f2e7" stroke="#221a36" stroke-width="1.5"/>
+        <polygon points="927,190 934,202 920,202" fill="#f7f2e7" stroke="#221a36" stroke-width="1.5"/>
+      </g>
+
+      <!-- ZONE PLATES -->
+      <g class="plate" data-zone="shoreline" transform="translate(46,198)">
+        <rect class="platebg" width="206" height="56" fill="#221a36" rx="3"/>
+        <rect width="6" height="56" fill="#d92b48"/><rect x="7" width="1.5" height="56" fill="#f7f2e7" opacity=".55"/>
+        <text class="plname" x="20" y="24" font-size="18">SHORELINE</text>
+        <rect x="20" y="33" width="86" height="17" rx="8.5" fill="none" stroke="#d9a13b" stroke-width="1.2"/>
+        <text class="chip-t" x="30" y="45">HINDERING</text>
+      </g>
+
+      <g class="plate" data-zone="foodstands" transform="translate(112,398)">
+        <rect class="platebg" width="234" height="56" fill="#221a36" rx="3"/>
+        <rect width="6" height="56" fill="#d92b48"/><rect x="7" width="1.5" height="56" fill="#f7f2e7" opacity=".55"/>
+        <text class="plname" x="20" y="24" font-size="18">FOOD STANDS</text>
+        <rect x="20" y="33" width="84" height="17" rx="8.5" fill="none" stroke="#d9a13b" stroke-width="1.2"/>
+        <text class="chip-t" x="30" y="45">DEFENSIVE</text>
+        <rect x="112" y="33" width="98" height="17" rx="8.5" fill="none" stroke="#d9a13b" stroke-width="1.2"/>
+        <text class="chip-t" x="122" y="45">RESTORATIVE</text>
+      </g>
+
+      <g class="plate" data-zone="tower" transform="translate(814,494)">
+        <rect class="platebg" width="252" height="56" fill="#221a36" rx="3"/>
+        <rect width="6" height="56" fill="#d92b48"/><rect x="7" width="1.5" height="56" fill="#f7f2e7" opacity=".55"/>
+        <text class="plname" x="20" y="24" font-size="17">LIFEGUARD TOWER</text>
+        <rect x="20" y="33" width="78" height="17" rx="8.5" fill="none" stroke="#d9a13b" stroke-width="1.2"/>
+        <text class="chip-t" x="30" y="45">ELEVATED</text>
+        <rect x="106" y="33" width="80" height="17" rx="8.5" fill="none" stroke="#d9a13b" stroke-width="1.2"/>
+        <text class="chip-t" x="116" y="45">UNSTABLE</text>
+      </g>
+
+      <!-- TOKENS -->
+      <g transform="translate(300,262)">
+        <circle r="25" fill="#f7f2e7" stroke="#221a36" stroke-width="3"/>
+        <circle r="18" fill="none" stroke="#d92b48" stroke-width="3"/>
+        <text class="mono" font-size="15" text-anchor="middle" dy="5.5">CA</text>
+        <rect x="-57" y="32" width="114" height="18" rx="9" fill="#221a36" opacity=".9"/>
+        <text class="tokname" text-anchor="middle" y="44.5">THE CRAB ARMY</text>
+      </g>
+      <g transform="translate(932,258)">
+        <circle r="22" fill="#f7f2e7" stroke="#221a36" stroke-width="3"/>
+        <circle r="15.5" fill="none" stroke="#d92b48" stroke-width="3"/>
+        <text class="mono" font-size="13.5" text-anchor="middle" dy="5">CK</text>
+        <rect x="-45" y="28" width="90" height="18" rx="9" fill="#221a36" opacity=".9"/>
+        <text class="tokname" text-anchor="middle" y="40.5">CRAB KING</text>
+      </g>
+      <g transform="translate(330,545)">
+        <circle r="25" fill="#f7f2e7" stroke="#221a36" stroke-width="3"/>
+        <circle r="18" fill="none" stroke="#d9a13b" stroke-width="3"/>
+        <text class="mono" font-size="15" text-anchor="middle" dy="5.5">KA</text>
+        <rect x="-33" y="32" width="66" height="18" rx="9" fill="#221a36" opacity=".9"/>
+        <text class="tokname" text-anchor="middle" y="44.5">KAITO</text>
+      </g>
+    </svg>
+
+    <!-- tension meter placeholder -->
+    <div id="tension">
+      <span class="lbl">TENSION</span>
+      <span class="pip on"></span><span class="pip on"></span><span class="pip"></span>
+      <span class="pip"></span><span class="pip"></span><span class="pip"></span>
+    </div>
+
+    <!-- mode toggle -->
+    <div id="modes">
+      <button id="mSt" class="on">STORYTELLER</button>
+      <button id="mPl">PLAYER</button>
+    </div>
+
+    <!-- Zone behavior sheet (Storyteller only) -->
+    <div id="sheet" class="st-only">
+      <div class="win">
+        <span class="t">Zone &middot; Lifeguard Tower</span>
+        <span class="ic" title="Pop out">&#10697;</span>
+        <span class="ic" title="Close">&#10005;</span>
+      </div>
+      <div class="body">
+        <div class="obi"><span class="zn">LIFEGUARD TOWER</span><span class="tintdot"></span></div>
+        <div class="sec">ZONE EFFECTS</div>
+
+        <div class="fx">
+          <div class="r1">
+            <select><option selected>Elevated</option><option>Defensive</option><option>Energizing</option><option>Harmful</option><option>Hindering</option><option>Obscured</option><option>Restorative</option><option>Tight</option><option>Unstable</option><option>Volatile</option></select>
+            <input value="Tower Deck">
+            <button class="del" title="Remove">&#10005;</button>
+          </div>
+          <textarea>You can act against any Zone from here.</textarea>
+        </div>
+
+        <div class="fx">
+          <div class="r1">
+            <select><option>Elevated</option><option>Defensive</option><option>Energizing</option><option>Harmful</option><option>Hindering</option><option>Obscured</option><option>Restorative</option><option>Tight</option><option selected>Unstable</option><option>Volatile</option></select>
+            <input value="Creaking Frame">
+            <button class="del" title="Remove">&#10005;</button>
+          </div>
+          <textarea>A Fumble here drops you to the Shoreline.</textarea>
+        </div>
+
+        <button class="addfx">+ ADD EFFECT</button>
+        <div class="foot">
+          <label><input type="checkbox" checked> Show plate on the scene</label>
+          <div class="tints">
+            <span class="tl">TINT</span>
+            <span class="d" style="background:#3c78d8"></span>
+            <span class="d" style="background:#3ba55d"></span>
+            <span class="d" style="background:#7d5cd6"></span>
+            <span class="d sel" style="background:#e2632e"></span>
+            <span class="d" style="background:#8a8fa0"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- chat -->
+  <div id="chat">
+    <div class="hd">CHAT LOG</div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const ZONES = {
+  shoreline: { name:'SHORELINE', effects:[
+    ['HINDERING','Deep Sand','Crossing out of the Shoreline is always under threat.']
+  ]},
+  foodstands: { name:'FOOD STANDS', effects:[
+    ['DEFENSIVE','Overturned Stalls','You cannot be harmed from another Zone.'],
+    ['RESTORATIVE','Snack Supplies','Spend the Spotlight here to recover 1 Energy.']
+  ]},
+  tower: { name:'LIFEGUARD TOWER', effects:[
+    ['ELEVATED','Tower Deck','You can act against any Zone from here.'],
+    ['UNSTABLE','Creaking Frame','A Fumble here drops you to the Shoreline.']
+  ]}
+};
+
+function postZoneCard(id){
+  const z = ZONES[id]; if(!z) return;
+  const log = document.getElementById('log');
+  const msg = document.createElement('div');
+  msg.className = 'msg';
+  const lines = z.effects.map(e =>
+    '<div class="fxl"><span class="kw">'+e[0]+'</span> &middot; <span class="skin">'+e[1]+'.</span> '+e[2]+'</div>'
+  ).join('');
+  msg.innerHTML =
+    '<div class="who">Storyteller</div>'+
+    '<div class="zcard"><div class="obi"><span class="zn">'+z.name+'</span></div>'+lines+'</div>';
+  log.appendChild(msg);
+  log.scrollTop = log.scrollHeight;
+}
+
+document.querySelectorAll('.plate, .zoneShape').forEach(p =>
+  p.addEventListener('click', () => postZoneCard(p.dataset.zone))
+);
+
+const mSt = document.getElementById('mSt'), mPl = document.getElementById('mPl');
+mSt.addEventListener('click', () => { document.body.className='storyteller'; mSt.classList.add('on'); mPl.classList.remove('on'); });
+mPl.addEventListener('click', () => { document.body.className='player'; mPl.classList.add('on'); mSt.classList.remove('on'); });
+
+postZoneCard('foodstands');
+</script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<div class="builder">
+
+  <header class="obi">
+    <div class="obi-inner">
+      <div class="idblock">
+        <div class="eyebrow">{{localize "PROJECTANIME.Builder.Title"}}</div>
+        <div class="cname">{{obiName}}</div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="crail">
+    {{#each steps}}
+    <button type="button" class="{{#if this.active}}active{{/if}}{{#if this.done}} done{{/if}}"
+      data-action="goto" data-step="{{this.index}}">
+      <span class="num">{{this.n}}</span>{{this.label}}<span class="check">✓</span>
+    </button>
+    {{/each}}
+  </nav>
+
+  <div class="stage">
+
+    <section class="pane{{#if active.[0]}} active{{/if}}">
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "TYPES.Actor.adversary"}}</span></div>
+        <div class="panel-b">
+          <div class="field">
+            <label for="ab-name">{{localize "PROJECTANIME.Header.Name"}}</label>
+            <input type="text" id="ab-name" name="name" value="{{name}}">
+          </div>
+          <div class="field">
+            <label for="ab-desire">{{localize "PROJECTANIME.Adversary.Desire"}}</label>
+            <input type="text" id="ab-desire" name="desire" value="{{desire}}">
+          </div>
+          <div class="field">
+            <label for="ab-fear">{{localize "PROJECTANIME.Adversary.Fear"}}</label>
+            <input type="text" id="ab-fear" name="fear" value="{{fear}}">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane{{#if active.[1]}} active{{/if}}">
+      <div class="panel">
+        <div class="panel-h">
+          <span class="en">{{localize "PROJECTANIME.Builder.Stats"}}</span>
+          <span class="tail">{{localize "PROJECTANIME.Builder.StatsSide"}}</span>
+        </div>
+        <div class="panel-b">
+          <div class="statgrid">
+            <div class="sealblock">
+              <button type="button" class="seal" data-action="flipSeal" aria-label="{{localize "PROJECTANIME.Header.Grade"}}">
+                <span class="g">{{seal.text}}</span>
+                <span class="lbl">{{seal.label}}</span>
+              </button>
+              <span class="stepper">
+                <button type="button" data-action="stepGrade" data-dir="-1"
+                  aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}"{{#if gradeDownDisabled}} disabled{{/if}}>−</button>
+                <button type="button" data-action="stepGrade" data-dir="1"
+                  aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}"{{#if gradeUpDisabled}} disabled{{/if}}>＋</button>
+              </span>
+            </div>
+            <div class="attrcol">
+              {{#each attributes}}
+              <div class="attr-row">
+                <span class="name">{{this.name}}</span>
+                {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+                <span class="stepper">
+                  <button type="button" data-action="stepAttr" data-key="{{this.key}}" data-dir="-1"
+                    aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}"{{#if this.downDisabled}} disabled{{/if}}>−</button>
+                  <button type="button" data-action="stepAttr" data-key="{{this.key}}" data-dir="1"
+                    aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}"{{#if this.upDisabled}} disabled{{/if}}>＋</button>
+                </span>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+          <div class="pools">
+            <div class="pool-row">
+              <span class="plabel">{{localize "PROJECTANIME.Vitals.Hearts"}}</span>
+              <span class="stepper">
+                <button type="button" data-action="stepPool" data-kind="hearts" data-dir="-1"
+                  aria-label="{{localize "PROJECTANIME.Edit.LowerMax"}}"{{#if hearts.downDisabled}} disabled{{/if}}>−</button>
+              </span>
+              <div class="val">{{hearts.value}}</div>
+              <span class="stepper">
+                <button type="button" data-action="stepPool" data-kind="hearts" data-dir="1"
+                  aria-label="{{localize "PROJECTANIME.Edit.RaiseMax"}}"{{#if hearts.upDisabled}} disabled{{/if}}>＋</button>
+              </span>
+              <div class="pips">
+                {{#each hearts.pips}}
+                <span class="pip on"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="shape heart" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span>
+                {{/each}}
+              </div>
+            </div>
+            <div class="pool-row">
+              <span class="plabel">{{localize "PROJECTANIME.Vitals.Energy"}}</span>
+              <span class="stepper">
+                <button type="button" data-action="stepPool" data-kind="energy" data-dir="-1"
+                  aria-label="{{localize "PROJECTANIME.Edit.LowerMax"}}"{{#if energy.downDisabled}} disabled{{/if}}>−</button>
+              </span>
+              <div class="val">{{energy.value}}</div>
+              <span class="stepper">
+                <button type="button" data-action="stepPool" data-kind="energy" data-dir="1"
+                  aria-label="{{localize "PROJECTANIME.Edit.RaiseMax"}}"{{#if energy.upDisabled}} disabled{{/if}}>＋</button>
+              </span>
+              <div class="pips">
+                {{#each energy.pips}}
+                <span class="pip on"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="shape bolt" d="M13 2 4.5 13.5H11l-1.2 8.5 8.7-11.5H12L13 2z"/></svg></span>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane{{#if active.[2]}} active{{/if}}">
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Traits"}}</span></div>
+        <div class="panel-b">
+          {{#if traits.length}}
+          <div class="cards">
+            {{#each traits}}
+            <div class="card">
+              <button type="button" class="x" data-action="removeRow" data-group="trait" data-i="{{this.i}}"
+                aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+              <div class="toprow">
+                <div class="field">
+                  <label for="ab-trait-{{this.i}}-name">{{localize "PROJECTANIME.Header.Name"}}</label>
+                  <input type="text" id="ab-trait-{{this.i}}-name" name="trait.{{this.i}}.name" value="{{this.name}}">
+                </div>
+                {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+                <span class="vstep">
+                  <button type="button" data-action="stepRank" data-group="trait" data-i="{{this.i}}" data-dir="1"
+                    aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}"{{#if this.upDisabled}} disabled{{/if}}>＋</button>
+                  <button type="button" data-action="stepRank" data-group="trait" data-i="{{this.i}}" data-dir="-1"
+                    aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}"{{#if this.downDisabled}} disabled{{/if}}>−</button>
+                </span>
+              </div>
+              <div class="field">
+                <label for="ab-trait-{{this.i}}-text">{{localize "PROJECTANIME.Item.Description"}}</label>
+                <textarea id="ab-trait-{{this.i}}-text" name="trait.{{this.i}}.text" rows="2">{{this.text}}</textarea>
+              </div>
+            </div>
+            {{/each}}
+          </div>
+          {{/if}}
+          <button type="button" class="addbtn" data-action="addRow" data-group="trait">{{localize "PROJECTANIME.Builder.AddTrait"}}</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane{{#if active.[3]}} active{{/if}}">
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Panel.Techniques"}}</span></div>
+        <div class="panel-b">
+          {{#if techs.length}}
+          <div class="cards">
+            {{#each techs}}
+            <div class="card">
+              <button type="button" class="x" data-action="removeRow" data-group="tech" data-i="{{this.i}}"
+                aria-label="{{localize "PROJECTANIME.Edit.Remove"}}">✕</button>
+              <div class="toprow">
+                <div class="field">
+                  <label for="ab-tech-{{this.i}}-name">{{localize "PROJECTANIME.Header.Name"}}</label>
+                  <input type="text" id="ab-tech-{{this.i}}-name" name="tech.{{this.i}}.name" value="{{this.name}}">
+                </div>
+                {{> "systems/project-anime/templates/actor/badge.hbs" this.badge}}
+                <span class="vstep">
+                  <button type="button" data-action="stepRank" data-group="tech" data-i="{{this.i}}" data-dir="1"
+                    aria-label="{{localize "PROJECTANIME.Edit.RankUp"}}"{{#if this.upDisabled}} disabled{{/if}}>＋</button>
+                  <button type="button" data-action="stepRank" data-group="tech" data-i="{{this.i}}" data-dir="-1"
+                    aria-label="{{localize "PROJECTANIME.Edit.RankDown"}}"{{#if this.downDisabled}} disabled{{/if}}>−</button>
+                </span>
+              </div>
+              <div class="seg">
+                <button type="button" class="{{#if this.activated}}on{{/if}}" data-action="setKind"
+                  data-i="{{this.i}}" data-kind="Activated">{{localize "PROJECTANIME.Technique.Activated"}}</button>
+                <button type="button" class="{{#unless this.activated}}on{{/unless}}" data-action="setKind"
+                  data-i="{{this.i}}" data-kind="Triggered">{{localize "PROJECTANIME.Technique.Triggered"}}</button>
+              </div>
+              <div class="field">
+                <label for="ab-tech-{{this.i}}-text">{{localize "PROJECTANIME.Item.Description"}}</label>
+                <textarea id="ab-tech-{{this.i}}-text" name="tech.{{this.i}}.text" rows="3">{{this.text}}</textarea>
+              </div>
+              <span class="chip gold">{{this.costLabel}}</span>
+            </div>
+            {{/each}}
+          </div>
+          {{/if}}
+          <button type="button" class="addbtn" data-action="addRow" data-group="tech">{{localize "PROJECTANIME.Builder.AddTechnique"}}</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane{{#if active.[4]}} active{{/if}}">
+      <div class="panel">
+        <div class="panel-h"><span class="en">{{localize "PROJECTANIME.Creator.Finishing"}}</span></div>
+        <div class="panel-b">
+          <div class="opt">
+            <button type="button" class="tog" data-action="toggleTrack" aria-pressed="{{#if track.on}}true{{else}}false{{/if}}">
+              <span class="box"><span>✓</span></span>{{localize "PROJECTANIME.Builder.DesireTrack"}}
+            </button>
+            {{#if track.on}}
+            <div class="body">
+              <div class="segrow">
+                <span class="plabel">{{localize "PROJECTANIME.Tracks.Segments"}}</span>
+                <span class="stepper">
+                  <button type="button" data-action="stepSegments" data-dir="-1"
+                    aria-label="{{localize "PROJECTANIME.Roll.StepDown"}}"{{#if track.downDisabled}} disabled{{/if}}>−</button>
+                </span>
+                <div class="val">{{track.segments}}</div>
+                <span class="stepper">
+                  <button type="button" data-action="stepSegments" data-dir="1"
+                    aria-label="{{localize "PROJECTANIME.Roll.StepUp"}}"{{#if track.upDisabled}} disabled{{/if}}>＋</button>
+                </span>
+                <div class="cells">
+                  {{#each track.cells}}<span></span>{{/each}}
+                </div>
+              </div>
+            </div>
+            {{/if}}
+          </div>
+          <div class="opt">
+            <button type="button" class="tog" data-action="toggleRival" aria-pressed="{{#if rival}}true{{else}}false{{/if}}">
+              <span class="box"><span>✓</span></span>{{localize "PROJECTANIME.Adversary.Rival"}}
+            </button>
+            {{#if rival}}
+            <div class="body">
+              <span class="plabel">{{localize "PROJECTANIME.Vitals.LuckDice"}}</span>
+              <div class="luck-slots">
+                {{#each luck}}
+                <div class="luck{{#if this.filled}} filled{{/if}}">{{#if this.filled}}{{this.value}}{{else}}<span class="dot"></span>{{/if}}</div>
+                {{/each}}
+                <button type="button" class="rollbtn" data-action="rollLuck"{{#if rolled}} disabled{{/if}}>{{localize "PROJECTANIME.Creator.Roll"}}</button>
+              </div>
+            </div>
+            {{/if}}
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="cfoot">
+    <button type="button" class="btn ghost" data-action="back"{{#if first}} disabled{{/if}}>{{localize "PROJECTANIME.Creator.Back"}}</button>
+    <span class="pos">{{position}}</span>
+    {{#if last}}
+    <button type="button" class="btn create" data-action="create"{{#unless canCreate}} disabled{{/unless}}>{{localize "PROJECTANIME.Builder.Create"}}</button>
+    {{else}}
+    <button type="button" class="btn main" data-action="next">{{localize "PROJECTANIME.Creator.Next"}}</button>
+    {{/if}}
+  </footer>
+
+</div>

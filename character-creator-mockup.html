@@ -1,0 +1,672 @@
+<!--
+CHARACTER CREATOR, mockup
+Project: Anime, Foundry V14 system
+
+TARGET
+- ApplicationV2 wizard. Opens from a Create Character button in the Actors tab header.
+- Create Character builds one character Actor and four embedded Items (two Traits, two
+  Techniques) on the system's existing schemas, then opens the new actor's sheet.
+
+CREATION RULES ENCODED
+- Attributes: Might, Agility, Mind, Spirit, Charm. All start at E. 5 Step Ups, cap C.
+- Traits: two, Rank D. Name plus one sentence.
+- Techniques: two, Rank E. Name, Activated or Triggered, description. Energy cost 1.
+- Bond: one. Name, number 1 to 6, sentence.
+- Finishing Touches: Grade D, 6 Hearts, 6 Energy, Luck Dice 3d6 rolled and recorded.
+
+DATA WRITTEN ON CREATE
+- Actor: name, concept, attribute Ranks, Grade D, Hearts 6/6, Energy 6/6,
+  Luck [3 x {size d6, value, spent false}], Bonds [{name, value, sentence}].
+- Items: Trait x2 (Rank D, description), Technique x2 (Rank E, type, description).
+
+MODES
+- Six steps: Character, Attributes, Traits, Techniques, Bond, Finishing Touches.
+- Step rail is clickable. A beni check marks a completed step. Edit-only, no View mode.
+
+INTERACTIONS
+- Attributes: steppers spend Step Ups (counter 5 to 0), stop at C and at 0 remaining.
+  Rank badge click flips letter and die.
+- Traits: Rank locked at D. Badge click flips letter and +2.
+- Techniques: Activated/Triggered toggle. Rank locked at E. Badge flips letter and d4.
+  Energy cost read from the Ladder.
+- Bond: number stepper 1 to 6.
+- Finishing Touches: Grade seal locked at D, click flips letter and Difficulty 7.
+  ROLL 3D6 records the Luck Dice. Clicking again rerolls, mockup only; at the table
+  they are rolled once.
+- BACK and NEXT walk the steps. CREATE CHARACTER enables when every step shows its check.
+
+DESIGN NOTES
+- Tokens: ink #221a36, paper #f7f2e7, paper-2 #ece4d1, beni #d92b48, gold #d9a13b.
+  Rank colors E #8a8fa0, D #3ba55d, C #3c78d8, B #7d5cd6, A #e2632e, S gold.
+- Fonts: Shippori Mincho B1 display, Zen Kaku Gothic New UI. No Japanese text.
+- Shared chrome: title bar (ink, dots left, Project: Anime, sheet name right), obi header
+  (ink band, halftone dots, 10px beni spine with paper hairline), panels (2px ink border,
+  hard offset shadow, ink header with screentone corner), seal (paper circle, beni ring,
+  rotated -5deg).
+- Description fields are plain textareas here; the system uses ProseMirror.
+- Example data: Kaito, from the V3 doc examples. Luck left unrolled to show the roll.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime, Character Creator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#221a36; --paper:#f7f2e7; --paper2:#ece4d1; --beni:#d92b48; --gold:#d9a13b;
+  --rE:#8a8fa0; --rD:#3ba55d; --rC:#3c78d8; --rB:#7d5cd6; --rA:#e2632e; --rS:#d9a13b;
+  --disp:'Shippori Mincho B1',serif; --ui:'Zen Kaku Gothic New',sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:var(--paper2); font-family:var(--ui); color:var(--ink);
+  padding:28px 16px 48px;
+}
+.app{
+  max-width:880px; margin:0 auto; background:var(--paper);
+  border:2px solid var(--ink); box-shadow:6px 6px 0 var(--ink);
+}
+button{font-family:var(--ui); cursor:pointer;}
+button:focus-visible, input:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--beni); outline-offset:2px;
+}
+
+/* ---------- title bar ---------- */
+.titlebar{
+  background:var(--ink); color:var(--paper);
+  display:flex; align-items:center; gap:12px; padding:0 14px; height:42px;
+}
+.dots{display:flex; gap:6px;}
+.dots span{width:10px; height:10px; border-radius:50%;}
+.dots span:nth-child(1){background:var(--beni);}
+.dots span:nth-child(2){background:var(--gold);}
+.dots span:nth-child(3){background:var(--paper);}
+.titlebar .brand{
+  font-weight:900; font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+}
+.titlebar .sheetname{
+  margin-left:auto; font-weight:700; font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; opacity:.85;
+}
+
+/* ---------- obi header ---------- */
+.obi{
+  position:relative; background:var(--ink); color:var(--paper);
+  padding:20px 24px 22px 34px; overflow:hidden;
+}
+.obi::before{ /* beni spine */
+  content:""; position:absolute; left:0; top:0; bottom:0; width:10px; background:var(--beni);
+}
+.obi::after{ /* paper hairline beside the spine */
+  content:""; position:absolute; left:10px; top:0; bottom:0; width:1px; background:var(--paper);
+}
+.obi .tone{
+  position:absolute; right:-20px; top:-20px; width:240px; height:140px;
+  background-image:radial-gradient(rgba(247,242,231,.28) 1.6px, transparent 1.6px);
+  background-size:11px 11px; transform:rotate(-8deg); pointer-events:none;
+}
+.obi .eyebrow{
+  font-size:10px; font-weight:900; letter-spacing:.3em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:6px;
+}
+.obi h1{
+  font-family:var(--disp); font-weight:800; font-size:34px; line-height:1.05;
+  letter-spacing:.02em;
+}
+
+/* ---------- step rail ---------- */
+.rail{
+  display:flex; background:var(--paper2); border-bottom:2px solid var(--ink);
+}
+.rail button{
+  flex:1; background:none; border:none; border-right:1px solid rgba(34,26,54,.25);
+  padding:10px 6px 8px; font-size:10px; font-weight:900; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink); opacity:.55; position:relative;
+}
+.rail button:last-child{border-right:none;}
+.rail button .num{
+  display:block; font-family:var(--disp); font-size:15px; font-weight:800;
+  letter-spacing:0; margin-bottom:2px;
+}
+.rail button .check{
+  position:absolute; top:6px; right:8px; color:var(--beni); font-size:12px;
+  font-weight:900; display:none;
+}
+.rail button.done .check{display:block;}
+.rail button.active{opacity:1; background:var(--paper); box-shadow:inset 0 -4px 0 var(--beni);}
+
+/* ---------- stage & panels ---------- */
+.stage{padding:24px;}
+.pane{display:none;}
+.pane.active{display:block;}
+.panel{
+  border:2px solid var(--ink); background:var(--paper); box-shadow:5px 5px 0 var(--ink);
+}
+.panel-head{
+  position:relative; background:var(--ink); color:var(--paper);
+  padding:8px 14px; font-weight:900; font-size:12px; letter-spacing:.2em;
+  text-transform:uppercase; overflow:hidden;
+}
+.panel-head::after{ /* screentone corner */
+  content:""; position:absolute; right:-8px; top:-8px; width:90px; height:44px;
+  background-image:radial-gradient(rgba(247,242,231,.3) 1.3px, transparent 1.3px);
+  background-size:8px 8px; transform:rotate(-8deg);
+}
+.panel-head .side{
+  position:absolute; right:14px; top:50%; transform:translateY(-50%);
+  font-size:10px; letter-spacing:.14em; color:var(--gold); z-index:1;
+}
+.panel-body{padding:18px;}
+
+/* ---------- fields ---------- */
+.field{margin-bottom:16px;}
+.field:last-child{margin-bottom:0;}
+label{
+  display:block; font-size:10px; font-weight:900; letter-spacing:.2em;
+  text-transform:uppercase; margin-bottom:5px;
+}
+input[type=text], textarea{
+  width:100%; background:var(--paper); border:2px solid var(--ink);
+  padding:8px 10px; font-family:var(--ui); font-size:14px; color:var(--ink);
+}
+textarea{resize:vertical; min-height:56px; line-height:1.45;}
+
+/* ---------- rank badges ---------- */
+.badge{
+  width:38px; height:38px; border:2px solid var(--ink); color:var(--paper);
+  font-family:var(--disp); font-weight:800; font-size:18px;
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  background:var(--rE); padding:0;
+}
+.badge.small-text{font-family:var(--ui); font-weight:900; font-size:12px;}
+.badge[data-rank="0"]{background:var(--rE);}
+.badge[data-rank="1"]{background:var(--rD);}
+.badge[data-rank="2"]{background:var(--rC);}
+.badge[data-rank="3"]{background:var(--rB);}
+.badge[data-rank="4"]{background:var(--rA);}
+.badge[data-rank="5"]{background:var(--rS);}
+
+/* ---------- attributes ---------- */
+.stepups{
+  display:flex; align-items:center; gap:10px; margin-bottom:16px;
+  border:2px solid var(--ink); background:var(--paper2); box-shadow:3px 3px 0 var(--ink);
+  padding:8px 12px; width:max-content;
+}
+.stepups .n{font-family:var(--disp); font-weight:800; font-size:26px; color:var(--beni); min-width:22px; text-align:center;}
+.stepups .t{font-size:10px; font-weight:900; letter-spacing:.2em; text-transform:uppercase;}
+.attr-row{
+  display:flex; align-items:center; gap:12px; padding:9px 4px;
+  border-bottom:1px solid rgba(34,26,54,.2);
+}
+.attr-row:last-child{border-bottom:none;}
+.attr-row .name{
+  flex:1; font-weight:900; font-size:14px; letter-spacing:.14em; text-transform:uppercase;
+}
+.stepper{display:flex; gap:6px;}
+.stepper button{
+  width:30px; height:30px; border:2px solid var(--ink); background:var(--paper);
+  font-weight:900; font-size:15px; line-height:1; color:var(--ink);
+}
+.stepper button:disabled{opacity:.3; cursor:default;}
+
+/* ---------- cards (traits / techniques / bond) ---------- */
+.cards{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+.card{
+  border:2px solid var(--ink); background:var(--paper); box-shadow:3px 3px 0 var(--ink);
+  padding:14px;
+}
+.card .toprow{display:flex; gap:10px; align-items:flex-end; margin-bottom:12px;}
+.card .toprow .field{flex:1; margin-bottom:0;}
+.seg{display:flex; border:2px solid var(--ink); width:max-content; margin-bottom:12px;}
+.seg button{
+  background:var(--paper); border:none; padding:6px 12px; font-size:10px;
+  font-weight:900; letter-spacing:.16em; text-transform:uppercase; color:var(--ink);
+}
+.seg button.on{background:var(--ink); color:var(--paper);}
+.chip{
+  display:inline-block; border:2px solid var(--gold); color:var(--ink); background:var(--paper);
+  font-size:10px; font-weight:900; letter-spacing:.16em; text-transform:uppercase;
+  padding:4px 8px;
+}
+.bond-num{display:flex; align-items:center; gap:8px;}
+.bond-num .val{
+  width:38px; height:38px; border:2px solid var(--ink); background:var(--paper2);
+  font-family:var(--disp); font-weight:800; font-size:20px;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ---------- finishing touches ---------- */
+.finish{display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;}
+.seal{
+  width:104px; height:104px; border-radius:50%; background:var(--paper);
+  border:3px solid var(--beni); box-shadow:0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+  transform:rotate(-5deg); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:0; flex:0 0 auto; cursor:pointer;
+  margin:6px 6px 0 2px; padding:0;
+}
+.seal .g{font-family:var(--disp); font-weight:800; font-size:40px; color:var(--beni); line-height:1;}
+.seal .l{font-size:8px; font-weight:900; letter-spacing:.24em; text-transform:uppercase; color:var(--ink); margin-top:2px;}
+.pools{flex:1; min-width:260px;}
+.pool-row{margin-bottom:14px;}
+.pool-row .icons{display:flex; gap:6px; margin-top:5px;}
+.heart{
+  width:22px; height:22px; color:var(--beni); font-size:21px; line-height:22px; text-align:center;
+}
+.bolt{
+  width:16px; height:22px; background:var(--gold);
+  clip-path:polygon(62% 0, 12% 56%, 44% 56%, 34% 100%, 88% 40%, 54% 40%);
+}
+.luck-slots{display:flex; gap:10px; align-items:center; margin-top:5px;}
+.luck{
+  width:52px; height:52px; border:2px dashed var(--ink); background:var(--paper2);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--disp); font-weight:800; font-size:24px; color:var(--ink);
+}
+.luck.filled{border-style:solid; background:var(--paper);}
+.luck .dot{width:6px; height:6px; border-radius:50%; background:rgba(34,26,54,.35);}
+.rollbtn{
+  border:2px solid var(--ink); background:var(--beni); color:var(--paper);
+  font-weight:900; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  padding:10px 14px; box-shadow:3px 3px 0 var(--ink); margin-left:6px;
+}
+.rollbtn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink);}
+
+/* ---------- footer ---------- */
+.footer{
+  display:flex; align-items:center; gap:12px; padding:14px 24px;
+  background:var(--paper2); border-top:2px solid var(--ink);
+}
+.footer .pos{font-size:10px; font-weight:900; letter-spacing:.2em; text-transform:uppercase; opacity:.6;}
+.btn{
+  border:2px solid var(--ink); padding:10px 18px; font-weight:900; font-size:11px;
+  letter-spacing:.18em; text-transform:uppercase; box-shadow:3px 3px 0 var(--ink);
+}
+.btn:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink);}
+.btn.ghost{background:var(--paper); color:var(--ink);}
+.btn.main{background:var(--ink); color:var(--paper); margin-left:auto;}
+.btn.create{background:var(--beni); color:var(--paper); margin-left:auto;}
+.btn:disabled{opacity:.35; cursor:default;}
+.btn:disabled:active{transform:none; box-shadow:3px 3px 0 var(--ink);}
+.created{
+  margin-left:auto; display:flex; align-items:center; gap:8px;
+  font-weight:900; font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--beni);
+}
+.hidden{display:none !important;}
+
+@media (max-width:640px){
+  .cards{grid-template-columns:1fr;}
+  .rail button{font-size:8px;}
+  .obi h1{font-size:26px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="titlebar">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="brand">Project: Anime</div>
+    <div class="sheetname">Character Creator</div>
+  </div>
+
+  <div class="obi">
+    <div class="tone"></div>
+    <div class="eyebrow">Character Creator</div>
+    <h1 id="obiName">New Character</h1>
+  </div>
+
+  <div class="rail" id="rail"></div>
+
+  <div class="stage">
+
+    <!-- STEP 1 : CHARACTER -->
+    <section class="pane" data-step="0">
+      <div class="panel">
+        <div class="panel-head">Character</div>
+        <div class="panel-body">
+          <div class="field">
+            <label for="fName">Name</label>
+            <input type="text" id="fName" value="Kaito">
+          </div>
+          <div class="field">
+            <label for="fConcept">Concept</label>
+            <input type="text" id="fConcept" value="Swordsman with a sealed left eye">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2 : ATTRIBUTES -->
+    <section class="pane" data-step="1">
+      <div class="panel">
+        <div class="panel-head">Attributes<span class="side">All start at E, cap C</span></div>
+        <div class="panel-body">
+          <div class="stepups"><span class="n" id="suLeft">5</span><span class="t">Step Ups</span></div>
+          <div id="attrList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 3 : TRAITS -->
+    <section class="pane" data-step="2">
+      <div class="panel">
+        <div class="panel-head">Traits<span class="side">Two, Rank D</span></div>
+        <div class="panel-body">
+          <div class="cards" id="traitCards"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 4 : TECHNIQUES -->
+    <section class="pane" data-step="3">
+      <div class="panel">
+        <div class="panel-head">Techniques<span class="side">Two, Rank E</span></div>
+        <div class="panel-body">
+          <div class="cards" id="techCards"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 5 : BOND -->
+    <section class="pane" data-step="4">
+      <div class="panel">
+        <div class="panel-head">Bond<span class="side">One</span></div>
+        <div class="panel-body">
+          <div class="card" style="box-shadow:none; border:none; padding:0;">
+            <div class="toprow">
+              <div class="field">
+                <label for="bondName">Name</label>
+                <input type="text" id="bondName" value="Grandma">
+              </div>
+              <div>
+                <label>Number</label>
+                <div class="bond-num">
+                  <div class="stepper">
+                    <button id="bondDown" aria-label="Bond number down">&minus;</button>
+                  </div>
+                  <div class="val" id="bondVal">6</div>
+                  <div class="stepper">
+                    <button id="bondUp" aria-label="Bond number up">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="bondText">Sentence</label>
+              <input type="text" id="bondText" value="She raised me in her kitchen.">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 6 : FINISHING TOUCHES -->
+    <section class="pane" data-step="5">
+      <div class="panel">
+        <div class="panel-head">Finishing Touches</div>
+        <div class="panel-body">
+          <div class="finish">
+            <button class="seal" id="seal" aria-label="Grade seal">
+              <span class="g" id="sealG">D</span>
+              <span class="l" id="sealL">Grade</span>
+            </button>
+            <div class="pools">
+              <div class="pool-row">
+                <label>Hearts</label>
+                <div class="icons" id="hearts"></div>
+              </div>
+              <div class="pool-row">
+                <label>Energy</label>
+                <div class="icons" id="energy"></div>
+              </div>
+              <div class="pool-row">
+                <label>Luck Dice</label>
+                <div class="luck-slots" id="luckSlots"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <button class="btn ghost" id="btnBack">Back</button>
+    <span class="pos" id="pos">Step 1 of 6</span>
+    <button class="btn main" id="btnNext">Next</button>
+    <button class="btn create hidden" id="btnCreate">Create Character</button>
+    <span class="created hidden" id="createdMsg">&#10003; Character Created</span>
+  </div>
+
+</div>
+
+<script>
+const LADDER = {
+  rank:["E","D","C","B","A","S"],
+  die:["d4","d6","d8","d10","d12","d12+1"],
+  trait:["+1","+2","+3","+4","+5","+6"],
+  diff:[4,7,10,13,16,19]
+};
+const STEPS = ["Character","Attributes","Traits","Techniques","Bond","Finishing Touches"];
+
+const state = {
+  step:0,
+  name:"Kaito",
+  concept:"Swordsman with a sealed left eye",
+  attrs:{Might:1, Agility:2, Mind:1, Spirit:1, Charm:0},
+  attrFlip:{},
+  traits:[
+    {name:"Cursed Left Eye", text:"A sealed left eye that sees spirit energy.", flip:false},
+    {name:"Old Soldier", text:"Years of drill on the border.", flip:false}
+  ],
+  techs:[
+    {name:"Afterimage Step", type:"activated",
+     text:"You vanish and reappear a few paces away, leaving an afterimage behind.", flip:false},
+    {name:"Unbreaking Wall", type:"triggered",
+     text:"When a blow lands on you or an ally beside you, a wall of force takes it.", flip:false}
+  ],
+  bond:{name:"Grandma", num:6, text:"She raised me in her kitchen."},
+  luck:[null,null,null],
+  sealFlip:false,
+  created:false
+};
+
+const usedStepUps = () => Object.values(state.attrs).reduce((a,b)=>a+b,0);
+
+/* ---------- rail ---------- */
+const rail = document.getElementById("rail");
+STEPS.forEach((s,i)=>{
+  const b = document.createElement("button");
+  b.innerHTML = `<span class="num">${i+1}</span>${s}<span class="check">&#10003;</span>`;
+  b.addEventListener("click", ()=>goto(i));
+  rail.appendChild(b);
+});
+
+/* ---------- attributes ---------- */
+const attrList = document.getElementById("attrList");
+function renderAttrs(){
+  attrList.innerHTML = "";
+  Object.keys(state.attrs).forEach(k=>{
+    const r = state.attrs[k];
+    const row = document.createElement("div");
+    row.className = "attr-row";
+    const flipped = !!state.attrFlip[k];
+    row.innerHTML = `
+      <span class="name">${k}</span>
+      <button class="badge ${flipped?"small-text":""}" data-rank="${r}" aria-label="${k} rank">
+        ${flipped?LADDER.die[r]:LADDER.rank[r]}
+      </button>
+      <div class="stepper">
+        <button data-a="${k}" data-d="-1" ${r===0?"disabled":""} aria-label="${k} down">&minus;</button>
+        <button data-a="${k}" data-d="1" ${(r>=2||usedStepUps()>=5)?"disabled":""} aria-label="${k} up">+</button>
+      </div>`;
+    row.querySelector(".badge").addEventListener("click", ()=>{
+      state.attrFlip[k]=!state.attrFlip[k]; renderAttrs();
+    });
+    row.querySelectorAll(".stepper button").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.attrs[k]+=Number(btn.dataset.d);
+        renderAttrs(); refresh();
+      });
+    });
+    attrList.appendChild(row);
+  });
+  document.getElementById("suLeft").textContent = 5-usedStepUps();
+}
+
+/* ---------- traits ---------- */
+const traitCards = document.getElementById("traitCards");
+function renderTraits(){
+  traitCards.innerHTML = "";
+  state.traits.forEach((t,i)=>{
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML = `
+      <div class="toprow">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" data-i="${i}" class="tname" value="${t.name}">
+        </div>
+        <button class="badge ${t.flip?"small-text":""}" data-rank="1" aria-label="Trait rank">
+          ${t.flip?LADDER.trait[1]:"D"}
+        </button>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea data-i="${i}" class="ttext" rows="2">${t.text}</textarea>
+      </div>`;
+    c.querySelector(".badge").addEventListener("click", ()=>{t.flip=!t.flip; renderTraits();});
+    c.querySelector(".tname").addEventListener("input", e=>{t.name=e.target.value; refresh();});
+    c.querySelector(".ttext").addEventListener("input", e=>{t.text=e.target.value;});
+    traitCards.appendChild(c);
+  });
+}
+
+/* ---------- techniques ---------- */
+const techCards = document.getElementById("techCards");
+function renderTechs(){
+  techCards.innerHTML = "";
+  state.techs.forEach((t,i)=>{
+    const c = document.createElement("div");
+    c.className = "card";
+    c.innerHTML = `
+      <div class="toprow">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" data-i="${i}" class="kname" value="${t.name}">
+        </div>
+        <button class="badge ${t.flip?"small-text":""}" data-rank="0" aria-label="Technique rank">
+          ${t.flip?LADDER.die[0]:"E"}
+        </button>
+      </div>
+      <div class="seg">
+        <button class="${t.type==="activated"?"on":""}" data-t="activated">Activated</button>
+        <button class="${t.type==="triggered"?"on":""}" data-t="triggered">Triggered</button>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Description</label>
+        <textarea data-i="${i}" class="ktext" rows="3">${t.text}</textarea>
+      </div>
+      <span class="chip">1 Energy</span>`;
+    c.querySelector(".badge").addEventListener("click", ()=>{t.flip=!t.flip; renderTechs();});
+    c.querySelectorAll(".seg button").forEach(b=>{
+      b.addEventListener("click", ()=>{t.type=b.dataset.t; renderTechs();});
+    });
+    c.querySelector(".kname").addEventListener("input", e=>{t.name=e.target.value; refresh();});
+    c.querySelector(".ktext").addEventListener("input", e=>{t.text=e.target.value;});
+    techCards.appendChild(c);
+  });
+}
+
+/* ---------- bond ---------- */
+document.getElementById("bondName").addEventListener("input", e=>{state.bond.name=e.target.value; refresh();});
+document.getElementById("bondText").addEventListener("input", e=>{state.bond.text=e.target.value;});
+document.getElementById("bondDown").addEventListener("click", ()=>{
+  if(state.bond.num>1){state.bond.num--; renderBond();}
+});
+document.getElementById("bondUp").addEventListener("click", ()=>{
+  if(state.bond.num<6){state.bond.num++; renderBond();}
+});
+function renderBond(){ document.getElementById("bondVal").textContent = state.bond.num; }
+
+/* ---------- finishing touches ---------- */
+const hearts = document.getElementById("hearts");
+const energy = document.getElementById("energy");
+for(let i=0;i<6;i++){
+  const h = document.createElement("span"); h.className="heart"; h.innerHTML="&#9829;";
+  hearts.appendChild(h);
+  const e = document.createElement("span"); e.className="bolt";
+  energy.appendChild(e);
+}
+const luckSlots = document.getElementById("luckSlots");
+function renderLuck(){
+  luckSlots.innerHTML = "";
+  state.luck.forEach(v=>{
+    const s = document.createElement("div");
+    s.className = "luck"+(v?" filled":"");
+    s.innerHTML = v ? v : `<span class="dot"></span>`;
+    luckSlots.appendChild(s);
+  });
+  const btn = document.createElement("button");
+  btn.className = "rollbtn";
+  btn.textContent = "Roll 3d6";
+  btn.addEventListener("click", ()=>{
+    state.luck = state.luck.map(()=>1+Math.floor(Math.random()*6));
+    renderLuck(); refresh();
+  });
+  luckSlots.appendChild(btn);
+}
+document.getElementById("seal").addEventListener("click", ()=>{
+  state.sealFlip=!state.sealFlip;
+  document.getElementById("sealG").textContent = state.sealFlip ? LADDER.diff[1] : "D";
+  document.getElementById("sealL").textContent = state.sealFlip ? "Difficulty" : "Grade";
+});
+
+/* ---------- name / concept ---------- */
+document.getElementById("fName").addEventListener("input", e=>{state.name=e.target.value; refresh();});
+document.getElementById("fConcept").addEventListener("input", e=>{state.concept=e.target.value;});
+
+/* ---------- checks, nav, footer ---------- */
+function checks(){
+  return [
+    state.name.trim().length>0,
+    usedStepUps()===5,
+    state.traits.every(t=>t.name.trim().length>0),
+    state.techs.every(t=>t.name.trim().length>0),
+    state.bond.name.trim().length>0,
+    state.luck.every(v=>v!==null)
+  ];
+}
+function refresh(){
+  const ck = checks();
+  [...rail.children].forEach((b,i)=>{
+    b.classList.toggle("done", ck[i]);
+    b.classList.toggle("active", i===state.step);
+  });
+  document.getElementById("obiName").textContent = state.name.trim() || "New Character";
+  document.getElementById("pos").textContent = `Step ${state.step+1} of 6`;
+  document.getElementById("btnBack").disabled = state.step===0;
+  const last = state.step===5;
+  document.getElementById("btnNext").classList.toggle("hidden", last);
+  const createBtn = document.getElementById("btnCreate");
+  createBtn.classList.toggle("hidden", !last || state.created);
+  createBtn.disabled = !ck.every(Boolean);
+  document.getElementById("createdMsg").classList.toggle("hidden", !state.created);
+}
+function goto(i){ state.step=i; document.querySelectorAll(".pane").forEach((p,j)=>p.classList.toggle("active", j===i)); refresh(); }
+document.getElementById("btnBack").addEventListener("click", ()=>goto(Math.max(0,state.step-1)));
+document.getElementById("btnNext").addEventListener("click", ()=>goto(Math.min(5,state.step+1)));
+document.getElementById("btnCreate").addEventListener("click", ()=>{
+  if(checks().every(Boolean)){ state.created=true; refresh(); }
+});
+
+renderAttrs(); renderTraits(); renderTechs(); renderBond(); renderLuck(); goto(0);
+</script>
+</body>
+</html>

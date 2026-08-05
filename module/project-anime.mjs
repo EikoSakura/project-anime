@@ -8,11 +8,29 @@ import ProjectAnimeItemSheet from "./sheets/item-sheet.mjs";
 import { registerSplash } from "./apps/splash.mjs";
 import { registerLuck } from "./apps/luck-picker.mjs";
 import { registerOpenings } from "./apps/opening.mjs";
+import { registerTension } from "./apps/tension.mjs";
+import { registerTracks } from "./apps/tracks.mjs";
+import { registerPartyHud } from "./apps/party-hud.mjs";
+import { registerAdversaryFrame } from "./apps/adversary-frame.mjs";
+import { registerTechniqueBar } from "./apps/technique-bar.mjs";
+import { registerSidebarToggle } from "./apps/sidebar-toggle.mjs";
+import { registerCombat } from "./combat.mjs";
+import { registerEncounterTracker } from "./apps/encounter-tracker.mjs";
+import { registerZones } from "./apps/zones.mjs";
 
 Hooks.once("init", () => {
   registerSplash();
   registerLuck();
   registerOpenings();
+  registerTension();
+  registerTracks();
+  registerPartyHud();
+  registerAdversaryFrame();
+  registerTechniqueBar();
+  registerSidebarToggle();
+  registerCombat();
+  registerEncounterTracker();
+  registerZones();
 
   CONFIG.Actor.dataModels.character = CharacterData;
   CONFIG.Actor.dataModels.adversary = AdversaryData;
@@ -40,6 +58,7 @@ Hooks.once("init", () => {
     "systems/project-anime/templates/actor/vitals.hbs",
     "systems/project-anime/templates/actor/rail.hbs",
     "systems/project-anime/templates/actor/traits-panel.hbs",
-    "systems/project-anime/templates/actor/techniques-panel.hbs"
+    "systems/project-anime/templates/actor/techniques-panel.hbs",
+    "systems/project-anime/templates/apps/encounter-row.hbs"
   ]);
 });

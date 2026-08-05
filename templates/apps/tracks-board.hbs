@@ -1,0 +1,58 @@
+<div class="board">
+  <div class="bhead">
+    <i class="tab"></i>
+    <span class="label">{{localize "PROJECTANIME.Tracks.Title"}}</span>
+    {{#if gm}}
+    <button type="button" data-action="add" aria-label="{{localize "PROJECTANIME.Tracks.New"}}">+</button>
+    {{/if}}
+    <button type="button" data-action="collapse" aria-label="{{collapseLabel}}">{{collapseIcon}}</button>
+    <button type="button" data-action="hide" aria-label="{{localize "PROJECTANIME.Tracks.Hide"}}">&#10005;</button>
+  </div>
+  <div class="bbody">
+    {{#each rows}}
+    <div class="row" data-id="{{id}}">
+      <div class="tname">{{name}}</div>
+      {{#if cells}}
+      <div class="cells">
+        {{#each cells}}
+        <button type="button" class="cell{{#if on}} on{{/if}}" data-action="cell" data-i="{{@index}}"
+          aria-label="{{../name}}">{{#if esc}}<i class="esc{{#if esc.hit}} hit{{/if}}"></i>{{/if}}</button>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if line}}
+      <div class="cline">
+        <div class="ccells">
+          {{#each line.a}}
+          <button type="button" class="cell ccell{{#if on}} on{{/if}}" data-action="cell" data-side="0" data-i="{{@index}}"
+            aria-label="{{../line.aname}}"></button>
+          {{/each}}
+        </div>
+        <i class="cdia"></i>
+        <div class="ccells rev">
+          {{#each line.b}}
+          <button type="button" class="cell ccell{{#if on}} on{{/if}}" data-action="cell" data-side="1" data-i="{{@index}}"
+            aria-label="{{../line.bname}}"></button>
+          {{/each}}
+        </div>
+      </div>
+      <div class="cnames">
+        <span>{{line.aname}}</span>
+        <span>{{line.bname}}</span>
+      </div>
+      {{/if}}
+      {{#each sides}}
+      <div class="side">
+        <span class="sname">{{name}}</span>
+        <div class="cells">
+          {{#each cells}}
+          <button type="button" class="cell{{#if on}} on{{/if}}" data-action="cell" data-side="{{../si}}" data-i="{{@index}}"
+            aria-label="{{../name}}"></button>
+          {{/each}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{/each}}
+  </div>
+</div>

@@ -1,4 +1,4 @@
-import { attributesField, luckField, pointsField, rankField, textField } from "./fields.mjs";
+import { attributesField, hotbarField, luckField, pointsField, rankField, textField } from "./fields.mjs";
 
 const { ArrayField, BooleanField, NumberField, SchemaField } = foundry.data.fields;
 
@@ -18,6 +18,7 @@ export default class CharacterData extends foundry.abstract.TypeDataModel {
       hearts: pointsField(),
       energy: pointsField(),
       luck: luckField(),
+      hotbar: hotbarField(),
       bonds: new ArrayField(
         new SchemaField({
           name: textField(),

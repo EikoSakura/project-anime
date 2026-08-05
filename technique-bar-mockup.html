@@ -1,0 +1,344 @@
+<!--
+PROJECT: ANIME | TECHNIQUE HOTBAR MOCKUP (Foundry V14)
+
+Target
+- ApplicationV2 overlay docked bottom center over the canvas, a hotbar of ten slots with five pages
+- Renders for clients with an assigned character and hides otherwise; slots hold that character's Techniques and Traits
+- The bar starts empty; players fill it
+
+Data
+- Fifty slots stored on the actor as five pages of ten; each empty or an item id, Technique or Trait
+- Per Technique: name, img, rank letter E to S, kind (Activated or Triggered), cost as the Rank's number (Ladder lookup)
+- Per Trait: name, img, rank letter E to S, bonus as the Rank's Trait number (Ladder lookup)
+- The bar also reads the actor's current Energy
+
+Interactions
+- Drag a Technique or Trait from the character sheet onto a slot to fill it
+- Drag a filled slot onto another slot to move or swap it; drag it off the bar to clear it
+- Slot click: starts the actor's roll flow with the item preselected; the bar deducts nothing
+- Slot right-click: posts the item to chat, name, Rank, text, and rulings
+- Keys 1 to 0 use the matching slot on the visible page
+- Up and down arrows cycle the five pages; the page number sits between them
+- Mockup stubs: paging works, drag between slots and drag off both work per page, click flashes the slot; the dotted tiles stand in for item images
+
+Display rules
+- A filled slot shows the item's image with the slot number top left
+- Technique slots carry the cost as the gold diamond and number bottom right; Trait slots carry the bonus as the paper plus and number
+- The slot's edge carries the rank color; Triggered Techniques render with a dashed edge, everything else solid
+- A Technique slot dims while its cost exceeds current Energy; it stays clickable; Trait slots never dim
+- Empty slots sit faint with the slot number only
+- The tooltip carries the name; no rules text on the bar
+
+Design notes
+- Same glass skin as the party HUD: ink glass, light edge, soft blur, beni tab, TECHNIQUES label
+- 44px slots, keys 1 to 0, pager column at the right end
+- Tokens and fonts as the party HUD
+- Example data from the V3 doc: Afterimage Step at E Activated, Unbreaking Wall at D Triggered, Radiant Wave at C Activated in slots 1 to 3, Old Soldier at D as a Trait in slot 4; the actor's current Energy is 2, so Radiant Wave sits dimmed; pages 2 to 5 empty
+- Dark backdrop stands in for the Foundry canvas
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime | Technique Hotbar Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36;
+    --paper:#f7f2e7;
+    --beni:#d92b48;
+    --gold:#d9a13b;
+    --rank-E:#8a8fa0;
+    --rank-D:#3ba55d;
+    --rank-C:#3c78d8;
+    --rank-B:#7d5cd6;
+    --rank-A:#e2632e;
+    --rank-S:#d9a13b;
+    --canvas:#171226;
+    --glass:rgba(28,21,48,0.84);
+    --glass2:rgba(17,12,32,0.82);
+    --edge:rgba(247,242,231,0.32);
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(247,242,231,0.045), transparent 60%),
+      linear-gradient(rgba(247,242,231,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(247,242,231,0.03) 1px, transparent 1px),
+      var(--canvas);
+    background-size:auto, 48px 48px, 48px 48px, auto;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+  }
+
+  button{font:inherit; border:none; background:none; padding:0;}
+  button:focus-visible{outline:2px solid var(--beni); outline-offset:2px;}
+
+  .bar{
+    position:fixed;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:9px 10px 9px 12px;
+    background:linear-gradient(160deg, var(--glass), var(--glass2));
+    border:1px solid var(--edge);
+    border-radius:8px;
+    box-shadow:
+      0 0 0 1px rgba(13,9,24,0.6),
+      0 4px 14px rgba(0,0,0,0.45),
+      inset 0 0 18px rgba(247,242,231,0.04);
+    backdrop-filter:blur(4px);
+  }
+
+  .tab{
+    width:4px; height:14px;
+    background:var(--beni);
+    border-radius:1px;
+    box-shadow:0 0 6px rgba(217,43,72,0.6);
+    flex:none;
+  }
+
+  .label{
+    color:var(--paper);
+    font-weight:900;
+    font-size:9px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    opacity:0.7;
+    flex:none;
+  }
+
+  .slots{
+    display:flex;
+    gap:6px;
+  }
+
+  .slot{
+    width:44px; height:44px;
+    border-radius:6px;
+    border:1.5px solid rgba(247,242,231,0.14);
+    background:rgba(13,9,24,0.5);
+    position:relative;
+    cursor:pointer;
+  }
+  .slot .key{
+    position:absolute;
+    top:2px; left:4px;
+    font-size:7px;
+    font-weight:700;
+    color:rgba(247,242,231,0.55);
+    line-height:1;
+    pointer-events:none;
+  }
+
+  .slot.filled{
+    background:
+      radial-gradient(rgba(247,242,231,0.08) 1px, transparent 1.3px),
+      rgba(247,242,231,0.05);
+    background-size:4px 4px, auto;
+  }
+  .slot.filled .init{
+    position:absolute;
+    inset:0;
+    display:grid;
+    place-items:center;
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:13px;
+    color:var(--paper);
+    pointer-events:none;
+  }
+  .slot.filled .badge{
+    position:absolute;
+    right:2px; bottom:2px;
+    display:flex;
+    align-items:center;
+    gap:2px;
+    padding:1px 3px;
+    border-radius:3px;
+    background:rgba(13,9,24,0.75);
+    pointer-events:none;
+  }
+  .badge .dia{
+    color:var(--gold);
+    font-size:6px;
+    line-height:1;
+  }
+  .badge .num{
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:9px;
+    line-height:1;
+  }
+  .badge.energy .num{color:var(--gold);}
+  .badge.bonus .num{color:var(--paper);}
+
+  .slot.triggered{border-style:dashed;}
+  .slot.drained{opacity:0.4;}
+  .slot.dragover{border-color:var(--paper); box-shadow:0 0 8px rgba(247,242,231,0.35);}
+  .slot.flash{box-shadow:0 0 10px rgba(217,43,72,0.7); border-color:var(--beni);}
+
+  .pager{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:1px;
+    flex:none;
+  }
+  .pager button{
+    color:rgba(247,242,231,0.55);
+    font-size:8px;
+    line-height:1;
+    cursor:pointer;
+    padding:2px 4px;
+  }
+  .pager button:hover{color:var(--paper);}
+  .pnum{
+    color:var(--paper);
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:10px;
+    line-height:1;
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <i class="tab"></i>
+  <span class="label">Techniques</span>
+  <div class="slots" id="slots"></div>
+  <div class="pager">
+    <button id="pgup" title="Page up">&#9650;</button>
+    <span class="pnum" id="pnum">1</span>
+    <button id="pgdn" title="Page down">&#9660;</button>
+  </div>
+</div>
+
+<script>
+  const RANK_NUM = { E:1, D:2, C:3, B:4, A:5, S:6 };
+  const RANK_COLOR = {
+    E:'var(--rank-E)', D:'var(--rank-D)', C:'var(--rank-C)',
+    B:'var(--rank-B)', A:'var(--rank-A)', S:'var(--rank-S)'
+  };
+
+  const ENERGY = 2;
+  const PAGE_COUNT = 5;
+
+  const PAGES = Array.from({length: PAGE_COUNT}, () => Array(10).fill(null));
+  PAGES[0][0] = { type:'technique', name:'Afterimage Step', init:'AS', rank:'E', kind:'activated' };
+  PAGES[0][1] = { type:'technique', name:'Unbreaking Wall', init:'UW', rank:'D', kind:'triggered' };
+  PAGES[0][2] = { type:'technique', name:'Radiant Wave', init:'RW', rank:'C', kind:'activated' };
+  PAGES[0][3] = { type:'trait', name:'Old Soldier', init:'OS', rank:'D' };
+
+  let page = 0;
+  let dragFrom = null;
+  let dropped = false;
+
+  function render(){
+    const wrap = document.getElementById('slots');
+    document.getElementById('pnum').textContent = page + 1;
+    wrap.innerHTML = '';
+    const slots = PAGES[page];
+
+    slots.forEach((t, i) => {
+      const slot = document.createElement('div');
+      const keyLabel = (i + 1) % 10;
+
+      if(t){
+        const isTech = t.type === 'technique';
+        const cost = RANK_NUM[t.rank];
+        slot.className = 'slot filled'
+          + (isTech && t.kind === 'triggered' ? ' triggered' : '')
+          + (isTech && cost > ENERGY ? ' drained' : '');
+        slot.style.borderColor = RANK_COLOR[t.rank];
+        slot.title = t.name;
+        slot.draggable = true;
+
+        const init = document.createElement('span');
+        init.className = 'init';
+        init.textContent = t.init;
+        slot.appendChild(init);
+
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (isTech ? 'energy' : 'bonus');
+        if(isTech){
+          const dia = document.createElement('span');
+          dia.className = 'dia';
+          dia.textContent = '\u25C6';
+          badge.appendChild(dia);
+        }
+        const num = document.createElement('span');
+        num.className = 'num';
+        num.textContent = isTech ? cost : '+' + cost;
+        badge.appendChild(num);
+        slot.appendChild(badge);
+
+        slot.addEventListener('dragstart', () => { dragFrom = i; dropped = false; });
+        slot.addEventListener('dragend', () => {
+          if(!dropped && dragFrom !== null){ slots[dragFrom] = null; }
+          dragFrom = null;
+          render();
+        });
+        slot.addEventListener('click', () => {
+          slot.classList.add('flash');
+          setTimeout(() => slot.classList.remove('flash'), 180);
+        });
+      } else {
+        slot.className = 'slot';
+      }
+
+      const key = document.createElement('span');
+      key.className = 'key';
+      key.textContent = keyLabel;
+      slot.appendChild(key);
+
+      slot.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        slot.classList.add('dragover');
+      });
+      slot.addEventListener('dragleave', () => slot.classList.remove('dragover'));
+      slot.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        if(dragFrom === null || dragFrom === i) return;
+        dropped = true;
+        const moved = slots[dragFrom];
+        slots[dragFrom] = slots[i];
+        slots[i] = moved;
+        render();
+      });
+
+      wrap.appendChild(slot);
+    });
+  }
+
+  document.getElementById('pgup').addEventListener('click', () => {
+    page = (page - 1 + PAGE_COUNT) % PAGE_COUNT;
+    render();
+  });
+  document.getElementById('pgdn').addEventListener('click', () => {
+    page = (page + 1) % PAGE_COUNT;
+    render();
+  });
+
+  document.addEventListener('keydown', (ev) => {
+    const keys = ['1','2','3','4','5','6','7','8','9','0'];
+    const i = keys.indexOf(ev.key);
+    if(i === -1 || !PAGES[page][i]) return;
+    const el = document.getElementById('slots').children[i];
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 180);
+  });
+
+  render();
+</script>
+</body>
+</html>

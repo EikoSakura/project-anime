@@ -7,13 +7,21 @@
     "Item": {
       "trait": "Trait",
       "technique": "Technique"
+    },
+    "Combatant": {
+      "participant": "Participant"
+    },
+    "RegionBehavior": {
+      "project-anime.zone": "Zone"
     }
   },
   "PROJECTANIME": {
     "Sheet": {
       "Character": "Character File",
       "Adversary": "Adversary File",
-      "Item": "Item File"
+      "Item": "Item File",
+      "Combatant": "Combatant File",
+      "Zone": "Zone"
     },
     "Adversary": {
       "Desire": "Desire",
@@ -114,7 +122,95 @@
       "StepDown": "Step Down",
       "Roll": "Roll",
       "Total": "Total",
-      "Luck": "Luck · {name}"
+      "Luck": "Luck · {name}",
+      "Difficulty": "Difficulty",
+      "LimitBreak": "Limit Break",
+      "LimitBreakTag": "Limit Break {n}"
+    },
+    "Band": {
+      "Clean": "Clean",
+      "Success": "Success",
+      "Failure": "Failure",
+      "Fumble": "Fumble"
+    },
+    "Rider": {
+      "Tension": "The Storyteller gains 1 Tension.",
+      "Spotlight": "The Spotlight passes.",
+      "Luck": "Luck Dice cannot change this roll."
+    },
+    "Tension": {
+      "Menu": "Tension",
+      "Configure": "Configure",
+      "Label": "Tension",
+      "Raise": "Gain 1 Tension",
+      "GainLine": "The Storyteller gains 1 Tension.",
+      "Gained": "Gained",
+      "Full": "Tension Full",
+      "Announce": "Announce to Chat",
+      "Auto": "Auto Gain From Rolls",
+      "Save": "Save"
+    },
+    "Tracks": {
+      "Title": "Tracks",
+      "New": "New Track",
+      "Name": "Name",
+      "Segments": "Segments",
+      "Contest": "Contest",
+      "Sides": "Sides",
+      "AddSide": "Add Side",
+      "RemoveSide": "Remove Side",
+      "Create": "Create",
+      "Collapse": "Collapse",
+      "Expand": "Expand",
+      "Hide": "Hide",
+      "Delete": "Delete Track",
+      "DeletePrompt": "Delete {name}?",
+      "ChipFill": "{name} +{n}",
+      "ChipErase": "{name} −1",
+      "AppliedFill": "Filled · {name}",
+      "AppliedErase": "Erased · {name}",
+      "NoStoryteller": "No Storyteller is connected."
+    },
+    "PartyHud": {
+      "Overwhelmed": "Overwhelmed"
+    },
+    "Encounter": {
+      "Label": "Encounter",
+      "Spotlight": "Spotlight",
+      "Open": "Open",
+      "HintStoryteller": "Open. Tap a hand to place it.",
+      "HintPlayer": "Open. TAKE claims it for your character.",
+      "UpNext": "Up Next",
+      "Party": "Party",
+      "Storyteller": "Storyteller",
+      "Overwhelmed": "Overwhelmed",
+      "Defeated": "Defeated",
+      "Hide": "Hide",
+      "Reveal": "Reveal",
+      "Give": "Give the Spotlight",
+      "Take": "Take",
+      "Next": "Next",
+      "NextN": "Next · {n}",
+      "Return": "Return",
+      "Begin": "Begin the Encounter",
+      "End": "End the Encounter",
+      "None": "No encounter.",
+      "GradeTitle": "Grade {rank} · Difficulty {number}"
+    },
+    "TechBar": {
+      "Label": "Techniques",
+      "PageUp": "Page Up",
+      "PageDown": "Page Down",
+      "Slot1": "Use Slot 1",
+      "Slot2": "Use Slot 2",
+      "Slot3": "Use Slot 3",
+      "Slot4": "Use Slot 4",
+      "Slot5": "Use Slot 5",
+      "Slot6": "Use Slot 6",
+      "Slot7": "Use Slot 7",
+      "Slot8": "Use Slot 8",
+      "Slot9": "Use Slot 9",
+      "Slot10": "Use Slot 10"
     },
     "Advancement": {
       "Unspent": "Unspent",
@@ -156,6 +252,52 @@
       "Ruling": "Ruling",
       "BondName": "Bond Name",
       "Description": "Description"
+    },
+    "Creator": {
+      "Title": "Character Creator",
+      "New": "New Character",
+      "Create": "Create Character",
+      "Bond": "Bond",
+      "Finishing": "Finishing Touches",
+      "StepUps": "Step Ups",
+      "AttributesSide": "All Start at E, Cap C",
+      "TraitsSide": "Two, Rank D",
+      "TechniquesSide": "Two, Rank E",
+      "BondSide": "One",
+      "Number": "Number",
+      "Sentence": "Sentence",
+      "Roll": "Roll 3d6",
+      "Back": "Back",
+      "Next": "Next",
+      "Position": "Step {n} of {total}"
+    },
+    "Zone": {
+      "Title": "Zone · {name}",
+      "Effects": "Zone Effects",
+      "AddEffect": "+ Add Effect",
+      "Remove": "Remove",
+      "ShowPlate": "Show Plate on the Scene",
+      "Tint": "Tint",
+      "Defensive": "Defensive",
+      "Elevated": "Elevated",
+      "Energizing": "Energizing",
+      "Harmful": "Harmful",
+      "Hindering": "Hindering",
+      "Obscured": "Obscured",
+      "Restorative": "Restorative",
+      "Tight": "Tight",
+      "Unstable": "Unstable",
+      "Volatile": "Volatile"
+    },
+    "Builder": {
+      "Title": "Adversary Builder",
+      "New": "New Adversary",
+      "Create": "Create Adversary",
+      "Stats": "Stats",
+      "StatsSide": "Storyteller-Set",
+      "AddTrait": "Add Trait",
+      "AddTechnique": "Add Technique",
+      "DesireTrack": "Desire Track"
     }
   }
 }

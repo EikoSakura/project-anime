@@ -30,6 +30,15 @@ export function attributesField() {
   });
 }
 
+/* The Technique hotbar: five pages of ten slots, each empty or the id of
+   one of the actor's Techniques or Traits. */
+export function hotbarField() {
+  return new ArrayField(
+    new ArrayField(textField(), { required: true, initial: () => Array(10).fill("") }),
+    { required: true, initial: () => Array.from({ length: 5 }, () => Array(10).fill("")) }
+  );
+}
+
 export function luckField() {
   return new ArrayField(
     new SchemaField({
