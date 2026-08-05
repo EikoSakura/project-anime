@@ -39,7 +39,7 @@ export default class BaseActorSheet extends ProjectAnimeSheet(ActorSheetV2) {
     context.img = this.document.img;
     context.portrait = this.document.img === foundry.documents.BaseActor.DEFAULT_ICON ? "" : this.document.img;
     context.initial = (this.document.name || "?").trim().charAt(0).toUpperCase() || "?";
-    context.grade = { letter: grade.rank, number: grade.grade };
+    context.grade = { letter: grade.rank, number: grade.grade, cssVar: grade.cssVar };
     context.hearts = { ...system.hearts, pips: BaseActorSheet.#pips(system.hearts) };
     context.energy = { ...system.energy, pips: BaseActorSheet.#pips(system.energy) };
     context.luck = system.luck.map(slot => ({

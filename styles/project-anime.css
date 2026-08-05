@@ -309,14 +309,14 @@
     height: 88px;
     border-radius: 50%;
     background: var(--paper);
-    border: 3px solid var(--beni);
+    border: 3px solid var(--sealc, var(--beni));
     box-shadow: 0 0 0 3px var(--paper), 4px 4px 0 rgba(0, 0, 0, .3);
     transform: rotate(-5deg);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: var(--beni);
+    color: var(--sealc, var(--beni));
   }
   .seal .lbl {
     font-size: 8px;
@@ -677,10 +677,11 @@
     font-size: 11px;
   }
   .ladder th {
-    font-size: 9px;
-    letter-spacing: .14em;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--ink);
     text-align: left;
     padding: 2px 4px;
     border-bottom: 1.5px solid var(--line);

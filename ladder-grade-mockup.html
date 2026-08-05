@@ -1,0 +1,276 @@
+<!--
+PROJECT: ANIME | LADDER HEADER & GRADE SEAL MOCKUP (Foundry V14)
+
+Target
+- Character sheet Ladder panel: readable header row
+- Grade seal on the actor sheet headers: colored by the Grade's rank on the Ladder
+
+Changes
+- .ladder th: 9px muted -> 10.5px ink, weight 800, tracking .08em; divider line unchanged
+- .seal: border and text take the rank color via an inline custom property; the paper ring,
+  tilt, and layout stay; falls back to beni when no rank color is set
+- grade.cssVar joins the actor sheet context alongside letter and number
+
+Design notes
+- Tokens and fonts as the sheet: ink #221a36, paper #f7f2e7, beni #d92b48
+- Rank colors: E #8a8fa0, D #3ba55d, C #3c78d8, B #7d5cd6, A #e2632e, S #d9a13b
+- Dark backdrop stands in for the Foundry canvas
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project: Anime | Ladder Header & Grade Seal Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#221a36;
+    --paper:#f7f2e7;
+    --paper-2:#ece4d1;
+    --muted:rgba(34,26,54,.62);
+    --line:rgba(34,26,54,.22);
+    --beni:#d92b48;
+    --rk-e:#8a8fa0;
+    --rk-d:#3ba55d;
+    --rk-c:#3c78d8;
+    --rk-b:#7d5cd6;
+    --rk-a:#e2632e;
+    --rk-s:#d9a13b;
+    --f-display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+    --f-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    --shadow:6px 6px 0 rgba(34,26,54,.16);
+    --canvas:#171226;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--canvas);
+    font-family:var(--f-ui);
+    color:var(--ink);
+    padding:40px 20px 60px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:34px;
+  }
+  .caption{
+    color:rgba(247,242,231,.8);
+    font-size:12px;
+    font-weight:900;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    margin-bottom:10px;
+    text-align:center;
+  }
+  .row{
+    display:flex;
+    gap:26px;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:flex-start;
+  }
+  .col{width:300px}
+
+  /* panel chrome, as the sheet */
+  .panel{
+    background:var(--paper);
+    border:2px solid var(--ink);
+    box-shadow:var(--shadow);
+  }
+  .panel-h{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    background:var(--ink);
+    color:var(--paper);
+    padding:7px 12px;
+    border-bottom:2px solid var(--ink);
+    position:relative;
+    overflow:hidden;
+  }
+  .panel-h::after{
+    content:"";
+    position:absolute;
+    right:0;top:0;bottom:0;
+    width:64px;
+    background:radial-gradient(rgba(247,242,231,.22) 1px,transparent 1.3px);
+    background-size:6px 6px;
+    clip-path:polygon(24px 0,100% 0,100% 100%,0 100%);
+  }
+  .panel-h .en{
+    font-size:11px;
+    font-weight:900;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+  }
+  .panel-b{padding:12px}
+
+  /* ladder table, current */
+  table.ladder{
+    width:100%;
+    border:none;
+    border-collapse:collapse;
+    background:none;
+    font-size:11px;
+  }
+  .ladder th{
+    font-size:9px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:left;
+    padding:2px 4px;
+    border-bottom:1.5px solid var(--line);
+    background:none;
+  }
+  .ladder td{
+    padding:3px 4px;
+    border-bottom:1px dashed var(--line);
+    font-weight:500;
+  }
+  .ladder tr:last-child td{border-bottom:none}
+  .ladder .rk{
+    font-family:var(--f-display);
+    font-weight:800;
+    font-size:13px;
+  }
+
+  /* ladder header, proposed */
+  .proposed .ladder th{
+    font-size:10.5px;
+    letter-spacing:.08em;
+    color:var(--ink);
+    font-weight:800;
+  }
+
+  /* grade seal, as the sheet */
+  .sealrow{
+    display:flex;
+    gap:22px;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:center;
+    background:var(--paper);
+    border:2px solid var(--ink);
+    box-shadow:var(--shadow);
+    padding:24px 28px;
+  }
+  .seal{
+    width:88px;
+    height:88px;
+    border-radius:50%;
+    background:var(--paper);
+    border:3px solid var(--sealc,var(--beni));
+    box-shadow:0 0 0 3px var(--paper),4px 4px 0 rgba(0,0,0,.3);
+    transform:rotate(-5deg);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    color:var(--sealc,var(--beni));
+  }
+  .seal .lbl{
+    font-size:8px;
+    font-weight:900;
+    letter-spacing:.28em;
+    text-transform:uppercase;
+  }
+  .seal .g{
+    font-family:var(--f-display);
+    font-weight:800;
+    font-size:40px;
+    line-height:1;
+  }
+  .seal .num{
+    font-size:10px;
+    font-weight:700;
+  }
+</style>
+</head>
+<body>
+
+<section>
+  <div class="caption">Ladder Header — Current / Proposed</div>
+  <div class="row">
+    <div class="col">
+      <div class="panel">
+        <div class="panel-h"><span class="en">The Ladder</span></div>
+        <div class="panel-b">
+          <table class="ladder">
+            <thead>
+              <tr><th>Rank/Grade</th><th>Die</th><th>Trait</th><th>Difficulty</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="rk" style="color:var(--rk-e)">E</td><td>d4</td><td>+1</td><td>4</td></tr>
+              <tr><td class="rk" style="color:var(--rk-d)">D</td><td>d6</td><td>+2</td><td>7</td></tr>
+              <tr><td class="rk" style="color:var(--rk-c)">C</td><td>d8</td><td>+3</td><td>10</td></tr>
+              <tr><td class="rk" style="color:var(--rk-b)">B</td><td>d10</td><td>+4</td><td>13</td></tr>
+              <tr><td class="rk" style="color:var(--rk-a)">A</td><td>d12</td><td>+5</td><td>16</td></tr>
+              <tr><td class="rk" style="color:var(--rk-s)">S</td><td>d12+1</td><td>+6</td><td>19</td></tr>
+              <tr><td class="rk" style="color:var(--beni)">SS</td><td></td><td></td><td>22</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col proposed">
+      <div class="panel">
+        <div class="panel-h"><span class="en">The Ladder</span></div>
+        <div class="panel-b">
+          <table class="ladder">
+            <thead>
+              <tr><th>Rank/Grade</th><th>Die</th><th>Trait</th><th>Difficulty</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="rk" style="color:var(--rk-e)">E</td><td>d4</td><td>+1</td><td>4</td></tr>
+              <tr><td class="rk" style="color:var(--rk-d)">D</td><td>d6</td><td>+2</td><td>7</td></tr>
+              <tr><td class="rk" style="color:var(--rk-c)">C</td><td>d8</td><td>+3</td><td>10</td></tr>
+              <tr><td class="rk" style="color:var(--rk-b)">B</td><td>d10</td><td>+4</td><td>13</td></tr>
+              <tr><td class="rk" style="color:var(--rk-a)">A</td><td>d12</td><td>+5</td><td>16</td></tr>
+              <tr><td class="rk" style="color:var(--rk-s)">S</td><td>d12+1</td><td>+6</td><td>19</td></tr>
+              <tr><td class="rk" style="color:var(--beni)">SS</td><td></td><td></td><td>22</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="caption">Grade Seal — Current</div>
+  <div class="sealrow">
+    <div class="seal">
+      <span class="lbl">Grade</span><span class="g">D</span><span class="num">7</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="caption">Grade Seal — Proposed</div>
+  <div class="sealrow">
+    <div class="seal" style="--sealc:var(--rk-e)">
+      <span class="lbl">Grade</span><span class="g">E</span><span class="num">4</span>
+    </div>
+    <div class="seal" style="--sealc:var(--rk-d)">
+      <span class="lbl">Grade</span><span class="g">D</span><span class="num">7</span>
+    </div>
+    <div class="seal" style="--sealc:var(--rk-c)">
+      <span class="lbl">Grade</span><span class="g">C</span><span class="num">10</span>
+    </div>
+    <div class="seal" style="--sealc:var(--rk-b)">
+      <span class="lbl">Grade</span><span class="g">B</span><span class="num">13</span>
+    </div>
+    <div class="seal" style="--sealc:var(--rk-a)">
+      <span class="lbl">Grade</span><span class="g">A</span><span class="num">16</span>
+    </div>
+    <div class="seal" style="--sealc:var(--rk-s)">
+      <span class="lbl">Grade</span><span class="g">S</span><span class="num">19</span>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
