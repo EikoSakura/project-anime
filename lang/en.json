@@ -172,6 +172,7 @@
       "NoStoryteller": "No Storyteller is connected."
     },
     "PartyHud": {
+      "Folder": "Party",
       "Overwhelmed": "Overwhelmed"
     },
     "Encounter": {

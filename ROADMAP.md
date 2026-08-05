@@ -8,3 +8,4 @@
 6. **Adversary actor type** — done. Desire, Fear, Grade, the five Attributes, Hearts, Energy, embedded Traits and Techniques. Rivals add Luck Dice. Reuse sheet parts.
 7. **Packaging** — done. Release zip, manifest and download URLs, install test from the manifest.
 8. **Chat cards** — done. Item and roll cards from the chat cards mockup. Post buttons on the item sheet title bar and on each sheet card. Rolls start from an Attribute or Technique name in view mode; the Action Roll dialog picks the second die and a Trait, backed by a real Roll. No Difficulty, no outcome text.
+9. **Party folder** — done. A Party folder in the Actors directory, created once per world. The Party HUD shows only the characters inside it (subfolders count), in directory order, instead of every player-owned character. The folder can be renamed or moved; membership follows the folder.
