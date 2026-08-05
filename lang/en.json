@@ -10,9 +10,6 @@
     },
     "Combatant": {
       "participant": "Participant"
-    },
-    "RegionBehavior": {
-      "project-anime.zone": "Zone"
     }
   },
   "PROJECTANIME": {
@@ -20,8 +17,7 @@
       "Character": "Character File",
       "Adversary": "Adversary File",
       "Item": "Item File",
-      "Combatant": "Combatant File",
-      "Zone": "Zone"
+      "Combatant": "Combatant File"
     },
     "Adversary": {
       "Desire": "Desire",
@@ -272,36 +268,15 @@
       "Next": "Next",
       "Position": "Step {n} of {total}"
     },
-    "Zone": {
-      "Title": "Zone · {name}",
-      "Effects": "Zone Effects",
-      "AddEffect": "+ Add Effect",
-      "Remove": "Remove",
-      "ShowPlate": "Show Plate on the Scene",
-      "Tint": "Tint",
-      "Defensive": "Defensive",
-      "Elevated": "Elevated",
-      "Energizing": "Energizing",
-      "Harmful": "Harmful",
-      "Hindering": "Hindering",
-      "Obscured": "Obscured",
-      "Restorative": "Restorative",
-      "Tight": "Tight",
-      "Unstable": "Unstable",
-      "Volatile": "Volatile",
-      "BlankWall": "Blank Wall",
-      "WeldWalls": "Weld Walls",
-      "FromWalls": "Zone from Walls",
-      "Divide": "Divide into Zones",
-      "Divided": "Created {count} Zones.",
-      "NoDivision": "The selected walls do not divide the map.",
-      "NoDivisionGaps": "The selected walls do not divide the map. The open ends are marked.",
-      "DefaultName": "Zone {number}",
-      "SelectWalls": "Select walls first.",
-      "NothingToWeld": "Nothing to weld.",
-      "Welded": "Welded {count} corners.",
-      "NoEnclosure": "The selected walls do not enclose an area.",
-      "GapsMarked": "The selected walls do not enclose an area. The open ends are marked."
+    "Distance": {
+      "Engaged": "Engaged",
+      "Near": "Near",
+      "Far": "Far",
+      "Distant": "Distant",
+      "Sight": "Sight",
+      "Beyond": "Beyond",
+      "RingsSetting": "Threshold Rings While Dragging",
+      "UnitsSetting": "Exact Units on the Range Line"
     },
     "Builder": {
       "Title": "Adversary Builder",

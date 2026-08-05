@@ -19,14 +19,19 @@ export const DIFFICULTY = [
   { rank: "SS", number: 22, cssVar: "--beni" }
 ];
 
-/* Zone effect keywords, stored as-is on the behavior. */
-export const ZONE_KEYWORDS = [
-  "Defensive", "Elevated", "Energizing", "Harmful", "Hindering",
-  "Obscured", "Restorative", "Tight", "Unstable", "Volatile"
+/* The six Distances, nearest first, colored by their Rank letters.
+   threshold is the band's reach in scene distance units, as a multiple
+   of the scene's distance-per-square value: a measurement within the
+   first threshold it fits lands in that band. Sight has no upper bound,
+   and Beyond is never a measured result. */
+export const DISTANCES = [
+  { key: "engaged", label: "PROJECTANIME.Distance.Engaged", rank: "E", threshold: 1, color: "#8a8fa0" },
+  { key: "near", label: "PROJECTANIME.Distance.Near", rank: "D", threshold: 3, color: "#3ba55d" },
+  { key: "far", label: "PROJECTANIME.Distance.Far", rank: "C", threshold: 6, color: "#3c78d8" },
+  { key: "distant", label: "PROJECTANIME.Distance.Distant", rank: "B", threshold: 12, color: "#7d5cd6" },
+  { key: "sight", label: "PROJECTANIME.Distance.Sight", rank: "A", threshold: Infinity, color: "#e2632e" },
+  { key: "beyond", label: "PROJECTANIME.Distance.Beyond", rank: "S", threshold: null, color: "#d9a13b" }
 ];
-
-/* Zone tint swatches, drawn from the Rank colors: C, D, B, A, E. */
-export const ZONE_TINTS = ["#3c78d8", "#3ba55d", "#7d5cd6", "#e2632e", "#8a8fa0"];
 
 export const ATTRIBUTES = [
   { key: "might", label: "PROJECTANIME.Attribute.Might", desc: "PROJECTANIME.Attribute.MightDesc" },

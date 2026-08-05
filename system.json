@@ -2,7 +2,7 @@
   "id": "project-anime",
   "title": "Project: Anime",
   "description": "A fiction-first framework that uses anime as a medium to run any game or world.",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "authors": [
     {
       "name": "EikoSakura",
@@ -11,7 +11,7 @@
   ],
   "url": "https://github.com/EikoSakura/project-anime",
   "manifest": "https://github.com/EikoSakura/project-anime/releases/latest/download/system.json",
-  "download": "https://github.com/EikoSakura/project-anime/releases/download/v0.1.5/project-anime.zip",
+  "download": "https://github.com/EikoSakura/project-anime/releases/download/v0.2.0/project-anime.zip",
   "compatibility": {
     "minimum": "14",
     "verified": "14.364"
@@ -37,9 +37,6 @@
     },
     "Combatant": {
       "participant": {}
-    },
-    "RegionBehavior": {
-      "project-anime.zone": {}
     }
   }
 }

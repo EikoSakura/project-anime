@@ -17,8 +17,8 @@ import { registerSidebarToggle } from "./apps/sidebar-toggle.mjs";
 import { registerCombat } from "./combat.mjs";
 import { registerTokenDefaults } from "./tokens.mjs";
 import { registerEncounterTracker } from "./apps/encounter-tracker.mjs";
-import { registerZones } from "./apps/zones.mjs";
-import { registerZoneWalls } from "./apps/zone-walls.mjs";
+import { registerDistance } from "./apps/distance.mjs";
+import { registerMigrations } from "./migrations.mjs";
 
 Hooks.once("init", () => {
   registerSplash();
@@ -33,8 +33,8 @@ Hooks.once("init", () => {
   registerCombat();
   registerTokenDefaults();
   registerEncounterTracker();
-  registerZones();
-  registerZoneWalls();
+  registerDistance();
+  registerMigrations();
 
   CONFIG.Actor.dataModels.character = CharacterData;
   CONFIG.Actor.dataModels.adversary = AdversaryData;

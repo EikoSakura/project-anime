@@ -46,23 +46,6 @@ export async function postEnergyCard(actor, item) {
   });
 }
 
-/* Post a Zone card: the Region's name and its Zone effects, one line
-   each. Any client can post. */
-export async function postZoneCard(region) {
-  const zone = region.behaviors.find(b => (b.type === "project-anime.zone") && !b.disabled);
-  if (!zone) return;
-  const context = {
-    name: region.name,
-    effects: zone.system.effects.map(e => ({
-      keyword: game.i18n.localize(`PROJECTANIME.Zone.${e.keyword}`),
-      name: e.name,
-      text: e.text
-    }))
-  };
-  const content = await renderTemplate("systems/project-anime/templates/chat/zone-card.hbs", context);
-  return ChatMessage.implementation.create({ content });
-}
-
 /* Combo or Fumble, read from two faces as they stand, or null. */
 export function readSplash(faces) {
   if (faces.length !== 2 || faces[0] !== faces[1]) return null;
