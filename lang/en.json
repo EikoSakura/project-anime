@@ -288,7 +288,15 @@
       "Restorative": "Restorative",
       "Tight": "Tight",
       "Unstable": "Unstable",
-      "Volatile": "Volatile"
+      "Volatile": "Volatile",
+      "WeldWalls": "Weld Walls",
+      "FromWalls": "Zone from Walls",
+      "DefaultName": "Zone {number}",
+      "SelectWalls": "Select walls first.",
+      "NothingToWeld": "Nothing to weld.",
+      "Welded": "Welded {count} corners.",
+      "NoEnclosure": "The selected walls do not enclose an area.",
+      "GapsMarked": "The selected walls do not enclose an area. The open ends are marked."
     },
     "Builder": {
       "Title": "Adversary Builder",
