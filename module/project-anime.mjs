@@ -15,6 +15,7 @@ import { registerAdversaryFrame } from "./apps/adversary-frame.mjs";
 import { registerTechniqueBar } from "./apps/technique-bar.mjs";
 import { registerSidebarToggle } from "./apps/sidebar-toggle.mjs";
 import { registerCombat } from "./combat.mjs";
+import { registerTokenDefaults } from "./tokens.mjs";
 import { registerEncounterTracker } from "./apps/encounter-tracker.mjs";
 import { registerZones } from "./apps/zones.mjs";
 
@@ -29,6 +30,7 @@ Hooks.once("init", () => {
   registerTechniqueBar();
   registerSidebarToggle();
   registerCombat();
+  registerTokenDefaults();
   registerEncounterTracker();
   registerZones();
 
